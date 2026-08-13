@@ -2,102 +2,38 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
-<title>Ledger — Trade Math</title>
-
-<!-- PWA / iOS home-screen meta -->
-<link rel="manifest" href="manifest.json" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Ledger — Trade Math Calculator</title>
+<meta name="description" content="Risk/reward, prop-firm challenge, position size, currency conversion, equity curve and economic-news tools for traders." />
 <meta name="theme-color" content="#0A0E16" />
-<meta name="mobile-web-app-capable" content="yes" />
+<link rel="manifest" href="./manifest.json" />
+<link rel="icon" href="./icon.png" type="image/png" />
+<link rel="apple-touch-icon" href="./icon.png" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="apple-mobile-web-app-title" content="Ledger" />
-<link rel="apple-touch-icon" href="icon.png" />
-<link rel="icon" href="icon.png" />
 
-<!-- Tailwind (CDN build — fine for a small personal app with no build step) -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
 <script src="https://cdn.tailwindcss.com"></script>
 
-<!-- Import map: tells the browser where bare specifiers like "react" resolve to -->
-<script type="importmap">
-{
-  "imports": {
-    "react": "https://esm.sh/react@18.2.0",
-    "react/jsx-runtime": "https://esm.sh/react@18.2.0/jsx-runtime",
-    "react/jsx-dev-runtime": "https://esm.sh/react@18.2.0/jsx-dev-runtime",
-    "react-dom": "https://esm.sh/react-dom@18.2.0",
-    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
-    "lucide-react": "https://esm.sh/lucide-react@0.383.0?external=react",
-    "recharts": "https://esm.sh/recharts@2.12.7?external=react,react-dom"
-  }
-}
-</script>
-
-<!-- In-browser JSX/Babel compiler -->
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+<script crossorigin src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
 
 <style>
-  html, body, #root { height: 100%; margin: 0; background: #05070C; }
+  html, body { margin: 0; padding: 0; background: #05070C; height: 100%; }
+  #root { height: 100%; }
 </style>
 </head>
 <body>
 <div id="root"></div>
 
-<!--
-  window.storage shim.
-  The component was originally written for Claude's artifact sandbox, which
-  provides a built-in window.storage.get/set/delete/list API backed by its
-  own persistence layer. That API doesn't exist in a normal browser, so we
-  polyfill it here using localStorage — same method names/shape, so the
-  component code below needs zero changes.
--->
-<script>
-  window.storage = {
-    async get(key, shared) {
-      try {
-        const raw = localStorage.getItem((shared ? "shared:" : "local:") + key);
-        if (raw === null) return null;
-        return { key, value: raw, shared: !!shared };
-      } catch (e) {
-        return null;
-      }
-    },
-    async set(key, value, shared) {
-      try {
-        localStorage.setItem((shared ? "shared:" : "local:") + key, value);
-        return { key, value, shared: !!shared };
-      } catch (e) {
-        return null;
-      }
-    },
-    async delete(key, shared) {
-      try {
-        localStorage.removeItem((shared ? "shared:" : "local:") + key);
-        return { key, deleted: true, shared: !!shared };
-      } catch (e) {
-        return null;
-      }
-    },
-    async list(prefix, shared) {
-      try {
-        const p = (shared ? "shared:" : "local:") + (prefix || "");
-        const keys = Object.keys(localStorage)
-          .filter((k) => k.startsWith(p))
-          .map((k) => k.slice((shared ? "shared:" : "local:").length));
-        return { keys, prefix, shared: !!shared };
-      } catch (e) {
-        return { keys: [], prefix, shared: !!shared };
-      }
-    },
-  };
-</script>
-
-<!-- The app itself, compiled in-browser by Babel, run as a native ES module -->
-<script type="text/babel" data-type="module" data-presets="react">
-import { useState, useEffect } from "react";
-import ReactDOM from "react-dom/client";
-import { Scale, Target, Layers, LineChart as CurveIcon, ArrowLeftRight, Trash2, Plus, ChevronLeft, ChevronRight, RotateCcw, Newspaper } from "lucide-react";
-import {
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useRef } = React;
+const {
   ResponsiveContainer,
   LineChart,
   Line,
@@ -106,7 +42,195 @@ import {
   CartesianGrid,
   Tooltip,
   ReferenceLine,
-} from "recharts";
+} = Recharts;
+
+// ---------------------------------------------------------------------
+// Local-storage backed shim for the window.storage key/value API this
+// app was originally built against, so it can run as a plain static
+// PWA (GitHub Pages, etc.) instead of inside an environment that
+// provides window.storage natively.
+// ---------------------------------------------------------------------
+(function installStorageShim() {
+  if (window.storage) return; // don't overwrite a real implementation if present
+  const PREFIX = "ledger:";
+  const fullKey = (key, shared) => `${PREFIX}${shared ? "shared:" : "local:"}${key}`;
+
+  window.storage = {
+    async get(key, shared) {
+      const raw = window.localStorage.getItem(fullKey(key, shared));
+      if (raw === null) return null;
+      return { key, value: raw, shared: !!shared };
+    },
+    async set(key, value, shared) {
+      window.localStorage.setItem(fullKey(key, shared), value);
+      return { key, value, shared: !!shared };
+    },
+    async delete(key, shared) {
+      window.localStorage.removeItem(fullKey(key, shared));
+      return { key, deleted: true, shared: !!shared };
+    },
+    async list(prefix, shared) {
+      const scope = `${PREFIX}${shared ? "shared:" : "local:"}`;
+      const keys = [];
+      for (let i = 0; i < window.localStorage.length; i++) {
+        const k = window.localStorage.key(i);
+        if (k && k.startsWith(scope)) {
+          const stripped = k.slice(scope.length);
+          if (!prefix || stripped.startsWith(prefix)) keys.push(stripped);
+        }
+      }
+      return { keys, prefix, shared: !!shared };
+    },
+  };
+})();
+
+// ---------------------------------------------------------------------
+// Minimal lucide-style icon set (inline SVG), standing in for the
+// lucide-react components the original component imported.
+// ---------------------------------------------------------------------
+function IconBase({ size = 18, strokeWidth = 2, children }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {children}
+    </svg>
+  );
+}
+function Scale({ size, strokeWidth }) {
+  return (
+    <IconBase size={size} strokeWidth={strokeWidth}>
+      <line x1="12" y1="3" x2="12" y2="21" />
+      <line x1="4" y1="7" x2="20" y2="7" />
+      <path d="M4 7l-2.5 6a3 3 0 0 0 5 0L4 7Z" />
+      <path d="M20 7l-2.5 6a3 3 0 0 0 5 0L20 7Z" />
+      <path d="M8 21h8" />
+    </IconBase>
+  );
+}
+function Target({ size, strokeWidth }) {
+  return (
+    <IconBase size={size} strokeWidth={strokeWidth}>
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" r="5" />
+      <circle cx="12" cy="12" r="1" />
+    </IconBase>
+  );
+}
+function Layers({ size, strokeWidth }) {
+  return (
+    <IconBase size={size} strokeWidth={strokeWidth}>
+      <polygon points="12 2 22 8 12 14 2 8 12 2" />
+      <polyline points="2 13 12 19 22 13" />
+      <polyline points="2 17 12 22 22 17" />
+    </IconBase>
+  );
+}
+function CurveIcon({ size, strokeWidth }) {
+  return (
+    <IconBase size={size} strokeWidth={strokeWidth}>
+      <polyline points="3 17 9 11 13 15 21 5" />
+      <polyline points="14 5 21 5 21 12" />
+    </IconBase>
+  );
+}
+function ArrowLeftRight({ size, strokeWidth }) {
+  return (
+    <IconBase size={size} strokeWidth={strokeWidth}>
+      <polyline points="17 3 21 7 17 11" />
+      <line x1="21" y1="7" x2="3" y2="7" />
+      <polyline points="7 13 3 17 7 21" />
+      <line x1="3" y1="17" x2="21" y2="17" />
+    </IconBase>
+  );
+}
+function Trash2({ size, strokeWidth }) {
+  return (
+    <IconBase size={size} strokeWidth={strokeWidth}>
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+    </IconBase>
+  );
+}
+function Plus({ size, strokeWidth }) {
+  return (
+    <IconBase size={size} strokeWidth={strokeWidth}>
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </IconBase>
+  );
+}
+function ChevronLeft({ size, strokeWidth }) {
+  return (
+    <IconBase size={size} strokeWidth={strokeWidth}>
+      <polyline points="15 18 9 12 15 6" />
+    </IconBase>
+  );
+}
+function ChevronRight({ size, strokeWidth }) {
+  return (
+    <IconBase size={size} strokeWidth={strokeWidth}>
+      <polyline points="9 18 15 12 9 6" />
+    </IconBase>
+  );
+}
+function RotateCcw({ size, strokeWidth }) {
+  return (
+    <IconBase size={size} strokeWidth={strokeWidth}>
+      <path d="M3 12a9 9 0 1 0 3-6.7" />
+      <polyline points="3 3 3 9 9 9" />
+    </IconBase>
+  );
+}
+function Newspaper({ size, strokeWidth }) {
+  return (
+    <IconBase size={size} strokeWidth={strokeWidth}>
+      <path d="M4 4h13a2 2 0 0 1 2 2v13a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2V4Z" />
+      <path d="M19 8a1 1 0 0 1 1 1v10a2 2 0 0 1-2 2" />
+      <line x1="8" y1="8" x2="14" y2="8" />
+      <line x1="8" y1="12" x2="14" y2="12" />
+      <line x1="8" y1="16" x2="12" y2="16" />
+    </IconBase>
+  );
+}
+function Share2({ size, strokeWidth }) {
+  return (
+    <IconBase size={size} strokeWidth={strokeWidth}>
+      <circle cx="18" cy="5" r="3" />
+      <circle cx="6" cy="12" r="3" />
+      <circle cx="18" cy="19" r="3" />
+      <line x1="8.6" y1="10.5" x2="15.4" y2="6.5" />
+      <line x1="8.6" y1="13.5" x2="15.4" y2="17.5" />
+    </IconBase>
+  );
+}
+function X({ size, strokeWidth }) {
+  return (
+    <IconBase size={size} strokeWidth={strokeWidth}>
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </IconBase>
+  );
+}
+function Download({ size, strokeWidth }) {
+  return (
+    <IconBase size={size} strokeWidth={strokeWidth}>
+      <path d="M12 3v12" />
+      <polyline points="7 10 12 15 17 10" />
+      <path d="M5 19h14" />
+    </IconBase>
+  );
+}
 
 const palette = {
   bg: "#0A0E16",
@@ -139,6 +263,7 @@ const fmtThousands = (n, d = 2) => {
   if (!Number.isFinite(n)) return (0).toFixed(d);
   return n.toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
 };
+const fmtPct = (n, d = 1) => `${n >= 0 ? "+" : ""}${fmt(n, d)}%`;
 
 const pad2 = (n) => String(n).padStart(2, "0");
 const dayKeyFromDate = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -147,10 +272,15 @@ const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ];
+const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const WEEKDAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
 const formatDayLabel = (key) => {
   const [y, m, d] = key.split("-").map(Number);
   return `${MONTH_NAMES[m - 1]} ${d}, ${y}`;
+};
+const formatShortDate = (ts) => {
+  const d = new Date(ts);
+  return `${MONTH_SHORT[d.getMonth()]} ${d.getDate()}`;
 };
 
 const EMOTIONS = [
@@ -165,6 +295,7 @@ const emotionMeta = (id) => EMOTIONS.find((e) => e.id === id);
 // possible revenge trade — an impulsive re-entry rather than a planned one.
 const REVENGE_WINDOW_MINUTES = 15;
 const REVENGE_WINDOW_MS = REVENGE_WINDOW_MINUTES * 60 * 1000;
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 // Reference rates: units of each currency per 1 USD.
 // Snapshot rates, meant as a practical starting point rather than a live feed.
@@ -192,6 +323,7 @@ const FX_RATES_PER_USD = {
   PHP: 61.33,
   ZAR: 16.19,
   MXN: 17.06,
+  ETB: 161,
 };
 const FX_SNAPSHOT_LABEL = "Aug 2026";
 
@@ -217,6 +349,7 @@ const CURRENCY_NAMES = {
   PHP: "Philippine Peso",
   ZAR: "South African Rand",
   MXN: "Mexican Peso",
+  ETB: "Ethiopian Birr",
 };
 
 const CURRENCY_CODES = Object.keys(FX_RATES_PER_USD);
@@ -469,7 +602,7 @@ function nextOccurrenceMs(ev, now) {
 }
 
 function formatCountdown(ms) {
-  if (!Number.isFinite(ms) || ms < 0) return "\u2014";
+  if (!Number.isFinite(ms) || ms < 0) return "N/A";
   const totalMin = Math.floor(ms / 60000);
   const days = Math.floor(totalMin / 1440);
   const hours = Math.floor((totalMin % 1440) / 60);
@@ -477,6 +610,197 @@ function formatCountdown(ms) {
   if (days > 0) return `${days}d ${hours}h`;
   if (hours > 0) return `${hours}h ${mins}m`;
   return `${mins}m`;
+}
+
+// ---- Share My Week: draws a dollar-free recap card to a canvas ----
+function drawShareCard(canvas, { rangeLabel, tradeCount, winRate, netPct, curve, bestStreak, worstStreak, tone }) {
+  const W = 1080;
+  const H = 1350;
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d");
+
+  const green = "#4FB286";
+  const red = "#DB6B63";
+  const gold = "#C7A25C";
+  const goldBright = "#E7C687";
+  const text = "#EDEFF3";
+  const textMuted = "#7C8AA0";
+  const textFaint = "#4B566B";
+  const border = "#243046";
+  const surface = "#121A28";
+  const lineColor = tone === "bad" ? red : green;
+
+  // background
+  const bgGrad = ctx.createLinearGradient(0, 0, 0, H);
+  bgGrad.addColorStop(0, "#0B0F19");
+  bgGrad.addColorStop(1, "#05070C");
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, W, H);
+
+  const roundRect = (x, y, w, h, r) => {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  };
+
+  // outer card
+  roundRect(36, 36, W - 72, H - 72, 28);
+  ctx.strokeStyle = border;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // header
+  ctx.fillStyle = gold;
+  ctx.font = "600 26px monospace";
+  ctx.textAlign = "left";
+  ctx.fillText("LEDGER · WEEKLY RECAP", 80, 128);
+
+  ctx.fillStyle = text;
+  ctx.font = "700 58px monospace";
+  ctx.fillText("MY TRADING WEEK", 80, 196);
+
+  ctx.fillStyle = textMuted;
+  ctx.font = "400 24px sans-serif";
+  ctx.fillText(`${rangeLabel} · ${tradeCount} trade${tradeCount === 1 ? "" : "s"}`, 80, 236);
+
+  // big net % readout
+  ctx.fillStyle = textFaint;
+  ctx.font = "600 20px sans-serif";
+  ctx.fillText("NET RETURN", 80, 300);
+  ctx.fillStyle = lineColor;
+  ctx.font = "700 96px monospace";
+  ctx.fillText(fmtPct(netPct), 80, 390);
+
+  // equity curve chart
+  const chartX = 80;
+  const chartY = 440;
+  const chartW = W - 160;
+  const chartH = 340;
+
+  roundRect(chartX, chartY, chartW, chartH, 20);
+  ctx.fillStyle = surface;
+  ctx.fill();
+  ctx.strokeStyle = border;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  const padX = 40;
+  const padY = 40;
+  const plotX = chartX + padX;
+  const plotY = chartY + padY;
+  const plotW = chartW - padX * 2;
+  const plotH = chartH - padY * 2;
+
+  const values = curve.map((p) => p.pct);
+  let minV = Math.min(0, ...values);
+  let maxV = Math.max(0, ...values);
+  if (minV === maxV) {
+    minV -= 1;
+    maxV += 1;
+  }
+  const pad = (maxV - minV) * 0.15 || 1;
+  minV -= pad;
+  maxV += pad;
+
+  const xFor = (i) => plotX + (curve.length > 1 ? (i / (curve.length - 1)) * plotW : plotW / 2);
+  const yFor = (v) => plotY + plotH - ((v - minV) / (maxV - minV)) * plotH;
+
+  // zero line
+  ctx.strokeStyle = textFaint;
+  ctx.setLineDash([6, 6]);
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(plotX, yFor(0));
+  ctx.lineTo(plotX + plotW, yFor(0));
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // filled area under curve
+  ctx.beginPath();
+  ctx.moveTo(xFor(0), yFor(0));
+  curve.forEach((p, i) => ctx.lineTo(xFor(i), yFor(p.pct)));
+  ctx.lineTo(xFor(curve.length - 1), yFor(0));
+  ctx.closePath();
+  const areaGrad = ctx.createLinearGradient(0, plotY, 0, plotY + plotH);
+  areaGrad.addColorStop(0, `${lineColor}33`);
+  areaGrad.addColorStop(1, `${lineColor}00`);
+  ctx.fillStyle = areaGrad;
+  ctx.fill();
+
+  // line
+  ctx.beginPath();
+  curve.forEach((p, i) => {
+    const x = xFor(i);
+    const y = yFor(p.pct);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.strokeStyle = lineColor;
+  ctx.lineWidth = 4;
+  ctx.lineJoin = "round";
+  ctx.stroke();
+
+  // end dot
+  const lastX = xFor(curve.length - 1);
+  const lastY = yFor(curve[curve.length - 1].pct);
+  ctx.beginPath();
+  ctx.arc(lastX, lastY, 8, 0, Math.PI * 2);
+  ctx.fillStyle = lineColor;
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(lastX, lastY, 8, 0, Math.PI * 2);
+  ctx.strokeStyle = "#05070C";
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // stat chips row
+  const chipsY = chartY + chartH + 48;
+  const chipH = 150;
+  const gap = 24;
+  const chipW = (W - 160 - gap * 2) / 3;
+  const stats = [
+    { label: "WIN RATE", value: `${fmt(winRate, 0)}%`, color: text },
+    { label: "BEST STREAK", value: `+${bestStreak}`, color: green },
+    { label: "WORST STREAK", value: `${worstStreak}`, color: worstStreak < 0 ? red : text },
+  ];
+  stats.forEach((s, i) => {
+    const x = chartX + i * (chipW + gap);
+    roundRect(x, chipsY, chipW, chipH, 18);
+    ctx.fillStyle = surface;
+    ctx.fill();
+    ctx.strokeStyle = border;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.fillStyle = textFaint;
+    ctx.font = "600 18px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(s.label, x + chipW / 2, chipsY + 44);
+
+    ctx.fillStyle = s.color;
+    ctx.font = "700 44px monospace";
+    ctx.fillText(s.value, x + chipW / 2, chipsY + 100);
+    ctx.textAlign = "left";
+  });
+
+  // footer
+  ctx.fillStyle = textFaint;
+  ctx.font = "400 20px monospace";
+  ctx.textAlign = "left";
+  ctx.fillText("No dollar amounts — just the process.", 80, H - 70);
+
+  ctx.textAlign = "right";
+  ctx.fillStyle = goldBright;
+  ctx.font = "600 22px monospace";
+  ctx.fillText("LEDGER", W - 80, H - 70);
+  ctx.textAlign = "left";
+
+  return canvas.toDataURL("image/png");
 }
 
 function LedgerApp() {
@@ -526,6 +850,10 @@ function LedgerApp() {
   const [newEventImpact, setNewEventImpact] = useState("high");
   const [newEventDate, setNewEventDate] = useState("");
   const [newEventTime, setNewEventTime] = useState("18:30");
+
+  const shareCanvasRef = useRef(null);
+  const [shareImageUrl, setShareImageUrl] = useState(null);
+  const [shareError, setShareError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -657,6 +985,81 @@ function LedgerApp() {
     setPs({ ...ps, preset, valuePerPip: defaults[preset] });
   };
 
+  // Builds the dollar-free "share my week" recap image and opens the preview.
+  const generateWeeklyShare = () => {
+    setShareError("");
+    const now = Date.now();
+    const weekTrades = trades.filter((t) => now - t.ts <= WEEK_MS).sort((a, b) => a.ts - b.ts);
+
+    if (weekTrades.length === 0) {
+      setShareError("No trades logged in the last 7 days yet.");
+      return;
+    }
+    const startBal = num(startingBalance);
+    if (!(startBal > 0)) {
+      setShareError("Add a starting balance below first — it's only used to compute %, never shown.");
+      return;
+    }
+
+    let running = 0;
+    const curve = [{ pct: 0 }];
+    weekTrades.forEach((t) => {
+      running += (t.pnl / startBal) * 100;
+      curve.push({ pct: running });
+    });
+    const netPct = running;
+
+    const wins = weekTrades.filter((t) => t.pnl > 0).length;
+    const winRate = (wins / weekTrades.length) * 100;
+
+    let bestStreak = 0;
+    let worstStreak = 0;
+    let curStreak = 0;
+    weekTrades.forEach((t) => {
+      if (t.pnl > 0) curStreak = curStreak > 0 ? curStreak + 1 : 1;
+      else if (t.pnl < 0) curStreak = curStreak < 0 ? curStreak - 1 : -1;
+      else curStreak = 0;
+      bestStreak = Math.max(bestStreak, curStreak);
+      worstStreak = Math.min(worstStreak, curStreak);
+    });
+
+    const rangeLabel = `${formatShortDate(weekTrades[0].ts)} – ${formatShortDate(weekTrades[weekTrades.length - 1].ts)}`;
+
+    const dataUrl = drawShareCard(shareCanvasRef.current, {
+      rangeLabel,
+      tradeCount: weekTrades.length,
+      winRate,
+      netPct,
+      curve,
+      bestStreak,
+      worstStreak,
+      tone: netPct >= 0 ? "good" : "bad",
+    });
+    setShareImageUrl(dataUrl);
+  };
+
+  const closeShare = () => setShareImageUrl(null);
+
+  const downloadShare = async () => {
+    if (!shareImageUrl) return;
+    try {
+      const blob = await (await fetch(shareImageUrl)).blob();
+      const file = new File([blob], "my-trading-week.png", { type: "image/png" });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: "My Trading Week" });
+        return;
+      }
+    } catch (err) {
+      // fall through to plain download
+    }
+    const a = document.createElement("a");
+    a.href = shareImageUrl;
+    a.download = "my-trading-week.png";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
   let body = null;
 
   if (activeTab === "edge") {
@@ -694,7 +1097,7 @@ function LedgerApp() {
       <>
         <Readout
           eyebrow="Expectancy per Trade"
-          value={hasExpectancyInputs ? `${expectancy > 0 ? "+" : ""}${fmt(expectancy)}` : "\u2014"}
+          value={hasExpectancyInputs ? `${expectancy > 0 ? "+" : ""}${fmt(expectancy)}` : "N/A"}
           sub={
             hasExpectancyInputs
               ? hasTotalProjection
@@ -715,12 +1118,12 @@ function LedgerApp() {
 
         <div className={`grid grid-cols-2 gap-3 ${hasBalance ? "mb-3" : "mb-6"}`}>
           <StatChip label="R:R Ratio" value={`1 : ${ratio ? ratio.toFixed(2) : "0.00"}`} />
-          <StatChip label="Breakeven Win %" value={beWin ? `${beWin.toFixed(1)}%` : "\u2014"} />
+          <StatChip label="Breakeven Win %" value={beWin ? `${beWin.toFixed(1)}%` : "N/A"} />
         </div>
         {hasBalance && (
           <div className="grid grid-cols-2 gap-3 mb-6">
-            <StatChip label="Risk % of Balance" value={riskPct ? `${riskPct.toFixed(2)}%` : "\u2014"} />
-            <StatChip label="Reward % of Balance" value={rewardPct ? `${rewardPct.toFixed(2)}%` : "\u2014"} />
+            <StatChip label="Risk % of Balance" value={riskPct ? `${riskPct.toFixed(2)}%` : "N/A"} />
+            <StatChip label="Reward % of Balance" value={rewardPct ? `${rewardPct.toFixed(2)}%` : "N/A"} />
           </div>
         )}
 
@@ -735,7 +1138,7 @@ function LedgerApp() {
         <Field label="Stop Loss" value={edge.stop} placeholder="2410.00" onChange={(e) => setEdge({ ...edge, stop: e.target.value })} />
         <Field label="Take Profit" value={edge.target} placeholder="2426.80" onChange={(e) => setEdge({ ...edge, target: e.target.value })} />
         <p className="text-xs -mt-2 mb-4" style={{ color: palette.textFaint }}>
-          Risk {fmt(risk)} pts \u00b7 Reward {fmt(reward)} pts
+          Risk {fmt(risk)} pts, Reward {fmt(reward)} pts
         </p>
 
         <span
@@ -748,7 +1151,7 @@ function LedgerApp() {
         <Field label="Average Loss" value={edge.avgLoss} suffix="$" placeholder="75" onChange={(e) => setEdge({ ...edge, avgLoss: e.target.value })} />
         {hasBalance && (
           <p className="text-xs -mt-2 mb-4" style={{ color: palette.textFaint }}>
-            Avg win {rewardPct.toFixed(2)}% \u00b7 Avg loss {riskPct.toFixed(2)}% of balance
+            Avg win {rewardPct.toFixed(2)}%, Avg loss {riskPct.toFixed(2)}% of balance
           </p>
         )}
         <Field label="Total Trades" value={edge.totalTrades} placeholder="100" onChange={(e) => setEdge({ ...edge, totalTrades: e.target.value })} />
@@ -1051,13 +1454,13 @@ function LedgerApp() {
     body = (
       <>
         <Readout
-          eyebrow={`${fx.from} \u2192 ${fx.to}`}
+          eyebrow={`${fx.from} → ${fx.to}`}
           value={sameCurrency ? fmtThousands(amount) : fmtThousands(converted)}
           unit={fx.to}
           sub={
             sameCurrency
               ? "Same currency on both sides"
-              : `1 ${fx.from} = ${fmt(effectiveRate, 4)} ${fx.to} \u00b7 1 ${fx.to} = ${fmt(inverseRate, 4)} ${fx.from}`
+              : `1 ${fx.from} = ${fmt(effectiveRate, 4)} ${fx.to}, 1 ${fx.to} = ${fmt(inverseRate, 4)} ${fx.from}`
           }
         />
 
@@ -1237,7 +1640,7 @@ function LedgerApp() {
           value={`${netPnl >= 0 ? "+" : "-"}$${fmt(Math.abs(netPnl))}`}
           sub={
             trades.length > 0
-              ? `${trades.length} trade${trades.length === 1 ? "" : "s"} logged \u00b7 ${winRate.toFixed(1)}% win rate`
+              ? `${trades.length} trade${trades.length === 1 ? "" : "s"} logged, ${winRate.toFixed(1)}% win rate`
               : "Log your first trade below to start the curve"
           }
           tone={netPnl > 0 ? "good" : netPnl < 0 ? "bad" : undefined}
@@ -1299,15 +1702,37 @@ function LedgerApp() {
         )}
 
         <div className="grid grid-cols-2 gap-3 mb-2">
-          <StatChip label="Win Rate" value={trades.length ? `${winRate.toFixed(1)}%` : "\u2014"} />
-          <StatChip label="Avg Win / Loss" value={trades.length ? `$${fmt(avgWin, 0)} / $${fmt(avgLoss, 0)}` : "\u2014"} />
-          <StatChip label="Max Drawdown" value={trades.length ? `$${fmt(maxDrawdown, 0)}` : "\u2014"} />
-          <StatChip label="Best / Worst Streak" value={trades.length ? `+${bestStreak} / ${worstStreak}` : "\u2014"} />
+          <StatChip label="Win Rate" value={trades.length ? `${winRate.toFixed(1)}%` : "—"} />
+          <StatChip label="Avg Win / Loss" value={trades.length ? `$${fmt(avgWin, 0)} / $${fmt(avgLoss, 0)}` : "—"} />
+          <StatChip label="Max Drawdown" value={trades.length ? `$${fmt(maxDrawdown, 0)}` : "—"} />
+          <StatChip label="Best / Worst Streak" value={trades.length ? `+${bestStreak} / ${worstStreak}` : "—"} />
         </div>
 
-        <p className="text-xs mt-2 mb-6" style={{ color: palette.textFaint }}>
+        <p className="text-xs mt-2 mb-4" style={{ color: palette.textFaint }}>
           Streaks count consecutive wins (positive) or losses (negative).
         </p>
+
+        <button
+          type="button"
+          onClick={generateWeeklyShare}
+          className="w-full flex items-center justify-center gap-2 rounded-lg py-3 mb-2"
+          style={{
+            background: palette.field,
+            border: `1px solid ${palette.gold}`,
+            color: palette.goldBright,
+            fontFamily: mono,
+            fontSize: "14px",
+          }}
+        >
+          <Share2 size={16} />
+          Share My Week
+        </button>
+        {shareError && (
+          <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
+            {shareError}
+          </p>
+        )}
+        {!shareError && <div className="mb-6" />}
 
         <span
           className="block mb-1.5 uppercase"
@@ -1319,11 +1744,11 @@ function LedgerApp() {
         <div className="grid grid-cols-2 gap-3 mb-2">
           <StatChip
             label="Revenge Trades"
-            value={trades.length ? `${revengeCount} of ${trades.length}` : "\u2014"}
+            value={trades.length ? `${revengeCount} of ${trades.length}` : "—"}
           />
           <StatChip
             label="Revenge Trade P&L"
-            value={revengeCount ? `${revengePnl >= 0 ? "+" : "-"}$${fmt(Math.abs(revengePnl), 0)}` : "\u2014"}
+            value={revengeCount ? `${revengePnl >= 0 ? "+" : "-"}$${fmt(Math.abs(revengePnl), 0)}` : "—"}
           />
         </div>
         <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
@@ -1347,7 +1772,7 @@ function LedgerApp() {
                     <span style={{ fontSize: "16px" }}>{e.emoji}</span>
                     <span style={{ color: palette.text, fontSize: "13px" }}>{e.label}</span>
                     <span style={{ color: palette.textFaint, fontSize: "11px", fontFamily: mono }}>
-                      \u00d7{e.count}
+                      ×{e.count}
                     </span>
                   </div>
                   <div className="flex items-center gap-3">
@@ -1476,7 +1901,7 @@ function LedgerApp() {
 
         {!tradesLoaded ? (
           <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-            Loading saved trades\u2026
+            Loading saved trades…
           </p>
         ) : (
           <>
@@ -1696,7 +2121,7 @@ function LedgerApp() {
     const future = withOcc.filter((x) => x.occMs >= now.getTime()).sort((a, b) => a.occMs - b.occMs);
     const next = future[0];
     const nextMs = next ? next.occMs - now.getTime() : Infinity;
-    const nextLabel = next ? `${next.ev.date} \u00b7 ${next.ev.time}` : "";
+    const nextLabel = next ? `${next.ev.date} · ${next.ev.time}` : "";
 
     const impactColor = (level) =>
       level === "high" ? palette.red : level === "medium" ? palette.goldBright : palette.textMuted;
@@ -1714,14 +2139,14 @@ function LedgerApp() {
       <>
         <Readout
           eyebrow="Next USD Event"
-          value={next ? formatCountdown(nextMs) : "\u2014"}
-          sub={next ? `${next.ev.name} \u00b7 ${nextLabel}` : "No upcoming events \u2014 add one below"}
+          value={next ? formatCountdown(nextMs) : "—"}
+          sub={next ? `${next.ev.name} · ${nextLabel}` : "No upcoming events — add one below"}
           tone={next && next.ev.impact === "high" && nextMs < 60 * 60 * 1000 ? "bad" : undefined}
         />
 
         {!newsLoaded ? (
           <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-            Loading saved events\u2026
+            Loading saved events…
           </p>
         ) : newsEvents.length === 0 ? (
           <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
@@ -1781,7 +2206,7 @@ function LedgerApp() {
                           </div>
                           <div style={{ color: palette.textMuted, fontSize: "12px" }}>
                             {ev.time}
-                            {passed ? " \u00b7 released" : ""}
+                            {passed ? " · released" : ""}
                           </div>
                         </div>
                         <button
@@ -1801,7 +2226,7 @@ function LedgerApp() {
         )}
 
         <p className="text-xs mt-1 mb-6" style={{ color: palette.textFaint }}>
-          Nothing here is added automatically \u2014 add the events you want to track below.
+          Nothing here is added automatically — add the events you want to track below.
         </p>
 
         <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
@@ -1908,7 +2333,10 @@ function LedgerApp() {
   }
 
   return (
-    <div className="min-h-screen w-full flex justify-center" style={{ background: palette.letterbox }}>
+    <div
+      className="w-full flex justify-center"
+      style={{ background: palette.letterbox, height: "100dvh" }}
+    >
       <style>{`
         @media (prefers-reduced-motion: no-preference) {
           .ticker-glow { animation: pulse 3.2s ease-in-out infinite; }
@@ -1921,10 +2349,13 @@ function LedgerApp() {
         select option { background: ${palette.field}; }
       `}</style>
       <div
-        className="w-full flex flex-col min-h-screen"
-        style={{ maxWidth: "440px", background: palette.bg, fontFamily: sans }}
+        className="w-full flex flex-col"
+        style={{ maxWidth: "440px", height: "100%", background: palette.bg, fontFamily: sans, overflow: "hidden" }}
       >
-        <header className="px-5 pt-6 pb-4 flex-shrink-0" style={{ borderBottom: `1px solid ${palette.border}` }}>
+        <header
+          className="px-5 pt-6 pb-4 flex-shrink-0"
+          style={{ borderBottom: `1px solid ${palette.border}` }}
+        >
           <div className="uppercase" style={{ color: palette.gold, letterSpacing: "0.16em", fontSize: "11px" }}>
             Trade Math Calculator
           </div>
@@ -1933,11 +2364,21 @@ function LedgerApp() {
           </h1>
         </header>
 
-        <main className="flex-1 overflow-y-auto px-5 py-5">{body}</main>
+        <main
+          className="px-5 py-5"
+          style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch" }}
+        >
+          {body}
+        </main>
 
         <nav
-          className="flex-shrink-0 flex overflow-x-auto"
-          style={{ borderTop: `1px solid ${palette.border}`, background: palette.surface }}
+          className="flex overflow-x-auto"
+          style={{
+            flexShrink: 0,
+            borderTop: `1px solid ${palette.border}`,
+            background: palette.surface,
+            paddingBottom: "env(safe-area-inset-bottom)",
+          }}
         >
           {TABS.map((tab) => {
             const Icon = tab.icon;
@@ -1958,21 +2399,60 @@ function LedgerApp() {
           })}
         </nav>
       </div>
+
+      {/* hidden canvas used only to render the share image */}
+      <canvas ref={shareCanvasRef} style={{ display: "none" }} />
+
+      {shareImageUrl && (
+        <div
+          className="fixed inset-0 flex items-center justify-center z-50 p-4"
+          style={{ background: "rgba(5,7,12,0.85)" }}
+          onClick={closeShare}
+        >
+          <div
+            className="w-full flex flex-col items-center"
+            style={{ maxWidth: "420px" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-full flex items-center justify-between mb-3">
+              <span style={{ color: palette.text, fontFamily: mono, fontSize: "13px" }}>
+                Preview
+              </span>
+              <button type="button" onClick={closeShare} style={{ color: palette.textMuted }} aria-label="Close">
+                <X size={20} />
+              </button>
+            </div>
+            <img
+              src={shareImageUrl}
+              alt="My trading week recap"
+              className="w-full rounded-2xl mb-4"
+              style={{ border: `1px solid ${palette.border}` }}
+            />
+            <button
+              type="button"
+              onClick={downloadShare}
+              className="w-full flex items-center justify-center gap-2 rounded-lg py-3"
+              style={{ background: palette.gold, color: palette.letterbox, fontFamily: mono, fontSize: "14px" }}
+            >
+              <Download size={16} />
+              Save Image
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-const root = ReactDOM.createRoot(document.getElementById("root"));
+const rootEl = document.getElementById("root");
+const root = ReactDOM.createRoot(rootEl);
 root.render(<LedgerApp />);
-</script>
 
-<!-- Register the service worker for offline support / installability -->
-<script>
-  if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => {
-      navigator.serviceWorker.register("sw.js").catch(() => {});
-    });
-  }
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch(() => {});
+  });
+}
 </script>
 </body>
 </html>
