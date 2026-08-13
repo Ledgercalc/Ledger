@@ -1,7 +1,7 @@
 {
   "name": "Ledger — Trade Math Calculator",
   "short_name": "Ledger",
-  "description": "Risk/reward, position sizing, prop-firm rules, FX conversion, and a trade journal — all offline.",
+  "description": "Risk/reward, prop-firm challenge, position size, currency conversion, equity curve and economic-news tools for traders.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
@@ -9,7 +9,11 @@
   "background_color": "#05070C",
   "theme_color": "#0A0E16",
   "icons": [
-    { "src": "./icon.png", "sizes": "1600x1600", "type": "image/png", "purpose": "any" },
-    { "src": "./icon.png", "sizes": "1600x1600", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
   ]
 }
