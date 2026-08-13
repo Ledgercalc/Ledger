@@ -3,79 +3,108 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
-<meta name="theme-color" content="#0A0E16" />
 <title>Ledger — Trade Math</title>
 
-<link rel="manifest" href="./manifest.json" />
-<link rel="icon" href="./icon.png" type="image/png" />
-<link rel="apple-touch-icon" href="./icon.png" />
+<!-- PWA / iOS home-screen meta -->
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#0A0E16" />
+<meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Ledger" />
+<link rel="apple-touch-icon" href="icon.png" />
+<link rel="icon" href="icon.png" />
 
+<!-- Tailwind (CDN build — fine for a small personal app with no build step) -->
 <script src="https://cdn.tailwindcss.com"></script>
+
+<!-- Import map: tells the browser where bare specifiers like "react" resolve to -->
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@18.2.0",
+    "react-dom": "https://esm.sh/react-dom@18.2.0",
+    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+    "lucide-react": "https://esm.sh/lucide-react@0.383.0?external=react",
+    "recharts": "https://esm.sh/recharts@2.12.7?external=react,react-dom"
+  }
+}
+</script>
+
+<!-- In-browser JSX/Babel compiler -->
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
 <style>
-  html, body { margin: 0; padding: 0; background: #05070C; height: 100%; }
-  #root { height: 100%; }
-  input:focus, select:focus { outline: none; }
-  select option { background: #161F30; }
-  @media (prefers-reduced-motion: no-preference) {
-    .ticker-glow { animation: pulse 3.2s ease-in-out infinite; }
-  }
-  @keyframes pulse {
-    0%, 100% { filter: drop-shadow(0 0 0px rgba(231,198,135,0)); }
-    50% { filter: drop-shadow(0 0 8px rgba(231,198,135,0.25)); }
-  }
+  html, body, #root { height: 100%; margin: 0; background: #05070C; }
 </style>
 </head>
 <body>
 <div id="root"></div>
 
-<!-- Replaces the Claude-artifact-only window.storage API with a localStorage-backed
-     version using the same get/set/delete/list shape, so the app's code barely changes
-     and your data now actually persists on your device. -->
+<!--
+  window.storage shim.
+  The component was originally written for Claude's artifact sandbox, which
+  provides a built-in window.storage.get/set/delete/list API backed by its
+  own persistence layer. That API doesn't exist in a normal browser, so we
+  polyfill it here using localStorage — same method names/shape, so the
+  component code below needs zero changes.
+-->
 <script>
-(function () {
   window.storage = {
-    get: function (key) {
-      return new Promise(function (resolve, reject) {
-        var v = localStorage.getItem(key);
-        if (v === null) { reject(new Error("not found: " + key)); return; }
-        resolve({ key: key, value: v, shared: false });
-      });
+    async get(key, shared) {
+      try {
+        const raw = localStorage.getItem((shared ? "shared:" : "local:") + key);
+        if (raw === null) return null;
+        return { key, value: raw, shared: !!shared };
+      } catch (e) {
+        return null;
+      }
     },
-    set: function (key, value) {
-      return new Promise(function (resolve, reject) {
-        try {
-          localStorage.setItem(key, value);
-          resolve({ key: key, value: value, shared: false });
-        } catch (e) { reject(e); }
-      });
+    async set(key, value, shared) {
+      try {
+        localStorage.setItem((shared ? "shared:" : "local:") + key, value);
+        return { key, value, shared: !!shared };
+      } catch (e) {
+        return null;
+      }
     },
-    delete: function (key) {
-      return new Promise(function (resolve) {
-        localStorage.removeItem(key);
-        resolve({ key: key, deleted: true, shared: false });
-      });
+    async delete(key, shared) {
+      try {
+        localStorage.removeItem((shared ? "shared:" : "local:") + key);
+        return { key, deleted: true, shared: !!shared };
+      } catch (e) {
+        return null;
+      }
     },
-    list: function (prefix) {
-      return new Promise(function (resolve) {
-        var keys = Object.keys(localStorage).filter(function (k) {
-          return !prefix || k.indexOf(prefix) === 0;
-        });
-        resolve({ keys: keys, prefix: prefix, shared: false });
-      });
+    async list(prefix, shared) {
+      try {
+        const p = (shared ? "shared:" : "local:") + (prefix || "");
+        const keys = Object.keys(localStorage)
+          .filter((k) => k.startsWith(p))
+          .map((k) => k.slice((shared ? "shared:" : "local:").length));
+        return { keys, prefix, shared: !!shared };
+      } catch (e) {
+        return { keys: [], prefix, shared: !!shared };
+      }
     },
   };
-})();
 </script>
 
-<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-<script type="text/babel" data-presets="react">
-const { useState, useEffect } = React;
+<!-- The app itself, compiled in-browser by Babel, run as a native ES module -->
+<script type="text/babel" data-type="module" data-presets="react">
+import { useState, useEffect } from "react";
+import ReactDOM from "react-dom/client";
+import { Scale, Target, Layers, LineChart as CurveIcon, ArrowLeftRight, Trash2, Plus, ChevronLeft, ChevronRight, RotateCcw, Newspaper } from "lucide-react";
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ReferenceLine,
+} from "recharts";
 
 const palette = {
   bg: "#0A0E16",
@@ -130,146 +159,103 @@ const EMOTIONS = [
 ];
 const emotionMeta = (id) => EMOTIONS.find((e) => e.id === id);
 
+// A trade opened within this many minutes of a prior loss is flagged as a
+// possible revenge trade — an impulsive re-entry rather than a planned one.
 const REVENGE_WINDOW_MINUTES = 15;
 const REVENGE_WINDOW_MS = REVENGE_WINDOW_MINUTES * 60 * 1000;
 
+// Reference rates: units of each currency per 1 USD.
+// Snapshot rates, meant as a practical starting point rather than a live feed.
+// Override any pair below with your own known rate for precise conversions.
 const FX_BASE = "USD";
 const FX_RATES_PER_USD = {
-  USD: 1, EUR: 0.8668, GBP: 0.7404, JPY: 159.45, INR: 95.42, BDT: 123.5,
-  AUD: 1.4167, CAD: 1.3928, CHF: 0.8119, CNY: 6.7463, SGD: 1.2807, HKD: 7.8469,
-  NZD: 1.7042, MYR: 4.0931, THB: 33.12, AED: 3.6725, SAR: 3.75, PKR: 277.48,
-  PHP: 61.33, ZAR: 16.19, MXN: 17.06,
+  USD: 1,
+  EUR: 0.8668,
+  GBP: 0.7404,
+  JPY: 159.45,
+  INR: 95.42,
+  BDT: 123.5,
+  AUD: 1.4167,
+  CAD: 1.3928,
+  CHF: 0.8119,
+  CNY: 6.7463,
+  SGD: 1.2807,
+  HKD: 7.8469,
+  NZD: 1.7042,
+  MYR: 4.0931,
+  THB: 33.12,
+  AED: 3.6725,
+  SAR: 3.75,
+  PKR: 277.48,
+  PHP: 61.33,
+  ZAR: 16.19,
+  MXN: 17.06,
 };
 const FX_SNAPSHOT_LABEL = "Aug 2026";
 
 const CURRENCY_NAMES = {
-  USD: "US Dollar", EUR: "Euro", GBP: "British Pound", JPY: "Japanese Yen",
-  INR: "Indian Rupee", BDT: "Bangladeshi Taka", AUD: "Australian Dollar",
-  CAD: "Canadian Dollar", CHF: "Swiss Franc", CNY: "Chinese Yuan",
-  SGD: "Singapore Dollar", HKD: "Hong Kong Dollar", NZD: "New Zealand Dollar",
-  MYR: "Malaysian Ringgit", THB: "Thai Baht", AED: "UAE Dirham", SAR: "Saudi Riyal",
-  PKR: "Pakistani Rupee", PHP: "Philippine Peso", ZAR: "South African Rand",
+  USD: "US Dollar",
+  EUR: "Euro",
+  GBP: "British Pound",
+  JPY: "Japanese Yen",
+  INR: "Indian Rupee",
+  BDT: "Bangladeshi Taka",
+  AUD: "Australian Dollar",
+  CAD: "Canadian Dollar",
+  CHF: "Swiss Franc",
+  CNY: "Chinese Yuan",
+  SGD: "Singapore Dollar",
+  HKD: "Hong Kong Dollar",
+  NZD: "New Zealand Dollar",
+  MYR: "Malaysian Ringgit",
+  THB: "Thai Baht",
+  AED: "UAE Dirham",
+  SAR: "Saudi Riyal",
+  PKR: "Pakistani Rupee",
+  PHP: "Philippine Peso",
+  ZAR: "South African Rand",
   MXN: "Mexican Peso",
 };
 
 const CURRENCY_CODES = Object.keys(FX_RATES_PER_USD);
 
-/* ---------- inline icons (replace lucide-react) ---------- */
-function Icon({ children, size = 18, strokeWidth = 1.8, ...rest }) {
-  return (
-    <svg
-      width={size} height={size} viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth={strokeWidth}
-      strokeLinecap="round" strokeLinejoin="round" {...rest}
-    >
-      {children}
-    </svg>
-  );
-}
-const TrendingIcon = (props) => (
-  <Icon {...props}>
-    <polyline points="3 17 9 11 13 15 21 5" />
-    <polyline points="14 5 21 5 21 12" />
-  </Icon>
-);
-const ShieldIcon = (props) => (
-  <Icon {...props}>
-    <path d="M12 2 4 5v6c0 5 3.5 9 8 11 4.5-2 8-6 8-11V5z" />
-  </Icon>
-);
-const LayersIcon = (props) => (
-  <Icon {...props}>
-    <polygon points="12 2 2 7 12 12 22 7 12 2" />
-    <polyline points="2 17 12 22 22 17" />
-    <polyline points="2 12 12 17 22 12" />
-  </Icon>
-);
-const SwapIcon = (props) => (
-  <Icon {...props}>
-    <path d="M7 7h13l-4-4" />
-    <path d="M17 17H4l4 4" />
-  </Icon>
-);
-const CurveGlyph = (props) => (
-  <Icon {...props}>
-    <polyline points="3 3 3 21 21 21" />
-    <polyline points="7 14 11 10 15 13 20 6" />
-  </Icon>
-);
-const NewspaperIcon = (props) => (
-  <Icon {...props}>
-    <rect x="3" y="4" width="18" height="16" rx="1" />
-    <line x1="7" y1="8" x2="17" y2="8" />
-    <line x1="7" y1="12" x2="17" y2="12" />
-    <line x1="7" y1="16" x2="13" y2="16" />
-  </Icon>
-);
-const TrashIcon = (props) => (
-  <Icon {...props}>
-    <polyline points="3 6 5 6 21 6" />
-    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-    <path d="M10 11v6" />
-    <path d="M14 11v6" />
-    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-  </Icon>
-);
-const PlusIcon = (props) => (
-  <Icon {...props}>
-    <line x1="12" y1="5" x2="12" y2="19" />
-    <line x1="5" y1="12" x2="19" y2="12" />
-  </Icon>
-);
-const ChevronLeftIcon = (props) => (
-  <Icon {...props}><polyline points="15 18 9 12 15 6" /></Icon>
-);
-const ChevronRightIcon = (props) => (
-  <Icon {...props}><polyline points="9 18 15 12 9 6" /></Icon>
-);
-const RotateCcwIcon = (props) => (
-  <Icon {...props}>
-    <path d="M3 12a9 9 0 1 0 3-6.7" />
-    <polyline points="3 4 3 10 9 10" />
-  </Icon>
-);
-
-/* ---------- lightweight SVG equity chart (replaces Recharts) ---------- */
-function EquityChart({ data, startBal, positive }) {
-  if (!data || data.length < 2) return null;
-  const width = 400, height = 180, padX = 8, padY = 10;
-  const ys = data.map((d) => d.equity);
-  let minY = Math.min(...ys, startBal);
-  let maxY = Math.max(...ys, startBal);
-  const rangeY = maxY - minY || 10;
-  const pad = rangeY * 0.12 || 10;
-  minY -= pad; maxY += pad;
-  const xMax = data[data.length - 1].trade || 1;
-  const scaleX = (x) => padX + (x / xMax) * (width - padX * 2);
-  const scaleY = (y) => height - padY - ((y - minY) / (maxY - minY)) * (height - padY * 2);
-  const points = data.map((d) => `${scaleX(d.trade)},${scaleY(d.equity)}`).join(" ");
-  const refY = scaleY(startBal);
-  const color = positive ? palette.green : palette.red;
-  return (
-    <svg viewBox={`0 0 ${width} ${height}`} style={{ width: "100%", height: "180px", display: "block" }} preserveAspectRatio="none">
-      <line x1={padX} y1={refY} x2={width - padX} y2={refY} stroke={palette.textFaint} strokeDasharray="4 4" strokeWidth="1" />
-      <polyline points={points} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
 function Field({ label, value, onChange, suffix, placeholder, readOnly }) {
   return (
     <label className="block mb-4">
-      <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
+      <span
+        className="block mb-1.5 uppercase"
+        style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+      >
         {label}
       </span>
-      <div className="flex items-center rounded-lg px-3" style={{ background: readOnly ? palette.surface : palette.field, border: `1px solid ${palette.border}` }}>
+      <div
+        className="flex items-center rounded-lg px-3"
+        style={{
+          background: readOnly ? palette.surface : palette.field,
+          border: `1px solid ${palette.border}`,
+        }}
+      >
         <input
-          type="text" inputMode="decimal" value={value} onChange={onChange} placeholder={placeholder}
-          readOnly={readOnly} tabIndex={readOnly ? -1 : undefined}
+          type="text"
+          inputMode="decimal"
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          readOnly={readOnly}
+          tabIndex={readOnly ? -1 : undefined}
           className="w-full bg-transparent py-3 outline-none"
-          style={{ color: readOnly ? palette.textMuted : palette.text, fontFamily: mono, fontSize: "16px", cursor: readOnly ? "default" : "text" }}
+          style={{
+            color: readOnly ? palette.textMuted : palette.text,
+            fontFamily: mono,
+            fontSize: "16px",
+            cursor: readOnly ? "default" : "text",
+          }}
         />
-        {suffix && <span className="text-sm pl-2" style={{ color: palette.textFaint }}>{suffix}</span>}
+        {suffix && (
+          <span className="text-sm pl-2" style={{ color: palette.textFaint }}>
+            {suffix}
+          </span>
+        )}
       </div>
     </label>
   );
@@ -278,11 +264,22 @@ function Field({ label, value, onChange, suffix, placeholder, readOnly }) {
 function CurrencySelect({ label, value, onChange }) {
   return (
     <label className="block mb-4 flex-1">
-      <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
+      <span
+        className="block mb-1.5 uppercase"
+        style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+      >
         {label}
       </span>
-      <div className="rounded-lg px-3" style={{ background: palette.field, border: `1px solid ${palette.border}` }}>
-        <select value={value} onChange={onChange} className="w-full bg-transparent py-3 outline-none appearance-none" style={{ color: palette.text, fontFamily: mono, fontSize: "15px" }}>
+      <div
+        className="rounded-lg px-3"
+        style={{ background: palette.field, border: `1px solid ${palette.border}` }}
+      >
+        <select
+          value={value}
+          onChange={onChange}
+          className="w-full bg-transparent py-3 outline-none appearance-none"
+          style={{ color: palette.text, fontFamily: mono, fontSize: "15px" }}
+        >
           {CURRENCY_CODES.map((code) => (
             <option key={code} value={code} style={{ background: palette.field, color: palette.text }}>
               {code} — {CURRENCY_NAMES[code]}
@@ -296,9 +293,26 @@ function CurrencySelect({ label, value, onChange }) {
 
 function StatChip({ label, value }) {
   return (
-    <div className="rounded-lg p-3" style={{ background: palette.surface, border: `1px solid ${palette.border}` }}>
-      <div className="uppercase mb-1" style={{ color: palette.textFaint, letterSpacing: "0.08em", fontSize: "11px" }}>{label}</div>
-      <div style={{ fontFamily: mono, fontSize: "1.05rem", color: palette.text, fontVariantNumeric: "tabular-nums" }}>{value}</div>
+    <div
+      className="rounded-lg p-3"
+      style={{ background: palette.surface, border: `1px solid ${palette.border}` }}
+    >
+      <div
+        className="uppercase mb-1"
+        style={{ color: palette.textFaint, letterSpacing: "0.08em", fontSize: "11px" }}
+      >
+        {label}
+      </div>
+      <div
+        style={{
+          fontFamily: mono,
+          fontSize: "1.05rem",
+          color: palette.text,
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        {value}
+      </div>
     </div>
   );
 }
@@ -307,14 +321,21 @@ function PillGroup({ options, value, onChange, suffix = "%" }) {
   return (
     <div className="flex gap-2 flex-wrap mb-4">
       {options.map((opt) => (
-        <button key={opt} type="button" onClick={() => onChange(String(opt))} className="px-3 py-1.5 rounded-full transition-colors"
+        <button
+          key={opt}
+          type="button"
+          onClick={() => onChange(String(opt))}
+          className="px-3 py-1.5 rounded-full transition-colors"
           style={{
             background: String(value) === String(opt) ? palette.gold : palette.field,
             color: String(value) === String(opt) ? palette.letterbox : palette.textMuted,
             border: `1px solid ${String(value) === String(opt) ? palette.gold : palette.border}`,
-            fontFamily: mono, fontSize: "13px",
-          }}>
-          {opt}{suffix}
+            fontFamily: mono,
+            fontSize: "13px",
+          }}
+        >
+          {opt}
+          {suffix}
         </button>
       ))}
     </div>
@@ -325,12 +346,27 @@ function RuleRow({ label, detail, pass }) {
   const color = pass === undefined ? palette.textFaint : pass ? palette.green : palette.red;
   const badge = pass === undefined ? "N/A" : pass ? "OK" : "OVER";
   return (
-    <div className="flex items-center justify-between rounded-lg px-3 py-3 mb-2" style={{ background: palette.surface, border: `1px solid ${palette.border}` }}>
+    <div
+      className="flex items-center justify-between rounded-lg px-3 py-3 mb-2"
+      style={{ background: palette.surface, border: `1px solid ${palette.border}` }}
+    >
       <div>
         <div style={{ color: palette.text, fontSize: "14px", marginBottom: "2px" }}>{label}</div>
         <div style={{ color: palette.textMuted, fontSize: "12px" }}>{detail}</div>
       </div>
-      <span style={{ fontFamily: mono, fontSize: "11px", letterSpacing: "0.06em", color, border: `1px solid ${color}`, borderRadius: "999px", padding: "3px 8px", flexShrink: 0, marginLeft: "8px" }}>
+      <span
+        style={{
+          fontFamily: mono,
+          fontSize: "11px",
+          letterSpacing: "0.06em",
+          color,
+          border: `1px solid ${color}`,
+          borderRadius: "999px",
+          padding: "3px 8px",
+          flexShrink: 0,
+          marginLeft: "8px",
+        }}
+      >
         {badge}
       </span>
     </div>
@@ -338,35 +374,83 @@ function RuleRow({ label, detail, pass }) {
 }
 
 function Readout({ eyebrow, value, unit, sub, tone }) {
-  const toneColor = tone === "good" ? palette.green : tone === "bad" ? palette.red : palette.goldBright;
+  const toneColor =
+    tone === "good" ? palette.green : tone === "bad" ? palette.red : palette.goldBright;
   return (
-    <div className="relative overflow-hidden rounded-2xl p-6 mb-6" style={{ background: palette.surface, border: `1px solid ${palette.border}` }}>
-      <div className="absolute inset-0 pointer-events-none" aria-hidden="true"
-        style={{ background: `repeating-linear-gradient(to bottom, ${palette.gold}14 0px, ${palette.gold}14 1px, transparent 1px, transparent 10px)`, opacity: 0.6 }} />
-      <div className="absolute left-0 top-0 bottom-0 flex flex-col justify-around pointer-events-none" aria-hidden="true" style={{ width: "34px", padding: "10px 0" }}>
+    <div
+      className="relative overflow-hidden rounded-2xl p-6 mb-6"
+      style={{ background: palette.surface, border: `1px solid ${palette.border}` }}
+    >
+      <div
+        className="absolute inset-0 pointer-events-none"
+        aria-hidden="true"
+        style={{
+          background: `repeating-linear-gradient(to bottom, ${palette.gold}14 0px, ${palette.gold}14 1px, transparent 1px, transparent 10px)`,
+          opacity: 0.6,
+        }}
+      />
+      <div
+        className="absolute left-0 top-0 bottom-0 flex flex-col justify-around pointer-events-none"
+        aria-hidden="true"
+        style={{ width: "34px", padding: "10px 0" }}
+      >
         {LADDER.map((w, i) => (
-          <div key={i} style={{ height: "3px", width: `${w}%`, background: i % 2 === 0 ? palette.green : palette.red, opacity: 0.4, marginBottom: "2px", borderRadius: "1px" }} />
+          <div
+            key={i}
+            style={{
+              height: "3px",
+              width: `${w}%`,
+              background: i % 2 === 0 ? palette.green : palette.red,
+              opacity: 0.4,
+              marginBottom: "2px",
+              borderRadius: "1px",
+            }}
+          />
         ))}
       </div>
       <div className="relative" style={{ paddingLeft: "38px" }}>
-        <div className="uppercase mb-2" style={{ color: palette.textMuted, letterSpacing: "0.12em", fontSize: "11px" }}>{eyebrow}</div>
-        <div className="flex items-baseline gap-2 ticker-glow">
-          <span style={{ fontFamily: mono, fontSize: "2.4rem", fontWeight: 600, color: toneColor, fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>{value}</span>
-          {unit && <span style={{ fontFamily: mono, fontSize: "1rem", color: palette.textMuted }}>{unit}</span>}
+        <div
+          className="uppercase mb-2"
+          style={{ color: palette.textMuted, letterSpacing: "0.12em", fontSize: "11px" }}
+        >
+          {eyebrow}
         </div>
-        {sub && <div className="mt-2 text-sm" style={{ color: palette.textMuted }}>{sub}</div>}
+        <div className="flex items-baseline gap-2 ticker-glow">
+          <span
+            style={{
+              fontFamily: mono,
+              fontSize: "2.4rem",
+              fontWeight: 600,
+              color: toneColor,
+              fontVariantNumeric: "tabular-nums",
+              lineHeight: 1,
+            }}
+          >
+            {value}
+          </span>
+          {unit && (
+            <span style={{ fontFamily: mono, fontSize: "1rem", color: palette.textMuted }}>
+              {unit}
+            </span>
+          )}
+        </div>
+        {sub && (
+          <div className="mt-2 text-sm" style={{ color: palette.textMuted }}>
+            {sub}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
 const TABS = [
-  { id: "edge", label: "Edge", icon: TrendingIcon },
-  { id: "consistency", label: "Challenge", icon: ShieldIcon },
-  { id: "size", label: "Size", icon: LayersIcon },
-  { id: "fx", label: "Convert", icon: SwapIcon },
-  { id: "curve", label: "Curve", icon: CurveGlyph },
-  { id: "news", label: "News", icon: NewspaperIcon },
+  { id: "edge", label: "Edge", icon: Scale },
+  { id: "consistency", label: "Challenge", icon: Target },
+  { id: "size", label: "Size", icon: Layers },
+  { id: "fx", label: "Convert", icon: ArrowLeftRight },
+  { id: "curve", label: "Curve", icon: CurveIcon },
+  { id: "news", label: "News", icon: Newspaper },
 ];
 
 const STORAGE_KEY = "equity-curve:trades";
@@ -375,7 +459,7 @@ const NEWS_STORAGE_KEY = "news:events:v4";
 
 const PROFIT_TARGET_OPTIONS = [5, 6, 8, 10, 12];
 
-function nextOccurrenceMs(ev) {
+function nextOccurrenceMs(ev, now) {
   if (!ev.date) return Infinity;
   const [h, m] = ev.time.split(":").map(Number);
   const [y, mo, da] = ev.date.split("-").map(Number);
@@ -397,14 +481,31 @@ function LedgerApp() {
   const [activeTab, setActiveTab] = useState("edge");
 
   const [edge, setEdge] = useState({
-    accountBalance: "", entry: "", stop: "", target: "",
-    avgWin: "", avgLoss: "", buffer: "5", totalTrades: "",
+    accountBalance: "",
+    entry: "",
+    stop: "",
+    target: "",
+    avgWin: "",
+    avgLoss: "",
+    buffer: "5",
+    totalTrades: "",
   });
   const [cs, setCs] = useState({
-    startBal: "", currentBal: "", targetPct: "10", dailyLossPct: "5",
-    todayLoss: "", bestDay: "", rule: "30",
+    startBal: "",
+    currentBal: "",
+    targetPct: "10",
+    dailyLossPct: "5",
+    todayLoss: "",
+    bestDay: "",
+    rule: "30",
   });
-  const [ps, setPs] = useState({ balance: "", riskPct: "1", stopPips: "", valuePerPip: "10", preset: "forex" });
+  const [ps, setPs] = useState({
+    balance: "",
+    riskPct: "1",
+    stopPips: "",
+    valuePerPip: "10",
+    preset: "forex",
+  });
   const [fx, setFx] = useState({ amount: "100", from: "USD", to: "BDT", customRate: "" });
 
   const [trades, setTrades] = useState([]);
@@ -446,7 +547,9 @@ function LedgerApp() {
         if (!cancelled) setTradesLoaded(true);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -465,25 +568,40 @@ function LedgerApp() {
         if (!cancelled) setNewsLoaded(true);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const persistNews = async (next) => {
     setNewsEvents(next);
-    try { await window.storage.set(NEWS_STORAGE_KEY, JSON.stringify(next), false); } catch (err) {}
+    try {
+      await window.storage.set(NEWS_STORAGE_KEY, JSON.stringify(next), false);
+    } catch (err) {
+      // non-critical, fail silently
+    }
   };
 
   const addNewsEvent = () => {
     if (!newEventName.trim() || !newEventTime || !newEventDate) return;
-    const next = [...newsEvents, {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      name: newEventName.trim(), impact: newEventImpact, date: newEventDate, time: newEventTime,
-    }];
+    const next = [
+      ...newsEvents,
+      {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        name: newEventName.trim(),
+        impact: newEventImpact,
+        date: newEventDate,
+        time: newEventTime,
+      },
+    ];
     persistNews(next);
-    setNewEventName(""); setNewEventDate("");
+    setNewEventName("");
+    setNewEventDate("");
   };
 
-  const deleteNewsEvent = (id) => persistNews(newsEvents.filter((e) => e.id !== id));
+  const deleteNewsEvent = (id) => {
+    persistNews(newsEvents.filter((e) => e.id !== id));
+  };
 
   const persistTrades = async (next) => {
     setTrades(next);
@@ -491,27 +609,46 @@ function LedgerApp() {
       const res = await window.storage.set(STORAGE_KEY, JSON.stringify(next), false);
       if (!res) setStorageError("Trade wasn't saved, please retry.");
       else setStorageError("");
-    } catch (err) { setStorageError("Trade wasn't saved, please retry."); }
+    } catch (err) {
+      setStorageError("Trade wasn't saved, please retry.");
+    }
   };
 
   const persistStartingBalance = async (val) => {
     setStartingBalance(val);
-    try { await window.storage.set(STORAGE_BAL_KEY, val, false); } catch (err) {}
+    try {
+      await window.storage.set(STORAGE_BAL_KEY, val, false);
+    } catch (err) {
+      // starting balance is non-critical, fail silently
+    }
   };
 
   const addTrade = () => {
     const pnl = num(tradeInput);
     if (!tradeInput || pnl === 0) return;
-    const next = [...trades, {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      pnl, note: tradeNote.trim(), emotion: tradeEmotion, ts: Date.now(),
-    }];
+    const next = [
+      ...trades,
+      {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        pnl,
+        note: tradeNote.trim(),
+        emotion: tradeEmotion,
+        ts: Date.now(),
+      },
+    ];
     persistTrades(next);
-    setTradeInput(""); setTradeNote(""); setTradeEmotion(null);
+    setTradeInput("");
+    setTradeNote("");
+    setTradeEmotion(null);
   };
 
-  const deleteTrade = (id) => persistTrades(trades.filter((t) => t.id !== id));
-  const clearTrades = () => persistTrades([]);
+  const deleteTrade = (id) => {
+    persistTrades(trades.filter((t) => t.id !== id));
+  };
+
+  const clearTrades = () => {
+    persistTrades([]);
+  };
 
   const applyPreset = (preset) => {
     const defaults = { forex: "10", gold: "1", custom: ps.valuePerPip };
@@ -536,7 +673,9 @@ function LedgerApp() {
     const totalTrades = num(edge.totalTrades);
     const computedWinRate = aw + al > 0 ? (aw / (aw + al)) * 100 : 0;
     const hasExpectancyInputs = aw > 0 || al > 0;
-    const expectancy = hasExpectancyInputs ? (computedWinRate / 100) * aw - (1 - computedWinRate / 100) * al : 0;
+    const expectancy = hasExpectancyInputs
+      ? (computedWinRate / 100) * aw - (1 - computedWinRate / 100) * al
+      : 0;
     const per100 = expectancy * 100;
     const hasTotalProjection = hasExpectancyInputs && edge.totalTrades !== "" && totalTrades > 0;
     const totalProjected = expectancy * totalTrades;
@@ -558,14 +697,18 @@ function LedgerApp() {
             hasExpectancyInputs
               ? hasTotalProjection
                 ? hasBalance
-                  ? `$${fmt(projectedBalance, 0)} projected balance after ${fmt(totalTrades, 0)} trades (${projectedBalancePct >= 0 ? "+" : ""}${fmt(projectedBalancePct, 1)}%)`
+                  ? `$${fmt(projectedBalance, 0)} projected balance after ${fmt(totalTrades, 0)} trades (${
+                      projectedBalancePct >= 0 ? "+" : ""
+                    }${fmt(projectedBalancePct, 1)}%)`
                   : `${totalProjected > 0 ? "+" : ""}$${fmt(Math.abs(totalProjected), 0)} projected over ${fmt(totalTrades, 0)} trades`
                 : hasBalance
                 ? `${expectancyPct >= 0 ? "+" : ""}${fmt(expectancyPct, 2)}% of balance per trade`
                 : `${per100 > 0 ? "+" : ""}${fmt(per100, 2)} projected per 100 trades`
               : "Add account balance and average win/loss below"
           }
-          tone={hasExpectancyInputs ? (expectancy > 0 ? "good" : expectancy < 0 ? "bad" : undefined) : undefined}
+          tone={
+            hasExpectancyInputs ? (expectancy > 0 ? "good" : expectancy < 0 ? "bad" : undefined) : undefined
+          }
         />
 
         <div className={`grid grid-cols-2 gap-3 ${hasBalance ? "mb-3" : "mb-6"}`}>
@@ -579,23 +722,45 @@ function LedgerApp() {
           </div>
         )}
 
-        <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>Trade Setup</span>
+        <span
+          className="block mb-1.5 uppercase"
+          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+        >
+          Trade Setup
+        </span>
         <Field label="Account Balance" value={edge.accountBalance} suffix="$" placeholder="10000" onChange={(e) => setEdge({ ...edge, accountBalance: e.target.value })} />
         <Field label="Entry Price" value={edge.entry} placeholder="2415.20" onChange={(e) => setEdge({ ...edge, entry: e.target.value })} />
         <Field label="Stop Loss" value={edge.stop} placeholder="2410.00" onChange={(e) => setEdge({ ...edge, stop: e.target.value })} />
         <Field label="Take Profit" value={edge.target} placeholder="2426.80" onChange={(e) => setEdge({ ...edge, target: e.target.value })} />
-        <p className="text-xs -mt-2 mb-4" style={{ color: palette.textFaint }}>Risk {fmt(risk)} pts \u00b7 Reward {fmt(reward)} pts</p>
+        <p className="text-xs -mt-2 mb-4" style={{ color: palette.textFaint }}>
+          Risk {fmt(risk)} pts \u00b7 Reward {fmt(reward)} pts
+        </p>
 
-        <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>Win / Loss Profile</span>
+        <span
+          className="block mb-1.5 uppercase"
+          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+        >
+          Win / Loss Profile
+        </span>
         <Field label="Average Win" value={edge.avgWin} suffix="$" placeholder="150" onChange={(e) => setEdge({ ...edge, avgWin: e.target.value })} />
         <Field label="Average Loss" value={edge.avgLoss} suffix="$" placeholder="75" onChange={(e) => setEdge({ ...edge, avgLoss: e.target.value })} />
         {hasBalance && (
-          <p className="text-xs -mt-2 mb-4" style={{ color: palette.textFaint }}>Avg win {rewardPct.toFixed(2)}% \u00b7 Avg loss {riskPct.toFixed(2)}% of balance</p>
+          <p className="text-xs -mt-2 mb-4" style={{ color: palette.textFaint }}>
+            Avg win {rewardPct.toFixed(2)}% \u00b7 Avg loss {riskPct.toFixed(2)}% of balance
+          </p>
         )}
         <Field label="Total Trades" value={edge.totalTrades} placeholder="100" onChange={(e) => setEdge({ ...edge, totalTrades: e.target.value })} />
-        <Field label="Win Rate" value={computedWinRate ? fmt(computedWinRate, 1) : "0"} suffix="%" readOnly onChange={() => {}} />
+        <Field
+          label="Win Rate"
+          value={computedWinRate ? fmt(computedWinRate, 1) : "0"}
+          suffix="%"
+          readOnly
+          onChange={() => {}}
+        />
         <Field label="Safety Buffer" value={edge.buffer} suffix="%" onChange={(e) => setEdge({ ...edge, buffer: e.target.value })} />
-        <p className="text-xs -mt-2 mb-4" style={{ color: palette.textFaint }}>Target win rate with buffer: {targetWinRate.toFixed(1)}%</p>
+        <p className="text-xs -mt-2 mb-4" style={{ color: palette.textFaint }}>
+          Target win rate with buffer: {targetWinRate.toFixed(1)}%
+        </p>
       </>
     );
   }
@@ -612,7 +777,7 @@ function LedgerApp() {
     const todayLoss = num(cs.todayLoss);
     const bestDay = num(cs.bestDay);
     const rule = num(cs.rule);
-    const maxDrawdownPct = 4;
+    const maxDrawdownPct = 4; // fixed trailing max drawdown
 
     const totalProfit = hasBoth ? currentBal - startBal : 0;
     const targetAmount = hasTarget ? startBal * (targetPct / 100) : 0;
@@ -643,69 +808,174 @@ function LedgerApp() {
       <>
         <Readout
           eyebrow={!hasTarget ? (hasBoth && totalProfit < 0 ? "You Need More for Payout" : "Your Payout Amount") : "Profit Target Progress"}
-          value={!hasTarget ? (hasBoth ? `${totalProfit < 0 ? "-" : ""}$${fmt(Math.abs(totalProfit))}` : "Instant") : (hasBoth ? progressPct.toFixed(1) : "0.0")}
+          value={
+            !hasTarget
+              ? hasBoth
+                ? `${totalProfit < 0 ? "-" : ""}$${fmt(Math.abs(totalProfit))}`
+                : "Instant"
+              : hasBoth
+              ? progressPct.toFixed(1)
+              : "0.0"
+          }
           unit={!hasTarget ? undefined : "%"}
           sub={
             !hasTarget
-              ? (hasBoth ? (totalProfit < 0 ? "Your balance is below your starting balance" : "No profit target required for this challenge type") : "Enter starting & current balance below")
-              : (hasBoth ? `$${fmt(totalProfit)} of $${fmt(targetAmount)} target ($${fmt(remainingToTarget)} to go)` : "Enter starting & current balance below")
+              ? hasBoth
+                ? totalProfit < 0
+                  ? "Your balance is below your starting balance"
+                  : "No profit target required for this challenge type"
+                : "Enter starting & current balance below"
+              : hasBoth
+              ? `$${fmt(totalProfit)} of $${fmt(targetAmount)} target ($${fmt(remainingToTarget)} to go)`
+              : "Enter starting & current balance below"
           }
-          tone={!hasTarget ? (hasBoth ? (totalProfit < 0 ? "bad" : "good") : undefined) : (!hasBoth ? undefined : progressPct >= 100 ? "good" : totalProfit < 0 ? "bad" : undefined)}
+          tone={
+            !hasTarget
+              ? hasBoth
+                ? totalProfit < 0
+                  ? "bad"
+                  : "good"
+                : undefined
+              : !hasBoth
+              ? undefined
+              : progressPct >= 100
+              ? "good"
+              : totalProfit < 0
+              ? "bad"
+              : undefined
+          }
         />
 
-        <RuleRow label="Daily Drawdown" detail={dailyPass === undefined ? "Enter starting balance below" : dailyPass ? `$${fmt(dailyRemaining)} of daily buffer left` : `Over by $${fmt(todayLoss - dailyLossAllowed)}`} pass={dailyPass} />
-        <RuleRow label="Max Drawdown" detail={overallPass === undefined ? "Enter both balances below" : overallPass ? `$${fmt(overallRemaining)} of loss buffer left` : `Below floor by $${fmt(floorBalance - currentBal)}`} pass={overallPass} />
-        <RuleRow label="Consistency Rule" detail={consistencyPass === undefined ? "Needs positive total profit" : consistencyPass ? `${consistencyScore.toFixed(1)}% within the ${rule}% rule` : `Need $${fmt(moreNeededForConsistency)} more total profit`} pass={consistencyPass} />
+        <RuleRow
+          label="Daily Drawdown"
+          detail={
+            dailyPass === undefined
+              ? "Enter starting balance below"
+              : dailyPass
+              ? `$${fmt(dailyRemaining)} of daily buffer left`
+              : `Over by $${fmt(todayLoss - dailyLossAllowed)}`
+          }
+          pass={dailyPass}
+        />
+        <RuleRow
+          label="Max Drawdown"
+          detail={
+            overallPass === undefined
+              ? "Enter both balances below"
+              : overallPass
+              ? `$${fmt(overallRemaining)} of loss buffer left`
+              : `Below floor by $${fmt(floorBalance - currentBal)}`
+          }
+          pass={overallPass}
+        />
+        <RuleRow
+          label="Consistency Rule"
+          detail={
+            consistencyPass === undefined
+              ? "Needs positive total profit"
+              : consistencyPass
+              ? `${consistencyScore.toFixed(1)}% within the ${rule}% rule`
+              : `Need $${fmt(moreNeededForConsistency)} more total profit`
+          }
+          pass={consistencyPass}
+        />
 
-        <span className="block mt-6 mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>Recovery</span>
+        <span className="block mt-6 mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
+          Recovery
+        </span>
         {!hasBoth ? (
-          <p className="text-xs mb-4" style={{ color: palette.textMuted }}>Enter starting & current balance below to see recovery stats.</p>
+          <p className="text-xs mb-4" style={{ color: palette.textMuted }}>
+            Enter starting & current balance below to see recovery stats.
+          </p>
         ) : inDrawdown ? (
           <>
             <div className="grid grid-cols-2 gap-3 mb-2">
               <StatChip label="Current Drawdown" value={`${currentDrawdownPct.toFixed(1)}%`} />
               <StatChip label="Gain to Recover" value={`+${recoveryNeededPct.toFixed(1)}%`} />
             </div>
-            <p className="text-xs mb-4" style={{ color: palette.textMuted }}>${fmt(recoveryDollar)} below your peak balance of ${fmt(peakBalance)}</p>
+            <p className="text-xs mb-4" style={{ color: palette.textMuted }}>
+              ${fmt(recoveryDollar)} below your peak balance of ${fmt(peakBalance)}
+            </p>
           </>
         ) : (
-          <p className="text-xs mb-4" style={{ color: palette.textMuted }}>At or above peak balance. No recovery needed.</p>
+          <p className="text-xs mb-4" style={{ color: palette.textMuted }}>
+            At or above peak balance. No recovery needed.
+          </p>
         )}
 
-        <span className="block mt-2 mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>Account</span>
+        <span className="block mt-2 mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
+          Account
+        </span>
         <Field label="Starting Balance" value={cs.startBal} suffix="$" placeholder="10000" onChange={(e) => setCs({ ...cs, startBal: e.target.value })} />
         <Field label="Current Balance" value={cs.currentBal} suffix="$" placeholder="10650" onChange={(e) => setCs({ ...cs, currentBal: e.target.value })} />
 
-        <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>Profit Target</span>
+        <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
+          Profit Target
+        </span>
         <div className="flex gap-2 flex-wrap mb-4">
           {PROFIT_TARGET_OPTIONS.map((opt) => {
             const active = String(cs.targetPct) === String(opt);
             return (
-              <button key={opt} type="button" onClick={() => setCs({ ...cs, targetPct: String(opt) })} className="px-3 py-1.5 rounded-full transition-colors"
-                style={{ background: active ? palette.gold : palette.field, color: active ? palette.letterbox : palette.textMuted, border: `1px solid ${active ? palette.gold : palette.border}`, fontFamily: mono, fontSize: "13px" }}>
+              <button
+                key={opt}
+                type="button"
+                onClick={() => setCs({ ...cs, targetPct: String(opt) })}
+                className="px-3 py-1.5 rounded-full transition-colors"
+                style={{
+                  background: active ? palette.gold : palette.field,
+                  color: active ? palette.letterbox : palette.textMuted,
+                  border: `1px solid ${active ? palette.gold : palette.border}`,
+                  fontFamily: mono,
+                  fontSize: "13px",
+                }}
+              >
                 {opt}%
               </button>
             );
           })}
-          <button type="button" onClick={() => setCs({ ...cs, targetPct: "instant" })} className="px-3 py-1.5 rounded-full transition-colors"
-            style={{ background: !hasTarget ? palette.gold : palette.field, color: !hasTarget ? palette.letterbox : palette.textMuted, border: `1px solid ${!hasTarget ? palette.gold : palette.border}`, fontFamily: mono, fontSize: "13px" }}>
+          <button
+            type="button"
+            onClick={() => setCs({ ...cs, targetPct: "instant" })}
+            className="px-3 py-1.5 rounded-full transition-colors"
+            style={{
+              background: !hasTarget ? palette.gold : palette.field,
+              color: !hasTarget ? palette.letterbox : palette.textMuted,
+              border: `1px solid ${!hasTarget ? palette.gold : palette.border}`,
+              fontFamily: mono,
+              fontSize: "13px",
+            }}
+          >
             Instant
           </button>
         </div>
-        {!hasTarget && <p className="text-xs -mt-2 mb-4" style={{ color: palette.textFaint }}>Instant challenges skip the profit target entirely.</p>}
+        {!hasTarget && (
+          <p className="text-xs -mt-2 mb-4" style={{ color: palette.textFaint }}>
+            Instant challenges skip the profit target entirely.
+          </p>
+        )}
 
-        <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>Daily Drawdown</span>
+        <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
+          Daily Drawdown
+        </span>
         <PillGroup options={[2, 3, 4, 5, 6]} value={cs.dailyLossPct} onChange={(v) => setCs({ ...cs, dailyLossPct: v })} />
         <Field label="Loss Today" value={cs.todayLoss} suffix="$" placeholder="0" onChange={(e) => setCs({ ...cs, todayLoss: e.target.value })} />
 
-        <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>Max Drawdown</span>
-        <p className="text-xs mb-4" style={{ color: palette.textMuted }}>Fixed at 4%, trailing off your peak balance (starting or current, whichever is higher).</p>
+        <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
+          Max Drawdown
+        </span>
+        <p className="text-xs mb-4" style={{ color: palette.textMuted }}>
+          Fixed at 4%, trailing off your peak balance (starting or current, whichever is higher).
+        </p>
 
-        <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>Consistency Rule</span>
+        <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
+          Consistency Rule
+        </span>
         <PillGroup options={[0, 15, 20, 25, 30, 40]} value={cs.rule} onChange={(v) => setCs({ ...cs, rule: v })} />
         <Field label="Best Single Day Profit" value={cs.bestDay} suffix="$" placeholder="800" onChange={(e) => setCs({ ...cs, bestDay: e.target.value })} />
 
-        <p className="text-xs mt-1" style={{ color: palette.textFaint }}>Limits shown are common presets, use your specific firm's rules for anything that matters.</p>
+        <p className="text-xs mt-1" style={{ color: palette.textFaint }}>
+          Limits shown are common presets, use your specific firm's rules for anything that matters.
+        </p>
       </>
     );
   }
@@ -719,12 +989,34 @@ function LedgerApp() {
     const lots = stopPips > 0 && valPerPip > 0 ? riskAmt / (stopPips * valPerPip) : 0;
     body = (
       <>
-        <Readout eyebrow="Position Size" value={fmt(lots)} unit="lots" sub={`Risking $${fmt(riskAmt)} (${riskPct || 0}% of account)`} />
-        <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>Instrument</span>
+        <Readout
+          eyebrow="Position Size"
+          value={fmt(lots)}
+          unit="lots"
+          sub={`Risking $${fmt(riskAmt)} (${riskPct || 0}% of account)`}
+        />
+        <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
+          Instrument
+        </span>
         <div className="flex gap-2 mb-4">
-          {[{ id: "forex", label: "Forex" }, { id: "gold", label: "Gold" }, { id: "custom", label: "Custom" }].map((p) => (
-            <button key={p.id} type="button" onClick={() => applyPreset(p.id)} className="px-3 py-1.5 rounded-full"
-              style={{ background: ps.preset === p.id ? palette.gold : palette.field, color: ps.preset === p.id ? palette.letterbox : palette.textMuted, border: `1px solid ${ps.preset === p.id ? palette.gold : palette.border}`, fontFamily: mono, fontSize: "13px" }}>
+          {[
+            { id: "forex", label: "Forex" },
+            { id: "gold", label: "Gold" },
+            { id: "custom", label: "Custom" },
+          ].map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => applyPreset(p.id)}
+              className="px-3 py-1.5 rounded-full"
+              style={{
+                background: ps.preset === p.id ? palette.gold : palette.field,
+                color: ps.preset === p.id ? palette.letterbox : palette.textMuted,
+                border: `1px solid ${ps.preset === p.id ? palette.gold : palette.border}`,
+                fontFamily: mono,
+                fontSize: "13px",
+              }}
+            >
               {p.label}
             </button>
           ))}
@@ -733,7 +1025,9 @@ function LedgerApp() {
         <Field label="Risk per Trade" value={ps.riskPct} suffix="%" placeholder="1" onChange={(e) => setPs({ ...ps, riskPct: e.target.value })} />
         <Field label="Stop Distance" value={ps.stopPips} suffix="pips" placeholder="25" onChange={(e) => setPs({ ...ps, stopPips: e.target.value })} />
         <Field label="Value per Pip (1.0 lot)" value={ps.valuePerPip} suffix="$" onChange={(e) => setPs({ ...ps, preset: "custom", valuePerPip: e.target.value })} />
-        <p className="text-xs mt-1" style={{ color: palette.textFaint }}>Pip values are typical defaults, confirm your broker's contract specs before sizing real trades.</p>
+        <p className="text-xs mt-1" style={{ color: palette.textFaint }}>
+          Pip values are typical defaults, confirm your broker's contract specs before sizing real trades.
+        </p>
       </>
     );
   }
@@ -749,6 +1043,7 @@ function LedgerApp() {
     const converted = amount * effectiveRate;
     const inverseRate = effectiveRate > 0 ? 1 / effectiveRate : 0;
     const sameCurrency = fx.from === fx.to;
+
     const swap = () => setFx({ ...fx, from: fx.to, to: fx.from, customRate: "" });
 
     body = (
@@ -757,32 +1052,75 @@ function LedgerApp() {
           eyebrow={`${fx.from} \u2192 ${fx.to}`}
           value={sameCurrency ? fmtThousands(amount) : fmtThousands(converted)}
           unit={fx.to}
-          sub={sameCurrency ? "Same currency on both sides" : `1 ${fx.from} = ${fmt(effectiveRate, 4)} ${fx.to} \u00b7 1 ${fx.to} = ${fmt(inverseRate, 4)} ${fx.from}`}
+          sub={
+            sameCurrency
+              ? "Same currency on both sides"
+              : `1 ${fx.from} = ${fmt(effectiveRate, 4)} ${fx.to} \u00b7 1 ${fx.to} = ${fmt(inverseRate, 4)} ${fx.from}`
+          }
         />
-        <Field label="Amount" value={fx.amount} suffix={fx.from} placeholder="100" onChange={(e) => setFx({ ...fx, amount: e.target.value })} />
+
+        <Field
+          label="Amount"
+          value={fx.amount}
+          suffix={fx.from}
+          placeholder="100"
+          onChange={(e) => setFx({ ...fx, amount: e.target.value })}
+        />
+
         <div className="flex items-end gap-2 mb-1">
           <CurrencySelect label="From" value={fx.from} onChange={(e) => setFx({ ...fx, from: e.target.value, customRate: "" })} />
-          <button type="button" onClick={swap} className="flex items-center justify-center rounded-lg flex-shrink-0 mb-4"
-            style={{ width: "44px", height: "48px", background: palette.field, border: `1px solid ${palette.border}`, color: palette.gold }} aria-label="Swap currencies">
-            <SwapIcon size={16} />
+          <button
+            type="button"
+            onClick={swap}
+            className="flex items-center justify-center rounded-lg flex-shrink-0 mb-4"
+            style={{
+              width: "44px",
+              height: "48px",
+              background: palette.field,
+              border: `1px solid ${palette.border}`,
+              color: palette.gold,
+            }}
+            aria-label="Swap currencies"
+          >
+            <ArrowLeftRight size={16} />
           </button>
           <CurrencySelect label="To" value={fx.to} onChange={(e) => setFx({ ...fx, to: e.target.value, customRate: "" })} />
         </div>
+
         <div className="grid grid-cols-2 gap-3 mb-6">
-          <StatChip label="Rate used" value={usingCustomRate ? "Custom" : FX_SNAPSHOT_LABEL} />
+          <StatChip label={`Rate used`} value={usingCustomRate ? "Custom" : FX_SNAPSHOT_LABEL} />
           <StatChip label={`${fx.to} per ${fx.from}`} value={fmt(effectiveRate, 4)} />
         </div>
+
         <div className="flex items-center justify-between mb-1.5">
-          <span className="uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>Rate Override</span>
+          <span
+            className="uppercase"
+            style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+          >
+            Rate Override
+          </span>
           {usingCustomRate && (
-            <button type="button" onClick={() => setFx({ ...fx, customRate: "" })} className="flex items-center gap-1" style={{ color: palette.textFaint, fontSize: "11px", fontFamily: mono }}>
-              <RotateCcwIcon size={11} /> Reset
+            <button
+              type="button"
+              onClick={() => setFx({ ...fx, customRate: "" })}
+              className="flex items-center gap-1"
+              style={{ color: palette.textFaint, fontSize: "11px", fontFamily: mono }}
+            >
+              <RotateCcw size={11} />
+              Reset
             </button>
           )}
         </div>
-        <Field label={`1 ${fx.from} =`} value={fx.customRate} suffix={fx.to} placeholder={fmt(builtInRate, 4)} onChange={(e) => setFx({ ...fx, customRate: e.target.value })} />
+        <Field
+          label={`1 ${fx.from} =`}
+          value={fx.customRate}
+          suffix={fx.to}
+          placeholder={fmt(builtInRate, 4)}
+          onChange={(e) => setFx({ ...fx, customRate: e.target.value })}
+        />
         <p className="text-xs -mt-2 mb-4" style={{ color: palette.textFaint }}>
-          Built-in rates are a {FX_SNAPSHOT_LABEL} snapshot, not live. For anything that matters, check your bank or exchange's current rate and paste it above to convert precisely.
+          Built-in rates are a {FX_SNAPSHOT_LABEL} snapshot, not live. For anything that matters, check your bank
+          or exchange's current rate and paste it above to convert precisely.
         </p>
       </>
     );
@@ -797,7 +1135,9 @@ function LedgerApp() {
     const avgWin = wins.length > 0 ? wins.reduce((s, t) => s + t.pnl, 0) / wins.length : 0;
     const avgLoss = losses.length > 0 ? Math.abs(losses.reduce((s, t) => s + t.pnl, 0) / losses.length) : 0;
 
-    let running = startBal, peak = startBal, maxDrawdown = 0;
+    let running = startBal;
+    let peak = startBal;
+    let maxDrawdown = 0;
     const chartData = [{ trade: 0, equity: startBal }];
     trades.forEach((t, i) => {
       running += t.pnl;
@@ -806,21 +1146,33 @@ function LedgerApp() {
       chartData.push({ trade: i + 1, equity: running });
     });
 
-    let bestStreak = 0, worstStreak = 0, curStreak = 0;
+    let bestStreak = 0;
+    let worstStreak = 0;
+    let curStreak = 0;
     trades.forEach((t) => {
-      if (t.pnl > 0) curStreak = curStreak > 0 ? curStreak + 1 : 1;
-      else if (t.pnl < 0) curStreak = curStreak < 0 ? curStreak - 1 : -1;
-      else curStreak = 0;
+      if (t.pnl > 0) {
+        curStreak = curStreak > 0 ? curStreak + 1 : 1;
+      } else if (t.pnl < 0) {
+        curStreak = curStreak < 0 ? curStreak - 1 : -1;
+      } else {
+        curStreak = 0;
+      }
       bestStreak = Math.max(bestStreak, curStreak);
       worstStreak = Math.min(worstStreak, curStreak);
     });
 
+    const domainPad = Math.max(10, Math.abs(peak - (running - maxDrawdown)) * 0.1) || 10;
+
+    // Revenge trading: a trade opened shortly after a loss, suggesting an
+    // impulsive re-entry rather than a planned one.
     const sortedTrades = [...trades].sort((a, b) => a.ts - b.ts);
     const revengeIds = new Set();
     for (let i = 1; i < sortedTrades.length; i++) {
       const prev = sortedTrades[i - 1];
       const cur = sortedTrades[i];
-      if (prev.pnl < 0 && cur.ts - prev.ts <= REVENGE_WINDOW_MS) revengeIds.add(cur.id);
+      if (prev.pnl < 0 && cur.ts - prev.ts <= REVENGE_WINDOW_MS) {
+        revengeIds.add(cur.id);
+      }
     }
     const revengeTrades = sortedTrades.filter((t) => revengeIds.has(t.id));
     const revengeCount = revengeTrades.length;
@@ -828,6 +1180,7 @@ function LedgerApp() {
     const revengeLossRate = revengeCount > 0 ? (revengeLossCount / revengeCount) * 100 : 0;
     const revengePnl = revengeTrades.reduce((s, t) => s + t.pnl, 0);
 
+    // Win rate broken down by logged emotion.
     const emotionStats = EMOTIONS.map((e) => {
       const tagged = trades.filter((t) => t.emotion === e.id);
       const tWins = tagged.filter((t) => t.pnl > 0).length;
@@ -854,27 +1207,92 @@ function LedgerApp() {
     while (monthCells.length % 7 !== 0) monthCells.push(null);
 
     const monthPrefix = `${viewYear}-${pad2(viewMonthIdx + 1)}`;
-    const monthTotal = Object.keys(tradesByDay).reduce((sum, k) => (k.startsWith(monthPrefix) ? sum + tradesByDay[k].total : sum), 0);
-    const monthTradeCount = Object.keys(tradesByDay).reduce((sum, k) => (k.startsWith(monthPrefix) ? sum + tradesByDay[k].trades.length : sum), 0);
+    const monthTotal = Object.keys(tradesByDay).reduce(
+      (sum, k) => (k.startsWith(monthPrefix) ? sum + tradesByDay[k].total : sum),
+      0
+    );
+    const monthTradeCount = Object.keys(tradesByDay).reduce(
+      (sum, k) => (k.startsWith(monthPrefix) ? sum + tradesByDay[k].trades.length : sum),
+      0
+    );
 
     const todayKey = dayKeyFromDate(new Date());
     const selectedInfo = selectedDay ? tradesByDay[selectedDay] : null;
 
-    const goPrevMonth = () => { setCalMonth(new Date(viewYear, viewMonthIdx - 1, 1)); setSelectedDay(null); };
-    const goNextMonth = () => { setCalMonth(new Date(viewYear, viewMonthIdx + 1, 1)); setSelectedDay(null); };
+    const goPrevMonth = () => {
+      setCalMonth(new Date(viewYear, viewMonthIdx - 1, 1));
+      setSelectedDay(null);
+    };
+    const goNextMonth = () => {
+      setCalMonth(new Date(viewYear, viewMonthIdx + 1, 1));
+      setSelectedDay(null);
+    };
 
     body = (
       <>
         <Readout
           eyebrow="Equity"
           value={`${netPnl >= 0 ? "+" : "-"}$${fmt(Math.abs(netPnl))}`}
-          sub={trades.length > 0 ? `${trades.length} trade${trades.length === 1 ? "" : "s"} logged \u00b7 ${winRate.toFixed(1)}% win rate` : "Log your first trade below to start the curve"}
+          sub={
+            trades.length > 0
+              ? `${trades.length} trade${trades.length === 1 ? "" : "s"} logged \u00b7 ${winRate.toFixed(1)}% win rate`
+              : "Log your first trade below to start the curve"
+          }
           tone={netPnl > 0 ? "good" : netPnl < 0 ? "bad" : undefined}
         />
 
         {trades.length > 0 && (
-          <div className="rounded-2xl p-4 mb-6" style={{ background: palette.surface, border: `1px solid ${palette.border}` }}>
-            <EquityChart data={chartData} startBal={startBal} positive={netPnl >= 0} />
+          <div
+            className="rounded-2xl p-4 mb-6"
+            style={{ background: palette.surface, border: `1px solid ${palette.border}` }}
+          >
+            <div style={{ width: "100%", height: 180 }}>
+              <ResponsiveContainer>
+                <LineChart data={chartData} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
+                  <CartesianGrid stroke={palette.border} strokeDasharray="3 3" vertical={false} />
+                  <XAxis
+                    dataKey="trade"
+                    stroke={palette.textFaint}
+                    tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
+                    tickLine={false}
+                    axisLine={{ stroke: palette.border }}
+                  />
+                  <YAxis
+                    stroke={palette.textFaint}
+                    tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
+                    tickLine={false}
+                    axisLine={{ stroke: palette.border }}
+                    width={54}
+                    domain={[
+                      (dataMin) => Math.floor(dataMin - domainPad),
+                      (dataMax) => Math.ceil(dataMax + domainPad),
+                    ]}
+                  />
+                  <ReferenceLine y={startBal} stroke={palette.textFaint} strokeDasharray="4 4" />
+                  <Tooltip
+                    contentStyle={{
+                      background: palette.field,
+                      border: `1px solid ${palette.border}`,
+                      borderRadius: "8px",
+                      fontFamily: mono,
+                      fontSize: "12px",
+                    }}
+                    labelStyle={{ color: palette.textMuted }}
+                    itemStyle={{ color: palette.goldBright }}
+                    formatter={(v) => [`$${fmt(v)}`, "Equity"]}
+                    labelFormatter={(l) => `Trade ${l}`}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="equity"
+                    stroke={netPnl >= 0 ? palette.green : palette.red}
+                    strokeWidth={2}
+                    dot={false}
+                    activeDot={{ r: 4 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         )}
 
@@ -884,16 +1302,33 @@ function LedgerApp() {
           <StatChip label="Max Drawdown" value={trades.length ? `$${fmt(maxDrawdown, 0)}` : "\u2014"} />
           <StatChip label="Best / Worst Streak" value={trades.length ? `+${bestStreak} / ${worstStreak}` : "\u2014"} />
         </div>
-        <p className="text-xs mt-2 mb-6" style={{ color: palette.textFaint }}>Streaks count consecutive wins (positive) or losses (negative).</p>
 
-        <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>Trading Psychology</span>
+        <p className="text-xs mt-2 mb-6" style={{ color: palette.textFaint }}>
+          Streaks count consecutive wins (positive) or losses (negative).
+        </p>
+
+        <span
+          className="block mb-1.5 uppercase"
+          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+        >
+          Trading Psychology
+        </span>
+
         <div className="grid grid-cols-2 gap-3 mb-2">
-          <StatChip label="Revenge Trades" value={trades.length ? `${revengeCount} of ${trades.length}` : "\u2014"} />
-          <StatChip label="Revenge Trade P&L" value={revengeCount ? `${revengePnl >= 0 ? "+" : "-"}$${fmt(Math.abs(revengePnl), 0)}` : "\u2014"} />
+          <StatChip
+            label="Revenge Trades"
+            value={trades.length ? `${revengeCount} of ${trades.length}` : "\u2014"}
+          />
+          <StatChip
+            label="Revenge Trade P&L"
+            value={revengeCount ? `${revengePnl >= 0 ? "+" : "-"}$${fmt(Math.abs(revengePnl), 0)}` : "\u2014"}
+          />
         </div>
         <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
           {revengeCount > 0
-            ? `A trade counts as "revenge" when it's opened within ${REVENGE_WINDOW_MINUTES} minutes of a loss. ${revengeLossRate.toFixed(0)}% of those ended in another loss.`
+            ? `A trade counts as "revenge" when it's opened within ${REVENGE_WINDOW_MINUTES} minutes of a loss. ${revengeLossRate.toFixed(
+                0
+              )}% of those ended in another loss.`
             : `A trade opened within ${REVENGE_WINDOW_MINUTES} minutes of a loss is flagged here as a possible revenge trade.`}
         </p>
 
@@ -901,76 +1336,205 @@ function LedgerApp() {
           <>
             <div className="mb-2">
               {emotionStats.map((e) => (
-                <div key={e.id} className="flex items-center justify-between rounded-lg px-3 py-2.5 mb-2" style={{ background: palette.surface, border: `1px solid ${palette.border}` }}>
+                <div
+                  key={e.id}
+                  className="flex items-center justify-between rounded-lg px-3 py-2.5 mb-2"
+                  style={{ background: palette.surface, border: `1px solid ${palette.border}` }}
+                >
                   <div className="flex items-center gap-2">
                     <span style={{ fontSize: "16px" }}>{e.emoji}</span>
                     <span style={{ color: palette.text, fontSize: "13px" }}>{e.label}</span>
-                    <span style={{ color: palette.textFaint, fontSize: "11px", fontFamily: mono }}>\u00d7{e.count}</span>
+                    <span style={{ color: palette.textFaint, fontSize: "11px", fontFamily: mono }}>
+                      \u00d7{e.count}
+                    </span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span style={{ fontFamily: mono, fontSize: "12px", color: e.pnl >= 0 ? palette.green : palette.red }}>{e.pnl >= 0 ? "+" : "-"}${fmt(Math.abs(e.pnl), 0)}</span>
-                    <span style={{ fontFamily: mono, fontSize: "12px", color: palette.textMuted, minWidth: "42px", textAlign: "right" }}>{e.rate.toFixed(0)}%</span>
+                    <span
+                      style={{
+                        fontFamily: mono,
+                        fontSize: "12px",
+                        color: e.pnl >= 0 ? palette.green : palette.red,
+                      }}
+                    >
+                      {e.pnl >= 0 ? "+" : "-"}${fmt(Math.abs(e.pnl), 0)}
+                    </span>
+                    <span
+                      style={{
+                        fontFamily: mono,
+                        fontSize: "12px",
+                        color: palette.textMuted,
+                        minWidth: "42px",
+                        textAlign: "right",
+                      }}
+                    >
+                      {e.rate.toFixed(0)}%
+                    </span>
                   </div>
                 </div>
               ))}
             </div>
-            <p className="text-xs mb-6" style={{ color: palette.textFaint }}>Win rate by the mood tagged when each trade was logged.</p>
+            <p className="text-xs mb-6" style={{ color: palette.textFaint }}>
+              Win rate by the mood tagged when each trade was logged.
+            </p>
           </>
         )}
 
-        <Field label="Starting Balance" value={startingBalance} suffix="$" placeholder="10000" onChange={(e) => persistStartingBalance(e.target.value)} />
+        <Field
+          label="Starting Balance"
+          value={startingBalance}
+          suffix="$"
+          placeholder="10000"
+          onChange={(e) => persistStartingBalance(e.target.value)}
+        />
 
-        <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>Log a Trade</span>
+        <span
+          className="block mb-1.5 uppercase"
+          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+        >
+          Log a Trade
+        </span>
         <div className="flex gap-2 mb-2">
-          <div className="flex items-center rounded-lg px-3 flex-1" style={{ background: palette.field, border: `1px solid ${palette.border}` }}>
-            <span className="text-sm pr-1" style={{ color: palette.textFaint }}>$</span>
-            <input type="text" inputMode="decimal" value={tradeInput} onChange={(e) => setTradeInput(e.target.value)} placeholder="+120 or -60"
-              className="w-full bg-transparent py-3 outline-none" style={{ color: palette.text, fontFamily: mono, fontSize: "16px" }} />
+          <div
+            className="flex items-center rounded-lg px-3 flex-1"
+            style={{ background: palette.field, border: `1px solid ${palette.border}` }}
+          >
+            <span className="text-sm pr-1" style={{ color: palette.textFaint }}>
+              $
+            </span>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={tradeInput}
+              onChange={(e) => setTradeInput(e.target.value)}
+              placeholder="+120 or -60"
+              className="w-full bg-transparent py-3 outline-none"
+              style={{ color: palette.text, fontFamily: mono, fontSize: "16px" }}
+            />
           </div>
-          <button type="button" onClick={addTrade} className="flex items-center justify-center rounded-lg flex-shrink-0" style={{ width: "46px", background: palette.gold, color: palette.letterbox }} aria-label="Add trade">
-            <PlusIcon size={20} strokeWidth={2.4} />
+          <button
+            type="button"
+            onClick={addTrade}
+            className="flex items-center justify-center rounded-lg flex-shrink-0"
+            style={{
+              width: "46px",
+              background: palette.gold,
+              color: palette.letterbox,
+            }}
+            aria-label="Add trade"
+          >
+            <Plus size={20} strokeWidth={2.4} />
           </button>
         </div>
-        <input type="text" value={tradeNote} onChange={(e) => setTradeNote(e.target.value)} placeholder="Note (optional)"
-          className="w-full rounded-lg px-3 py-2.5 mb-2 bg-transparent outline-none" style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.textMuted, fontSize: "13px" }} />
+        <input
+          type="text"
+          value={tradeNote}
+          onChange={(e) => setTradeNote(e.target.value)}
+          placeholder="Note (optional)"
+          className="w-full rounded-lg px-3 py-2.5 mb-2 bg-transparent outline-none"
+          style={{
+            background: palette.field,
+            border: `1px solid ${palette.border}`,
+            color: palette.textMuted,
+            fontSize: "13px",
+          }}
+        />
 
         <div className="flex gap-2 flex-wrap mb-2">
           {EMOTIONS.map((e) => {
             const active = tradeEmotion === e.id;
             return (
-              <button key={e.id} type="button" onClick={() => setTradeEmotion(active ? null : e.id)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full"
-                style={{ background: active ? palette.gold : palette.field, color: active ? palette.letterbox : palette.textMuted, border: `1px solid ${active ? palette.gold : palette.border}`, fontSize: "13px" }}>
-                <span>{e.emoji}</span>{e.label}
+              <button
+                key={e.id}
+                type="button"
+                onClick={() => setTradeEmotion(active ? null : e.id)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full"
+                style={{
+                  background: active ? palette.gold : palette.field,
+                  color: active ? palette.letterbox : palette.textMuted,
+                  border: `1px solid ${active ? palette.gold : palette.border}`,
+                  fontSize: "13px",
+                }}
+              >
+                <span>{e.emoji}</span>
+                {e.label}
               </button>
             );
           })}
         </div>
         <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-          Enter net P&amp;L for the trade. Positive logs a win, negative logs a loss. Tagging your mood (optional) is what powers the psychology stats above.
+          Enter net P&amp;L for the trade. Positive logs a win, negative logs a loss. Tagging your mood
+          (optional) is what powers the psychology stats above.
         </p>
 
-        {storageError && <p className="text-xs mb-4" style={{ color: palette.red }}>{storageError}</p>}
+        {storageError && (
+          <p className="text-xs mb-4" style={{ color: palette.red }}>
+            {storageError}
+          </p>
+        )}
 
         {!tradesLoaded ? (
-          <p className="text-xs mb-4" style={{ color: palette.textFaint }}>Loading saved trades\u2026</p>
+          <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
+            Loading saved trades\u2026
+          </p>
         ) : (
           <>
             <div className="flex items-center justify-between mb-1.5">
-              <span className="uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>Calendar</span>
+              <span
+                className="uppercase"
+                style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+              >
+                Calendar
+              </span>
               {trades.length > 0 && (
-                <button type="button" onClick={() => { clearTrades(); setSelectedDay(null); }} style={{ color: palette.textFaint, fontSize: "11px", fontFamily: mono }}>Clear all</button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearTrades();
+                    setSelectedDay(null);
+                  }}
+                  style={{ color: palette.textFaint, fontSize: "11px", fontFamily: mono }}
+                >
+                  Clear all
+                </button>
               )}
             </div>
 
-            <div className="rounded-2xl p-4 mb-4" style={{ background: palette.surface, border: `1px solid ${palette.border}` }}>
+            <div
+              className="rounded-2xl p-4 mb-4"
+              style={{ background: palette.surface, border: `1px solid ${palette.border}` }}
+            >
               <div className="flex items-center justify-between mb-3">
-                <button type="button" onClick={goPrevMonth} aria-label="Previous month" style={{ color: palette.textMuted, padding: "2px" }}><ChevronLeftIcon size={18} /></button>
-                <div style={{ fontFamily: mono, fontSize: "13px", color: palette.text, letterSpacing: "0.04em" }}>{MONTH_NAMES[viewMonthIdx]} {viewYear}</div>
-                <button type="button" onClick={goNextMonth} aria-label="Next month" style={{ color: palette.textMuted, padding: "2px" }}><ChevronRightIcon size={18} /></button>
+                <button
+                  type="button"
+                  onClick={goPrevMonth}
+                  aria-label="Previous month"
+                  style={{ color: palette.textMuted, padding: "2px" }}
+                >
+                  <ChevronLeft size={18} />
+                </button>
+                <div style={{ fontFamily: mono, fontSize: "13px", color: palette.text, letterSpacing: "0.04em" }}>
+                  {MONTH_NAMES[viewMonthIdx]} {viewYear}
+                </div>
+                <button
+                  type="button"
+                  onClick={goNextMonth}
+                  aria-label="Next month"
+                  style={{ color: palette.textMuted, padding: "2px" }}
+                >
+                  <ChevronRight size={18} />
+                </button>
               </div>
 
               <div className="grid grid-cols-7 gap-1 mb-1.5">
-                {WEEKDAY_LABELS.map((w, i) => (<div key={i} className="text-center" style={{ fontSize: "10px", color: palette.textFaint, fontFamily: mono }}>{w}</div>))}
+                {WEEKDAY_LABELS.map((w, i) => (
+                  <div
+                    key={i}
+                    className="text-center"
+                    style={{ fontSize: "10px", color: palette.textFaint, fontFamily: mono }}
+                  >
+                    {w}
+                  </div>
+                ))}
               </div>
 
               <div className="grid grid-cols-7 gap-1">
@@ -983,10 +1547,45 @@ function LedgerApp() {
                   const isSelected = key === selectedDay;
                   const posDay = hasTrades && info.total >= 0;
                   return (
-                    <button key={i} type="button" onClick={() => hasTrades && setSelectedDay(isSelected ? null : key)} className="flex flex-col items-center justify-center rounded-lg"
-                      style={{ aspectRatio: "1", background: hasTrades ? (posDay ? `${palette.green}26` : `${palette.red}26`) : "transparent", border: `1px solid ${isSelected ? palette.gold : isToday ? palette.textMuted : "transparent"}`, cursor: hasTrades ? "pointer" : "default" }}>
-                      <span style={{ fontSize: "11px", color: hasTrades ? palette.text : palette.textFaint, fontFamily: mono }}>{d}</span>
-                      {hasTrades && <span style={{ fontSize: "9px", color: posDay ? palette.green : palette.red, fontFamily: mono }}>{posDay ? "+" : "-"}{fmt(Math.abs(info.total), 0)}</span>}
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => hasTrades && setSelectedDay(isSelected ? null : key)}
+                      className="flex flex-col items-center justify-center rounded-lg"
+                      style={{
+                        aspectRatio: "1",
+                        background: hasTrades
+                          ? posDay
+                            ? `${palette.green}26`
+                            : `${palette.red}26`
+                          : "transparent",
+                        border: `1px solid ${
+                          isSelected ? palette.gold : isToday ? palette.textMuted : "transparent"
+                        }`,
+                        cursor: hasTrades ? "pointer" : "default",
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: "11px",
+                          color: hasTrades ? palette.text : palette.textFaint,
+                          fontFamily: mono,
+                        }}
+                      >
+                        {d}
+                      </span>
+                      {hasTrades && (
+                        <span
+                          style={{
+                            fontSize: "9px",
+                            color: posDay ? palette.green : palette.red,
+                            fontFamily: mono,
+                          }}
+                        >
+                          {posDay ? "+" : "-"}
+                          {fmt(Math.abs(info.total), 0)}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -994,36 +1593,94 @@ function LedgerApp() {
             </div>
 
             <div className="grid grid-cols-2 gap-3 mb-4">
-              <StatChip label={`${MONTH_NAMES[viewMonthIdx]} Total`} value={`${monthTotal >= 0 ? "+" : "-"}$${fmt(Math.abs(monthTotal), 0)}`} />
+              <StatChip
+                label={`${MONTH_NAMES[viewMonthIdx]} Total`}
+                value={`${monthTotal >= 0 ? "+" : "-"}$${fmt(Math.abs(monthTotal), 0)}`}
+              />
               <StatChip label={`${MONTH_NAMES[viewMonthIdx]} Trades`} value={String(monthTradeCount)} />
             </div>
 
             {selectedInfo && (
               <>
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className="uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>{formatDayLabel(selectedDay)}</span>
-                  <span style={{ fontFamily: mono, fontSize: "12px", color: selectedInfo.total >= 0 ? palette.green : palette.red }}>{selectedInfo.total >= 0 ? "+" : "-"}${fmt(Math.abs(selectedInfo.total), 0)}</span>
+                  <span
+                    className="uppercase"
+                    style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+                  >
+                    {formatDayLabel(selectedDay)}
+                  </span>
+                  <span
+                    style={{
+                      fontFamily: mono,
+                      fontSize: "12px",
+                      color: selectedInfo.total >= 0 ? palette.green : palette.red,
+                    }}
+                  >
+                    {selectedInfo.total >= 0 ? "+" : "-"}${fmt(Math.abs(selectedInfo.total), 0)}
+                  </span>
                 </div>
                 {selectedInfo.trades.map((t) => (
-                  <div key={t.id} className="flex items-center justify-between rounded-lg px-3 py-2.5 mb-2" style={{ background: palette.surface, border: `1px solid ${palette.border}` }}>
+                  <div
+                    key={t.id}
+                    className="flex items-center justify-between rounded-lg px-3 py-2.5 mb-2"
+                    style={{ background: palette.surface, border: `1px solid ${palette.border}` }}
+                  >
                     <div>
                       <div className="flex items-center gap-1.5">
-                        <span style={{ fontFamily: mono, fontSize: "14px", color: t.pnl >= 0 ? palette.green : palette.red }}>{t.pnl >= 0 ? "+" : "-"}${fmt(Math.abs(t.pnl), 0)}</span>
-                        {t.emotion && emotionMeta(t.emotion) && <span style={{ fontSize: "13px" }}>{emotionMeta(t.emotion).emoji}</span>}
+                        <span
+                          style={{
+                            fontFamily: mono,
+                            fontSize: "14px",
+                            color: t.pnl >= 0 ? palette.green : palette.red,
+                          }}
+                        >
+                          {t.pnl >= 0 ? "+" : "-"}${fmt(Math.abs(t.pnl), 0)}
+                        </span>
+                        {t.emotion && emotionMeta(t.emotion) && (
+                          <span style={{ fontSize: "13px" }}>{emotionMeta(t.emotion).emoji}</span>
+                        )}
                         {revengeIds.has(t.id) && (
-                          <span style={{ fontSize: "10px", fontFamily: mono, color: palette.red, border: `1px solid ${palette.red}`, borderRadius: "999px", padding: "1px 6px" }}>revenge</span>
+                          <span
+                            style={{
+                              fontSize: "10px",
+                              fontFamily: mono,
+                              color: palette.red,
+                              border: `1px solid ${palette.red}`,
+                              borderRadius: "999px",
+                              padding: "1px 6px",
+                            }}
+                          >
+                            revenge
+                          </span>
                         )}
                       </div>
-                      {t.note && <div style={{ color: palette.textMuted, fontSize: "12px" }}>{t.note}</div>}
+                      {t.note && (
+                        <div style={{ color: palette.textMuted, fontSize: "12px" }}>{t.note}</div>
+                      )}
                     </div>
-                    <button type="button" onClick={() => deleteTrade(t.id)} style={{ color: palette.textFaint }} aria-label="Delete trade"><TrashIcon size={15} /></button>
+                    <button
+                      type="button"
+                      onClick={() => deleteTrade(t.id)}
+                      style={{ color: palette.textFaint }}
+                      aria-label="Delete trade"
+                    >
+                      <Trash2 size={15} />
+                    </button>
                   </div>
                 ))}
               </>
             )}
 
-            {trades.length === 0 && <p className="text-xs mb-4" style={{ color: palette.textFaint }}>No trades logged yet. Log one below and it'll land on today's date.</p>}
-            {trades.length > 0 && !selectedInfo && <p className="text-xs mb-4" style={{ color: palette.textFaint }}>Tap a highlighted day to see its trades.</p>}
+            {trades.length === 0 && (
+              <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
+                No trades logged yet. Log one below and it'll land on today's date.
+              </p>
+            )}
+            {trades.length > 0 && !selectedInfo && (
+              <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
+                Tap a highlighted day to see its trades.
+              </p>
+            )}
           </>
         )}
       </>
@@ -1032,12 +1689,15 @@ function LedgerApp() {
 
   if (activeTab === "news") {
     const now = new Date();
-    const withOcc = newsEvents.map((ev) => ({ ev, occMs: nextOccurrenceMs(ev) }));
+    const withOcc = newsEvents.map((ev) => ({ ev, occMs: nextOccurrenceMs(ev, now) }));
+
     const future = withOcc.filter((x) => x.occMs >= now.getTime()).sort((a, b) => a.occMs - b.occMs);
     const next = future[0];
     const nextMs = next ? next.occMs - now.getTime() : Infinity;
     const nextLabel = next ? `${next.ev.date} \u00b7 ${next.ev.time}` : "";
-    const impactColor = (level) => (level === "high" ? palette.red : level === "medium" ? palette.goldBright : palette.textMuted);
+
+    const impactColor = (level) =>
+      level === "high" ? palette.red : level === "medium" ? palette.goldBright : palette.textMuted;
 
     const dayGroups = {};
     withOcc.forEach(({ ev, occMs }) => {
@@ -1058,32 +1718,81 @@ function LedgerApp() {
         />
 
         {!newsLoaded ? (
-          <p className="text-xs mb-4" style={{ color: palette.textFaint }}>Loading saved events\u2026</p>
+          <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
+            Loading saved events\u2026
+          </p>
         ) : newsEvents.length === 0 ? (
-          <p className="text-xs mb-4" style={{ color: palette.textFaint }}>No events added yet. Add one below to start tracking it.</p>
+          <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
+            No events added yet. Add one below to start tracking it.
+          </p>
         ) : (
           dayKeys.map((key) => {
             const dayDate = new Date(`${key}T00:00:00`);
-            const dayLabel = dayDate.toLocaleDateString("default", { weekday: "long", month: "short", day: "numeric" });
+            const dayLabel = dayDate.toLocaleDateString("default", {
+              weekday: "long",
+              month: "short",
+              day: "numeric",
+            });
             const isPast = dayGroups[key].every((x) => x.occMs < now.getTime());
             return (
               <div key={key} className="mb-4">
-                <div className="uppercase mb-1.5" style={{ color: isPast ? palette.textFaint : palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>{dayLabel}</div>
-                {dayGroups[key].sort((a, b) => a.ev.time.localeCompare(b.ev.time)).map(({ ev, occMs }) => {
-                  const passed = occMs < now.getTime();
-                  return (
-                    <div key={ev.id} className="flex items-center justify-between rounded-lg px-3 py-2.5 mb-2" style={{ background: palette.surface, border: `1px solid ${palette.border}`, opacity: passed ? 0.55 : 1 }}>
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <span style={{ color: palette.text, fontSize: "14px" }}>{ev.name}</span>
-                          <span style={{ fontSize: "9px", fontFamily: mono, color: impactColor(ev.impact), border: `1px solid ${impactColor(ev.impact)}`, borderRadius: "999px", padding: "1px 6px", textTransform: "uppercase" }}>{ev.impact}</span>
+                <div
+                  className="uppercase mb-1.5"
+                  style={{
+                    color: isPast ? palette.textFaint : palette.textMuted,
+                    letterSpacing: "0.08em",
+                    fontSize: "11px",
+                  }}
+                >
+                  {dayLabel}
+                </div>
+                {dayGroups[key]
+                  .sort((a, b) => a.ev.time.localeCompare(b.ev.time))
+                  .map(({ ev, occMs }) => {
+                    const passed = occMs < now.getTime();
+                    return (
+                      <div
+                        key={ev.id}
+                        className="flex items-center justify-between rounded-lg px-3 py-2.5 mb-2"
+                        style={{
+                          background: palette.surface,
+                          border: `1px solid ${palette.border}`,
+                          opacity: passed ? 0.55 : 1,
+                        }}
+                      >
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span style={{ color: palette.text, fontSize: "14px" }}>{ev.name}</span>
+                            <span
+                              style={{
+                                fontSize: "9px",
+                                fontFamily: mono,
+                                color: impactColor(ev.impact),
+                                border: `1px solid ${impactColor(ev.impact)}`,
+                                borderRadius: "999px",
+                                padding: "1px 6px",
+                                textTransform: "uppercase",
+                              }}
+                            >
+                              {ev.impact}
+                            </span>
+                          </div>
+                          <div style={{ color: palette.textMuted, fontSize: "12px" }}>
+                            {ev.time}
+                            {passed ? " \u00b7 released" : ""}
+                          </div>
                         </div>
-                        <div style={{ color: palette.textMuted, fontSize: "12px" }}>{ev.time}{passed ? " \u00b7 released" : ""}</div>
+                        <button
+                          type="button"
+                          onClick={() => deleteNewsEvent(ev.id)}
+                          style={{ color: palette.textFaint }}
+                          aria-label="Delete event"
+                        >
+                          <Trash2 size={15} />
+                        </button>
                       </div>
-                      <button type="button" onClick={() => deleteNewsEvent(ev.id)} style={{ color: palette.textFaint }} aria-label="Delete event"><TrashIcon size={15} /></button>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
               </div>
             );
           })
@@ -1093,62 +1802,153 @@ function LedgerApp() {
           Nothing here is added automatically \u2014 add the events you want to track below.
         </p>
 
-        <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>Add Event</span>
+        <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
+          Add Event
+        </span>
         <label className="block mb-4">
-          <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>Event Name</span>
-          <div className="flex items-center rounded-lg px-3" style={{ background: palette.field, border: `1px solid ${palette.border}` }}>
-            <input type="text" value={newEventName} onChange={(e) => setNewEventName(e.target.value)} placeholder="Non-Farm Payrolls"
-              className="w-full bg-transparent py-3 outline-none" style={{ color: palette.text, fontFamily: mono, fontSize: "16px" }} />
+          <span
+            className="block mb-1.5 uppercase"
+            style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+          >
+            Event Name
+          </span>
+          <div
+            className="flex items-center rounded-lg px-3"
+            style={{ background: palette.field, border: `1px solid ${palette.border}` }}
+          >
+            <input
+              type="text"
+              value={newEventName}
+              onChange={(e) => setNewEventName(e.target.value)}
+              placeholder="Non-Farm Payrolls"
+              className="w-full bg-transparent py-3 outline-none"
+              style={{ color: palette.text, fontFamily: mono, fontSize: "16px" }}
+            />
           </div>
         </label>
 
-        <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>Impact</span>
+        <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
+          Impact
+        </span>
         <div className="flex gap-2 mb-4">
           {["high", "medium", "low"].map((lvl) => (
-            <button key={lvl} type="button" onClick={() => setNewEventImpact(lvl)} className="px-3 py-1.5 rounded-full"
-              style={{ background: newEventImpact === lvl ? impactColor(lvl) : palette.field, color: newEventImpact === lvl ? palette.letterbox : palette.textMuted, border: `1px solid ${newEventImpact === lvl ? impactColor(lvl) : palette.border}`, fontFamily: mono, fontSize: "13px", textTransform: "capitalize" }}>
+            <button
+              key={lvl}
+              type="button"
+              onClick={() => setNewEventImpact(lvl)}
+              className="px-3 py-1.5 rounded-full"
+              style={{
+                background: newEventImpact === lvl ? impactColor(lvl) : palette.field,
+                color: newEventImpact === lvl ? palette.letterbox : palette.textMuted,
+                border: `1px solid ${newEventImpact === lvl ? impactColor(lvl) : palette.border}`,
+                fontFamily: mono,
+                fontSize: "13px",
+                textTransform: "capitalize",
+              }}
+            >
               {lvl}
             </button>
           ))}
         </div>
 
         <label className="block mb-4">
-          <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>Date</span>
-          <div className="rounded-lg px-3" style={{ background: palette.field, border: `1px solid ${palette.border}` }}>
-            <input type="date" value={newEventDate} onChange={(e) => setNewEventDate(e.target.value)} className="w-full bg-transparent py-3 outline-none" style={{ color: palette.text, fontFamily: mono, fontSize: "15px" }} />
+          <span
+            className="block mb-1.5 uppercase"
+            style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+          >
+            Date
+          </span>
+          <div
+            className="rounded-lg px-3"
+            style={{ background: palette.field, border: `1px solid ${palette.border}` }}
+          >
+            <input
+              type="date"
+              value={newEventDate}
+              onChange={(e) => setNewEventDate(e.target.value)}
+              className="w-full bg-transparent py-3 outline-none"
+              style={{ color: palette.text, fontFamily: mono, fontSize: "15px" }}
+            />
           </div>
         </label>
 
         <label className="block mb-4">
-          <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>Time (local)</span>
-          <div className="rounded-lg px-3" style={{ background: palette.field, border: `1px solid ${palette.border}` }}>
-            <input type="time" value={newEventTime} onChange={(e) => setNewEventTime(e.target.value)} className="w-full bg-transparent py-3 outline-none" style={{ color: palette.text, fontFamily: mono, fontSize: "15px" }} />
+          <span
+            className="block mb-1.5 uppercase"
+            style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+          >
+            Time (local)
+          </span>
+          <div
+            className="rounded-lg px-3"
+            style={{ background: palette.field, border: `1px solid ${palette.border}` }}
+          >
+            <input
+              type="time"
+              value={newEventTime}
+              onChange={(e) => setNewEventTime(e.target.value)}
+              className="w-full bg-transparent py-3 outline-none"
+              style={{ color: palette.text, fontFamily: mono, fontSize: "15px" }}
+            />
           </div>
         </label>
 
-        <button type="button" onClick={addNewsEvent} className="w-full rounded-lg py-3 mb-4" style={{ background: palette.gold, color: palette.letterbox, fontFamily: mono, fontSize: "14px" }}>+ Add Event</button>
+        <button
+          type="button"
+          onClick={addNewsEvent}
+          className="w-full rounded-lg py-3 mb-4"
+          style={{ background: palette.gold, color: palette.letterbox, fontFamily: mono, fontSize: "14px" }}
+        >
+          + Add Event
+        </button>
       </>
     );
   }
 
   return (
     <div className="min-h-screen w-full flex justify-center" style={{ background: palette.letterbox }}>
-      <div className="w-full flex flex-col min-h-screen" style={{ maxWidth: "440px", background: palette.bg, fontFamily: sans }}>
+      <style>{`
+        @media (prefers-reduced-motion: no-preference) {
+          .ticker-glow { animation: pulse 3.2s ease-in-out infinite; }
+        }
+        @keyframes pulse {
+          0%, 100% { filter: drop-shadow(0 0 0px rgba(231,198,135,0)); }
+          50% { filter: drop-shadow(0 0 8px rgba(231,198,135,0.25)); }
+        }
+        input:focus, select:focus { outline: none; }
+        select option { background: ${palette.field}; }
+      `}</style>
+      <div
+        className="w-full flex flex-col min-h-screen"
+        style={{ maxWidth: "440px", background: palette.bg, fontFamily: sans }}
+      >
         <header className="px-5 pt-6 pb-4 flex-shrink-0" style={{ borderBottom: `1px solid ${palette.border}` }}>
-          <div className="uppercase" style={{ color: palette.gold, letterSpacing: "0.16em", fontSize: "11px" }}>Trade Math Calculator</div>
-          <h1 className="mt-1" style={{ fontFamily: mono, fontSize: "1.6rem", fontWeight: 700, color: palette.text, letterSpacing: "0.02em" }}>LEDGER</h1>
+          <div className="uppercase" style={{ color: palette.gold, letterSpacing: "0.16em", fontSize: "11px" }}>
+            Trade Math Calculator
+          </div>
+          <h1 className="mt-1" style={{ fontFamily: mono, fontSize: "1.6rem", fontWeight: 700, color: palette.text, letterSpacing: "0.02em" }}>
+            LEDGER
+          </h1>
         </header>
 
         <main className="flex-1 overflow-y-auto px-5 py-5">{body}</main>
 
-        <nav className="flex-shrink-0 flex overflow-x-auto" style={{ borderTop: `1px solid ${palette.border}`, background: palette.surface }}>
+        <nav
+          className="flex-shrink-0 flex overflow-x-auto"
+          style={{ borderTop: `1px solid ${palette.border}`, background: palette.surface }}
+        >
           {TABS.map((tab) => {
-            const TabIcon = tab.icon;
+            const Icon = tab.icon;
             const active = activeTab === tab.id;
             return (
               <div key={tab.id} className="flex items-stretch flex-shrink-0">
-                <button type="button" onClick={() => setActiveTab(tab.id)} className="flex flex-col items-center gap-1 py-3 flex-shrink-0" style={{ color: active ? palette.goldBright : palette.textFaint, minWidth: "64px" }}>
-                  <TabIcon size={18} strokeWidth={active ? 2.4 : 1.8} />
+                <button
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className="flex flex-col items-center gap-1 py-3 flex-shrink-0"
+                  style={{ color: active ? palette.goldBright : palette.textFaint, minWidth: "64px" }}
+                >
+                  <Icon size={18} strokeWidth={active ? 2.4 : 1.8} />
                   <span style={{ fontSize: "10px", letterSpacing: "0.04em" }}>{tab.label}</span>
                 </button>
               </div>
@@ -1160,13 +1960,15 @@ function LedgerApp() {
   );
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<LedgerApp />);
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<LedgerApp />);
 </script>
 
+<!-- Register the service worker for offline support / installability -->
 <script>
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./sw.js").catch(() => {});
+      navigator.serviceWorker.register("sw.js").catch(() => {});
     });
   }
 </script>
