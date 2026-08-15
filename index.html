@@ -2,40 +2,32 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
 <title>Ledger — Trade Math Calculator</title>
-<meta name="description" content="Risk/reward, prop-firm challenge, position size, currency conversion, equity curve and economic-news tools for traders." />
+<meta name="description" content="Risk/reward, prop-firm challenge tracking, position sizing, currency conversion, equity curve and trading psychology, all in one offline-friendly app." />
 <meta name="theme-color" content="#0A0E16" />
-<link rel="manifest" href="./manifest.json" />
-<link rel="icon" href="./icon.png" type="image/png" />
-<link rel="apple-touch-icon" href="./icon.png" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
-
-<script src="https://cdn.tailwindcss.com"></script>
-
-<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script crossorigin src="https://unpkg.com/prop-types@15/prop-types.min.js"></script>
-<script crossorigin src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
-<script crossorigin src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
-
+<meta name="apple-mobile-web-app-title" content="Ledger" />
+<link rel="manifest" href="./manifest.json" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230A0E16'/%3E%3Ctext x='50' y='66' font-family='monospace' font-size='54' font-weight='700' fill='%23C7A25C' text-anchor='middle'%3EL%3C/text%3E%3C/svg%3E" />
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%230A0E16'/%3E%3Ctext x='50' y='66' font-family='monospace' font-size='54' font-weight='700' fill='%23C7A25C' text-anchor='middle'%3EL%3C/text%3E%3C/svg%3E" />
+<script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
 <style>
-  html, body { margin: 0; padding: 0; background: #05070C; height: 100%; }
+  html, body { height: 100%; margin: 0; padding: 0; background: #05070C; }
   #root { height: 100%; }
+  * { box-sizing: border-box; }
 </style>
 </head>
 <body>
 <div id="root"></div>
 
-<script type="text/babel" data-presets="react">
-const { useState, useEffect, useRef } = React;
-const {
+<script type="text/babel" data-type="module" data-presets="react">
+import { useState, useEffect, useRef } from "https://esm.sh/react@18.3.1";
+import { createRoot } from "https://esm.sh/react-dom@18.3.1/client";
+import { Scale, Target, Layers, LineChart as CurveIcon, ArrowLeftRight, Trash2, Plus, ChevronLeft, ChevronRight, RotateCcw, Newspaper, Share2, X, Download, Upload, Copy, Sun, Moon, Bell, Info } from "https://esm.sh/lucide-react@0.383.0?deps=react@18.3.1";
+import {
   ResponsiveContainer,
   LineChart,
   Line,
@@ -44,197 +36,9 @@ const {
   CartesianGrid,
   Tooltip,
   ReferenceLine,
-} = Recharts;
+} from "https://esm.sh/recharts@2.12.7?deps=react@18.3.1,react-dom@18.3.1";
 
-// ---------------------------------------------------------------------
-// Local-storage backed shim for the window.storage key/value API this
-// app was originally built against, so it can run as a plain static
-// PWA (GitHub Pages, etc.) instead of inside an environment that
-// provides window.storage natively.
-// ---------------------------------------------------------------------
-(function installStorageShim() {
-  if (window.storage) return; // don't overwrite a real implementation if present
-  const PREFIX = "ledger:";
-  const fullKey = (key, shared) => `${PREFIX}${shared ? "shared:" : "local:"}${key}`;
-
-  window.storage = {
-    async get(key, shared) {
-      const raw = window.localStorage.getItem(fullKey(key, shared));
-      if (raw === null) return null;
-      return { key, value: raw, shared: !!shared };
-    },
-    async set(key, value, shared) {
-      window.localStorage.setItem(fullKey(key, shared), value);
-      return { key, value, shared: !!shared };
-    },
-    async delete(key, shared) {
-      window.localStorage.removeItem(fullKey(key, shared));
-      return { key, deleted: true, shared: !!shared };
-    },
-    async list(prefix, shared) {
-      const scope = `${PREFIX}${shared ? "shared:" : "local:"}`;
-      const keys = [];
-      for (let i = 0; i < window.localStorage.length; i++) {
-        const k = window.localStorage.key(i);
-        if (k && k.startsWith(scope)) {
-          const stripped = k.slice(scope.length);
-          if (!prefix || stripped.startsWith(prefix)) keys.push(stripped);
-        }
-      }
-      return { keys, prefix, shared: !!shared };
-    },
-  };
-})();
-
-// ---------------------------------------------------------------------
-// Minimal lucide-style icon set (inline SVG), standing in for the
-// lucide-react components the original component imported.
-// ---------------------------------------------------------------------
-function IconBase({ size = 18, strokeWidth = 2, children }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={strokeWidth}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      {children}
-    </svg>
-  );
-}
-function Scale({ size, strokeWidth }) {
-  return (
-    <IconBase size={size} strokeWidth={strokeWidth}>
-      <line x1="12" y1="3" x2="12" y2="21" />
-      <line x1="4" y1="7" x2="20" y2="7" />
-      <path d="M4 7l-2.5 6a3 3 0 0 0 5 0L4 7Z" />
-      <path d="M20 7l-2.5 6a3 3 0 0 0 5 0L20 7Z" />
-      <path d="M8 21h8" />
-    </IconBase>
-  );
-}
-function Target({ size, strokeWidth }) {
-  return (
-    <IconBase size={size} strokeWidth={strokeWidth}>
-      <circle cx="12" cy="12" r="9" />
-      <circle cx="12" cy="12" r="5" />
-      <circle cx="12" cy="12" r="1" />
-    </IconBase>
-  );
-}
-function Layers({ size, strokeWidth }) {
-  return (
-    <IconBase size={size} strokeWidth={strokeWidth}>
-      <polygon points="12 2 22 8 12 14 2 8 12 2" />
-      <polyline points="2 13 12 19 22 13" />
-      <polyline points="2 17 12 22 22 17" />
-    </IconBase>
-  );
-}
-function CurveIcon({ size, strokeWidth }) {
-  return (
-    <IconBase size={size} strokeWidth={strokeWidth}>
-      <polyline points="3 17 9 11 13 15 21 5" />
-      <polyline points="14 5 21 5 21 12" />
-    </IconBase>
-  );
-}
-function ArrowLeftRight({ size, strokeWidth }) {
-  return (
-    <IconBase size={size} strokeWidth={strokeWidth}>
-      <polyline points="17 3 21 7 17 11" />
-      <line x1="21" y1="7" x2="3" y2="7" />
-      <polyline points="7 13 3 17 7 21" />
-      <line x1="3" y1="17" x2="21" y2="17" />
-    </IconBase>
-  );
-}
-function Trash2({ size, strokeWidth }) {
-  return (
-    <IconBase size={size} strokeWidth={strokeWidth}>
-      <polyline points="3 6 5 6 21 6" />
-      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-      <path d="M10 11v6" />
-      <path d="M14 11v6" />
-      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-    </IconBase>
-  );
-}
-function Plus({ size, strokeWidth }) {
-  return (
-    <IconBase size={size} strokeWidth={strokeWidth}>
-      <line x1="12" y1="5" x2="12" y2="19" />
-      <line x1="5" y1="12" x2="19" y2="12" />
-    </IconBase>
-  );
-}
-function ChevronLeft({ size, strokeWidth }) {
-  return (
-    <IconBase size={size} strokeWidth={strokeWidth}>
-      <polyline points="15 18 9 12 15 6" />
-    </IconBase>
-  );
-}
-function ChevronRight({ size, strokeWidth }) {
-  return (
-    <IconBase size={size} strokeWidth={strokeWidth}>
-      <polyline points="9 18 15 12 9 6" />
-    </IconBase>
-  );
-}
-function RotateCcw({ size, strokeWidth }) {
-  return (
-    <IconBase size={size} strokeWidth={strokeWidth}>
-      <path d="M3 12a9 9 0 1 0 3-6.7" />
-      <polyline points="3 3 3 9 9 9" />
-    </IconBase>
-  );
-}
-function Newspaper({ size, strokeWidth }) {
-  return (
-    <IconBase size={size} strokeWidth={strokeWidth}>
-      <path d="M4 4h13a2 2 0 0 1 2 2v13a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2V4Z" />
-      <path d="M19 8a1 1 0 0 1 1 1v10a2 2 0 0 1-2 2" />
-      <line x1="8" y1="8" x2="14" y2="8" />
-      <line x1="8" y1="12" x2="14" y2="12" />
-      <line x1="8" y1="16" x2="12" y2="16" />
-    </IconBase>
-  );
-}
-function Share2({ size, strokeWidth }) {
-  return (
-    <IconBase size={size} strokeWidth={strokeWidth}>
-      <circle cx="18" cy="5" r="3" />
-      <circle cx="6" cy="12" r="3" />
-      <circle cx="18" cy="19" r="3" />
-      <line x1="8.6" y1="10.5" x2="15.4" y2="6.5" />
-      <line x1="8.6" y1="13.5" x2="15.4" y2="17.5" />
-    </IconBase>
-  );
-}
-function X({ size, strokeWidth }) {
-  return (
-    <IconBase size={size} strokeWidth={strokeWidth}>
-      <line x1="18" y1="6" x2="6" y2="18" />
-      <line x1="6" y1="6" x2="18" y2="18" />
-    </IconBase>
-  );
-}
-function Download({ size, strokeWidth }) {
-  return (
-    <IconBase size={size} strokeWidth={strokeWidth}>
-      <path d="M12 3v12" />
-      <polyline points="7 10 12 15 17 10" />
-      <path d="M5 19h14" />
-    </IconBase>
-  );
-}
-
-const palette = {
+const DARK_PALETTE = {
   bg: "#0A0E16",
   letterbox: "#05070C",
   surface: "#121A28",
@@ -247,12 +51,44 @@ const palette = {
   goldBright: "#E7C687",
   green: "#4FB286",
   red: "#DB6B63",
+  shadow: "none",
+  glow: "rgba(231,198,135,0.28)",
+  navShadow: "none",
 };
+
+const LIGHT_PALETTE = {
+  bg: "#FFFFFF",
+  letterbox: "#EDEBE3",
+  surface: "#FCFBF8",
+  field: "#F4F2EB",
+  border: "#E6E1D4",
+  text: "#19170F",
+  textMuted: "#68624F",
+  textFaint: "#9D9782",
+  gold: "#B08A3E",
+  goldBright: "#8C6A26",
+  green: "#0D9463",
+  red: "#C43B2E",
+  shadow: "0 1px 2px rgba(25,23,15,0.04), 0 10px 24px rgba(25,23,15,0.06)",
+  glow: "rgba(176,138,62,0.16)",
+  navShadow: "0 -6px 18px rgba(25,23,15,0.045)",
+};
+
+// Mutable on purpose: toggling theme reassigns these values in place so every
+// component (which reads palette.xxx at render time) picks up the new theme
+// without threading a theme prop through the whole tree.
+const palette = { ...DARK_PALETTE };
 
 const mono =
   "'JetBrains Mono','SF Mono','Roboto Mono',ui-monospace,Menlo,Consolas,monospace";
 const sans =
   "'Inter','Manrope',system-ui,-apple-system,'Segoe UI',sans-serif";
+
+// Shared smooth-transition + tap-feedback tokens, used across every themed
+// surface and interactive control so theme toggles animate instead of
+// snapping, and buttons give a subtle press response on tap.
+const THEME_TRANSITION = "background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease";
+const TAP = "active:scale-95 transition-transform duration-150";
 
 const LADDER = [42, 68, 30, 80, 46, 58, 72, 34, 62, 50, 76, 40, 56, 44];
 
@@ -293,16 +129,39 @@ const EMOTIONS = [
 ];
 const emotionMeta = (id) => EMOTIONS.find((e) => e.id === id);
 
+// Setup tags: what kind of trade it was, tagged the same way as mood.
+const SETUPS = [
+  { id: "reversal", label: "Reversal" },
+  { id: "pullback", label: "Pullback" },
+  { id: "trend", label: "Trend" },
+  { id: "breakout", label: "Breakout" },
+];
+const setupMeta = (id) => SETUPS.find((s) => s.id === id);
+
+// Quick-fill chips for the note field, shown right next to the mood chips.
+const NOTE_TAGS = ["FOMO", "Followed plan", "News trade"];
+
 // A trade opened within this many minutes of a prior loss is flagged as a
 // possible revenge trade — an impulsive re-entry rather than a planned one.
+// Used to badge individual trades in the calendar day view, and to compute
+// the discipline streak below.
 const REVENGE_WINDOW_MINUTES = 15;
 const REVENGE_WINDOW_MS = REVENGE_WINDOW_MINUTES * 60 * 1000;
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
+// News alarm: how far ahead of an event the in-app alarm rings. This is a
+// browser-only alarm (sound + Notification API), not a real system alarm —
+// see the News tab copy and the ringing modal for the actual caveats.
+const ALARM_LEAD_MINUTES = 15;
+const ALARM_LEAD_MS = ALARM_LEAD_MINUTES * 60 * 1000;
+const ALARM_CHECK_INTERVAL_MS = 15000;
+// How long past the event time an unrung alarm is still allowed to fire —
+// guards against ringing something hours late if the app was closed.
+const ALARM_STALE_WINDOW_MS = 10 * 60 * 1000;
+
 // Reference rates: units of each currency per 1 USD.
 // Snapshot rates, meant as a practical starting point rather than a live feed.
 // Override any pair below with your own known rate for precise conversions.
-const FX_BASE = "USD";
 const FX_RATES_PER_USD = {
   USD: 1,
   EUR: 0.8668,
@@ -323,6 +182,7 @@ const FX_RATES_PER_USD = {
   SAR: 3.75,
   PKR: 277.48,
   PHP: 61.33,
+  IDR: 16250,
   ZAR: 16.19,
   MXN: 17.06,
   ETB: 161,
@@ -349,6 +209,7 @@ const CURRENCY_NAMES = {
   SAR: "Saudi Riyal",
   PKR: "Pakistani Rupee",
   PHP: "Philippine Peso",
+  IDR: "Indonesian Rupiah",
   ZAR: "South African Rand",
   MXN: "Mexican Peso",
   ETB: "Ethiopian Birr",
@@ -361,7 +222,7 @@ function Field({ label, value, onChange, suffix, placeholder, readOnly }) {
     <label className="block mb-4">
       <span
         className="block mb-1.5 uppercase"
-        style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+        style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px", transition: THEME_TRANSITION }}
       >
         {label}
       </span>
@@ -370,6 +231,7 @@ function Field({ label, value, onChange, suffix, placeholder, readOnly }) {
         style={{
           background: readOnly ? palette.surface : palette.field,
           border: `1px solid ${palette.border}`,
+          transition: THEME_TRANSITION,
         }}
       >
         <input
@@ -386,10 +248,11 @@ function Field({ label, value, onChange, suffix, placeholder, readOnly }) {
             fontFamily: mono,
             fontSize: "16px",
             cursor: readOnly ? "default" : "text",
+            transition: THEME_TRANSITION,
           }}
         />
         {suffix && (
-          <span className="text-sm pl-2" style={{ color: palette.textFaint }}>
+          <span className="text-sm pl-2" style={{ color: palette.textFaint, transition: THEME_TRANSITION }}>
             {suffix}
           </span>
         )}
@@ -403,19 +266,19 @@ function CurrencySelect({ label, value, onChange }) {
     <label className="block mb-4 flex-1">
       <span
         className="block mb-1.5 uppercase"
-        style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+        style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px", transition: THEME_TRANSITION }}
       >
         {label}
       </span>
       <div
         className="rounded-lg px-3"
-        style={{ background: palette.field, border: `1px solid ${palette.border}` }}
+        style={{ background: palette.field, border: `1px solid ${palette.border}`, transition: THEME_TRANSITION }}
       >
         <select
           value={value}
           onChange={onChange}
           className="w-full bg-transparent py-3 outline-none appearance-none"
-          style={{ color: palette.text, fontFamily: mono, fontSize: "15px" }}
+          style={{ color: palette.text, fontFamily: mono, fontSize: "15px", transition: THEME_TRANSITION }}
         >
           {CURRENCY_CODES.map((code) => (
             <option key={code} value={code} style={{ background: palette.field, color: palette.text }}>
@@ -428,17 +291,37 @@ function CurrencySelect({ label, value, onChange }) {
   );
 }
 
-function StatChip({ label, value }) {
+function StatChip({ label, value, onClick }) {
   return (
     <div
-      className="rounded-lg p-3"
-      style={{ background: palette.surface, border: `1px solid ${palette.border}` }}
+      onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={
+        onClick
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
+      className={`rounded-lg p-3 ${onClick ? `${TAP}` : ""}`}
+      style={{
+        background: palette.surface,
+        border: `1px solid ${palette.border}`,
+        boxShadow: palette.shadow,
+        cursor: onClick ? "pointer" : "default",
+        transition: THEME_TRANSITION,
+      }}
     >
       <div
-        className="uppercase mb-1"
-        style={{ color: palette.textFaint, letterSpacing: "0.08em", fontSize: "11px" }}
+        className="uppercase mb-1 flex items-center gap-1"
+        style={{ color: palette.textFaint, letterSpacing: "0.08em", fontSize: "11px", transition: THEME_TRANSITION }}
       >
         {label}
+        {onClick && <Info size={10} style={{ opacity: 0.7, flexShrink: 0 }} />}
       </div>
       <div
         style={{
@@ -446,6 +329,7 @@ function StatChip({ label, value }) {
           fontSize: "1.05rem",
           color: palette.text,
           fontVariantNumeric: "tabular-nums",
+          transition: THEME_TRANSITION,
         }}
       >
         {value}
@@ -462,7 +346,7 @@ function PillGroup({ options, value, onChange, suffix = "%" }) {
           key={opt}
           type="button"
           onClick={() => onChange(String(opt))}
-          className="px-3 py-1.5 rounded-full transition-colors"
+          className={`px-3 py-1.5 rounded-full transition-colors ${TAP}`}
           style={{
             background: String(value) === String(opt) ? palette.gold : palette.field,
             color: String(value) === String(opt) ? palette.letterbox : palette.textMuted,
@@ -485,11 +369,11 @@ function RuleRow({ label, detail, pass }) {
   return (
     <div
       className="flex items-center justify-between rounded-lg px-3 py-3 mb-2"
-      style={{ background: palette.surface, border: `1px solid ${palette.border}` }}
+      style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow, transition: THEME_TRANSITION }}
     >
       <div>
-        <div style={{ color: palette.text, fontSize: "14px", marginBottom: "2px" }}>{label}</div>
-        <div style={{ color: palette.textMuted, fontSize: "12px" }}>{detail}</div>
+        <div style={{ color: palette.text, fontSize: "14px", marginBottom: "2px", transition: THEME_TRANSITION }}>{label}</div>
+        <div style={{ color: palette.textMuted, fontSize: "12px", transition: THEME_TRANSITION }}>{detail}</div>
       </div>
       <span
         style={{
@@ -502,6 +386,7 @@ function RuleRow({ label, detail, pass }) {
           padding: "3px 8px",
           flexShrink: 0,
           marginLeft: "8px",
+          transition: THEME_TRANSITION,
         }}
       >
         {badge}
@@ -516,7 +401,13 @@ function Readout({ eyebrow, value, unit, sub, tone }) {
   return (
     <div
       className="relative overflow-hidden rounded-2xl p-6 mb-6"
-      style={{ background: palette.surface, border: `1px solid ${palette.border}` }}
+      style={{
+        background: palette.surface,
+        border: `1px solid ${palette.border}`,
+        boxShadow: palette.shadow,
+        "--glow": palette.glow,
+        transition: THEME_TRANSITION,
+      }}
     >
       <div
         className="absolute inset-0 pointer-events-none"
@@ -548,7 +439,7 @@ function Readout({ eyebrow, value, unit, sub, tone }) {
       <div className="relative" style={{ paddingLeft: "38px" }}>
         <div
           className="uppercase mb-2"
-          style={{ color: palette.textMuted, letterSpacing: "0.12em", fontSize: "11px" }}
+          style={{ color: palette.textMuted, letterSpacing: "0.12em", fontSize: "11px", transition: THEME_TRANSITION }}
         >
           {eyebrow}
         </div>
@@ -561,18 +452,19 @@ function Readout({ eyebrow, value, unit, sub, tone }) {
               color: toneColor,
               fontVariantNumeric: "tabular-nums",
               lineHeight: 1,
+              transition: THEME_TRANSITION,
             }}
           >
             {value}
           </span>
           {unit && (
-            <span style={{ fontFamily: mono, fontSize: "1rem", color: palette.textMuted }}>
+            <span style={{ fontFamily: mono, fontSize: "1rem", color: palette.textMuted, transition: THEME_TRANSITION }}>
               {unit}
             </span>
           )}
         </div>
         {sub && (
-          <div className="mt-2 text-sm" style={{ color: palette.textMuted }}>
+          <div className="mt-2 text-sm" style={{ color: palette.textMuted, transition: THEME_TRANSITION }}>
             {sub}
           </div>
         )}
@@ -593,6 +485,16 @@ const TABS = [
 const STORAGE_KEY = "equity-curve:trades";
 const STORAGE_BAL_KEY = "equity-curve:starting-balance";
 const NEWS_STORAGE_KEY = "news:events:v4";
+const THEME_STORAGE_KEY = "ledger:theme";
+
+async function storageGet(key) {
+  const raw = localStorage.getItem(key);
+  return raw === null ? null : { key, value: raw };
+}
+async function storageSet(key, value) {
+  localStorage.setItem(key, value);
+  return { key, value };
+}
 
 const PROFIT_TARGET_OPTIONS = [5, 6, 8, 10, 12];
 
@@ -614,29 +516,176 @@ function formatCountdown(ms) {
   return `${mins}m`;
 }
 
+// A trade opened within REVENGE_WINDOW_MS of a prior loss. Pure function of
+// `trades`, shared by the calendar view (badging), the discipline streak,
+// and the weekly recap, so all three always agree on which trades count.
+function computeRevengeIds(trades) {
+  const sorted = [...trades].sort((a, b) => a.ts - b.ts);
+  const ids = new Set();
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = sorted[i - 1];
+    const cur = sorted[i];
+    if (prev.pnl < 0 && cur.ts - prev.ts <= REVENGE_WINDOW_MS) {
+      ids.add(cur.id);
+    }
+  }
+  return ids;
+}
+
+// Consecutive trading days (days with at least one logged trade) containing
+// zero revenge trades. Breaks on any day that has one, regardless of that
+// day's P&L — this tracks behavior, not results.
+function computeDisciplineStreak(trades) {
+  const revengeIds = computeRevengeIds(trades);
+  const byDay = {};
+  trades.forEach((t) => {
+    const k = dayKeyFromTs(t.ts);
+    if (!byDay[k]) byDay[k] = [];
+    byDay[k].push(t);
+  });
+  const dayKeys = Object.keys(byDay).sort();
+
+  let best = 0;
+  let run = 0;
+  dayKeys.forEach((k) => {
+    const dayHasRevenge = byDay[k].some((t) => revengeIds.has(t.id));
+    if (dayHasRevenge) {
+      run = 0;
+    } else {
+      run += 1;
+      best = Math.max(best, run);
+    }
+  });
+
+  let current = 0;
+  for (let i = dayKeys.length - 1; i >= 0; i--) {
+    const dayHasRevenge = byDay[dayKeys[i]].some((t) => revengeIds.has(t.id));
+    if (dayHasRevenge) break;
+    current += 1;
+  }
+
+  return { current, best, hasData: dayKeys.length > 0 };
+}
+
+// Shared weekly-recap math, used by both the share image and the
+// copy-as-text summary so the two can never drift out of sync. Assumes
+// weekTrades is non-empty and startBal > 0 — callers check those first so
+// they can show the right empty-state message.
+function buildWeekRecap(weekTrades, startBal) {
+  let running = 0;
+  const curve = [{ pct: 0 }];
+  weekTrades.forEach((t) => {
+    running += (t.pnl / startBal) * 100;
+    curve.push({ pct: running });
+  });
+  const netPct = running;
+
+  const wins = weekTrades.filter((t) => t.pnl > 0).length;
+  const winRate = (wins / weekTrades.length) * 100;
+
+  let bestStreak = 0;
+  let worstStreak = 0;
+  let curStreak = 0;
+  weekTrades.forEach((t) => {
+    if (t.pnl > 0) curStreak = curStreak > 0 ? curStreak + 1 : 1;
+    else if (t.pnl < 0) curStreak = curStreak < 0 ? curStreak - 1 : -1;
+    else curStreak = 0;
+    bestStreak = Math.max(bestStreak, curStreak);
+    worstStreak = Math.min(worstStreak, curStreak);
+  });
+
+  const setupCounts = {};
+  weekTrades.forEach((t) => {
+    if (t.setup) setupCounts[t.setup] = (setupCounts[t.setup] || 0) + 1;
+  });
+  const topSetupId = Object.keys(setupCounts).sort((a, b) => setupCounts[b] - setupCounts[a])[0] || null;
+  const topSetup = topSetupId
+    ? { id: topSetupId, count: setupCounts[topSetupId], label: setupMeta(topSetupId)?.label || topSetupId }
+    : null;
+
+  // Revenge trades within this week only (chronological order within the
+  // week's own trades) — same detection rule as the calendar badges and the
+  // all-time discipline streak, just scoped to the week being summarized.
+  const revengeCount = computeRevengeIds(weekTrades).size;
+
+  const rangeLabel = `${formatShortDate(weekTrades[0].ts)} \u2013 ${formatShortDate(weekTrades[weekTrades.length - 1].ts)}`;
+
+  return {
+    curve,
+    netPct,
+    winRate,
+    bestStreak,
+    worstStreak,
+    topSetup,
+    revengeCount,
+    rangeLabel,
+    tradeCount: weekTrades.length,
+  };
+}
+
+// Palette used for the exported share image. Kept independent of the live
+// on-screen `palette` object (which mutates on theme toggle) so a card
+// rendered from a given `theme` is always self-consistent, even if the user
+// switches themes again right after generating it.
+const SHARE_COLORS = {
+  dark: {
+    green: "#4FB286",
+    red: "#DB6B63",
+    gold: "#C7A25C",
+    goldBright: "#E7C687",
+    text: "#EDEFF3",
+    textMuted: "#7C8AA0",
+    textFaint: "#4B566B",
+    border: "#243046",
+    surface: "#121A28",
+    bgFrom: "#0B0F19",
+    bgTo: "#05070C",
+    dotRing: "#05070C",
+  },
+  light: {
+    green: "#0D9463",
+    red: "#C43B2E",
+    gold: "#B08A3E",
+    goldBright: "#8C6A26",
+    text: "#19170F",
+    textMuted: "#68624F",
+    textFaint: "#9D9782",
+    border: "#E6E1D4",
+    surface: "#FFFFFF",
+    bgFrom: "#FFFFFF",
+    bgTo: "#EDEBE3",
+    dotRing: "#FFFFFF",
+  },
+};
+
 // ---- Share My Week: draws a dollar-free recap card to a canvas ----
-function drawShareCard(canvas, { rangeLabel, tradeCount, winRate, netPct, curve, bestStreak, worstStreak, tone }) {
+function drawShareCard(canvas, {
+  rangeLabel,
+  tradeCount,
+  winRate,
+  netPct,
+  curve,
+  bestStreak,
+  worstStreak,
+  topSetup,
+  revengeCount,
+  disciplineStreak,
+  tone,
+  theme,
+}) {
   const W = 1080;
-  const H = 1350;
+  const H = 1500;
   canvas.width = W;
   canvas.height = H;
   const ctx = canvas.getContext("2d");
 
-  const green = "#4FB286";
-  const red = "#DB6B63";
-  const gold = "#C7A25C";
-  const goldBright = "#E7C687";
-  const text = "#EDEFF3";
-  const textMuted = "#7C8AA0";
-  const textFaint = "#4B566B";
-  const border = "#243046";
-  const surface = "#121A28";
-  const lineColor = tone === "bad" ? red : green;
+  const c = theme === "light" ? SHARE_COLORS.light : SHARE_COLORS.dark;
+  const lineColor = tone === "bad" ? c.red : c.green;
 
   // background
   const bgGrad = ctx.createLinearGradient(0, 0, 0, H);
-  bgGrad.addColorStop(0, "#0B0F19");
-  bgGrad.addColorStop(1, "#05070C");
+  bgGrad.addColorStop(0, c.bgFrom);
+  bgGrad.addColorStop(1, c.bgTo);
   ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, W, H);
 
@@ -652,26 +701,26 @@ function drawShareCard(canvas, { rangeLabel, tradeCount, winRate, netPct, curve,
 
   // outer card
   roundRect(36, 36, W - 72, H - 72, 28);
-  ctx.strokeStyle = border;
+  ctx.strokeStyle = c.border;
   ctx.lineWidth = 2;
   ctx.stroke();
 
   // header
-  ctx.fillStyle = gold;
+  ctx.fillStyle = c.gold;
   ctx.font = "600 26px monospace";
   ctx.textAlign = "left";
   ctx.fillText("LEDGER · WEEKLY RECAP", 80, 128);
 
-  ctx.fillStyle = text;
+  ctx.fillStyle = c.text;
   ctx.font = "700 58px monospace";
   ctx.fillText("MY TRADING WEEK", 80, 196);
 
-  ctx.fillStyle = textMuted;
+  ctx.fillStyle = c.textMuted;
   ctx.font = "400 24px sans-serif";
   ctx.fillText(`${rangeLabel} · ${tradeCount} trade${tradeCount === 1 ? "" : "s"}`, 80, 236);
 
   // big net % readout
-  ctx.fillStyle = textFaint;
+  ctx.fillStyle = c.textFaint;
   ctx.font = "600 20px sans-serif";
   ctx.fillText("NET RETURN", 80, 300);
   ctx.fillStyle = lineColor;
@@ -685,9 +734,9 @@ function drawShareCard(canvas, { rangeLabel, tradeCount, winRate, netPct, curve,
   const chartH = 340;
 
   roundRect(chartX, chartY, chartW, chartH, 20);
-  ctx.fillStyle = surface;
+  ctx.fillStyle = c.surface;
   ctx.fill();
-  ctx.strokeStyle = border;
+  ctx.strokeStyle = c.border;
   ctx.lineWidth = 1;
   ctx.stroke();
 
@@ -713,7 +762,7 @@ function drawShareCard(canvas, { rangeLabel, tradeCount, winRate, netPct, curve,
   const yFor = (v) => plotY + plotH - ((v - minV) / (maxV - minV)) * plotH;
 
   // zero line
-  ctx.strokeStyle = textFaint;
+  ctx.strokeStyle = c.textFaint;
   ctx.setLineDash([6, 6]);
   ctx.lineWidth = 1.5;
   ctx.beginPath();
@@ -756,48 +805,75 @@ function drawShareCard(canvas, { rangeLabel, tradeCount, winRate, netPct, curve,
   ctx.fill();
   ctx.beginPath();
   ctx.arc(lastX, lastY, 8, 0, Math.PI * 2);
-  ctx.strokeStyle = "#05070C";
+  ctx.strokeStyle = c.dotRing;
   ctx.lineWidth = 3;
   ctx.stroke();
 
-  // stat chips row
-  const chipsY = chartY + chartH + 48;
-  const chipH = 150;
-  const gap = 24;
-  const chipW = (W - 160 - gap * 2) / 3;
-  const stats = [
-    { label: "WIN RATE", value: `${fmt(winRate, 0)}%`, color: text },
-    { label: "BEST STREAK", value: `+${bestStreak}`, color: green },
-    { label: "WORST STREAK", value: `${worstStreak}`, color: worstStreak < 0 ? red : text },
-  ];
-  stats.forEach((s, i) => {
-    const x = chartX + i * (chipW + gap);
-    roundRect(x, chipsY, chipW, chipH, 18);
-    ctx.fillStyle = surface;
-    ctx.fill();
-    ctx.strokeStyle = border;
-    ctx.lineWidth = 1;
-    ctx.stroke();
+  // helper to draw one row of three stat chips
+  const drawChipRow = (y, stats) => {
+    const chipH = 150;
+    const gap = 24;
+    const chipW = (W - 160 - gap * 2) / 3;
+    stats.forEach((s, i) => {
+      const x = chartX + i * (chipW + gap);
+      roundRect(x, y, chipW, chipH, 18);
+      ctx.fillStyle = c.surface;
+      ctx.fill();
+      ctx.strokeStyle = c.border;
+      ctx.lineWidth = 1;
+      ctx.stroke();
 
-    ctx.fillStyle = textFaint;
-    ctx.font = "600 18px sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText(s.label, x + chipW / 2, chipsY + 44);
+      ctx.fillStyle = c.textFaint;
+      ctx.font = "600 16px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(s.label, x + chipW / 2, y + 40);
 
-    ctx.fillStyle = s.color;
-    ctx.font = "700 44px monospace";
-    ctx.fillText(s.value, x + chipW / 2, chipsY + 100);
-    ctx.textAlign = "left";
-  });
+      ctx.fillStyle = s.color;
+      ctx.font = `700 ${s.small ? 30 : 40}px monospace`;
+      ctx.fillText(s.value, x + chipW / 2, y + (s.small ? 92 : 96));
+      ctx.textAlign = "left";
+    });
+    return y + chipH;
+  };
+
+  // row 1: outcome stats
+  const row1Y = chartY + chartH + 48;
+  const row1Bottom = drawChipRow(row1Y, [
+    { label: "WIN RATE", value: `${fmt(winRate, 0)}%`, color: c.text },
+    { label: "BEST STREAK", value: `+${bestStreak}`, color: c.green },
+    { label: "WORST STREAK", value: `${worstStreak}`, color: worstStreak < 0 ? c.red : c.text },
+  ]);
+
+  // row 2: process/discipline stats — the "no dollar amounts, just the
+  // process" ethos, made visible as actual numbers rather than just a tagline
+  const row2Y = row1Bottom + 24;
+  drawChipRow(row2Y, [
+    {
+      label: "DISCIPLINE STREAK",
+      value: `${disciplineStreak}d`,
+      color: disciplineStreak > 0 ? c.green : c.textMuted,
+    },
+    {
+      label: "TOP SETUP",
+      value: topSetup ? topSetup.label : "\u2014",
+      color: c.text,
+      small: !!topSetup,
+    },
+    {
+      label: "REVENGE TRADES",
+      value: `${revengeCount}`,
+      color: revengeCount > 0 ? c.red : c.green,
+    },
+  ]);
 
   // footer
-  ctx.fillStyle = textFaint;
+  ctx.fillStyle = c.textFaint;
   ctx.font = "400 20px monospace";
   ctx.textAlign = "left";
-  ctx.fillText("No dollar amounts — just the process.", 80, H - 70);
+  ctx.fillText("No dollar amounts \u2014 just the process.", 80, H - 70);
 
   ctx.textAlign = "right";
-  ctx.fillStyle = goldBright;
+  ctx.fillStyle = c.goldBright;
   ctx.font = "600 22px monospace";
   ctx.fillText("LEDGER", W - 80, H - 70);
   ctx.textAlign = "left";
@@ -807,6 +883,12 @@ function drawShareCard(canvas, { rangeLabel, tradeCount, winRate, netPct, curve,
 
 function LedgerApp() {
   const [activeTab, setActiveTab] = useState("edge");
+  const [theme, setTheme] = useState("dark");
+  const [themeLoaded, setThemeLoaded] = useState(false);
+
+  // Keep the mutable `palette` object in sync with the chosen theme on every
+  // render, before anything below reads palette.xxx.
+  Object.assign(palette, theme === "light" ? LIGHT_PALETTE : DARK_PALETTE);
 
   const [edge, setEdge] = useState({
     accountBalance: "",
@@ -841,10 +923,13 @@ function LedgerApp() {
   const [tradeInput, setTradeInput] = useState("");
   const [tradeNote, setTradeNote] = useState("");
   const [tradeEmotion, setTradeEmotion] = useState(null);
+  const [tradeSetup, setTradeSetup] = useState(null);
   const [startingBalance, setStartingBalance] = useState("");
-  const [storageError, setStorageError] = useState("");
+  const [tradesLoadError, setTradesLoadError] = useState("");
   const [calMonth, setCalMonth] = useState(() => new Date());
   const [selectedDay, setSelectedDay] = useState(null);
+  const [showStreakInfo, setShowStreakInfo] = useState(false);
+  const [showDisciplineInfo, setShowDisciplineInfo] = useState(false);
 
   const [newsEvents, setNewsEvents] = useState([]);
   const [newsLoaded, setNewsLoaded] = useState(false);
@@ -852,18 +937,42 @@ function LedgerApp() {
   const [newEventImpact, setNewEventImpact] = useState("high");
   const [newEventDate, setNewEventDate] = useState("");
   const [newEventTime, setNewEventTime] = useState("18:30");
+  const [newEventAlarm, setNewEventAlarm] = useState(true);
+  const [newsLoadError, setNewsLoadError] = useState("");
+
+  // ---- Alarm system state. This is a best-effort, browser-only alarm: it
+  // rings via the Notification API (if permitted) plus an in-page sound and
+  // modal, but only while this app is open in a tab. It cannot set a real
+  // OS-level alarm — there's no web API for that.
+  const [notifPermission, setNotifPermission] = useState(
+    typeof Notification !== "undefined" ? Notification.permission : "unsupported"
+  );
+  const [ringingEvent, setRingingEvent] = useState(null);
+  const audioCtxRef = useRef(null);
+  const beepIntervalRef = useRef(null);
 
   const shareCanvasRef = useRef(null);
   const [shareImageUrl, setShareImageUrl] = useState(null);
   const [shareError, setShareError] = useState("");
 
+  const [copyMsg, setCopyMsg] = useState("");
+  const [copyFallbackText, setCopyFallbackText] = useState("");
+
+  const fileInputRef = useRef(null);
+  const [backupMsg, setBackupMsg] = useState("");
+  // Holds a parsed-but-not-yet-applied backup file, so the user can confirm
+  // the overwrite from an in-app card instead of a native confirm() dialog
+  // (which sandboxed previews often block silently).
+  const [pendingImport, setPendingImport] = useState(null);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [tradesRes, balRes] = await Promise.allSettled([
-          window.storage.get(STORAGE_KEY, false),
-          window.storage.get(STORAGE_BAL_KEY, false),
+        const [tradesRes, balRes, themeRes] = await Promise.allSettled([
+          storageGet(STORAGE_KEY),
+          storageGet(STORAGE_BAL_KEY),
+          storageGet(THEME_STORAGE_KEY),
         ]);
         if (cancelled) return;
         if (tradesRes.status === "fulfilled" && tradesRes.value) {
@@ -873,10 +982,17 @@ function LedgerApp() {
         if (balRes.status === "fulfilled" && balRes.value) {
           setStartingBalance(balRes.value.value);
         }
+        if (themeRes.status === "fulfilled" && themeRes.value) {
+          const t = themeRes.value.value;
+          if (t === "light" || t === "dark") setTheme(t);
+        }
       } catch (err) {
-        if (!cancelled) setStorageError("Couldn't load saved trades.");
+        if (!cancelled) setTradesLoadError("Couldn't load saved trades.");
       } finally {
-        if (!cancelled) setTradesLoaded(true);
+        if (!cancelled) {
+          setTradesLoaded(true);
+          setThemeLoaded(true);
+        }
       }
     })();
     return () => {
@@ -888,14 +1004,14 @@ function LedgerApp() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await window.storage.get(NEWS_STORAGE_KEY, false);
+        const res = await storageGet(NEWS_STORAGE_KEY);
         if (cancelled) return;
         if (res && res.value) {
           const parsed = JSON.parse(res.value);
           if (Array.isArray(parsed)) setNewsEvents(parsed);
         }
       } catch (err) {
-        if (!cancelled) setStorageError("Couldn't load saved events.");
+        if (!cancelled) setNewsLoadError("Couldn't load saved events.");
       } finally {
         if (!cancelled) setNewsLoaded(true);
       }
@@ -905,14 +1021,168 @@ function LedgerApp() {
     };
   }, []);
 
+  const toggleTheme = () => {
+    const next = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    storageSet(THEME_STORAGE_KEY, next).catch(() => {});
+  };
+
   const persistNews = async (next) => {
     setNewsEvents(next);
     try {
-      await window.storage.set(NEWS_STORAGE_KEY, JSON.stringify(next), false);
+      await storageSet(NEWS_STORAGE_KEY, JSON.stringify(next));
     } catch (err) {
       // non-critical, fail silently
     }
   };
+
+  // ---- Alarm sound: a plain oscillator beep via Web Audio, so no external
+  // audio file is needed. The AudioContext is created on a real user click
+  // (the alarm toggle) so autoplay policies don't block it later when the
+  // alarm actually fires without a fresh gesture.
+  const ensureAudioContext = () => {
+    if (!audioCtxRef.current) {
+      const Ctx = typeof window !== "undefined" && (window.AudioContext || window.webkitAudioContext);
+      if (Ctx) {
+        try {
+          audioCtxRef.current = new Ctx();
+        } catch (err) {
+          audioCtxRef.current = null;
+        }
+      }
+    }
+    return audioCtxRef.current;
+  };
+
+  const startBeep = () => {
+    const ctx = ensureAudioContext();
+    if (!ctx) return;
+    if (ctx.state === "suspended") ctx.resume().catch(() => {});
+    const playBeep = () => {
+      if (!audioCtxRef.current) return;
+      try {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = 880;
+        gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.5);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.5);
+      } catch (err) {
+        // audio unavailable \u2014 the notification and modal still show
+      }
+    };
+    playBeep();
+    beepIntervalRef.current = setInterval(playBeep, 900);
+  };
+
+  const stopBeep = () => {
+    if (beepIntervalRef.current) {
+      clearInterval(beepIntervalRef.current);
+      beepIntervalRef.current = null;
+    }
+  };
+
+  // Stop any beep loop if the component ever unmounts mid-ring.
+  useEffect(() => {
+    return () => stopBeep();
+  }, []);
+
+  const requestAlarmPermission = async () => {
+    if (typeof Notification === "undefined") {
+      setNotifPermission("unsupported");
+      return "unsupported";
+    }
+    if (Notification.permission === "granted" || Notification.permission === "denied") {
+      setNotifPermission(Notification.permission);
+      return Notification.permission;
+    }
+    try {
+      const result = await Notification.requestPermission();
+      setNotifPermission(result);
+      return result;
+    } catch (err) {
+      setNotifPermission("denied");
+      return "denied";
+    }
+  };
+
+  // Toggling the alarm chip is a real user click, so it's the right moment
+  // to both ask for Notification permission and unlock the AudioContext.
+  const toggleNewEventAlarm = () => {
+    const next = !newEventAlarm;
+    setNewEventAlarm(next);
+    if (next) {
+      ensureAudioContext();
+      requestAlarmPermission();
+    }
+  };
+
+  const triggerAlarm = (ev) => {
+    setRingingEvent(ev);
+    startBeep();
+    if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+      try {
+        new Notification(`\u23F0 ${ev.name}`, {
+          body: `Scheduled for ${ev.time} today \u2014 open Ledger to dismiss`,
+          tag: `ledger-alarm-${ev.id}`,
+        });
+      } catch (err) {
+        // ignore \u2014 sound + in-app modal still ring
+      }
+    }
+  };
+
+  const dismissAlarm = () => {
+    stopBeep();
+    setRingingEvent(null);
+  };
+
+  const snoozeAlarm = () => {
+    if (!ringingEvent) return;
+    stopBeep();
+    const id = ringingEvent.id;
+    persistNews(
+      newsEvents.map((e) => (e.id === id ? { ...e, rung: false, snoozeUntil: Date.now() + 5 * 60000 } : e))
+    );
+    setRingingEvent(null);
+  };
+
+  // Checks alarm-enabled events on a short interval. Only fires while this
+  // effect is alive, i.e. only while the app is open — see the caveats in
+  // the News tab copy and the ringing modal.
+  //
+  // A snoozed event (snoozeUntil set) is checked purely against that
+  // timestamp — once it's snoozed once, the original pre-event lead-time /
+  // stale-window gate no longer applies, otherwise a second or third snooze
+  // could silently fall outside ALARM_STALE_WINDOW_MS and never ring again.
+  useEffect(() => {
+    if (!newsLoaded) return;
+    const tick = () => {
+      if (ringingEvent) return;
+      const nowMs = Date.now();
+      const due = newsEvents
+        .filter((ev) => ev.alarm && !ev.rung)
+        .map((ev) => ({ ev, occMs: nextOccurrenceMs(ev, new Date()) }))
+        .filter(({ ev, occMs }) =>
+          ev.snoozeUntil
+            ? nowMs >= ev.snoozeUntil
+            : Number.isFinite(occMs) && nowMs >= occMs - ALARM_LEAD_MS && nowMs < occMs + ALARM_STALE_WINDOW_MS
+        )
+        .sort((a, b) => a.occMs - b.occMs);
+      if (due.length > 0) {
+        const { ev } = due[0];
+        persistNews(newsEvents.map((e) => (e.id === ev.id ? { ...e, rung: true, snoozeUntil: undefined } : e)));
+        triggerAlarm(ev);
+      }
+    };
+    tick();
+    const id = setInterval(tick, ALARM_CHECK_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [newsEvents, newsLoaded, ringingEvent]);
 
   const addNewsEvent = () => {
     if (!newEventName.trim() || !newEventTime || !newEventDate) return;
@@ -924,6 +1194,8 @@ function LedgerApp() {
         impact: newEventImpact,
         date: newEventDate,
         time: newEventTime,
+        alarm: newEventAlarm,
+        rung: false,
       },
     ];
     persistNews(next);
@@ -935,21 +1207,23 @@ function LedgerApp() {
     persistNews(newsEvents.filter((e) => e.id !== id));
   };
 
+  // Trade saves are best-effort, same as the starting balance and news
+  // persistence above — a transient storage hiccup shouldn't surface a
+  // "wasn't saved" warning every time someone logs a trade. If loading saved
+  // trades on launch fails, that's still surfaced via tradesLoadError below.
   const persistTrades = async (next) => {
     setTrades(next);
     try {
-      const res = await window.storage.set(STORAGE_KEY, JSON.stringify(next), false);
-      if (!res) setStorageError("Trade wasn't saved, please retry.");
-      else setStorageError("");
+      await storageSet(STORAGE_KEY, JSON.stringify(next));
     } catch (err) {
-      setStorageError("Trade wasn't saved, please retry.");
+      // non-critical, fail silently
     }
   };
 
   const persistStartingBalance = async (val) => {
     setStartingBalance(val);
     try {
-      await window.storage.set(STORAGE_BAL_KEY, val, false);
+      await storageSet(STORAGE_BAL_KEY, val);
     } catch (err) {
       // starting balance is non-critical, fail silently
     }
@@ -965,6 +1239,7 @@ function LedgerApp() {
         pnl,
         note: tradeNote.trim(),
         emotion: tradeEmotion,
+        setup: tradeSetup,
         ts: Date.now(),
       },
     ];
@@ -972,6 +1247,7 @@ function LedgerApp() {
     setTradeInput("");
     setTradeNote("");
     setTradeEmotion(null);
+    setTradeSetup(null);
   };
 
   const deleteTrade = (id) => {
@@ -999,67 +1275,205 @@ function LedgerApp() {
     }
     const startBal = num(startingBalance);
     if (!(startBal > 0)) {
-      setShareError("Add a starting balance below first — it's only used to compute %, never shown.");
+      setShareError("Add a starting balance below first \u2014 it's only used to compute %, never shown.");
       return;
     }
 
-    let running = 0;
-    const curve = [{ pct: 0 }];
-    weekTrades.forEach((t) => {
-      running += (t.pnl / startBal) * 100;
-      curve.push({ pct: running });
-    });
-    const netPct = running;
+    const recap = buildWeekRecap(weekTrades, startBal);
+    const discipline = computeDisciplineStreak(trades);
 
-    const wins = weekTrades.filter((t) => t.pnl > 0).length;
-    const winRate = (wins / weekTrades.length) * 100;
-
-    let bestStreak = 0;
-    let worstStreak = 0;
-    let curStreak = 0;
-    weekTrades.forEach((t) => {
-      if (t.pnl > 0) curStreak = curStreak > 0 ? curStreak + 1 : 1;
-      else if (t.pnl < 0) curStreak = curStreak < 0 ? curStreak - 1 : -1;
-      else curStreak = 0;
-      bestStreak = Math.max(bestStreak, curStreak);
-      worstStreak = Math.min(worstStreak, curStreak);
-    });
-
-    const rangeLabel = `${formatShortDate(weekTrades[0].ts)} – ${formatShortDate(weekTrades[weekTrades.length - 1].ts)}`;
-
-    const dataUrl = drawShareCard(shareCanvasRef.current, {
-      rangeLabel,
-      tradeCount: weekTrades.length,
-      winRate,
-      netPct,
-      curve,
-      bestStreak,
-      worstStreak,
-      tone: netPct >= 0 ? "good" : "bad",
-    });
-    setShareImageUrl(dataUrl);
+    try {
+      if (!shareCanvasRef.current) {
+        setShareError("Couldn't generate the image, please try again.");
+        return;
+      }
+      const dataUrl = drawShareCard(shareCanvasRef.current, {
+        rangeLabel: recap.rangeLabel,
+        tradeCount: recap.tradeCount,
+        winRate: recap.winRate,
+        netPct: recap.netPct,
+        curve: recap.curve,
+        bestStreak: recap.bestStreak,
+        worstStreak: recap.worstStreak,
+        topSetup: recap.topSetup,
+        revengeCount: recap.revengeCount,
+        disciplineStreak: discipline.current,
+        tone: recap.netPct >= 0 ? "good" : "bad",
+        theme,
+      });
+      setShareImageUrl(dataUrl);
+    } catch (err) {
+      setShareError("Couldn't generate the image, please try again.");
+    }
   };
 
   const closeShare = () => setShareImageUrl(null);
 
-  const downloadShare = async () => {
+  // Triggers a real download of the generated PNG. shareImageUrl is already
+  // a data: URL from canvas.toDataURL(), so — same as the Export fix — a
+  // temporary <a download> click is the reliable way to save it; the share
+  // sheet / window.open route used previously is unreliable in a sandboxed
+  // preview.
+  const downloadShare = () => {
     if (!shareImageUrl) return;
     try {
-      const blob = await (await fetch(shareImageUrl)).blob();
-      const file = new File([blob], "my-trading-week.png", { type: "image/png" });
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file], title: "My Trading Week" });
+      const a = document.createElement("a");
+      a.href = shareImageUrl;
+      a.download = "my-trading-week.png";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch (err) {
+      // last resort: open it in a new tab so it can still be saved manually
+      window.open(shareImageUrl, "_blank");
+    }
+  };
+
+  // Builds the same weekly recap as the share image, formats it as plain
+  // text, and puts it on the clipboard. Falls back to a selectable text box
+  // if the Clipboard API is unavailable (common in sandboxed previews).
+  const copyWeekSummary = async () => {
+    setCopyMsg("");
+    setCopyFallbackText("");
+    const now = Date.now();
+    const weekTrades = trades.filter((t) => now - t.ts <= WEEK_MS).sort((a, b) => a.ts - b.ts);
+
+    if (weekTrades.length === 0) {
+      setCopyMsg("No trades logged in the last 7 days yet.");
+      return;
+    }
+    const startBal = num(startingBalance);
+    if (!(startBal > 0)) {
+      setCopyMsg("Add a starting balance below first \u2014 it's only used to compute %, never shown.");
+      return;
+    }
+
+    const recap = buildWeekRecap(weekTrades, startBal);
+    const discipline = computeDisciplineStreak(trades);
+
+    const lines = [
+      `My Trading Week \u2014 ${recap.rangeLabel}`,
+      `Trades: ${recap.tradeCount}`,
+      `Win Rate: ${fmt(recap.winRate, 0)}%`,
+      `Net Return: ${fmtPct(recap.netPct)}`,
+      `Best Streak: +${recap.bestStreak}  \u00b7  Worst Streak: ${recap.worstStreak}`,
+      `Discipline Streak: ${discipline.current} day${discipline.current === 1 ? "" : "s"} (best: ${discipline.best})`,
+      `Revenge Trades This Week: ${recap.revengeCount}`,
+    ];
+    if (recap.topSetup) {
+      lines.push(`Top Setup: ${recap.topSetup.label} (${recap.topSetup.count}x)`);
+    }
+    lines.push("", "\u2014 Ledger \u00b7 no dollar amounts, just the process");
+    const text = lines.join("\n");
+
+    try {
+      if (!navigator.clipboard || !navigator.clipboard.writeText) {
+        throw new Error("Clipboard API unavailable");
+      }
+      await navigator.clipboard.writeText(text);
+      setCopyMsg("Copied to clipboard.");
+    } catch (err) {
+      setCopyMsg("Couldn't copy automatically \u2014 select and copy the text below.");
+      setCopyFallbackText(text);
+    }
+  };
+
+  // ---- Backup & Restore: everything lives only in this browser's storage,
+  // so this is the one real safety net against clearing data or switching
+  // phones. Exports trades, starting balance, news events, and theme as a
+  // single downloadable .json file; import reads that same file back in
+  // after an in-app confirmation.
+  const exportBackup = () => {
+    setBackupMsg("");
+    const payload = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      startingBalance,
+      trades,
+      newsEvents,
+      theme,
+    };
+    try {
+      const json = JSON.stringify(payload, null, 2);
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `ledger-backup-${dayKeyFromDate(new Date())}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      // Give the browser a moment to actually start the download before the
+      // blob URL is revoked.
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      setBackupMsg("Backup downloaded \u2014 check your downloads folder.");
+    } catch (err) {
+      setBackupMsg("Couldn't create the backup file, please try again.");
+    }
+  };
+
+  // Validates a parsed backup object's shape. Returns the object on success,
+  // or null after setting an explanatory backupMsg.
+  const validateBackup = (data) => {
+    if (!data || !Array.isArray(data.trades)) {
+      setBackupMsg("That file doesn't look like a Ledger backup.");
+      return null;
+    }
+    const tradesValid = data.trades.every(
+      (t) => t && typeof t.pnl === "number" && Number.isFinite(t.pnl) && typeof t.ts === "number"
+    );
+    if (!tradesValid) {
+      setBackupMsg("That file doesn't look like a Ledger backup.");
+      return null;
+    }
+    return data;
+  };
+
+  const importBackup = (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = ""; // allow re-selecting the same file later
+    if (!file) return;
+    setBackupMsg("");
+    const reader = new FileReader();
+    reader.onload = () => {
+      let data;
+      try {
+        data = JSON.parse(reader.result);
+      } catch (err) {
+        setBackupMsg("Couldn't read that file \u2014 make sure it's a Ledger backup JSON.");
         return;
       }
-    } catch (err) {
-      // fall through to plain download
+      const valid = validateBackup(data);
+      if (!valid) return;
+      // Hand off to an in-app confirm card instead of window.confirm(),
+      // which sandboxed previews commonly block or auto-dismiss.
+      setPendingImport(valid);
+    };
+    reader.onerror = () => setBackupMsg("Couldn't read that file.");
+    reader.readAsText(file);
+  };
+
+  const confirmImport = () => {
+    if (!pendingImport) return;
+    const data = pendingImport;
+    persistTrades(data.trades);
+    if (typeof data.startingBalance === "string" || typeof data.startingBalance === "number") {
+      persistStartingBalance(String(data.startingBalance));
     }
-    const a = document.createElement("a");
-    a.href = shareImageUrl;
-    a.download = "my-trading-week.png";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    if (Array.isArray(data.newsEvents)) {
+      persistNews(data.newsEvents);
+    }
+    if (data.theme === "light" || data.theme === "dark") {
+      setTheme(data.theme);
+      storageSet(THEME_STORAGE_KEY, data.theme).catch(() => {});
+    }
+    setPendingImport(null);
+    setBackupMsg("Backup restored.");
+  };
+
+  const cancelImport = () => {
+    setPendingImport(null);
+    setBackupMsg("");
   };
 
   let body = null;
@@ -1327,7 +1741,7 @@ function LedgerApp() {
                 key={opt}
                 type="button"
                 onClick={() => setCs({ ...cs, targetPct: String(opt) })}
-                className="px-3 py-1.5 rounded-full transition-colors"
+                className={`px-3 py-1.5 rounded-full transition-colors ${TAP}`}
                 style={{
                   background: active ? palette.gold : palette.field,
                   color: active ? palette.letterbox : palette.textMuted,
@@ -1343,7 +1757,7 @@ function LedgerApp() {
           <button
             type="button"
             onClick={() => setCs({ ...cs, targetPct: "instant" })}
-            className="px-3 py-1.5 rounded-full transition-colors"
+            className={`px-3 py-1.5 rounded-full transition-colors ${TAP}`}
             style={{
               background: !hasTarget ? palette.gold : palette.field,
               color: !hasTarget ? palette.letterbox : palette.textMuted,
@@ -1415,7 +1829,7 @@ function LedgerApp() {
               key={p.id}
               type="button"
               onClick={() => applyPreset(p.id)}
-              className="px-3 py-1.5 rounded-full"
+              className={`px-3 py-1.5 rounded-full transition-colors ${TAP}`}
               style={{
                 background: ps.preset === p.id ? palette.gold : palette.field,
                 color: ps.preset === p.id ? palette.letterbox : palette.textMuted,
@@ -1456,7 +1870,7 @@ function LedgerApp() {
     body = (
       <>
         <Readout
-          eyebrow={`${fx.from} → ${fx.to}`}
+          eyebrow={`${fx.from} \u2192 ${fx.to}`}
           value={sameCurrency ? fmtThousands(amount) : fmtThousands(converted)}
           unit={fx.to}
           sub={
@@ -1479,7 +1893,7 @@ function LedgerApp() {
           <button
             type="button"
             onClick={swap}
-            className="flex items-center justify-center rounded-lg flex-shrink-0 mb-4"
+            className={`flex items-center justify-center rounded-lg flex-shrink-0 mb-4 ${TAP}`}
             style={{
               width: "44px",
               height: "48px",
@@ -1510,7 +1924,7 @@ function LedgerApp() {
             <button
               type="button"
               onClick={() => setFx({ ...fx, customRate: "" })}
-              className="flex items-center gap-1"
+              className={`flex items-center gap-1 ${TAP}`}
               style={{ color: palette.textFaint, fontSize: "11px", fontFamily: mono }}
             >
               <RotateCcw size={11} />
@@ -1570,31 +1984,11 @@ function LedgerApp() {
 
     const domainPad = Math.max(10, Math.abs(peak - (running - maxDrawdown)) * 0.1) || 10;
 
-    // Revenge trading: a trade opened shortly after a loss, suggesting an
-    // impulsive re-entry rather than a planned one.
-    const sortedTrades = [...trades].sort((a, b) => a.ts - b.ts);
-    const revengeIds = new Set();
-    for (let i = 1; i < sortedTrades.length; i++) {
-      const prev = sortedTrades[i - 1];
-      const cur = sortedTrades[i];
-      if (prev.pnl < 0 && cur.ts - prev.ts <= REVENGE_WINDOW_MS) {
-        revengeIds.add(cur.id);
-      }
-    }
-    const revengeTrades = sortedTrades.filter((t) => revengeIds.has(t.id));
-    const revengeCount = revengeTrades.length;
-    const revengeLossCount = revengeTrades.filter((t) => t.pnl < 0).length;
-    const revengeLossRate = revengeCount > 0 ? (revengeLossCount / revengeCount) * 100 : 0;
-    const revengePnl = revengeTrades.reduce((s, t) => s + t.pnl, 0);
-
-    // Win rate broken down by logged emotion.
-    const emotionStats = EMOTIONS.map((e) => {
-      const tagged = trades.filter((t) => t.emotion === e.id);
-      const tWins = tagged.filter((t) => t.pnl > 0).length;
-      const rate = tagged.length > 0 ? (tWins / tagged.length) * 100 : 0;
-      const pnl = tagged.reduce((s, t) => s + t.pnl, 0);
-      return { ...e, count: tagged.length, rate, pnl };
-    }).filter((e) => e.count > 0);
+    // Revenge trading + discipline streak, both computed from the same
+    // shared helpers used by the weekly recap above.
+    const revengeIds = computeRevengeIds(trades);
+    const { current: disciplineCurrent, best: disciplineBest, hasData: disciplineHasData } =
+      computeDisciplineStreak(trades);
 
     const tradesByDay = {};
     trades.forEach((t) => {
@@ -1651,7 +2045,7 @@ function LedgerApp() {
         {trades.length > 0 && (
           <div
             className="rounded-2xl p-4 mb-6"
-            style={{ background: palette.surface, border: `1px solid ${palette.border}` }}
+            style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow, transition: THEME_TRANSITION }}
           >
             <div style={{ width: "100%", height: 180 }}>
               <ResponsiveContainer>
@@ -1703,110 +2097,213 @@ function LedgerApp() {
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-3 mb-2">
-          <StatChip label="Win Rate" value={trades.length ? `${winRate.toFixed(1)}%` : "—"} />
-          <StatChip label="Avg Win / Loss" value={trades.length ? `$${fmt(avgWin, 0)} / $${fmt(avgLoss, 0)}` : "—"} />
-          <StatChip label="Max Drawdown" value={trades.length ? `$${fmt(maxDrawdown, 0)}` : "—"} />
-          <StatChip label="Best / Worst Streak" value={trades.length ? `+${bestStreak} / ${worstStreak}` : "—"} />
+        <div className="mb-4">
+          <div className="grid grid-cols-2 gap-3 mb-2">
+            <StatChip label="Win Rate" value={trades.length ? `${winRate.toFixed(1)}%` : "N/A"} />
+            <StatChip label="Avg Win / Loss" value={trades.length ? `$${fmt(avgWin, 0)} / $${fmt(avgLoss, 0)}` : "N/A"} />
+            <StatChip label="Max Drawdown" value={trades.length ? `$${fmt(maxDrawdown, 0)}` : "N/A"} />
+            <StatChip
+              label="Best / Worst Streak"
+              value={trades.length ? `+${bestStreak} / ${worstStreak}` : "N/A"}
+              onClick={() => setShowStreakInfo((v) => !v)}
+            />
+          </div>
+          {showStreakInfo && (
+            <p className="text-xs mt-2" style={{ color: palette.textFaint }}>
+              Streaks count consecutive wins (positive) or losses (negative).
+            </p>
+          )}
         </div>
 
-        <p className="text-xs mt-2 mb-4" style={{ color: palette.textFaint }}>
-          Streaks count consecutive wins (positive) or losses (negative).
-        </p>
+        <div className="mb-4">
+          <div className="grid grid-cols-2 gap-3 mb-2">
+            <StatChip
+              label="Discipline Streak"
+              value={disciplineHasData ? `${disciplineCurrent} day${disciplineCurrent === 1 ? "" : "s"}` : "N/A"}
+              onClick={() => setShowDisciplineInfo((v) => !v)}
+            />
+            <StatChip
+              label="Best Discipline Streak"
+              value={disciplineHasData ? `${disciplineBest} day${disciplineBest === 1 ? "" : "s"}` : "N/A"}
+            />
+          </div>
+          {showDisciplineInfo && (
+            <p className="text-xs mt-2" style={{ color: palette.textFaint }}>
+              Consecutive trading days with no revenge trade (opened within {REVENGE_WINDOW_MINUTES} minutes of a
+              loss) \u2014 tracks behavior, not P&amp;L.
+            </p>
+          )}
+        </div>
 
-        <button
-          type="button"
-          onClick={generateWeeklyShare}
-          className="w-full flex items-center justify-center gap-2 rounded-lg py-3 mb-2"
-          style={{
-            background: palette.field,
-            border: `1px solid ${palette.gold}`,
-            color: palette.goldBright,
-            fontFamily: mono,
-            fontSize: "14px",
-          }}
-        >
-          <Share2 size={16} />
-          Share My Week
-        </button>
+        <div className="flex gap-2 mb-2">
+          <button
+            type="button"
+            onClick={generateWeeklyShare}
+            className={`flex-1 flex items-center justify-center gap-2 rounded-lg py-3 ${TAP}`}
+            style={{
+              background: palette.gold,
+              border: `1px solid ${palette.gold}`,
+              color: palette.letterbox,
+              fontFamily: mono,
+              fontSize: "13px",
+              fontWeight: 600,
+              boxShadow: palette.shadow,
+              transition: `${THEME_TRANSITION}, transform 0.15s ease`,
+            }}
+          >
+            <Share2 size={16} />
+            Share My Week
+          </button>
+          <button
+            type="button"
+            onClick={copyWeekSummary}
+            className={`flex-1 flex items-center justify-center gap-2 rounded-lg py-3 ${TAP}`}
+            style={{
+              background: palette.field,
+              border: `1px solid ${palette.border}`,
+              color: palette.text,
+              fontFamily: mono,
+              fontSize: "13px",
+              fontWeight: 600,
+              transition: `${THEME_TRANSITION}, transform 0.15s ease`,
+            }}
+          >
+            <Copy size={16} />
+            Copy Summary
+          </button>
+        </div>
         {shareError && (
-          <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
+          <p className="text-xs mb-2" style={{ color: palette.textFaint }}>
             {shareError}
           </p>
         )}
-        {!shareError && <div className="mb-6" />}
-
-        <span
-          className="block mb-1.5 uppercase"
-          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
-        >
-          Trading Psychology
-        </span>
-
-        <div className="grid grid-cols-2 gap-3 mb-2">
-          <StatChip
-            label="Revenge Trades"
-            value={trades.length ? `${revengeCount} of ${trades.length}` : "—"}
-          />
-          <StatChip
-            label="Revenge Trade P&L"
-            value={revengeCount ? `${revengePnl >= 0 ? "+" : "-"}$${fmt(Math.abs(revengePnl), 0)}` : "—"}
-          />
-        </div>
-        <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-          {revengeCount > 0
-            ? `A trade counts as "revenge" when it's opened within ${REVENGE_WINDOW_MINUTES} minutes of a loss. ${revengeLossRate.toFixed(
-                0
-              )}% of those ended in another loss.`
-            : `A trade opened within ${REVENGE_WINDOW_MINUTES} minutes of a loss is flagged here as a possible revenge trade.`}
-        </p>
-
-        {emotionStats.length > 0 && (
-          <>
-            <div className="mb-2">
-              {emotionStats.map((e) => (
-                <div
-                  key={e.id}
-                  className="flex items-center justify-between rounded-lg px-3 py-2.5 mb-2"
-                  style={{ background: palette.surface, border: `1px solid ${palette.border}` }}
-                >
-                  <div className="flex items-center gap-2">
-                    <span style={{ fontSize: "16px" }}>{e.emoji}</span>
-                    <span style={{ color: palette.text, fontSize: "13px" }}>{e.label}</span>
-                    <span style={{ color: palette.textFaint, fontSize: "11px", fontFamily: mono }}>
-                      ×{e.count}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span
-                      style={{
-                        fontFamily: mono,
-                        fontSize: "12px",
-                        color: e.pnl >= 0 ? palette.green : palette.red,
-                      }}
-                    >
-                      {e.pnl >= 0 ? "+" : "-"}${fmt(Math.abs(e.pnl), 0)}
-                    </span>
-                    <span
-                      style={{
-                        fontFamily: mono,
-                        fontSize: "12px",
-                        color: palette.textMuted,
-                        minWidth: "42px",
-                        textAlign: "right",
-                      }}
-                    >
-                      {e.rate.toFixed(0)}%
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <p className="text-xs mb-6" style={{ color: palette.textFaint }}>
-              Win rate by the mood tagged when each trade was logged.
-            </p>
-          </>
+        {copyMsg && (
+          <p className="text-xs mb-2" style={{ color: palette.textFaint }}>
+            {copyMsg}
+          </p>
         )}
+        {copyFallbackText && (
+          <div
+            className="rounded-lg p-3 mb-2"
+            style={{ background: palette.field, border: `1px solid ${palette.border}` }}
+          >
+            <textarea
+              readOnly
+              value={copyFallbackText}
+              onFocus={(e) => e.target.select()}
+              className="w-full bg-transparent outline-none"
+              style={{ color: palette.text, fontFamily: mono, fontSize: "12px", height: "132px", resize: "none" }}
+            />
+            <button
+              type="button"
+              onClick={() => setCopyFallbackText("")}
+              className={`mt-2 ${TAP}`}
+              style={{ color: palette.textFaint, fontSize: "11px", fontFamily: mono }}
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+        {!shareError && !copyMsg && !copyFallbackText && <div className="mb-6" />}
+        {(shareError || copyMsg) && !copyFallbackText && <div className="mb-4" />}
+
+        <div
+          className="rounded-2xl p-4 mb-6"
+          style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow, transition: THEME_TRANSITION }}
+        >
+          <span
+            className="block mb-1.5 uppercase"
+            style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+          >
+            Backup &amp; Restore
+          </span>
+          <p className="text-xs mb-3" style={{ color: palette.textFaint }}>
+            Your data only lives in this browser. Export a backup file occasionally, or right before switching
+            phones.
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={exportBackup}
+              className={`flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 ${TAP}`}
+              style={{
+                background: palette.field,
+                border: `1px solid ${palette.border}`,
+                color: palette.text,
+                fontFamily: mono,
+                fontSize: "13px",
+                transition: `${THEME_TRANSITION}, transform 0.15s ease`,
+              }}
+            >
+              <Download size={15} />
+              Export
+            </button>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current && fileInputRef.current.click()}
+              className={`flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 ${TAP}`}
+              style={{
+                background: palette.field,
+                border: `1px solid ${palette.border}`,
+                color: palette.text,
+                fontFamily: mono,
+                fontSize: "13px",
+                transition: `${THEME_TRANSITION}, transform 0.15s ease`,
+              }}
+            >
+              <Upload size={15} />
+              Import
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/json,.json"
+              onChange={importBackup}
+              style={{ display: "none" }}
+            />
+          </div>
+          {backupMsg && (
+            <p className="text-xs mt-2" style={{ color: palette.textFaint }}>
+              {backupMsg}
+            </p>
+          )}
+          {pendingImport && (
+            <div
+              className="rounded-lg p-3 mt-3"
+              style={{ background: palette.field, border: `1px solid ${palette.gold}` }}
+            >
+              <p className="text-xs mb-3" style={{ color: palette.text }}>
+                This will replace your current trades, starting balance, news events, and theme on this
+                device with the backup file ({pendingImport.trades.length} trade
+                {pendingImport.trades.length === 1 ? "" : "s"}). This can't be undone.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={confirmImport}
+                  className={`flex-1 rounded-lg py-2 ${TAP}`}
+                  style={{ background: palette.gold, color: palette.letterbox, fontFamily: mono, fontSize: "13px" }}
+                >
+                  Replace Data
+                </button>
+                <button
+                  type="button"
+                  onClick={cancelImport}
+                  className={`flex-1 rounded-lg py-2 ${TAP}`}
+                  style={{
+                    background: "transparent",
+                    border: `1px solid ${palette.border}`,
+                    color: palette.textMuted,
+                    fontFamily: mono,
+                    fontSize: "13px",
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
 
         <Field
           label="Starting Balance"
@@ -1843,7 +2340,7 @@ function LedgerApp() {
           <button
             type="button"
             onClick={addTrade}
-            className="flex items-center justify-center rounded-lg flex-shrink-0"
+            className={`flex items-center justify-center rounded-lg flex-shrink-0 ${TAP}`}
             style={{
               width: "46px",
               background: palette.gold,
@@ -1869,6 +2366,62 @@ function LedgerApp() {
         />
 
         <div className="flex gap-2 flex-wrap mb-2">
+          {NOTE_TAGS.map((tag) => {
+            const active = tradeNote === tag;
+            return (
+              <button
+                key={tag}
+                type="button"
+                onClick={() => setTradeNote(active ? "" : tag)}
+                className={`px-3 py-1.5 rounded-full transition-colors ${TAP}`}
+                style={{
+                  background: active ? palette.field : "transparent",
+                  color: active ? palette.text : palette.textFaint,
+                  border: `1px dashed ${active ? palette.textMuted : palette.border}`,
+                  fontSize: "12px",
+                }}
+              >
+                {tag}
+              </button>
+            );
+          })}
+        </div>
+
+        <span
+          className="block mb-1.5 uppercase"
+          style={{ color: palette.textFaint, letterSpacing: "0.08em", fontSize: "10px" }}
+        >
+          Setup
+        </span>
+        <div className="flex gap-2 flex-wrap mb-2">
+          {SETUPS.map((s) => {
+            const active = tradeSetup === s.id;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => setTradeSetup(active ? null : s.id)}
+                className={`px-3 py-1.5 rounded-full transition-colors ${TAP}`}
+                style={{
+                  background: active ? palette.gold : palette.field,
+                  color: active ? palette.letterbox : palette.textMuted,
+                  border: `1px solid ${active ? palette.gold : palette.border}`,
+                  fontSize: "13px",
+                }}
+              >
+                {s.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <span
+          className="block mb-1.5 uppercase"
+          style={{ color: palette.textFaint, letterSpacing: "0.08em", fontSize: "10px" }}
+        >
+          Mood
+        </span>
+        <div className="flex gap-2 flex-wrap mb-2">
           {EMOTIONS.map((e) => {
             const active = tradeEmotion === e.id;
             return (
@@ -1876,7 +2429,7 @@ function LedgerApp() {
                 key={e.id}
                 type="button"
                 onClick={() => setTradeEmotion(active ? null : e.id)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full"
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-colors ${TAP}`}
                 style={{
                   background: active ? palette.gold : palette.field,
                   color: active ? palette.letterbox : palette.textMuted,
@@ -1891,19 +2444,20 @@ function LedgerApp() {
           })}
         </div>
         <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-          Enter net P&amp;L for the trade. Positive logs a win, negative logs a loss. Tagging your mood
-          (optional) is what powers the psychology stats above.
+          Enter net P&amp;L for the trade. Positive logs a win, negative logs a loss. The dashed chips quick-fill
+          the note; Setup tags what kind of trade it was; Mood tags how you felt. Tags and a "revenge" flag
+          (opened within {REVENGE_WINDOW_MINUTES} minutes of a loss) show up per trade in the calendar below.
         </p>
 
-        {storageError && (
+        {tradesLoadError && (
           <p className="text-xs mb-4" style={{ color: palette.red }}>
-            {storageError}
+            {tradesLoadError}
           </p>
         )}
 
         {!tradesLoaded ? (
           <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-            Loading saved trades…
+            Loading saved trades\u2026
           </p>
         ) : (
           <>
@@ -1921,6 +2475,7 @@ function LedgerApp() {
                     clearTrades();
                     setSelectedDay(null);
                   }}
+                  className={TAP}
                   style={{ color: palette.textFaint, fontSize: "11px", fontFamily: mono }}
                 >
                   Clear all
@@ -1930,13 +2485,14 @@ function LedgerApp() {
 
             <div
               className="rounded-2xl p-4 mb-4"
-              style={{ background: palette.surface, border: `1px solid ${palette.border}` }}
+              style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow, transition: THEME_TRANSITION }}
             >
               <div className="flex items-center justify-between mb-3">
                 <button
                   type="button"
                   onClick={goPrevMonth}
                   aria-label="Previous month"
+                  className={TAP}
                   style={{ color: palette.textMuted, padding: "2px" }}
                 >
                   <ChevronLeft size={18} />
@@ -1948,6 +2504,7 @@ function LedgerApp() {
                   type="button"
                   onClick={goNextMonth}
                   aria-label="Next month"
+                  className={TAP}
                   style={{ color: palette.textMuted, padding: "2px" }}
                 >
                   <ChevronRight size={18} />
@@ -1980,7 +2537,7 @@ function LedgerApp() {
                       key={i}
                       type="button"
                       onClick={() => hasTrades && setSelectedDay(isSelected ? null : key)}
-                      className="flex flex-col items-center justify-center rounded-lg"
+                      className={`flex flex-col items-center justify-center rounded-lg ${hasTrades ? TAP : ""}`}
                       style={{
                         aspectRatio: "1",
                         background: hasTrades
@@ -1992,6 +2549,7 @@ function LedgerApp() {
                           isSelected ? palette.gold : isToday ? palette.textMuted : "transparent"
                         }`,
                         cursor: hasTrades ? "pointer" : "default",
+                        transition: THEME_TRANSITION,
                       }}
                     >
                       <span
@@ -2052,10 +2610,10 @@ function LedgerApp() {
                   <div
                     key={t.id}
                     className="flex items-center justify-between rounded-lg px-3 py-2.5 mb-2"
-                    style={{ background: palette.surface, border: `1px solid ${palette.border}` }}
+                    style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow, transition: THEME_TRANSITION }}
                   >
                     <div>
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <span
                           style={{
                             fontFamily: mono,
@@ -2067,6 +2625,20 @@ function LedgerApp() {
                         </span>
                         {t.emotion && emotionMeta(t.emotion) && (
                           <span style={{ fontSize: "13px" }}>{emotionMeta(t.emotion).emoji}</span>
+                        )}
+                        {t.setup && setupMeta(t.setup) && (
+                          <span
+                            style={{
+                              fontSize: "10px",
+                              fontFamily: mono,
+                              color: palette.textMuted,
+                              border: `1px solid ${palette.border}`,
+                              borderRadius: "999px",
+                              padding: "1px 6px",
+                            }}
+                          >
+                            {setupMeta(t.setup).label}
+                          </span>
                         )}
                         {revengeIds.has(t.id) && (
                           <span
@@ -2090,6 +2662,7 @@ function LedgerApp() {
                     <button
                       type="button"
                       onClick={() => deleteTrade(t.id)}
+                      className={TAP}
                       style={{ color: palette.textFaint }}
                       aria-label="Delete trade"
                     >
@@ -2123,7 +2696,7 @@ function LedgerApp() {
     const future = withOcc.filter((x) => x.occMs >= now.getTime()).sort((a, b) => a.occMs - b.occMs);
     const next = future[0];
     const nextMs = next ? next.occMs - now.getTime() : Infinity;
-    const nextLabel = next ? `${next.ev.date} · ${next.ev.time}` : "";
+    const nextLabel = next ? `${next.ev.date} \u00b7 ${next.ev.time}` : "";
 
     const impactColor = (level) =>
       level === "high" ? palette.red : level === "medium" ? palette.goldBright : palette.textMuted;
@@ -2141,14 +2714,27 @@ function LedgerApp() {
       <>
         <Readout
           eyebrow="Next USD Event"
-          value={next ? formatCountdown(nextMs) : "—"}
-          sub={next ? `${next.ev.name} · ${nextLabel}` : "No upcoming events — add one below"}
+          value={next ? formatCountdown(nextMs) : "N/A"}
+          sub={next ? `${next.ev.name} \u00b7 ${nextLabel}` : "No upcoming events, add one below"}
           tone={next && next.ev.impact === "high" && nextMs < 60 * 60 * 1000 ? "bad" : undefined}
         />
 
+        {newsLoadError && (
+          <p className="text-xs mb-4" style={{ color: palette.red }}>
+            {newsLoadError}
+          </p>
+        )}
+
+        {notifPermission === "denied" && (
+          <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
+            Notifications are blocked in your browser settings \u2014 alarms will still ring with sound while this
+            app is open, just without a system notification.
+          </p>
+        )}
+
         {!newsLoaded ? (
           <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-            Loading saved events…
+            Loading saved events\u2026
           </p>
         ) : newsEvents.length === 0 ? (
           <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
@@ -2186,7 +2772,9 @@ function LedgerApp() {
                         style={{
                           background: palette.surface,
                           border: `1px solid ${palette.border}`,
+                          boxShadow: palette.shadow,
                           opacity: passed ? 0.55 : 1,
+                          transition: THEME_TRANSITION,
                         }}
                       >
                         <div>
@@ -2205,15 +2793,17 @@ function LedgerApp() {
                             >
                               {ev.impact}
                             </span>
+                            {ev.alarm && <Bell size={11} style={{ color: palette.gold }} aria-label="Alarm set" />}
                           </div>
                           <div style={{ color: palette.textMuted, fontSize: "12px" }}>
                             {ev.time}
-                            {passed ? " · released" : ""}
+                            {passed ? ", released" : ""}
                           </div>
                         </div>
                         <button
                           type="button"
                           onClick={() => deleteNewsEvent(ev.id)}
+                          className={TAP}
                           style={{ color: palette.textFaint }}
                           aria-label="Delete event"
                         >
@@ -2228,7 +2818,10 @@ function LedgerApp() {
         )}
 
         <p className="text-xs mt-1 mb-6" style={{ color: palette.textFaint }}>
-          Nothing here is added automatically — add the events you want to track below.
+          Nothing here is added automatically \u2014 add the events you want to track below. With Alarm on, this
+          app rings (sound + notification) {ALARM_LEAD_MINUTES} minutes before, but only while it's open in your
+          browser \u2014 it can't set a true system alarm, so keep the tab open (or this installed as a
+          home-screen app) close to the event.
         </p>
 
         <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
@@ -2265,7 +2858,7 @@ function LedgerApp() {
               key={lvl}
               type="button"
               onClick={() => setNewEventImpact(lvl)}
-              className="px-3 py-1.5 rounded-full"
+              className={`px-3 py-1.5 rounded-full transition-colors ${TAP}`}
               style={{
                 background: newEventImpact === lvl ? impactColor(lvl) : palette.field,
                 color: newEventImpact === lvl ? palette.letterbox : palette.textMuted,
@@ -2322,11 +2915,37 @@ function LedgerApp() {
           </div>
         </label>
 
+        <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
+          Alarm
+        </span>
+        <button
+          type="button"
+          onClick={toggleNewEventAlarm}
+          className={`flex items-center gap-2 px-3 py-2.5 rounded-lg mb-1 transition-colors ${TAP}`}
+          style={{
+            background: newEventAlarm ? palette.gold : palette.field,
+            color: newEventAlarm ? palette.letterbox : palette.textMuted,
+            border: `1px solid ${newEventAlarm ? palette.gold : palette.border}`,
+            fontFamily: mono,
+            fontSize: "13px",
+          }}
+        >
+          <Bell size={15} />
+          {newEventAlarm ? `Ring ${ALARM_LEAD_MINUTES} min before` : "No alarm for this event"}
+        </button>
+        <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
+          {notifPermission === "granted"
+            ? "Notifications are allowed \u2014 you'll get a system notification plus sound when it rings."
+            : notifPermission === "unsupported"
+            ? "This browser doesn't support notifications \u2014 the alarm will still ring with sound and an in-app popup."
+            : "Turning this on will ask for notification permission."}
+        </p>
+
         <button
           type="button"
           onClick={addNewsEvent}
-          className="w-full rounded-lg py-3 mb-4"
-          style={{ background: palette.gold, color: palette.letterbox, fontFamily: mono, fontSize: "14px" }}
+          className={`w-full rounded-lg py-3 mb-4 ${TAP}`}
+          style={{ background: palette.gold, color: palette.letterbox, fontFamily: mono, fontSize: "14px", transition: `${THEME_TRANSITION}, transform 0.15s ease` }}
         >
           + Add Event
         </button>
@@ -2337,33 +2956,69 @@ function LedgerApp() {
   return (
     <div
       className="w-full flex justify-center"
-      style={{ background: palette.letterbox, height: "100dvh" }}
+      style={{
+        background: palette.letterbox,
+        height: "100dvh",
+        opacity: themeLoaded ? 1 : 0,
+        transition: `opacity 0.15s ease-out, ${THEME_TRANSITION}`,
+      }}
     >
       <style>{`
         @media (prefers-reduced-motion: no-preference) {
           .ticker-glow { animation: pulse 3.2s ease-in-out infinite; }
         }
         @keyframes pulse {
-          0%, 100% { filter: drop-shadow(0 0 0px rgba(231,198,135,0)); }
-          50% { filter: drop-shadow(0 0 8px rgba(231,198,135,0.25)); }
+          0%, 100% { filter: drop-shadow(0 0 0px rgba(0,0,0,0)); }
+          50% { filter: drop-shadow(0 0 8px var(--glow, rgba(231,198,135,0.28))); }
         }
+        @media (prefers-reduced-motion: no-preference) {
+          .alarm-ring { animation: alarmPulse 1s ease-in-out infinite; }
+        }
+        @keyframes alarmPulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.08); }
+        }
+        @keyframes modalIn {
+          from { opacity: 0; transform: scale(0.96) translateY(6px); }
+          to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .modal-in { animation: modalIn 0.18s ease-out; }
         input:focus, select:focus { outline: none; }
         select option { background: ${palette.field}; }
       `}</style>
       <div
         className="w-full flex flex-col"
-        style={{ maxWidth: "440px", height: "100%", background: palette.bg, fontFamily: sans, overflow: "hidden" }}
+        style={{ maxWidth: "440px", height: "100%", background: palette.bg, fontFamily: sans, overflow: "hidden", transition: THEME_TRANSITION }}
       >
         <header
-          className="px-5 pt-6 pb-4 flex-shrink-0"
-          style={{ borderBottom: `1px solid ${palette.border}` }}
+          className="px-5 pt-6 pb-4 flex-shrink-0 flex items-center justify-between"
+          style={{ borderBottom: `1px solid ${palette.border}`, transition: THEME_TRANSITION }}
         >
-          <div className="uppercase" style={{ color: palette.gold, letterSpacing: "0.16em", fontSize: "11px" }}>
-            Trade Math Calculator
+          <div>
+            <div className="uppercase" style={{ color: palette.gold, letterSpacing: "0.16em", fontSize: "11px", transition: THEME_TRANSITION }}>
+              Trade Math Calculator
+            </div>
+            <h1 className="mt-1" style={{ fontFamily: mono, fontSize: "1.6rem", fontWeight: 700, color: palette.text, letterSpacing: "0.02em", transition: THEME_TRANSITION }}>
+              LEDGER
+            </h1>
           </div>
-          <h1 className="mt-1" style={{ fontFamily: mono, fontSize: "1.6rem", fontWeight: 700, color: palette.text, letterSpacing: "0.02em" }}>
-            LEDGER
-          </h1>
+          <button
+            type="button"
+            onClick={toggleTheme}
+            aria-label="Toggle light/dark mode"
+            className={`flex items-center justify-center rounded-full flex-shrink-0 ${TAP}`}
+            style={{
+              width: "38px",
+              height: "38px",
+              background: palette.field,
+              border: `1px solid ${palette.border}`,
+              color: palette.gold,
+              boxShadow: palette.shadow,
+              transition: `${THEME_TRANSITION}, transform 0.15s ease`,
+            }}
+          >
+            {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
+          </button>
         </header>
 
         <main
@@ -2379,7 +3034,9 @@ function LedgerApp() {
             flexShrink: 0,
             borderTop: `1px solid ${palette.border}`,
             background: palette.surface,
+            boxShadow: palette.navShadow,
             paddingBottom: "env(safe-area-inset-bottom)",
+            transition: THEME_TRANSITION,
           }}
         >
           {TABS.map((tab) => {
@@ -2390,8 +3047,13 @@ function LedgerApp() {
                 <button
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
-                  className="flex flex-col items-center gap-1 py-3 flex-shrink-0"
-                  style={{ color: active ? palette.goldBright : palette.textFaint, minWidth: "64px" }}
+                  className={`flex flex-col items-center gap-1 py-3 flex-shrink-0 ${TAP}`}
+                  style={{
+                    color: active ? palette.goldBright : palette.textFaint,
+                    minWidth: "64px",
+                    background: active ? `${palette.gold}14` : "transparent",
+                    transition: `${THEME_TRANSITION}, transform 0.15s ease`,
+                  }}
                 >
                   <Icon size={18} strokeWidth={active ? 2.4 : 1.8} />
                   <span style={{ fontSize: "10px", letterSpacing: "0.04em" }}>{tab.label}</span>
@@ -2408,33 +3070,42 @@ function LedgerApp() {
       {shareImageUrl && (
         <div
           className="fixed inset-0 flex items-center justify-center z-50 p-4"
-          style={{ background: "rgba(5,7,12,0.85)" }}
+          style={{ background: "rgba(5,7,12,0.85)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}
           onClick={closeShare}
         >
           <div
-            className="w-full flex flex-col items-center"
+            className="w-full flex flex-col items-center modal-in"
             style={{ maxWidth: "420px" }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="w-full flex items-center justify-between mb-3">
-              <span style={{ color: palette.text, fontFamily: mono, fontSize: "13px" }}>
+              <span style={{ color: "#EDEFF3", fontFamily: mono, fontSize: "13px" }}>
                 Preview
               </span>
-              <button type="button" onClick={closeShare} style={{ color: palette.textMuted }} aria-label="Close">
+              <button type="button" onClick={closeShare} className={TAP} style={{ color: "#7C8AA0" }} aria-label="Close">
                 <X size={20} />
               </button>
             </div>
             <img
               src={shareImageUrl}
               alt="My trading week recap"
-              className="w-full rounded-2xl mb-4"
+              className="w-full rounded-2xl mb-3"
               style={{ border: `1px solid ${palette.border}` }}
             />
+            <p className="text-xs mb-3 text-center" style={{ color: "#7C8AA0" }}>
+              Tip: press and hold (or right-click) the image above to save it directly.
+            </p>
             <button
               type="button"
               onClick={downloadShare}
-              className="w-full flex items-center justify-center gap-2 rounded-lg py-3"
-              style={{ background: palette.gold, color: palette.letterbox, fontFamily: mono, fontSize: "14px" }}
+              className={`w-full flex items-center justify-center gap-2 rounded-lg py-3 ${TAP}`}
+              style={{
+                background: palette.gold,
+                color: palette.letterbox,
+                fontFamily: mono,
+                fontSize: "14px",
+                fontWeight: 600,
+              }}
             >
               <Download size={16} />
               Save Image
@@ -2442,19 +3113,77 @@ function LedgerApp() {
           </div>
         </div>
       )}
+
+      {ringingEvent && (
+        <div
+          className="fixed inset-0 flex items-center justify-center z-50 p-6"
+          style={{ background: "rgba(5,7,12,0.92)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}
+        >
+          <div className="w-full flex flex-col items-center text-center modal-in" style={{ maxWidth: "360px" }}>
+            <div className="alarm-ring mb-4" style={{ color: palette.gold }}>
+              <Bell size={48} />
+            </div>
+            <div
+              className="uppercase mb-1"
+              style={{ color: "#7C8AA0", letterSpacing: "0.12em", fontSize: "11px" }}
+            >
+              Alarm
+            </div>
+            <div
+              style={{ fontFamily: mono, fontSize: "1.4rem", fontWeight: 700, color: "#EDEFF3", marginBottom: "6px" }}
+            >
+              {ringingEvent.name}
+            </div>
+            <div style={{ color: "#7C8AA0", fontSize: "13px", marginBottom: "28px" }}>
+              Scheduled for {ringingEvent.time} today
+            </div>
+            <div className="flex gap-2 w-full">
+              <button
+                type="button"
+                onClick={snoozeAlarm}
+                className={`flex-1 rounded-lg py-3 ${TAP}`}
+                style={{
+                  background: palette.field,
+                  border: `1px solid ${palette.border}`,
+                  color: "#EDEFF3",
+                  fontFamily: mono,
+                  fontSize: "14px",
+                }}
+              >
+                Snooze 5m
+              </button>
+              <button
+                type="button"
+                onClick={dismissAlarm}
+                className={`flex-1 rounded-lg py-3 ${TAP}`}
+                style={{
+                  background: palette.gold,
+                  color: palette.letterbox,
+                  fontFamily: mono,
+                  fontSize: "14px",
+                  fontWeight: 600,
+                }}
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-const rootEl = document.getElementById("root");
-const root = ReactDOM.createRoot(rootEl);
+const root = createRoot(document.getElementById("root"));
 root.render(<LedgerApp />);
+</script>
 
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js").catch(() => {});
-  });
-}
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch(() => {});
+    });
+  }
 </script>
 </body>
 </html>
