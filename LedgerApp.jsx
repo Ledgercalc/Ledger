@@ -5740,6 +5740,21 @@ export default function LedgerApp() {
 
       const cellInputStyle = { color: palette.text, fontFamily: mono, fontSize: "12px", border: "none" };
 
+      // Mistake and Note are free-text fields that regularly run longer
+      // than their column width. Instead of overflowing sideways inside a
+      // single-line input (forcing a horizontal scroll to read the rest),
+      // these two render as auto-growing textareas: text wraps onto new
+      // lines within the column's width, and the textarea (and its row)
+      // grow taller to fit. autoResizeTextarea recalculates the height
+      // on every keystroke, and once on mount via the ref callback so
+      // existing long entries start at their full wrapped height instead
+      // of a clipped single line.
+      const autoResizeTextarea = (el) => {
+        if (!el) return;
+        el.style.height = "auto";
+        el.style.height = `${el.scrollHeight}px`;
+      };
+
       const renderCell = (row, col, rowIdx, colIdx, rows) => {
         const dateForRow = row.date;
         const cellKey = `${row.id}:${col.id}`;
@@ -5809,14 +5824,37 @@ export default function LedgerApp() {
             </select>
           );
         }
-        const placeholderText =
-          col.id === "pair"
-            ? "Add pair"
-            : col.id === "rr"
-            ? "Add R:R"
-            : col.id === "note"
-            ? "Add note"
-            : "Add mistake";
+        if (col.id === "mistake" || col.id === "note") {
+          return (
+            <textarea
+              ref={(el) => {
+                registerRef(el);
+                autoResizeTextarea(el);
+              }}
+              onKeyDown={onCellKeyDown}
+              value={row[col.id] || ""}
+              onChange={(e) => {
+                updateJournalField(row.id, col.id, e.target.value, dateForRow);
+                autoResizeTextarea(e.target);
+              }}
+              placeholder={col.id === "note" ? "Add note" : "Add mistake"}
+              rows={1}
+              className="w-full bg-transparent outline-none block"
+              style={{
+                ...cellInputStyle,
+                resize: "none",
+                overflow: "hidden",
+                whiteSpace: "pre-wrap",
+                overflowWrap: "break-word",
+                wordBreak: "break-word",
+                lineHeight: "1.4",
+                padding: 0,
+                display: "block",
+              }}
+            />
+          );
+        }
+        const placeholderText = col.id === "pair" ? "Add pair" : "Add R:R";
         return (
           <input
             type="text"
@@ -5937,6 +5975,7 @@ export default function LedgerApp() {
                               borderBottom: `1px solid ${palette.border}`,
                               borderRight: `1px solid ${palette.border}`,
                               padding: "8px 8px",
+                              verticalAlign: "top",
                             }}
                           >
                             {renderCell(row, col, rowIdx, colIdx, allRows)}
@@ -5948,6 +5987,8 @@ export default function LedgerApp() {
                             minWidth: "36px",
                             borderBottom: `1px solid ${palette.border}`,
                             textAlign: "center",
+                            verticalAlign: "top",
+                            paddingTop: "8px",
                           }}
                         >
                           {!row._placeholder && (
@@ -5962,6 +6003,7 @@ export default function LedgerApp() {
                             </button>
                           )}
                         </td>
+
                       </tr>
                     ))}
                   </tbody>
@@ -6017,7 +6059,8 @@ export default function LedgerApp() {
 
           <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
             Tap any cell to edit, Trend and Setup are quick-select. The date only lets you pick a day within{" "}
-            {MONTH_NAMES[monthIdx]} {year}. Drag a column header's right edge to resize it. Rows sort by date
+            {MONTH_NAMES[monthIdx]} {year}. Mistake and Note wrap onto new lines and grow the row to fit instead
+            of scrolling sideways. Drag a column header's right edge to resize it. Rows sort by date
             automatically, so add extra rows for multiple trades on the same day. Hold Alt and press an arrow
             key to jump between cells, including into and out of the date field without leaving the
             keyboard. Use Download Journal to save this month's entries as a CSV file.
@@ -6570,7 +6613,7 @@ export default function LedgerApp() {
           to { opacity: 1; transform: scale(1) translateY(0); }
         }
         .modal-in { animation: modalIn 0.18s ease-out; }
-        input:focus, select:focus { outline: none; }
+        input:focus, select:focus, textarea:focus { outline: none; }
         select option { background: ${palette.field}; }
       `}</style>
       <div
