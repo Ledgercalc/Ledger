@@ -1687,6 +1687,10 @@ export default function LedgerApp() {
   // Set right after adding a row so a focus effect can jump into it once
   // it's actually rendered (it isn't yet on the same render as the write).
   const [journalFocusRowId, setJournalFocusRowId] = useState(null);
+  // Set after a download so the button area can show a short confirmation,
+  // the same pattern used by the other exports in this file (backup,
+  // insights report, weekly share/copy).
+  const [journalExportMsg, setJournalExportMsg] = useState("");
 
   // ---- Journal tab \u2192 Playbook sub-tab: user-defined trading rules plus
   // a once-a-day check-in against whichever rules are currently active.
@@ -2358,6 +2362,59 @@ export default function LedgerApp() {
     const nextRow = rows[nextRowIdx];
     const nextCol = JOURNAL_COLUMNS[nextColIdx];
     if (nextRow && nextCol) focusJournalCell(nextRow.id, nextCol.id);
+  };
+
+  // Downloads the currently-viewed month's journal rows as a CSV file, so
+  // the user has a plain, spreadsheet-openable copy of their journal
+  // outside the app — same reliable <a download> approach as every other
+  // export in this file (see downloadImageFile / exportBackup /
+  // exportInsightsReport), since sandboxed previews are unreliable with the
+  // Web Share API for arbitrary blobs. Trend and Setup are written out as
+  // their display labels (not raw ids) so the file reads cleanly on its own.
+  const exportJournalCSV = () => {
+    setJournalExportMsg("");
+    if (journalMonth === null) return;
+    const monthPrefix = `${journalYear}-${pad2(journalMonth + 1)}`;
+    const rows = journalEntries
+      .filter((r) => r.date && r.date.startsWith(monthPrefix))
+      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+
+    if (rows.length === 0) {
+      setJournalExportMsg("No entries this month yet, nothing to download.");
+      return;
+    }
+
+    const escapeCsv = (val) => {
+      const s = String(val ?? "");
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+
+    const header = ["Date", "Pair", "Trend", "R:R", "Setup", "Mistake", "Note"];
+    const lines = [header.join(",")];
+    rows.forEach((r) => {
+      const trendLabel = TREND_OPTIONS.find((t) => t.id === r.trend)?.label || r.trend || "";
+      const setupLabel = r.setup ? findSetupLabel(r.setup) : "";
+      lines.push(
+        [r.date || "", r.pair || "", trendLabel, r.rr || "", setupLabel, r.mistake || "", r.note || ""]
+          .map(escapeCsv)
+          .join(",")
+      );
+    });
+
+    try {
+      const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `ledger-journal-${monthPrefix}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      setJournalExportMsg("Downloaded.");
+    } catch (err) {
+      setJournalExportMsg("Couldn't create the file, please try again.");
+    }
   };
 
   const openAddSetup = () => {
@@ -5920,7 +5977,7 @@ export default function LedgerApp() {
               const isCurrentMonth = today.getFullYear() === year && today.getMonth() === monthIdx;
               addJournalRow(isCurrentMonth ? dayKeyFromDate(today) : monthMinDate);
             }}
-            className={`w-full flex items-center justify-center gap-2 rounded-lg py-3 mb-4 ${TAP}`}
+            className={`w-full flex items-center justify-center gap-2 rounded-lg py-3 mb-3 ${TAP}`}
             style={{
               background: "transparent",
               border: `1px dashed ${palette.gold}88`,
@@ -5935,12 +5992,35 @@ export default function LedgerApp() {
             Add Trade Row
           </button>
 
+          <button
+            type="button"
+            onClick={exportJournalCSV}
+            className={`w-full flex items-center justify-center gap-2 rounded-lg py-3 mb-2 ${TAP}`}
+            style={{
+              background: palette.field,
+              border: `1px solid ${palette.border}`,
+              color: palette.text,
+              fontFamily: mono,
+              fontSize: "13px",
+              fontWeight: 600,
+              transition: `${THEME_TRANSITION}, transform 0.15s ease`,
+            }}
+          >
+            <Download size={16} />
+            Download Journal (CSV)
+          </button>
+          {journalExportMsg && (
+            <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
+              {journalExportMsg}
+            </p>
+          )}
+
           <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
             Tap any cell to edit, Trend and Setup are quick-select. The date only lets you pick a day within{" "}
             {MONTH_NAMES[monthIdx]} {year}. Drag a column header's right edge to resize it. Rows sort by date
             automatically, so add extra rows for multiple trades on the same day. Hold Alt and press an arrow
             key to jump between cells, including into and out of the date field without leaving the
-            keyboard.
+            keyboard. Use Download Journal to save this month's entries as a CSV file.
           </p>
         </>
       );
