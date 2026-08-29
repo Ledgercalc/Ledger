@@ -1,48 +1,37 @@
-// Minimal offline cache for the app shell (this repo's own files).
-// CDN scripts (React, Babel, Tailwind, lucide-react, recharts, live FX
-// rates) are left to the network — caching them here would risk serving a
-// stale/broken combination of library versions. Bump CACHE_NAME whenever
-// you change index.html/LedgerApp.jsx/manifest.json so old clients pick up
-// the new files instead of a stale cache.
-const CACHE_NAME = "ledger-shell-v1";
-const SHELL_FILES = [
-  "./",
-  "./index.html",
-  "./LedgerApp.jsx",
-  "./manifest.json",
-  "./icon.png",
-];
+const CACHE_NAME = "ledger-cache-v1";
+const APP_SHELL = ["./", "./index.html", "./manifest.json", "./LedgerApp.jsx", "./icon.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(SHELL_FILES)).catch(() => {})
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)).catch(() => {
+      // non-critical — app still works without a pre-warmed cache
+    })
   );
   self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((names) => Promise.all(names.filter((n) => n !== CACHE_NAME).map((n) => caches.delete(n))))
+    caches.keys().then((keys) =>
+      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
+    )
   );
   self.clients.claim();
 });
 
-// Network-first for the app shell files (so a redeploy is picked up
-// immediately when online), falling back to cache when offline.
 self.addEventListener("fetch", (event) => {
-  const url = new URL(event.request.url);
-  const isShellFile = url.origin === self.location.origin;
-  if (!isShellFile || event.request.method !== "GET") return;
+  const { request } = event;
+  if (request.method !== "GET") return;
 
+  // Network-first for navigations/app files so updates show up quickly;
+  // fall back to cache when offline.
   event.respondWith(
-    fetch(event.request)
-      .then((res) => {
-        const resClone = res.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, resClone));
-        return res;
+    fetch(request)
+      .then((response) => {
+        const copy = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(request, copy)).catch(() => {});
+        return response;
       })
-      .catch(() => caches.match(event.request))
+      .catch(() => caches.match(request).then((cached) => cached || caches.match("./index.html")))
   );
 });
