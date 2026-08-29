@@ -2,60 +2,79 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="theme-color" content="#0A0E16" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
 <title>Ledger</title>
+<meta name="description" content="Trade math calculator, journal, and trading tools." />
 
 <!-- PWA -->
-<link rel="manifest" href="./manifest.json" />
-<link rel="icon" href="./icon.png" />
-<link rel="apple-touch-icon" href="./icon.png" />
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#0A0E16" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Ledger" />
+<link rel="apple-touch-icon" href="icon.png" />
+<link rel="icon" href="icon.png" />
 
-<!-- Tailwind via CDN (the component uses Tailwind utility classes) -->
+<!-- Tailwind (JIT, browser build — fine for this single-page use case) -->
 <script src="https://cdn.tailwindcss.com"></script>
 
-<!--
-  Import map: lets the browser resolve bare specifiers like "react",
-  "lucide-react", "recharts" natively, without a bundler. esm.sh serves
-  browser-ready ES module builds. `external=react` / `external=react,react-dom`
-  keeps lucide-react and recharts from bundling their own copy of React,
-  which would break hooks (two React instances = broken state).
--->
+<!-- Import map: lets LedgerApp.jsx use plain `import X from "react"` etc.
+     with no bundler, resolved as native ES modules straight from a CDN. -->
 <script type="importmap">
 {
   "imports": {
     "react": "https://esm.sh/react@18.3.1",
     "react-dom": "https://esm.sh/react-dom@18.3.1",
     "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
+    "react/jsx-runtime": "https://esm.sh/react@18.3.1/jsx-runtime",
     "lucide-react": "https://esm.sh/lucide-react@0.383.0?external=react",
-    "recharts": "https://esm.sh/recharts@2.12.7?external=react,react-dom"
+    "recharts": "https://esm.sh/recharts@2?external=react,react-dom"
   }
 }
 </script>
 
-<!-- Babel standalone: transpiles JSX in the browser at load time. -->
-<script src="https://unpkg.com/@babel/standalone@7.25.6/babel.min.js"></script>
-
 <style>
-  html, body, #root { height: 100%; margin: 0; padding: 0; }
-  body { background: #05070C; }
+  html, body, #root { height: 100%; margin: 0; padding: 0; background: #05070C; }
+  * { -webkit-tap-highlight-color: transparent; }
 </style>
 </head>
 <body>
 <div id="root"></div>
 
-<!--
-  data-type="module" tells Babel standalone to transpile this file's JSX
-  but leave its import/export statements as native ES module syntax, so
-  the browser (via the import map above) resolves "react", "lucide-react",
-  etc. itself. LedgerApp.jsx mounts itself at the bottom of the file.
--->
-<script type="text/babel" data-presets="react" data-type="module" src="./LedgerApp.jsx"></script>
+<!-- Babel standalone: used ONLY to strip JSX syntax from LedgerApp.jsx.
+     It leaves import/export statements untouched, so the import map above
+     handles module resolution natively in the browser. -->
+<script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
 
+<script>
+  (async () => {
+    const res = await fetch("LedgerApp.jsx");
+    const source = await res.text();
+    const { code } = Babel.transform(source, {
+      presets: ["react"],
+      filename: "LedgerApp.jsx",
+      sourceType: "module",
+    });
+    const blob = new Blob([code], { type: "text/javascript" });
+    const url = URL.createObjectURL(blob);
+    const mod = await import(url);
+    const LedgerApp = mod.default;
+
+    const ReactDOMClient = await import("react-dom/client");
+    const React = (await import("react")).default;
+
+    const root = ReactDOMClient.createRoot(document.getElementById("root"));
+    root.render(React.createElement(LedgerApp));
+  })();
+</script>
+
+<!-- Register service worker for offline / installable PWA support -->
 <script>
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./sw.js").catch(() => {});
+      navigator.serviceWorker.register("sw.js").catch(() => {
+        // non-critical — app still works without offline caching
+      });
     });
   }
 </script>
