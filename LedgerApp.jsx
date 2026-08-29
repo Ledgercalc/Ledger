@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from "react";
-import { Scale, LineChart as CurveIcon, ArrowLeftRight, Trash2, Plus, ChevronLeft, ChevronRight, RotateCcw, Newspaper, Share2, X, Download, Upload, Copy, Sun, Moon, Bell, Info, Camera, Pencil, Check, Clock, Lightbulb, BookOpen, ClipboardCheck, TrendingUp, Flame, Target } from "lucide-react";
+import React, { useState, useEffect, useRef, Fragment } from "react";
+import { Scale, LineChart as CurveIcon, ArrowLeftRight, Trash2, Plus, ChevronLeft, ChevronRight, ChevronDown, RotateCcw, Newspaper, Share2, X, Download, Upload, Copy, Sun, Moon, Bell, Info, Camera, Pencil, Check, Clock, Lightbulb, BookOpen, ClipboardCheck, TrendingUp, Flame, Target, FileText, Search, Minus, WrapText, CalendarClock, Image as ImageIcon } from "lucide-react";
 import {
   ResponsiveContainer,
   LineChart,
@@ -12,61 +12,63 @@ import {
   CartesianGrid,
   Tooltip,
   ReferenceLine,
+  PieChart,
+  Pie,
+  AreaChart,
+  Area,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  Radar,
+  Legend,
 } from "recharts";
-import { createRoot } from "react-dom/client";
 
-// ---- Storage shim for standalone/PWA use ----
-// window.storage.get/set/delete/list is an API provided by the Claude
-// artifact preview environment. Outside that environment (e.g. this app
-// built and hosted as its own PWA on GitHub Pages) window.storage does not
-// exist, so every persistTrades/persistNews/etc. call in this file would
-// throw. This shim implements the same get/set/delete/list interface on
-// top of the browser's own localStorage, so none of the call sites below
-// need to change — they keep calling window.storage exactly as before.
-// `shared` is accepted for interface compatibility but ignored: a
-// standalone PWA has no multi-user "shared" storage concept, every key is
-// just a normal localStorage entry local to that browser/device.
+// --- localStorage shim for window.storage (drop-in replacement) ---
 if (typeof window !== "undefined" && !window.storage) {
   window.storage = {
-    async get(key, shared) {
-      let raw;
-      try {
-        raw = localStorage.getItem(key);
-      } catch (err) {
-        throw new Error(`storage.get failed for "${key}": ${err.message}`);
+    async get(key, shared = false) {
+      const raw = localStorage.getItem(key);
+      if (raw === null) {
+        // Matches the original API: missing keys throw, not return null
+        throw new Error(`Key not found: ${key}`);
       }
-      if (raw === null || raw === undefined) return null;
       return { key, value: raw, shared: !!shared };
     },
-    async set(key, value, shared) {
+
+    async set(key, value, shared = false) {
       try {
         localStorage.setItem(key, value);
+        return { key, value, shared: !!shared };
       } catch (err) {
-        throw new Error(`storage.set failed for "${key}": ${err.message}`);
+        // e.g. quota exceeded (common with lots of base64 screenshots)
+        console.error("localStorage set failed:", err);
+        return null;
       }
-      return { key, value, shared: !!shared };
     },
-    async delete(key, shared) {
-      let existed = false;
+
+    async delete(key, shared = false) {
       try {
-        existed = localStorage.getItem(key) !== null;
         localStorage.removeItem(key);
+        return { key, deleted: true, shared: !!shared };
       } catch (err) {
-        throw new Error(`storage.delete failed for "${key}": ${err.message}`);
+        console.error("localStorage delete failed:", err);
+        return null;
       }
-      return { key, deleted: existed, shared: !!shared };
     },
-    async list(prefix, shared) {
-      const keys = [];
+
+    async list(prefix = "", shared = false) {
       try {
+        const keys = [];
         for (let i = 0; i < localStorage.length; i++) {
           const k = localStorage.key(i);
-          if (k !== null && (!prefix || k.startsWith(prefix))) keys.push(k);
+          if (k && k.startsWith(prefix)) keys.push(k);
         }
+        return { keys, prefix, shared: !!shared };
       } catch (err) {
-        throw new Error(`storage.list failed: ${err.message}`);
+        console.error("localStorage list failed:", err);
+        return null;
       }
-      return { keys, prefix, shared: !!shared };
     },
   };
 }
@@ -107,9 +109,6 @@ const LIGHT_PALETTE = {
   navShadow: "0 -6px 18px rgba(25,23,15,0.045)",
 };
 
-// Mutable on purpose: toggling theme reassigns these values in place so every
-// component (which reads palette.xxx at render time) picks up the new theme
-// without threading a theme prop through the whole tree.
 const palette = { ...DARK_PALETTE };
 
 const mono =
@@ -117,9 +116,6 @@ const mono =
 const sans =
   "'Inter','Manrope',system-ui,-apple-system,'Segoe UI',sans-serif";
 
-// Theme colors now switch instantly and all at once (no per-property CSS
-// transition), so every themed surface flips together on toggle instead of
-// some sections animating ahead of or behind others.
 const THEME_TRANSITION = "none";
 const TAP = "active:scale-95 transition-transform duration-150";
 
@@ -136,13 +132,6 @@ const fmtThousands = (n, d = 2) => {
 };
 const fmtPct = (n, d = 1) => `${n >= 0 ? "+" : ""}${fmt(n, d)}%`;
 
-// Every on-screen dollar amount for a trade's P&L — the top Equity readout,
-// calendar day cells, the Month Total chip, the selected-day header, and
-// each trade row — goes through this one function, at the same precision
-// (cents). Previously the calendar and trade rows rounded to whole dollars
-// while the top readout kept cents, so the two could visibly disagree even
-// though the underlying sum was identical; routing everything through
-// fmtMoney keeps them numerically and visually in sync.
 const fmtMoney = (n) => fmt(Math.abs(n), 2);
 
 const pad2 = (n) => String(n).padStart(2, "0");
@@ -171,7 +160,6 @@ const EMOTIONS = [
 ];
 const emotionMeta = (id) => EMOTIONS.find((e) => e.id === id);
 
-// Setup tags: what kind of trade it was, tagged the same way as mood.
 const SETUPS = [
   { id: "reversal", label: "Reversal" },
   { id: "pullback", label: "Pullback" },
@@ -180,70 +168,38 @@ const SETUPS = [
 ];
 const setupMeta = (id) => SETUPS.find((s) => s.id === id);
 
-// Users can add a small number of their own setup tags on top of the
-// built-ins above. Capped and persisted so the chip row never grows
-// unbounded and survives a reload.
 const MAX_CUSTOM_SETUPS = 2;
 const CUSTOM_SETUPS_STORAGE_KEY = "equity-curve:custom-setups";
 
-// Quick-fill chips for the note field, shown right next to the mood chips.
 const NOTE_TAGS = ["FOMO", "Followed plan", "News trade"];
 
-// A trade opened within this many minutes of a prior loss is flagged as a
-// possible revenge trade — an impulsive re-entry rather than a planned one.
-// Used to badge individual trades in the calendar day view, and to compute
-// the discipline streak below.
 const REVENGE_WINDOW_MINUTES = 15;
 const REVENGE_WINDOW_MS = REVENGE_WINDOW_MINUTES * 60 * 1000;
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
-// News alarm: how far ahead of an event the in-app alarm rings. This is a
-// browser-only alarm (sound + Notification API), not a real system alarm —
-// see the News tab copy and the ringing modal for the actual caveats.
 const ALARM_LEAD_MINUTES = 15;
 const ALARM_LEAD_MS = ALARM_LEAD_MINUTES * 60 * 1000;
 const ALARM_CHECK_INTERVAL_MS = 15000;
-// How long past the event time an unrung alarm is still allowed to fire —
-// guards against ringing something hours late if the app was closed.
 const ALARM_STALE_WINDOW_MS = 10 * 60 * 1000;
 
-// Trade screenshots: resized client-side before storage so they don't blow
-// past localStorage's ~5-10MB budget after a few dozen trades. Each trade
-// can hold up to SCREENSHOT_MAX_PER_TRADE images.
-//
-// Clarity comes first: every screenshot is encoded at up to SCREENSHOT_MAX_DIM
-// on its longer side, starting at SCREENSHOT_START_QUALITY. Quality is only
-// stepped down — and dimensions only shrunk as a last resort — if the result
-// would exceed SCREENSHOT_MAX_BYTES, so a normal chart screenshot saves sharp
-// and only degrades when it actually needs to.
 const SCREENSHOT_MAX_DIM = 1600;
 const SCREENSHOT_START_QUALITY = 0.92;
 const SCREENSHOT_MIN_QUALITY = 0.5;
-const SCREENSHOT_MAX_BYTES = 1_200_000; // ~1.2MB per screenshot
+const SCREENSHOT_MAX_BYTES = 1_200_000;
 const SCREENSHOT_MAX_PER_TRADE = 2;
 
-// Normalizes a trade's screenshots into an array, regardless of whether it
-// was saved under the old singular `screenshot` field or the current
-// `screenshots` array — keeps every screenshot call site written against
-// one shape instead of re-checking both fields everywhere.
 function tradeScreenshots(t) {
   if (Array.isArray(t.screenshots)) return t.screenshots;
   if (t.screenshot) return [t.screenshot];
   return [];
 }
 
-// Rough base64 data-URL size estimate in bytes (base64 is 4/3 the size of
-// the raw bytes it encodes) — good enough to drive the quality search below
-// without decoding the string.
 function dataUrlBytes(dataUrl) {
   const commaIdx = dataUrl.indexOf(",");
   const base64Len = dataUrl.length - (commaIdx + 1);
   return Math.floor((base64Len * 3) / 4);
 }
 
-// Converts a stored screenshot data URL into a real File object, so it can
-// be handed to the Web Share API (which shares actual files, not URLs) or
-// used as a download source.
 function dataUrlToFile(dataUrl, filename) {
   const [header, base64] = dataUrl.split(",");
   const mimeMatch = header.match(/:(.*?);/);
@@ -254,8 +210,6 @@ function dataUrlToFile(dataUrl, filename) {
   return new File([bytes], filename, { type: mime });
 }
 
-// Draws `img` onto a canvas no larger than `dim` on its longer side,
-// preserving aspect ratio.
 function drawScaled(img, dim) {
   let { width, height } = img;
   if (width > dim || height > dim) {
@@ -275,13 +229,6 @@ function drawScaled(img, dim) {
   return canvas;
 }
 
-// Reads an image file and re-encodes it as a JPEG data URL, keeping it as
-// sharp as possible: it starts at the full SCREENSHOT_MAX_DIM resolution and
-// SCREENSHOT_START_QUALITY, and only steps quality down — then, as a last
-// resort, shrinks the dimensions once and repeats — if the result would
-// exceed SCREENSHOT_MAX_BYTES. A typical chart screenshot saves at full
-// resolution and near-top quality; only unusually large images get
-// compressed further, and only as much as needed to fit.
 function resizeImageFile(file, maxDim = SCREENSHOT_MAX_DIM) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -313,9 +260,6 @@ function resizeImageFile(file, maxDim = SCREENSHOT_MAX_DIM) {
   });
 }
 
-// Reference rates: units of each currency per 1 USD.
-// Snapshot rates, meant as a practical starting point rather than a live feed.
-// Override any pair below with your own known rate for precise conversions.
 const FX_RATES_PER_USD = {
   USD: 1,
   EUR: 0.8668,
@@ -340,15 +284,12 @@ const FX_RATES_PER_USD = {
   ZAR: 16.19,
   MXN: 17.06,
   ETB: 161,
+  NGN: 1530,
 };
 const FX_SNAPSHOT_LABEL = "Aug 2026";
 
-// fawazahmed0/currency-api — free, no-key, CORS-open, daily-updated FX
-// rates. Two mirrors (jsdelivr CDN + Cloudflare Pages) so one outage
-// doesn't kill live rates; falls back to FX_RATES_PER_USD above if both
-// fail.
 const FX_LIVE_STORAGE_KEY = "fx:live-rates:v1";
-const FX_CACHE_MS = 12 * 60 * 60 * 1000; // don't refetch more than every 12h
+const FX_CACHE_MS = 12 * 60 * 60 * 1000;
 const FX_API_URLS = [
   "https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json",
   "https://latest.currency-api.pages.dev/v1/currencies/usd.json",
@@ -398,6 +339,7 @@ const CURRENCY_NAMES = {
   ZAR: "South African Rand",
   MXN: "Mexican Peso",
   ETB: "Ethiopian Birr",
+  NGN: "Nigerian Naira",
 };
 
 const CURRENCY_CODES = Object.keys(FX_RATES_PER_USD);
@@ -664,11 +606,139 @@ const TABS = [
   { id: "curve", label: "Curve", icon: CurveIcon },
   { id: "insights", label: "Insights", icon: Lightbulb },
   { id: "journal", label: "Journal", icon: BookOpen },
-  { id: "news", label: "News", icon: Newspaper },
+  { id: "notepad", label: "Notepad", icon: FileText },
   { id: "sessions", label: "Sessions", icon: Clock },
 ];
 
-// ---- Journal tab constants ----
+const NOTEPAD_STORAGE_KEY = "notepad:notes";
+const NOTEPAD_FONT_SIZES = [12, 13, 14, 16, 18, 20, 24];
+const DEFAULT_NOTEPAD_FONT_SIZE = 14;
+const NOTEPAD_MAX_IMAGES_PER_NOTE = 6;
+
+function makeBlockId() {
+  return `blk-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function migrateNoteShape(n) {
+  if (Array.isArray(n.blocks)) return n;
+  const blocks = [{ id: makeBlockId(), type: "text", text: n.content || "" }];
+  (Array.isArray(n.images) ? n.images : []).forEach((src) => {
+    blocks.push({ id: makeBlockId(), type: "image", src });
+  });
+  const { content, images, ...rest } = n;
+  return { ...rest, blocks };
+}
+
+function blocksText(blocks) {
+  return (blocks || [])
+    .filter((b) => b.type === "text")
+    .map((b) => b.text || "")
+    .join("");
+}
+
+function noteImageCount(blocks) {
+  return (blocks || []).filter((b) => b.type === "image").length;
+}
+
+function countWords(text) {
+  const trimmed = (text || "").trim();
+  if (!trimmed) return 0;
+  return trimmed.split(/\s+/).length;
+}
+
+function countLines(blocks) {
+  const text = blocksText(blocks);
+  if (!text) return 1;
+  return text.split("\n").length;
+}
+
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function countOccurrencesInBlocks(blocks, find) {
+  if (!find) return 0;
+  const re = new RegExp(escapeRegExp(find), "gi");
+  let total = 0;
+  (blocks || []).forEach((b) => {
+    if (b.type !== "text") return;
+    const matches = (b.text || "").match(re);
+    if (matches) total += matches.length;
+  });
+  return total;
+}
+
+function replaceAllInBlocks(blocks, find, replaceWith) {
+  const re = new RegExp(escapeRegExp(find), "gi");
+  return (blocks || []).map((b) =>
+    b.type === "text" ? { ...b, text: (b.text || "").replace(re, replaceWith) } : b
+  );
+}
+
+function notePreview(blocks, maxLen = 90) {
+  const flat = blocksText(blocks).replace(/\s+/g, " ").trim();
+  if (!flat) return "";
+  return flat.length > maxLen ? `${flat.slice(0, maxLen)}\u2026` : flat;
+}
+
+function blocksToExportText(blocks) {
+  return (blocks || []).map((b) => (b.type === "image" ? "\n[Image attached]\n" : b.text || "")).join("");
+}
+
+function insertImageBlock(blocks, activeRef, noteId, dataUrl) {
+  const imgId = makeBlockId();
+  let idx = -1;
+  if (activeRef && activeRef.noteId === noteId) {
+    idx = blocks.findIndex((b) => b.id === activeRef.blockId && b.type === "text");
+  }
+  if (idx === -1) {
+    const afterId = makeBlockId();
+    return {
+      blocks: [...blocks, { id: imgId, type: "image", src: dataUrl }, { id: afterId, type: "text", text: "" }],
+      focusBlockId: afterId,
+    };
+  }
+  const block = blocks[idx];
+  const text = block.text || "";
+  const pos = Math.max(0, Math.min(activeRef.pos ?? text.length, text.length));
+  const before = text.slice(0, pos);
+  const after = text.slice(pos);
+  const afterId = makeBlockId();
+  const newBlocks = [
+    ...blocks.slice(0, idx),
+    { id: block.id, type: "text", text: before },
+    { id: imgId, type: "image", src: dataUrl },
+    { id: afterId, type: "text", text: after },
+    ...blocks.slice(idx + 1),
+  ];
+  return { blocks: newBlocks, focusBlockId: afterId };
+}
+
+function removeImageBlock(blocks, blockId) {
+  const idx = blocks.findIndex((b) => b.id === blockId);
+  if (idx === -1) return blocks;
+  const prev = blocks[idx - 1];
+  const next = blocks[idx + 1];
+  let result;
+  if (prev && prev.type === "text" && next && next.type === "text") {
+    const mergedText = (prev.text || "") + (next.text || "");
+    result = [
+      ...blocks.slice(0, idx - 1),
+      { id: prev.id, type: "text", text: mergedText },
+      ...blocks.slice(idx + 2),
+    ];
+  } else {
+    result = blocks.filter((b) => b.id !== blockId);
+  }
+  return result.length > 0 ? result : [{ id: makeBlockId(), type: "text", text: "" }];
+}
+
+function autoGrowBlock(el) {
+  if (!el) return;
+  el.style.height = "auto";
+  el.style.height = `${el.scrollHeight}px`;
+}
+
 const JOURNAL_STORAGE_KEY = "journal:entries";
 const JOURNAL_COLS_STORAGE_KEY = "journal:col-widths";
 const TREND_OPTIONS = [
@@ -676,26 +746,40 @@ const TREND_OPTIONS = [
   { id: "downtrend", label: "Downtrend" },
   { id: "range", label: "Range" },
 ];
+const OUTCOME_OPTIONS = [
+  { id: "win", label: "Win" },
+  { id: "loss", label: "Loss" },
+  { id: "breakeven", label: "Breakeven" },
+];
+const CONFIDENCE_OPTIONS = [
+  { id: "low", label: "Low" },
+  { id: "medium", label: "Medium" },
+  { id: "high", label: "High" },
+];
+const outcomeLabel = (id) => OUTCOME_OPTIONS.find((o) => o.id === id)?.label || "";
+const confidenceLabel = (id) => CONFIDENCE_OPTIONS.find((c) => c.id === id)?.label || "";
+const moodLabelFor = (id) => emotionMeta(id)?.label || "";
+const sessionLabelFor = (id) => MARKET_SESSIONS.find((s) => s.id === id)?.label || "";
 const JOURNAL_COLUMNS = [
   { id: "date", label: "Date" },
   { id: "pair", label: "Pair" },
   { id: "trend", label: "Trend" },
   { id: "rr", label: "R:R" },
   { id: "setup", label: "Setup" },
+  { id: "outcome", label: "Outcome" },
+];
+const JOURNAL_DETAIL_FIELDS = [
+  { id: "session", label: "Session" },
+  { id: "mood", label: "Mood" },
+  { id: "confidence", label: "Confidence" },
   { id: "mistake", label: "Mistake" },
   { id: "note", label: "Note" },
 ];
-const DEFAULT_JOURNAL_COL_WIDTHS = { date: 122, pair: 96, trend: 108, rr: 68, setup: 112, mistake: 170, note: 200 };
+const DEFAULT_JOURNAL_COL_WIDTHS = { date: 140, pair: 110, trend: 130, rr: 80, setup: 130, outcome: 110 };
+const JOURNAL_TOGGLE_COL_WIDTH = 34;
 const JOURNAL_COL_MIN = 56;
 const JOURNAL_COL_MAX = 280;
 
-// ---- Journal tab \u2192 Playbook sub-tab: a small set of trading rules the
-// user defines for themselves (e.g. "only trade the London/NY overlap",
-// "min 1:2 R:R"), plus a once-a-day check-in against the currently active
-// rules. Rules and check-ins are stored separately so deleting or editing a
-// rule never touches historical check-in data — a check-in is a frozen
-// snapshot of which rule ids were being tracked and whether each was
-// followed that day.
 const PLAYBOOK_RULES_KEY = "playbook:rules";
 const PLAYBOOK_CHECKINS_KEY = "playbook:checkins";
 const PLAYBOOK_STARTER_RULES = [
@@ -705,17 +789,11 @@ const PLAYBOOK_STARTER_RULES = [
 ];
 const MAX_PLAYBOOK_RULES = 10;
 
-// True if every rule tracked in this check-in was followed. A check-in with
-// zero tracked rules (all rules deleted since) never counts as clean.
 function isCleanCheckin(checkin) {
   const ids = Object.keys(checkin.results || {});
   return ids.length > 0 && ids.every((id) => checkin.results[id]);
 }
 
-// Per-rule follow-rate, plus the current/best streak of clean (all-rules-
-// followed) check-in days. Streak is computed the same way as the trading
-// discipline streak elsewhere in this file: consecutive check-in days with
-// no gaps in the data, not consecutive calendar days.
 function computePlaybookStats(rules, checkins) {
   const sorted = [...checkins].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
@@ -754,11 +832,6 @@ function computePlaybookStats(rules, checkins) {
   return { ruleStats, current, best, hasData: sorted.length > 0, overallPct, totalCheckins: sorted.length };
 }
 
-// ---- Sessions tab: the four major FX trading sessions, defined by their
-// standard open/close hour in UTC. endUTC < startUTC means the session
-// wraps past midnight UTC (Sydney only). These are the commonly-cited
-// standard-time session hours — a practical approximation, not adjusted
-// for daylight saving in any of the four cities.
 const MARKET_SESSIONS = [
   { id: "sydney", label: "Sydney", startUTC: 22, endUTC: 7, color: "#6C8EBF" },
   { id: "tokyo", label: "Tokyo", startUTC: 0, endUTC: 9, color: "#BF6C8E" },
@@ -768,8 +841,6 @@ const MARKET_SESSIONS = [
 
 const mod24 = (h) => ((h % 24) + 24) % 24;
 
-// Whether a session is open at a given fractional UTC hour (0-24),
-// handling the one session (Sydney) that wraps past midnight.
 function sessionOpenAtUTCHour(session, hourUTC) {
   const h = mod24(hourUTC);
   if (session.startUTC <= session.endUTC) {
@@ -778,16 +849,10 @@ function sessionOpenAtUTCHour(session, hourUTC) {
   return h >= session.startUTC || h < session.endUTC;
 }
 
-// Same check, but against a local (already-offset) hour — converts back to
-// UTC using the browser's current timezone offset (in minutes, from
-// Date#getTimezoneOffset) before checking.
 function sessionOpenAtLocalHour(session, localHour, tzOffsetMinutes) {
   return sessionOpenAtUTCHour(session, localHour + tzOffsetMinutes / 60);
 }
 
-// A session's open/close boundaries converted into local fractional hours
-// (0-24), split into one or two [start, end] segments — two when the
-// session's local window itself wraps past local midnight.
 function sessionLocalSegments(session, tzOffsetMinutes) {
   const localStart = mod24(session.startUTC - tzOffsetMinutes / 60);
   const localEnd = mod24(session.endUTC - tzOffsetMinutes / 60);
@@ -798,8 +863,6 @@ function sessionLocalSegments(session, tzOffsetMinutes) {
   ];
 }
 
-// Formats a fractional hour (0-24) as a local-style clock label, e.g. 13.5
-// -> "1:30 PM", 9 -> "9 AM".
 function formatHourLabel(hourFrac) {
   const h = mod24(hourFrac);
   const totalMin = Math.round(h * 60) % 1440;
@@ -811,9 +874,6 @@ function formatHourLabel(hourFrac) {
   return `${displayHour}${mm > 0 ? ":" + pad2(mm) : ""} ${period}`;
 }
 
-// Hours remaining until a currently-open session closes, or until a
-// currently-closed session next opens — both always positive, both
-// measured from the given fractional UTC hour.
 function sessionCountdown(session, nowUTCHour) {
   const isOpen = sessionOpenAtUTCHour(session, nowUTCHour);
   if (isOpen) {
@@ -826,10 +886,6 @@ function sessionCountdown(session, nowUTCHour) {
   return { isOpen, hours: open - nowUTCHour };
 }
 
-// The London/New York overlap — 13:00-17:00 UTC under the fixed session
-// hours above — is the highest-liquidity window of the day (the two
-// biggest FX markets trading at once). Returned as local fractional hours
-// so the UI can show it in the user's own time.
 function highLiquidityWindowLocal(tzOffsetMinutes) {
   return {
     startLocal: mod24(13 - tzOffsetMinutes / 60),
@@ -862,9 +918,6 @@ function formatCountdown(ms) {
   return `${mins}m`;
 }
 
-// A trade opened within REVENGE_WINDOW_MS of a prior loss. Pure function of
-// `trades`, shared by the calendar view (badging), the discipline streak,
-// and the weekly recap, so all three always agree on which trades count.
 function computeRevengeIds(trades) {
   const sorted = [...trades].sort((a, b) => a.ts - b.ts);
   const ids = new Set();
@@ -878,9 +931,6 @@ function computeRevengeIds(trades) {
   return ids;
 }
 
-// Consecutive trading days (days with at least one logged trade) containing
-// zero revenge trades. Breaks on any day that has one, regardless of that
-// day's P&L — this tracks behavior, not results.
 function computeDisciplineStreak(trades) {
   const revengeIds = computeRevengeIds(trades);
   const byDay = {};
@@ -913,10 +963,6 @@ function computeDisciplineStreak(trades) {
   return { current, best, hasData: dayKeys.length > 0 };
 }
 
-// Shared aggregation for the Insights tab: groups trades by setup, mood, and
-// weekday, and separately totals the cost of revenge trades. Pure function
-// of `trades` (plus `customSetups` for label lookups), same pattern as the
-// other compute* helpers above — one source of truth the tab renders from.
 function computeInsights(trades, customSetups) {
   const WEEKDAY_FULL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   const bySetup = {};
@@ -988,13 +1034,6 @@ function computeInsights(trades, customSetups) {
   };
 }
 
-// ---- Insights tab: Overview sub-tab helpers ----
-
-// Builds a GitHub-style heatmap grid: `weeksBack` columns of 7 days each
-// (Sun-Sat), ending on the upcoming Saturday so the current week is never
-// cut off mid-row. Each cell holds that day's net P&L (null if no trades
-// that day) plus whether it falls after today (so the UI can render it as
-// an empty placeholder instead of a "no trades" day).
 function computeHeatmapWeeks(trades, weeksBack = 26) {
   const dayTotals = {};
   trades.forEach((t) => {
@@ -1027,9 +1066,6 @@ function computeHeatmapWeeks(trades, weeksBack = 26) {
   return { weeks, maxAbs };
 }
 
-// One auto-generated plain-English takeaway, picking the single highest-
-// signal pattern currently in the data (setup gap, mood gap, or revenge
-// cost) rather than listing everything at once.
 function computeHeadlineInsight(trades, customSetups) {
   if (trades.length < 5) return null;
   const insights = computeInsights(trades, customSetups);
@@ -1073,9 +1109,6 @@ function computeHeadlineInsight(trades, customSetups) {
   return candidates[0].text;
 }
 
-// Maps a value against ascending thresholds [poorMax, avgMax, goodMax] into
-// a Poor/Average/Good/Excellent tier. Non-finite (Infinity, from zero
-// losses) always reads as Excellent.
 function tierFor(value, thresholds) {
   if (!Number.isFinite(value)) return "Excellent";
   if (value <= thresholds[0]) return "Poor";
@@ -1090,9 +1123,6 @@ function tierColor(tier) {
   return palette.green;
 }
 
-// Profit factor, recovery factor, win/loss ratio, expectancy, and largest
-// win/loss \u2014 the standard "how good is this edge" metric set, each paired
-// with a plain-language explanation shown on tap.
 function computePerformanceMetrics(trades) {
   const wins = trades.filter((t) => t.pnl > 0);
   const losses = trades.filter((t) => t.pnl < 0);
@@ -1140,7 +1170,6 @@ const METRIC_INFO = {
   Expectancy: "The average dollar result you can expect per trade, blending your win rate with your average win and loss size.",
 };
 
-// This month vs. last month: win rate, net P&L, and trade count.
 function computeMonthComparison(trades) {
   const now = new Date();
   const thisKey = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}`;
@@ -1160,8 +1189,6 @@ function computeMonthComparison(trades) {
   return { thisMonth: agg(thisKey), lastMonth: agg(lastKey) };
 }
 
-// % of trades that have a note, a setup tag, and at least one screenshot \u2014
-// each counts for a third of a trade's completeness score.
 function computeJournalCompleteness(trades) {
   if (trades.length === 0) return 0;
   const total = trades.reduce((sum, t) => {
@@ -1174,11 +1201,6 @@ function computeJournalCompleteness(trades) {
   return Math.round((total / trades.length) * 100);
 }
 
-// ---- Insights tab: Behavior sub-tab helpers ----
-
-// Single A\u2013F grade synthesized from discipline streak, revenge-trade rate,
-// and journal completeness \u2014 the "how disciplined is this trader" answer in
-// one glance.
 function computeDisciplineGrade(trades) {
   const { current, hasData } = computeDisciplineStreak(trades);
   if (!hasData) return { grade: "N/A", score: 0 };
@@ -1198,7 +1220,6 @@ function computeDisciplineGrade(trades) {
   return { grade, score };
 }
 
-// Total $ from revenge trades vs. every other trade, side by side.
 function computeRevengeCostSplit(trades) {
   const revengeIds = computeRevengeIds(trades);
   const revenge = trades.filter((t) => revengeIds.has(t.id));
@@ -1211,9 +1232,6 @@ function computeRevengeCostSplit(trades) {
   };
 }
 
-// Flags whether trade size (using |P&L| as the only size proxy this app
-// tracks) creeps up after a 3+ win streak \u2014 a common overconfidence tell.
-// Needs at least 3 trades in each bucket to say anything meaningful.
 function computeOverconfidenceCheck(trades) {
   const sorted = [...trades].sort((a, b) => a.ts - b.ts);
   let streak = 0;
@@ -1233,8 +1251,6 @@ function computeOverconfidenceCheck(trades) {
   return { avgAfter, avgNormal, pctChange, detected: pctChange >= 20 };
 }
 
-// Running discipline streak plotted day by day (only trading days count),
-// for a simple line chart of whether discipline is trending up or resetting.
 function computeDisciplineStreakTrend(trades) {
   const revengeIds = computeRevengeIds(trades);
   const byDay = {};
@@ -1252,9 +1268,6 @@ function computeDisciplineStreakTrend(trades) {
   });
 }
 
-// Win rate for each note quick-tag (FOMO / Followed plan / News trade),
-// matched on an exact note match \u2014 same tags the Curve tab's dashed chips
-// quick-fill.
 function computeNoteTagAnalysis(trades) {
   return NOTE_TAGS.map((tag) => {
     const tagged = trades.filter((t) => t.note === tag);
@@ -1268,9 +1281,6 @@ function computeNoteTagAnalysis(trades) {
   }).filter((r) => r.count > 0);
 }
 
-// Classifies day-to-day P&L volatility as Low/Medium/High using a
-// coefficient-of-variation-style ratio (stdev of daily totals over the
-// average daily magnitude) \u2014 needs at least 3 trading days to be meaningful.
 function computeConsistencyScore(trades) {
   const byDay = {};
   trades.forEach((t) => {
@@ -1290,10 +1300,222 @@ function computeConsistencyScore(trades) {
   return { label, cv };
 }
 
-// Shared weekly-recap math, used by both the share image and the
-// copy-as-text summary so the two can never drift out of sync. Assumes
-// weekTrades is non-empty and startBal > 0 — callers check those first so
-// they can show the right empty-state message.
+// ---- Journal tab data -> Insights "Journal" sub-tab helpers ----
+function filledJournalRows(journalEntries) {
+  return journalEntries.filter((r) =>
+    [r.pair, r.trend, r.rr, r.setup, r.outcome, r.session, r.mood, r.confidence, r.mistake, r.note].some(
+      (v) => v && String(v).trim()
+    )
+  );
+}
+
+function journalTrendBreakdown(rows) {
+  const counts = { uptrend: 0, downtrend: 0, range: 0, untagged: 0 };
+  rows.forEach((r) => {
+    if (r.trend && counts[r.trend] !== undefined) counts[r.trend] += 1;
+    else counts.untagged += 1;
+  });
+  return TREND_OPTIONS.map((t) => ({ id: t.id, name: t.label, value: counts[t.id] }))
+    .concat(counts.untagged > 0 ? [{ id: "untagged", name: "Untagged", value: counts.untagged }] : [])
+    .filter((d) => d.value > 0);
+}
+
+function journalRRSeries(rows) {
+  return rows
+    .filter((r) => r.date && r.rr !== "" && Number.isFinite(parseFloat(r.rr)))
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+    .map((r) => ({ date: r.date, label: formatShortDate(new Date(`${r.date}T00:00:00`).getTime()), rr: num(r.rr) }));
+}
+
+function journalMistakeFrequency(rows, max = 6) {
+  const counts = {};
+  rows.forEach((r) => {
+    const m = (r.mistake || "").trim();
+    if (!m) return;
+    const key = m.toLowerCase();
+    if (!counts[key]) counts[key] = { label: m, count: 0 };
+    counts[key].count += 1;
+  });
+  return Object.values(counts)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, max);
+}
+
+function journalSetupRadar(rows, customSetups) {
+  const bySetup = {};
+  rows.forEach((r) => {
+    if (!r.setup) return;
+    if (!bySetup[r.setup]) bySetup[r.setup] = { count: 0, rrTotal: 0, rrCount: 0, cleanCount: 0 };
+    const b = bySetup[r.setup];
+    b.count += 1;
+    if (r.rr !== "" && Number.isFinite(num(r.rr))) {
+      b.rrTotal += num(r.rr);
+      b.rrCount += 1;
+    }
+    if (!r.mistake || !r.mistake.trim()) b.cleanCount += 1;
+  });
+  const ids = Object.keys(bySetup);
+  if (ids.length === 0) return { rows: [], maxCount: 0, maxRR: 0 };
+  const maxCount = Math.max(...ids.map((id) => bySetup[id].count));
+  const maxRR = Math.max(...ids.map((id) => (bySetup[id].rrCount ? bySetup[id].rrTotal / bySetup[id].rrCount : 0)), 1);
+  const setupRows = ids.map((id) => {
+    const b = bySetup[id];
+    const avgRR = b.rrCount ? b.rrTotal / b.rrCount : 0;
+    return {
+      id,
+      label: setupMeta(id)?.label || customSetups.find((s) => s.id === id)?.label || id,
+      Frequency: maxCount ? Math.round((b.count / maxCount) * 100) : 0,
+      "Avg R:R": maxRR ? Math.round((avgRR / maxRR) * 100) : 0,
+      "Clean Rate": b.count ? Math.round((b.cleanCount / b.count) * 100) : 0,
+      count: b.count,
+      avgRR,
+    };
+  });
+  return { rows: setupRows, maxCount, maxRR };
+}
+
+function journalMistakePatterns(rows) {
+  const WEEKDAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+  const byTrend = {};
+  TREND_OPTIONS.forEach((t) => (byTrend[t.id] = { count: 0, mistakeCount: 0 }));
+  const byWeekday = {};
+  for (let i = 0; i < 7; i++) byWeekday[i] = { count: 0, mistakeCount: 0 };
+
+  rows.forEach((r) => {
+    const hasMistake = !!(r.mistake && r.mistake.trim());
+    if (r.trend && byTrend[r.trend]) {
+      byTrend[r.trend].count += 1;
+      if (hasMistake) byTrend[r.trend].mistakeCount += 1;
+    }
+    if (r.date) {
+      const wd = new Date(`${r.date}T00:00:00`).getDay();
+      byWeekday[wd].count += 1;
+      if (hasMistake) byWeekday[wd].mistakeCount += 1;
+    }
+  });
+
+  const trendRows = TREND_OPTIONS.map((t) => {
+    const b = byTrend[t.id];
+    return {
+      id: t.id,
+      label: t.label,
+      count: b.count,
+      mistakeRate: b.count ? Math.round((b.mistakeCount / b.count) * 100) : 0,
+    };
+  }).filter((r) => r.count > 0);
+
+  const weekdayRows = Object.keys(byWeekday)
+    .map((k) => {
+      const b = byWeekday[k];
+      return {
+        id: k,
+        label: WEEKDAY_SHORT[Number(k)],
+        count: b.count,
+        mistakeRate: b.count ? Math.round((b.mistakeCount / b.count) * 100) : 0,
+      };
+    })
+    .filter((r) => r.count > 0);
+
+  const worstTrend = trendRows.length ? [...trendRows].sort((a, b) => b.mistakeRate - a.mistakeRate)[0] : null;
+  const worstWeekday = weekdayRows.length ? [...weekdayRows].sort((a, b) => b.mistakeRate - a.mistakeRate)[0] : null;
+
+  return { trendRows, weekdayRows, worstTrend, worstWeekday };
+}
+
+function journalPairFrequency(rows, max = 8) {
+  const counts = {};
+  rows.forEach((r) => {
+    const p = (r.pair || "").trim().toUpperCase();
+    if (!p) return;
+    counts[p] = (counts[p] || 0) + 1;
+  });
+  return Object.keys(counts)
+    .map((pair) => ({ pair, count: counts[pair] }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, max);
+}
+
+function journalWeekdayFrequency(rows) {
+  const WEEKDAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const counts = {};
+  rows.forEach((r) => {
+    if (!r.date) return;
+    const wd = new Date(`${r.date}T00:00:00`).getDay();
+    counts[wd] = (counts[wd] || 0) + 1;
+  });
+  return WEEKDAY_SHORT.map((label, i) => ({ id: i, label, count: counts[i] || 0 }));
+}
+
+function journalRRDistribution(rows) {
+  const buckets = [
+    { label: "<1", min: -Infinity, max: 1 },
+    { label: "1-2", min: 1, max: 2 },
+    { label: "2-3", min: 2, max: 3 },
+    { label: "3-4", min: 3, max: 4 },
+    { label: "4+", min: 4, max: Infinity },
+  ];
+  const counts = buckets.map(() => 0);
+  rows.forEach((r) => {
+    if (r.rr === "" || !Number.isFinite(parseFloat(r.rr))) return;
+    const v = num(r.rr);
+    const idx = buckets.findIndex((b) => v >= b.min && v < b.max);
+    if (idx !== -1) counts[idx] += 1;
+  });
+  return buckets.map((b, i) => ({ label: b.label, count: counts[i] })).filter((d) => d.count > 0);
+}
+
+function journalMonthlyVolume(rows, monthsBack = 6) {
+  const now = new Date();
+  const months = [];
+  for (let i = monthsBack - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push({ key: `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`, label: MONTH_SHORT[d.getMonth()] });
+  }
+  const counts = {};
+  rows.forEach((r) => {
+    if (!r.date) return;
+    const k = r.date.slice(0, 7);
+    counts[k] = (counts[k] || 0) + 1;
+  });
+  return months.map((m) => ({ label: m.label, count: counts[m.key] || 0 }));
+}
+
+function journalSessionByDay(rows, maxDays = 30) {
+  const bySession = {};
+  rows.forEach((r) => {
+    if (!r.date || !r.session) return;
+    if (!bySession[r.date]) bySession[r.date] = {};
+    bySession[r.date][r.session] = (bySession[r.date][r.session] || 0) + 1;
+  });
+  const dates = Object.keys(bySession).sort().slice(-maxDays);
+  return dates.map((d) => {
+    const entry = { date: d, label: formatShortDate(new Date(`${d}T00:00:00`).getTime()) };
+    MARKET_SESSIONS.forEach((s) => {
+      entry[s.label] = bySession[d][s.id] || 0;
+    });
+    return entry;
+  });
+}
+
+const CONFIDENCE_VALUE = { low: 1, medium: 2, high: 3 };
+
+function journalConfidenceByDay(rows, maxDays = 30) {
+  const byDate = {};
+  rows.forEach((r) => {
+    if (!r.date || !r.confidence) return;
+    if (!byDate[r.date]) byDate[r.date] = { total: 0, count: 0 };
+    byDate[r.date].total += CONFIDENCE_VALUE[r.confidence] || 0;
+    byDate[r.date].count += 1;
+  });
+  const dates = Object.keys(byDate).sort().slice(-maxDays);
+  return dates.map((d) => ({
+    date: d,
+    label: formatShortDate(new Date(`${d}T00:00:00`).getTime()),
+    avgConfidence: byDate[d].count ? byDate[d].total / byDate[d].count : 0,
+  }));
+}
+
 function buildWeekRecap(weekTrades, startBal) {
   let running = 0;
   const curve = [{ pct: 0 }];
@@ -1326,9 +1548,6 @@ function buildWeekRecap(weekTrades, startBal) {
     ? { id: topSetupId, count: setupCounts[topSetupId], label: setupMeta(topSetupId)?.label || topSetupId }
     : null;
 
-  // Revenge trades within this week only (chronological order within the
-  // week's own trades) — same detection rule as the calendar badges and the
-  // all-time discipline streak, just scoped to the week being summarized.
   const revengeCount = computeRevengeIds(weekTrades).size;
 
   const rangeLabel = `${formatShortDate(weekTrades[0].ts)} \u2013 ${formatShortDate(weekTrades[weekTrades.length - 1].ts)}`;
@@ -1346,10 +1565,6 @@ function buildWeekRecap(weekTrades, startBal) {
   };
 }
 
-// Palette used for the exported share image. Kept independent of the live
-// on-screen `palette` object (which mutates on theme toggle) so a card
-// rendered from a given `theme` is always self-consistent, even if the user
-// switches themes again right after generating it.
 const SHARE_COLORS = {
   dark: {
     green: "#4FB286",
@@ -1381,7 +1596,6 @@ const SHARE_COLORS = {
   },
 };
 
-// ---- Share My Week: draws a dollar-free recap card to a canvas ----
 function drawShareCard(canvas, {
   rangeLabel,
   tradeCount,
@@ -1405,7 +1619,6 @@ function drawShareCard(canvas, {
   const c = theme === "light" ? SHARE_COLORS.light : SHARE_COLORS.dark;
   const lineColor = tone === "bad" ? c.red : c.green;
 
-  // background
   const bgGrad = ctx.createLinearGradient(0, 0, 0, H);
   bgGrad.addColorStop(0, c.bgFrom);
   bgGrad.addColorStop(1, c.bgTo);
@@ -1422,17 +1635,15 @@ function drawShareCard(canvas, {
     ctx.closePath();
   };
 
-  // outer card
   roundRect(36, 36, W - 72, H - 72, 28);
   ctx.strokeStyle = c.border;
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  // header
   ctx.fillStyle = c.gold;
   ctx.font = "600 26px monospace";
   ctx.textAlign = "left";
-  ctx.fillText("LEDGER · WEEKLY RECAP", 80, 128);
+  ctx.fillText("LEDGER \u00b7 WEEKLY RECAP", 80, 128);
 
   ctx.fillStyle = c.text;
   ctx.font = "700 58px monospace";
@@ -1440,9 +1651,8 @@ function drawShareCard(canvas, {
 
   ctx.fillStyle = c.textMuted;
   ctx.font = "400 24px sans-serif";
-  ctx.fillText(`${rangeLabel} · ${tradeCount} trade${tradeCount === 1 ? "" : "s"}`, 80, 236);
+  ctx.fillText(`${rangeLabel} \u00b7 ${tradeCount} trade${tradeCount === 1 ? "" : "s"}`, 80, 236);
 
-  // big net % readout
   ctx.fillStyle = c.textFaint;
   ctx.font = "600 20px sans-serif";
   ctx.fillText("NET RETURN", 80, 300);
@@ -1450,7 +1660,6 @@ function drawShareCard(canvas, {
   ctx.font = "700 96px monospace";
   ctx.fillText(fmtPct(netPct), 80, 390);
 
-  // equity curve chart
   const chartX = 80;
   const chartY = 440;
   const chartW = W - 160;
@@ -1484,7 +1693,6 @@ function drawShareCard(canvas, {
   const xFor = (i) => plotX + (curve.length > 1 ? (i / (curve.length - 1)) * plotW : plotW / 2);
   const yFor = (v) => plotY + plotH - ((v - minV) / (maxV - minV)) * plotH;
 
-  // zero line
   ctx.strokeStyle = c.textFaint;
   ctx.setLineDash([6, 6]);
   ctx.lineWidth = 1.5;
@@ -1494,7 +1702,6 @@ function drawShareCard(canvas, {
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // filled area under curve
   ctx.beginPath();
   ctx.moveTo(xFor(0), yFor(0));
   curve.forEach((p, i) => ctx.lineTo(xFor(i), yFor(p.pct)));
@@ -1506,7 +1713,6 @@ function drawShareCard(canvas, {
   ctx.fillStyle = areaGrad;
   ctx.fill();
 
-  // line
   ctx.beginPath();
   curve.forEach((p, i) => {
     const x = xFor(i);
@@ -1519,7 +1725,6 @@ function drawShareCard(canvas, {
   ctx.lineJoin = "round";
   ctx.stroke();
 
-  // end dot
   const lastX = xFor(curve.length - 1);
   const lastY = yFor(curve[curve.length - 1].pct);
   ctx.beginPath();
@@ -1532,7 +1737,6 @@ function drawShareCard(canvas, {
   ctx.lineWidth = 3;
   ctx.stroke();
 
-  // helper to draw one row of three stat chips
   const drawChipRow = (y, stats) => {
     const chipH = 150;
     const gap = 24;
@@ -1559,7 +1763,6 @@ function drawShareCard(canvas, {
     return y + chipH;
   };
 
-  // row 1: outcome stats
   const row1Y = chartY + chartH + 48;
   const row1Bottom = drawChipRow(row1Y, [
     { label: "WIN RATE", value: `${fmt(winRate, 0)}%`, color: c.text },
@@ -1567,8 +1770,6 @@ function drawShareCard(canvas, {
     { label: "WORST STREAK", value: `${worstStreak}`, color: worstStreak < 0 ? c.red : c.text },
   ]);
 
-  // row 2: process/discipline stats — the "no dollar amounts, just the
-  // process" ethos, made visible as actual numbers rather than just a tagline
   const row2Y = row1Bottom + 24;
   drawChipRow(row2Y, [
     {
@@ -1589,7 +1790,6 @@ function drawShareCard(canvas, {
     },
   ]);
 
-  // footer
   ctx.fillStyle = c.textFaint;
   ctx.font = "400 20px monospace";
   ctx.textAlign = "left";
@@ -1607,11 +1807,10 @@ function drawShareCard(canvas, {
 export default function LedgerApp() {
   const [activeTab, setActiveTab] = useState("risk");
   const [riskSubTab, setRiskSubTab] = useState("challenge");
+  const [sessionsSubTab, setSessionsSubTab] = useState("sessions");
   const [theme, setTheme] = useState("dark");
   const [themeLoaded, setThemeLoaded] = useState(false);
 
-  // Keep the mutable `palette` object in sync with the chosen theme on every
-  // render, before anything below reads palette.xxx.
   Object.assign(palette, theme === "light" ? LIGHT_PALETTE : DARK_PALETTE);
 
   const [edge, setEdge] = useState({
@@ -1632,6 +1831,8 @@ export default function LedgerApp() {
     todayLoss: "",
     bestDay: "",
     rule: "30",
+    maxDrawdownPct: "4",
+    ddMode: "trail",
   });
   const [ps, setPs] = useState({
     balance: "",
@@ -1642,9 +1843,9 @@ export default function LedgerApp() {
   });
   const [fx, setFx] = useState({ amount: "100", from: "USD", to: "BDT", customRate: "" });
 
-  const [liveFxRates, setLiveFxRates] = useState(null); // { USD: 1, EUR: 0.86, ... } or null
-  const [fxRatesDate, setFxRatesDate] = useState(null); // "2026-08-21"
-  const [fxRatesStatus, setFxRatesStatus] = useState("idle"); // idle | loading | live | error
+  const [liveFxRates, setLiveFxRates] = useState(null);
+  const [fxRatesDate, setFxRatesDate] = useState(null);
+  const [fxRatesStatus, setFxRatesStatus] = useState("idle");
 
   const [trades, setTrades] = useState([]);
   const [tradesLoaded, setTradesLoaded] = useState(false);
@@ -1659,20 +1860,11 @@ export default function LedgerApp() {
   const [showStreakInfo, setShowStreakInfo] = useState(false);
   const [showDisciplineInfo, setShowDisciplineInfo] = useState(false);
 
-  // ---- Insights tab: sub-nav (Overview / Behavior / Setup) and which
-  // Performance Overview metric card is currently expanded to show its
-  // plain-language explanation, if any.
-  const [insightSubTab, setInsightSubTab] = useState("overview");
   const [expandedMetric, setExpandedMetric] = useState(null);
   const [expandedHeatmapDay, setExpandedHeatmapDay] = useState(null);
   const [insightReportMsg, setInsightReportMsg] = useState("");
+  const [insightsSubTab, setInsightsSubTab] = useState("overview");
 
-  // ---- Journal tab: sub-nav (Journal / Playbook), plus the spreadsheet
-  // journal itself, browsed by year then month. journalEntries holds only
-  // rows the user has actually touched (empty calendar days are
-  // synthesized at render time, not stored \u2014 see the journal tab body
-  // below). journalMonth === null means the year-grid view is showing; a
-  // number (0-11) opens that month's table.
   const [journalSubTab, setJournalSubTab] = useState("log");
   const [journalEntries, setJournalEntries] = useState([]);
   const [journalLoaded, setJournalLoaded] = useState(false);
@@ -1680,74 +1872,38 @@ export default function LedgerApp() {
   const [journalMonth, setJournalMonth] = useState(null);
   const [journalColWidths, setJournalColWidths] = useState(DEFAULT_JOURNAL_COL_WIDTHS);
   const journalResizeRef = useRef(null);
-  // Maps "rowId:colId" -> the mounted input/select DOM node for that cell,
-  // used both to autofocus a freshly-added row and to drive Alt+Arrow
-  // cell-to-cell keyboard navigation across the journal table.
   const journalCellRefs = useRef({});
-  // Set right after adding a row so a focus effect can jump into it once
-  // it's actually rendered (it isn't yet on the same render as the write).
   const [journalFocusRowId, setJournalFocusRowId] = useState(null);
-  // Set after a download so the button area can show a short confirmation,
-  // the same pattern used by the other exports in this file (backup,
-  // insights report, weekly share/copy).
   const [journalExportMsg, setJournalExportMsg] = useState("");
+  const journalImportInputRef = useRef(null);
+  const [journalImportMsg, setJournalImportMsg] = useState("");
+  const [journalExpandedRows, setJournalExpandedRows] = useState({});
 
-  // ---- Journal tab \u2192 Playbook sub-tab: user-defined trading rules plus
-  // a once-a-day check-in against whichever rules are currently active.
-  // playbookRules and playbookCheckins are persisted independently (see
-  // PLAYBOOK_RULES_KEY / PLAYBOOK_CHECKINS_KEY above) so deleting a rule
-  // never rewrites historical check-ins.
   const [playbookRules, setPlaybookRules] = useState([]);
   const [playbookRulesLoaded, setPlaybookRulesLoaded] = useState(false);
   const [playbookCheckins, setPlaybookCheckins] = useState([]);
   const [playbookCheckinsLoaded, setPlaybookCheckinsLoaded] = useState(false);
   const [newRuleText, setNewRuleText] = useState("");
   const [playbookRuleError, setPlaybookRuleError] = useState("");
-  // Draft results for *today's* check-in, keyed by rule id. Seeded from an
-  // existing check-in for today (if the user already checked in and is
-  // revising it) whenever playbookCheckins finishes loading.
   const [todayResults, setTodayResults] = useState({});
   const [playbookMsg, setPlaybookMsg] = useState("");
 
-  // ---- Edit trade: tapping the pencil icon on a logged trade row loads
-  // that trade's values into the same Log-a-Trade form below instead of
-  // requiring a delete + re-log. editingTradeId tracks which trade (if any)
-  // is being edited; the same tradeInput/tradeNote/tradeEmotion/tradeSetup
-  // state doubles as the edit form's fields, and submitTrade below either
-  // adds a new trade or patches the one being edited.
   const [editingTradeId, setEditingTradeId] = useState(null);
   const logFormRef = useRef(null);
 
-  // ---- Custom setup tags: up to MAX_CUSTOM_SETUPS user-defined tags that
-  // sit alongside the built-in SETUPS list everywhere setups are shown
-  // (logging a trade, the trade row badge, the weekly recap's "top setup").
-  // Persisted separately from trades so they survive even if all trades are
-  // cleared.
   const [customSetups, setCustomSetups] = useState([]);
   const [customSetupsLoaded, setCustomSetupsLoaded] = useState(false);
   const [addingSetup, setAddingSetup] = useState(false);
   const [newSetupName, setNewSetupName] = useState("");
   const [setupError, setSetupError] = useState("");
 
-  // ---- Trade screenshots: attach up to SCREENSHOT_MAX_PER_TRADE chart
-  // screenshots to any already-logged trade from the calendar day view.
-  // Hidden by default — expandedTradeId tracks which trade's row is tapped
-  // open, and only that row reveals its screenshots (or the add tile).
-  // screenshotTargetId tracks which trade the (single, shared) hidden file
-  // input is attaching to.
   const [expandedTradeId, setExpandedTradeId] = useState(null);
   const screenshotInputRef = useRef(null);
   const [screenshotTargetId, setScreenshotTargetId] = useState(null);
   const [screenshotError, setScreenshotError] = useState("");
   const [screenshotSaving, setScreenshotSaving] = useState(false);
-  // Holds { src, trade, index } for the screenshot currently open in the
-  // full-screen viewer, so the Share button below has the trade's P&L/date
-  // to use as share text and a sensible filename.
   const [viewingScreenshot, setViewingScreenshot] = useState(null);
   const [screenshotShareMsg, setScreenshotShareMsg] = useState("");
-  // Holds { tradeId, index } for a screenshot the user tapped the X on but
-  // hasn't confirmed deleting yet \u2014 an in-app confirm card is used instead
-  // of window.confirm(), which sandboxed previews often block silently.
   const [pendingScreenshotDelete, setPendingScreenshotDelete] = useState(null);
 
   const [newsEvents, setNewsEvents] = useState([]);
@@ -1759,10 +1915,6 @@ export default function LedgerApp() {
   const [newEventAlarm, setNewEventAlarm] = useState(true);
   const [newsLoadError, setNewsLoadError] = useState("");
 
-  // ---- Alarm system state. This is a best-effort, browser-only alarm: it
-  // rings via the Notification API (if permitted) plus an in-page sound and
-  // modal, but only while this app is open in a tab. It cannot set a real
-  // OS-level alarm — there's no web API for that.
   const [notifPermission, setNotifPermission] = useState(
     typeof Notification !== "undefined" ? Notification.permission : "unsupported"
   );
@@ -1774,11 +1926,6 @@ export default function LedgerApp() {
   const [shareImageUrl, setShareImageUrl] = useState(null);
   const [shareError, setShareError] = useState("");
 
-  // ---- Sessions tab: a live clock, ticking once a second, that the
-  // Sessions tab formats into local time and compares against each market
-  // session's UTC hours. Lives at the top level (not inside the tab body)
-  // so the interval only exists while this component is mounted, same
-  // pattern as the alarm-check interval above.
   const [currentTime, setCurrentTime] = useState(() => new Date());
   useEffect(() => {
     const id = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -1790,10 +1937,41 @@ export default function LedgerApp() {
 
   const fileInputRef = useRef(null);
   const [backupMsg, setBackupMsg] = useState("");
-  // Holds a parsed-but-not-yet-applied backup file, so the user can confirm
-  // the overwrite from an in-app card instead of a native confirm() dialog
-  // (which sandboxed previews often block silently).
   const [pendingImport, setPendingImport] = useState(null);
+
+  const [notepadNotes, setNotepadNotes] = useState([]);
+  const [notepadLoaded, setNotepadLoaded] = useState(false);
+  const [activeNoteId, setActiveNoteId] = useState(null);
+  const [notepadSearch, setNotepadSearch] = useState("");
+  const [notepadFindOpen, setNotepadFindOpen] = useState(false);
+  const [notepadFindText, setNotepadFindText] = useState("");
+  const [notepadReplaceText, setNotepadReplaceText] = useState("");
+  const [notepadMsg, setNotepadMsg] = useState("");
+  const notepadBlockRefs = useRef({});
+  const notepadRefCallbackCache = useRef({});
+  const getNotepadBlockRef = (noteId, blockId) => {
+    const key = `${noteId}:${blockId}`;
+    if (!notepadRefCallbackCache.current[key]) {
+      notepadRefCallbackCache.current[key] = (el) => {
+        if (el) {
+          notepadBlockRefs.current[key] = el;
+          autoGrowBlock(el);
+        } else {
+          delete notepadBlockRefs.current[key];
+          delete notepadRefCallbackCache.current[key];
+        }
+      };
+    }
+    return notepadRefCallbackCache.current[key];
+  };
+  const notepadActiveBlockRef = useRef({ noteId: null, blockId: null, pos: 0 });
+  const [notepadFocusBlock, setNotepadFocusBlock] = useState(null);
+  const notepadImageInputRef = useRef(null);
+  const [viewingNoteImage, setViewingNoteImage] = useState(null);
+  const [notepadImageSaving, setNotepadImageSaving] = useState(false);
+  const [notepadImageError, setNotepadImageError] = useState("");
+  const [pendingNoteDelete, setPendingNoteDelete] = useState(null);
+  const [pendingNoteImageDelete, setPendingNoteImageDelete] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -1851,8 +2029,6 @@ export default function LedgerApp() {
     };
   }, []);
 
-  // Loads any previously saved custom setup tags. Independent of the trades
-  // load above so custom setups persist even across a "Clear all" on trades.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -1864,7 +2040,7 @@ export default function LedgerApp() {
           if (Array.isArray(parsed)) setCustomSetups(parsed.slice(0, MAX_CUSTOM_SETUPS));
         }
       } catch (err) {
-        // non-critical, fail silently \u2014 custom setups just start empty
+        // non-critical, fail silently
       } finally {
         if (!cancelled) setCustomSetupsLoaded(true);
       }
@@ -1874,8 +2050,6 @@ export default function LedgerApp() {
     };
   }, []);
 
-  // Loads saved journal entries and any resized column widths. Independent
-  // of every other loader above so the Journal tab works standalone.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -1896,7 +2070,7 @@ export default function LedgerApp() {
           }
         }
       } catch (err) {
-        // non-critical, fail silently \u2014 journal just starts empty
+        // non-critical, fail silently
       } finally {
         if (!cancelled) setJournalLoaded(true);
       }
@@ -1906,10 +2080,6 @@ export default function LedgerApp() {
     };
   }, []);
 
-  // Loads saved playbook rules and check-ins. Seeds first-time users with
-  // PLAYBOOK_STARTER_RULES instead of an empty list so the tab has
-  // something to check in against immediately, and persists that seed
-  // right away so it isn't silently re-seeded (with new ids) on next load.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -1939,7 +2109,7 @@ export default function LedgerApp() {
           if (Array.isArray(parsed)) setPlaybookCheckins(parsed);
         }
       } catch (err) {
-        // non-critical, fail silently \u2014 playbook just starts empty
+        // non-critical, fail silently
       } finally {
         if (!cancelled) {
           setPlaybookRulesLoaded(true);
@@ -1952,22 +2122,35 @@ export default function LedgerApp() {
     };
   }, []);
 
-  // Once check-ins have loaded, seed today's draft from an existing
-  // check-in for today (so revisiting the tab shows what was already
-  // logged) rather than always starting blank.
   useEffect(() => {
     if (!playbookCheckinsLoaded) return;
     const todayKey = dayKeyFromDate(new Date());
     const existing = playbookCheckins.find((c) => c.date === todayKey);
     setTodayResults(existing ? { ...existing.results } : {});
-    // Only run this seed once, right when check-ins finish loading \u2014
-    // afterwards todayResults is fully driven by the checkboxes below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playbookCheckinsLoaded]);
 
-  // Loads live FX rates: serves a cached copy instantly if it's under
-  // FX_CACHE_MS old, and always refreshes from the API in the background
-  // (once a day is plenty — these are daily rates, not intraday).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await window.storage.get(NOTEPAD_STORAGE_KEY, false);
+        if (cancelled) return;
+        if (res && res.value) {
+          const parsed = JSON.parse(res.value);
+          if (Array.isArray(parsed)) setNotepadNotes(parsed.map(migrateNoteShape));
+        }
+      } catch (err) {
+        // non-critical, fail silently
+      } finally {
+        if (!cancelled) setNotepadLoaded(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -2015,12 +2198,6 @@ export default function LedgerApp() {
     window.storage.set(THEME_STORAGE_KEY, next, false).catch(() => {});
   };
 
-  // Keeps the actual <html>/<body> background and the browser's status-bar
-  // color (theme-color meta tag) in sync with the in-app theme. Without
-  // this, those stay on their hardcoded dark value from index.html and can
-  // flash/show through during scroll bounce or layout shifts while the app
-  // content is mid-transition to light mode \u2014 that's the "black section
-  // lags behind" effect.
   useEffect(() => {
     if (typeof document === "undefined") return;
     document.documentElement.style.backgroundColor = palette.letterbox;
@@ -2038,10 +2215,6 @@ export default function LedgerApp() {
     }
   };
 
-  // ---- Alarm sound: a plain oscillator beep via Web Audio, so no external
-  // audio file is needed. The AudioContext is created on a real user click
-  // (the alarm toggle) so autoplay policies don't block it later when the
-  // alarm actually fires without a fresh gesture.
   const ensureAudioContext = () => {
     if (!audioCtxRef.current) {
       const Ctx = typeof window !== "undefined" && (window.AudioContext || window.webkitAudioContext);
@@ -2088,7 +2261,6 @@ export default function LedgerApp() {
     }
   };
 
-  // Stop any beep loop if the component ever unmounts mid-ring.
   useEffect(() => {
     return () => stopBeep();
   }, []);
@@ -2112,8 +2284,6 @@ export default function LedgerApp() {
     }
   };
 
-  // Toggling the alarm chip is a real user click, so it's the right moment
-  // to both ask for Notification permission and unlock the AudioContext.
   const toggleNewEventAlarm = () => {
     const next = !newEventAlarm;
     setNewEventAlarm(next);
@@ -2153,14 +2323,6 @@ export default function LedgerApp() {
     setRingingEvent(null);
   };
 
-  // Checks alarm-enabled events on a short interval. Only fires while this
-  // effect is alive, i.e. only while the app is open — see the caveats in
-  // the News tab copy and the ringing modal.
-  //
-  // A snoozed event (snoozeUntil set) is checked purely against that
-  // timestamp — once it's snoozed once, the original pre-event lead-time /
-  // stale-window gate no longer applies, otherwise a second or third snooze
-  // could silently fall outside ALARM_STALE_WINDOW_MS and never ring again.
   useEffect(() => {
     if (!newsLoaded) return;
     const tick = () => {
@@ -2209,10 +2371,6 @@ export default function LedgerApp() {
     persistNews(newsEvents.filter((e) => e.id !== id));
   };
 
-  // Trade saves are best-effort, same as the starting balance and news
-  // persistence above — a transient storage hiccup shouldn't surface a
-  // "wasn't saved" warning every time someone logs a trade. If loading saved
-  // trades on launch fails, that's still surfaced via tradesLoadError below.
   const persistTrades = async (next) => {
     setTrades(next);
     try {
@@ -2231,8 +2389,6 @@ export default function LedgerApp() {
     }
   };
 
-  // Saves the custom setup tag list (and mirrors it into local state right
-  // away, same best-effort pattern as trades/news/theme above).
   const persistCustomSetups = async (next) => {
     setCustomSetups(next);
     try {
@@ -2242,12 +2398,8 @@ export default function LedgerApp() {
     }
   };
 
-  // Looks up a setup's display label across both the built-in SETUPS list
-  // and any user-added custom setups, so trade badges and recaps never show
-  // a raw id for a custom tag.
   const findSetupLabel = (id) => setupMeta(id)?.label || customSetups.find((s) => s.id === id)?.label || id;
 
-  // ---- Journal tab: persistence, row editing, and column-resize handlers.
   const persistJournalEntries = async (next) => {
     setJournalEntries(next);
     try {
@@ -2255,6 +2407,15 @@ export default function LedgerApp() {
     } catch (err) {
       // non-critical, fail silently
     }
+  };
+const ensureJournalRowForDate = (dateKey, setupId) => {
+    const exists = journalEntries.some((r) => r.date === dateKey);
+    if (exists) return; // never overwrite a day you've already journaled
+    const id = `j-auto-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    persistJournalEntries([
+      ...journalEntries,
+      { id, date: dateKey, pair: "", trend: "", rr: "", setup: setupId || "", mistake: "", note: "" },
+    ]);
   };
 
   const persistJournalColWidths = async (next) => {
@@ -2265,10 +2426,6 @@ export default function LedgerApp() {
     }
   };
 
-  // Edits one field on a journal row. If `id` doesn't match any stored row
-  // yet (i.e. it's one of the empty per-day placeholder rows synthesized at
-  // render time), this promotes it into a real, persisted row on first
-  // edit \u2014 empty days themselves are never written to storage.
   const updateJournalField = (id, field, value, dateForRow) => {
     const exists = journalEntries.some((r) => r.id === id);
     if (exists) {
@@ -2279,11 +2436,6 @@ export default function LedgerApp() {
     persistJournalEntries([...journalEntries, newRow]);
   };
 
-  // `defaultDate` lets the caller seed a new row with a date inside the
-  // month currently being viewed \u2014 without this, a row added while
-  // browsing a past/future month would default to today's date and then
-  // vanish from the table (rows are filtered to the viewed month below),
-  // making the button look broken.
   const addJournalRow = (defaultDate) => {
     const id = `j-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const date = defaultDate || dayKeyFromDate(new Date());
@@ -2294,12 +2446,14 @@ export default function LedgerApp() {
     setJournalFocusRowId(id);
   };
 
-  const deleteJournalRow = (id) => {
+    const deleteJournalRow = (id) => {
     persistJournalEntries(journalEntries.filter((r) => r.id !== id));
   };
 
-  // Column resize, driven by pointer events with capture so dragging still
-  // tracks correctly even if the pointer strays outside the thin handle.
+  const toggleJournalRowExpanded = (id) => {
+    setJournalExpandedRows((cur) => ({ ...cur, [id]: !cur[id] }));
+  };
+
   const startJournalResize = (col) => (e) => {
     e.stopPropagation();
     journalResizeRef.current = { col, startX: e.clientX, startWidth: journalColWidths[col] };
@@ -2326,15 +2480,11 @@ export default function LedgerApp() {
     persistJournalColWidths(journalColWidths);
   };
 
-  // Focuses a specific journal cell (by row id + column id) if it's
-  // currently mounted \u2014 used for Alt+Arrow cell-to-cell navigation below.
   const focusJournalCell = (rowId, colId) => {
     const el = journalCellRefs.current[`${rowId}:${colId}`];
     if (el && typeof el.focus === "function") el.focus();
   };
 
-  // After a new row is added, focus its Pair cell once it's actually
-  // mounted \u2014 it isn't yet on the same render that persists it.
   useEffect(() => {
     if (!journalFocusRowId) return;
     const el = journalCellRefs.current[`${journalFocusRowId}:pair`];
@@ -2344,11 +2494,22 @@ export default function LedgerApp() {
     }
   }, [journalEntries, journalFocusRowId]);
 
-  // Alt+Arrow moves between journal cells left/right/up/down like a
-  // spreadsheet, including into and out of the Date cell \u2014 a plain arrow
-  // key there only moves between the date input's own day/month/year
-  // segments, so a modifier is needed to jump cells consistently no matter
-  // which column (date, pair, trend, setup, mistake, note) the focus is in.
+  useEffect(() => {
+    if (!notepadFocusBlock || !activeNoteId) return;
+    const el = notepadBlockRefs.current[`${activeNoteId}:${notepadFocusBlock.blockId}`];
+    if (el) {
+      autoGrowBlock(el);
+      el.focus();
+      const pos = notepadFocusBlock.pos ?? el.value.length;
+      try {
+        el.setSelectionRange(pos, pos);
+      } catch (err) {
+        // ignore \u2014 focus still landed even if selection couldn't be set
+      }
+      setNotepadFocusBlock(null);
+    }
+  }, [notepadNotes, notepadFocusBlock, activeNoteId]);
+
   const handleJournalCellKeyDown = (e, rowIdx, colIdx, rows) => {
     if (!e.altKey) return;
     if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) return;
@@ -2364,13 +2525,6 @@ export default function LedgerApp() {
     if (nextRow && nextCol) focusJournalCell(nextRow.id, nextCol.id);
   };
 
-  // Downloads the currently-viewed month's journal rows as a CSV file, so
-  // the user has a plain, spreadsheet-openable copy of their journal
-  // outside the app — same reliable <a download> approach as every other
-  // export in this file (see downloadImageFile / exportBackup /
-  // exportInsightsReport), since sandboxed previews are unreliable with the
-  // Web Share API for arbitrary blobs. Trend and Setup are written out as
-  // their display labels (not raw ids) so the file reads cleanly on its own.
   const exportJournalCSV = () => {
     setJournalExportMsg("");
     if (journalMonth === null) return;
@@ -2389,20 +2543,32 @@ export default function LedgerApp() {
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
 
-    const header = ["Date", "Pair", "Trend", "R:R", "Setup", "Mistake", "Note"];
+        const header = ["Date", "Pair", "Trend", "R:R", "Setup", "Outcome", "Session", "Mood", "Confidence", "Mistake", "Note"];
     const lines = [header.join(",")];
     rows.forEach((r) => {
       const trendLabel = TREND_OPTIONS.find((t) => t.id === r.trend)?.label || r.trend || "";
       const setupLabel = r.setup ? findSetupLabel(r.setup) : "";
       lines.push(
-        [r.date || "", r.pair || "", trendLabel, r.rr || "", setupLabel, r.mistake || "", r.note || ""]
+        [
+          r.date || "",
+          r.pair || "",
+          trendLabel,
+          r.rr || "",
+          setupLabel,
+          outcomeLabel(r.outcome),
+          sessionLabelFor(r.session),
+          moodLabelFor(r.mood),
+          confidenceLabel(r.confidence),
+          r.mistake || "",
+          r.note || "",
+        ]
           .map(escapeCsv)
           .join(",")
       );
     });
 
     try {
-      const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+      const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -2415,6 +2581,151 @@ export default function LedgerApp() {
     } catch (err) {
       setJournalExportMsg("Couldn't create the file, please try again.");
     }
+  };
+
+  const parseJournalCSV = (text) => {
+    const rows = [];
+    let field = "";
+    let row = [];
+    let inQuotes = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (inQuotes) {
+        if (c === '"') {
+          if (text[i + 1] === '"') {
+            field += '"';
+            i++;
+          } else {
+            inQuotes = false;
+          }
+        } else {
+          field += c;
+        }
+      } else if (c === '"') {
+        inQuotes = true;
+      } else if (c === ",") {
+        row.push(field);
+        field = "";
+      } else if (c === "\n") {
+        row.push(field);
+        rows.push(row);
+        row = [];
+        field = "";
+      } else if (c === "\r") {
+        // skip
+      } else {
+        field += c;
+      }
+    }
+    if (field.length > 0 || row.length > 0) {
+      row.push(field);
+      rows.push(row);
+    }
+    return rows.filter((r) => r.some((v) => v && v.trim() !== ""));
+  };
+
+  const findTrendIdByLabel = (label) => {
+    const l = (label || "").trim().toLowerCase();
+    const found = TREND_OPTIONS.find((t) => t.label.toLowerCase() === l);
+    return found ? found.id : "";
+  };
+
+    const findSetupIdByLabel = (label) => {
+    const l = (label || "").trim().toLowerCase();
+    if (!l) return "";
+    const built = SETUPS.find((s) => s.label.toLowerCase() === l);
+    if (built) return built.id;
+    const custom = customSetups.find((s) => s.label.toLowerCase() === l);
+    return custom ? custom.id : "";
+  };
+
+  const findOutcomeIdByLabel = (label) => {
+    const l = (label || "").trim().toLowerCase();
+    const found = OUTCOME_OPTIONS.find((o) => o.label.toLowerCase() === l);
+    return found ? found.id : "";
+  };
+  const findSessionIdByLabel = (label) => {
+    const l = (label || "").trim().toLowerCase();
+    const found = MARKET_SESSIONS.find((s) => s.label.toLowerCase() === l);
+    return found ? found.id : "";
+  };
+  const findMoodIdByLabel = (label) => {
+    const l = (label || "").trim().toLowerCase();
+    const found = EMOTIONS.find((e) => e.label.toLowerCase() === l);
+    return found ? found.id : "";
+  };
+  const findConfidenceIdByLabel = (label) => {
+    const l = (label || "").trim().toLowerCase();
+    const found = CONFIDENCE_OPTIONS.find((c) => c.label.toLowerCase() === l);
+    return found ? found.id : "";
+  };
+
+  const triggerJournalImport = () => {
+    setJournalImportMsg("");
+    if (journalImportInputRef.current) journalImportInputRef.current.click();
+  };
+
+  const importJournalCSV = (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    setJournalImportMsg("");
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const rows = parseJournalCSV(String(reader.result));
+        if (rows.length < 2) {
+          setJournalImportMsg("That file doesn't look like a Ledger journal export.");
+          return;
+        }
+                const header = rows[0].map((h) => h.trim().toLowerCase());
+        const idx = {
+          date: header.indexOf("date"),
+          pair: header.indexOf("pair"),
+          trend: header.indexOf("trend"),
+          rr: header.indexOf("r:r"),
+          setup: header.indexOf("setup"),
+          outcome: header.indexOf("outcome"),
+          session: header.indexOf("session"),
+          mood: header.indexOf("mood"),
+          confidence: header.indexOf("confidence"),
+          mistake: header.indexOf("mistake"),
+          note: header.indexOf("note"),
+        };
+        if (idx.date === -1) {
+          setJournalImportMsg("That file doesn't look like a Ledger journal export.");
+          return;
+        }
+        const newEntries = rows
+          .slice(1)
+          .map((r, i) => ({
+            id: `j-import-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 6)}`,
+            date: (r[idx.date] || "").trim(),
+            pair: idx.pair !== -1 ? (r[idx.pair] || "").trim() : "",
+            trend: idx.trend !== -1 ? findTrendIdByLabel(r[idx.trend]) : "",
+            rr: idx.rr !== -1 ? (r[idx.rr] || "").trim() : "",
+            setup: idx.setup !== -1 ? findSetupIdByLabel(r[idx.setup]) : "",
+            outcome: idx.outcome !== -1 ? findOutcomeIdByLabel(r[idx.outcome]) : "",
+            session: idx.session !== -1 ? findSessionIdByLabel(r[idx.session]) : "",
+            mood: idx.mood !== -1 ? findMoodIdByLabel(r[idx.mood]) : "",
+            confidence: idx.confidence !== -1 ? findConfidenceIdByLabel(r[idx.confidence]) : "",
+            mistake: idx.mistake !== -1 ? (r[idx.mistake] || "").trim() : "",
+            note: idx.note !== -1 ? (r[idx.note] || "").trim() : "",
+          }))
+          .filter((r) => /^\d{4}-\d{2}-\d{2}$/.test(r.date));
+
+        if (newEntries.length === 0) {
+          setJournalImportMsg("No valid rows found in that file.");
+          return;
+        }
+        persistJournalEntries([...journalEntries, ...newEntries]);
+        setJournalImportMsg(`Imported ${newEntries.length} row${newEntries.length === 1 ? "" : "s"}.`);
+      } catch (err) {
+        setJournalImportMsg("Couldn't read that file, please try again.");
+      }
+    };
+    reader.onerror = () => setJournalImportMsg("Couldn't read that file.");
+    reader.readAsText(file);
   };
 
   const openAddSetup = () => {
@@ -2459,7 +2770,6 @@ export default function LedgerApp() {
     if (tradeSetup === id) setTradeSetup(null);
   };
 
-  // ---- Playbook (Journal sub-tab): persistence and handlers.
   const persistPlaybookRules = async (next) => {
     setPlaybookRules(next);
     try {
@@ -2495,11 +2805,6 @@ export default function LedgerApp() {
     setPlaybookRuleError("");
   };
 
-  // Removing a rule only affects future check-ins and the rule list itself
-  // \u2014 past check-ins keep whatever result was recorded for that rule id,
-  // since isCleanCheckin / computePlaybookStats read straight from each
-  // check-in's own results object rather than re-checking against the
-  // current rule list.
   const removePlaybookRule = (id) => {
     persistPlaybookRules(playbookRules.filter((r) => r.id !== id));
     setTodayResults((cur) => {
@@ -2513,10 +2818,6 @@ export default function LedgerApp() {
     setTodayResults((cur) => ({ ...cur, [ruleId]: !cur[ruleId] }));
   };
 
-  // Saves (or updates) today's check-in against every currently active
-  // rule \u2014 a rule with no toggle tapped yet defaults to "not followed"
-  // rather than being silently skipped, so a half-finished check-in can't
-  // read as clean.
   const submitCheckin = () => {
     if (playbookRules.length === 0) {
       setPlaybookMsg("Add at least one rule above first.");
@@ -2542,10 +2843,6 @@ export default function LedgerApp() {
     setPlaybookMsg(isCleanCheckin({ results }) ? "Clean day \u2014 every rule followed." : "Check-in saved.");
   };
 
-  // Deletes a single check-in from history. Does not touch today's draft
-  // (todayResults) unless the deleted check-in was today's — in that case
-  // the draft is cleared too, so the Today's Check-In card no longer shows
-  // stale toggles for a check-in that no longer exists.
   const deletePlaybookCheckin = (id) => {
     const deleted = playbookCheckins.find((c) => c.id === id);
     persistPlaybookCheckins(playbookCheckins.filter((c) => c.id !== id));
@@ -2554,8 +2851,6 @@ export default function LedgerApp() {
     }
   };
 
-  // Resets the Log-a-Trade form back to its blank, "new trade" state and
-  // exits edit mode (if any).
   const resetTradeForm = () => {
     setTradeInput("");
     setTradeNote("");
@@ -2564,11 +2859,6 @@ export default function LedgerApp() {
     setEditingTradeId(null);
   };
 
-  // Loads an existing trade's values into the Log-a-Trade form so the user
-  // can adjust and re-save instead of deleting and re-logging. Collapses
-  // the trade's expanded screenshot row (if open) since the form itself
-  // takes over as the point of interaction, and scrolls the form into view
-  // since it lives above the calendar the trade was tapped from.
   const startEditTrade = (t) => {
     setTradeInput(String(t.pnl));
     setTradeNote(t.note || "");
@@ -2585,9 +2875,6 @@ export default function LedgerApp() {
     resetTradeForm();
   };
 
-  // Adds a new trade, or — when editingTradeId is set — patches the
-  // existing trade in place (keeping its id, timestamp, and any attached
-  // screenshots) instead of appending a duplicate.
   const submitTrade = () => {
     const pnl = num(tradeInput);
     if (!tradeInput || pnl === 0) return;
@@ -2615,14 +2902,12 @@ export default function LedgerApp() {
       },
     ];
     persistTrades(next);
+    ensureJournalRowForDate(dayKeyFromDate(new Date()), tradeSetup);
     resetTradeForm();
   };
 
   const deleteTrade = (id) => {
     persistTrades(trades.filter((t) => t.id !== id));
-    // If the trade being deleted is the one currently loaded into the edit
-    // form, back the form out of edit mode too so it doesn't silently try
-    // to save changes to a trade that no longer exists.
     if (editingTradeId === id) resetTradeForm();
   };
 
@@ -2631,20 +2916,15 @@ export default function LedgerApp() {
     resetTradeForm();
   };
 
-  // Opens the shared hidden file input, remembering which trade it's for.
   const openScreenshotPicker = (tradeId) => {
     setScreenshotError("");
     setScreenshotTargetId(tradeId);
     if (screenshotInputRef.current) screenshotInputRef.current.click();
   };
 
-  // Resizes/compresses the picked image (kept as sharp as the per-image
-  // byte budget allows — see resizeImageFile above), then saves it onto the
-  // target trade and persists the whole trades array right away, the same
-  // path every other trade edit goes through.
   const handleScreenshotChange = async (e) => {
     const file = e.target.files && e.target.files[0];
-    e.target.value = ""; // allow re-picking the same file later
+    e.target.value = "";
     const targetId = screenshotTargetId;
     setScreenshotTargetId(null);
     if (!file || !targetId) return;
@@ -2657,9 +2937,6 @@ export default function LedgerApp() {
           if (t.id !== targetId) return t;
           const existing = tradeScreenshots(t);
           if (existing.length >= SCREENSHOT_MAX_PER_TRADE) return t;
-          // Migrate off the old singular `screenshot` field once a trade
-          // gets its array populated, so there's only ever one source of
-          // truth for a given trade going forward.
           return { ...t, screenshots: [...existing, dataUrl], screenshot: undefined };
         })
       );
@@ -2687,12 +2964,6 @@ export default function LedgerApp() {
 
   const cancelDeleteScreenshot = () => setPendingScreenshotDelete(null);
 
-  // Shares one screenshot (given its data URL and, optionally, the trade it
-  // belongs to for a nicer filename/caption). Prefers the native share sheet
-  // (native pickers, WhatsApp, Messages, AirDrop, etc.) via the Web Share
-  // API's file support, and falls back to a direct download when that isn't
-  // available (desktop browsers, sandboxed previews) or the device can't
-  // share files. A cancelled share sheet is not an error.
   const shareImageFile = async (src, trade) => {
     setScreenshotShareMsg("");
     const dayKey = trade ? dayKeyFromTs(trade.ts) : dayKeyFromDate(new Date());
@@ -2716,17 +2987,13 @@ export default function LedgerApp() {
         });
         return;
       } catch (err) {
-        if (err && err.name === "AbortError") return; // user cancelled the share sheet
-        // fall through to download below
+        if (err && err.name === "AbortError") return;
       }
     }
 
     downloadImageFile(file, filename, "Sharing isn't available now \u2014 download instead.");
   };
 
-  // Direct download, no share-sheet attempt \u2014 used by the explicit
-  // Download button, and as shareImageFile's fallback when sharing isn't
-  // available or is declined.
   const downloadImageFile = (file, filename, successMsg = "Downloaded.") => {
     try {
       const url = URL.createObjectURL(file);
@@ -2761,7 +3028,6 @@ export default function LedgerApp() {
     setPs({ ...ps, preset, valuePerPip: defaults[preset] });
   };
 
-  // Builds the dollar-free "share my week" recap image and opens the preview.
   const generateWeeklyShare = () => {
     setShareError("");
     const now = Date.now();
@@ -2807,11 +3073,6 @@ export default function LedgerApp() {
 
   const closeShare = () => setShareImageUrl(null);
 
-  // Triggers a real download of the generated PNG. shareImageUrl is already
-  // a data: URL from canvas.toDataURL(), so — same as the Export fix — a
-  // temporary <a download> click is the reliable way to save it; the share
-  // sheet / window.open route used previously is unreliable in a sandboxed
-  // preview.
   const downloadShare = () => {
     if (!shareImageUrl) return;
     try {
@@ -2822,14 +3083,10 @@ export default function LedgerApp() {
       a.click();
       document.body.removeChild(a);
     } catch (err) {
-      // last resort: open it in a new tab so it can still be saved manually
       window.open(shareImageUrl, "_blank");
     }
   };
 
-  // Builds the same weekly recap as the share image, formats it as plain
-  // text, and puts it on the clipboard. Falls back to a selectable text box
-  // if the Clipboard API is unavailable (common in sandboxed previews).
   const copyWeekSummary = async () => {
     setCopyMsg("");
     setCopyFallbackText("");
@@ -2876,11 +3133,6 @@ export default function LedgerApp() {
     }
   };
 
-  // Bundles every metric shown across the Insights tab's three sub-tabs
-  // into one plain-text report and downloads it \u2014 same reliable <a download>
-  // approach as the other exports in this file (see downloadImageFile /
-  // exportBackup) since sandboxed previews are unreliable with the Web
-  // Share API for arbitrary blobs.
   const exportInsightsReport = () => {
     setInsightReportMsg("");
     if (trades.length === 0) {
@@ -2972,11 +3224,6 @@ export default function LedgerApp() {
     }
   };
 
-  // ---- Backup & Restore: everything lives only in this browser's storage,
-  // so this is the one real safety net against clearing data or switching
-  // phones. Exports trades, starting balance, news events, custom setups,
-  // and theme as a single downloadable .json file; import reads that same
-  // file back in after an in-app confirmation.
   const exportBackup = () => {
     setBackupMsg("");
     const payload = {
@@ -2990,6 +3237,7 @@ export default function LedgerApp() {
       journalColWidths,
       playbookRules,
       playbookCheckins,
+      notepadNotes,
       theme,
     };
     try {
@@ -3002,8 +3250,6 @@ export default function LedgerApp() {
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      // Give the browser a moment to actually start the download before the
-      // blob URL is revoked.
       setTimeout(() => URL.revokeObjectURL(url), 2000);
       setBackupMsg("Press download to download the report.");
     } catch (err) {
@@ -3011,8 +3257,6 @@ export default function LedgerApp() {
     }
   };
 
-  // Validates a parsed backup object's shape. Returns the object on success,
-  // or null after setting an explanatory backupMsg.
   const validateBackup = (data) => {
     if (!data || !Array.isArray(data.trades)) {
       setBackupMsg("That file doesn't look like a Ledger backup.");
@@ -3030,7 +3274,7 @@ export default function LedgerApp() {
 
   const importBackup = (e) => {
     const file = e.target.files && e.target.files[0];
-    e.target.value = ""; // allow re-selecting the same file later
+    e.target.value = "";
     if (!file) return;
     setBackupMsg("");
     const reader = new FileReader();
@@ -3044,8 +3288,6 @@ export default function LedgerApp() {
       }
       const valid = validateBackup(data);
       if (!valid) return;
-      // Hand off to an in-app confirm card instead of window.confirm(),
-      // which sandboxed previews commonly block or auto-dismiss.
       setPendingImport(valid);
     };
     reader.onerror = () => setBackupMsg("Couldn't read that file.");
@@ -3079,6 +3321,9 @@ export default function LedgerApp() {
     if (Array.isArray(data.playbookCheckins)) {
       persistPlaybookCheckins(data.playbookCheckins);
     }
+    if (Array.isArray(data.notepadNotes)) {
+      persistNotepadNotes(data.notepadNotes.map(migrateNoteShape));
+    }
     if (data.theme === "light" || data.theme === "dark") {
       setTheme(data.theme);
       window.storage.set(THEME_STORAGE_KEY, data.theme, false).catch(() => {});
@@ -3090,6 +3335,195 @@ export default function LedgerApp() {
   const cancelImport = () => {
     setPendingImport(null);
     setBackupMsg("");
+  };
+
+  const persistNotepadNotes = async (next) => {
+    setNotepadNotes(next);
+    try {
+      await window.storage.set(NOTEPAD_STORAGE_KEY, JSON.stringify(next), false);
+    } catch (err) {
+      // non-critical, fail silently
+    }
+  };
+
+  const createNote = () => {
+    const id = `note-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const now = Date.now();
+    const firstBlockId = makeBlockId();
+    const newNote = {
+      id,
+      title: "Untitled Note",
+      blocks: [{ id: firstBlockId, type: "text", text: "" }],
+      wordWrap: true,
+      fontSize: DEFAULT_NOTEPAD_FONT_SIZE,
+      createdAt: now,
+      updatedAt: now,
+    };
+    persistNotepadNotes([newNote, ...notepadNotes]);
+    setActiveNoteId(id);
+    notepadActiveBlockRef.current = { noteId: id, blockId: firstBlockId, pos: 0 };
+    setNotepadFindOpen(false);
+    setNotepadMsg("");
+  };
+
+  const updateNote = (id, patch) => {
+    persistNotepadNotes(
+      notepadNotes.map((n) => (n.id === id ? { ...n, ...patch, updatedAt: Date.now() } : n))
+    );
+  };
+
+  const openNote = (id) => {
+    setActiveNoteId(id);
+    notepadActiveBlockRef.current = { noteId: null, blockId: null, pos: 0 };
+    setNotepadFindOpen(false);
+    setNotepadFindText("");
+    setNotepadReplaceText("");
+    setNotepadMsg("");
+  };
+
+  const closeNote = () => {
+    setActiveNoteId(null);
+    notepadActiveBlockRef.current = { noteId: null, blockId: null, pos: 0 };
+    setNotepadFindOpen(false);
+    setNotepadMsg("");
+  };
+
+  const requestDeleteNote = (id) => setPendingNoteDelete(id);
+  const cancelDeleteNote = () => setPendingNoteDelete(null);
+  const confirmDeleteNote = () => {
+    if (!pendingNoteDelete) return;
+    persistNotepadNotes(notepadNotes.filter((n) => n.id !== pendingNoteDelete));
+    if (activeNoteId === pendingNoteDelete) setActiveNoteId(null);
+    setPendingNoteDelete(null);
+  };
+
+    const toggleNoteWordWrap = (note) => updateNote(note.id, { wordWrap: note.wordWrap === false });
+
+  const adjustNoteFontSize = (note, dir) => {
+    const idx = NOTEPAD_FONT_SIZES.indexOf(note.fontSize || DEFAULT_NOTEPAD_FONT_SIZE);
+    const nextIdx = Math.max(0, Math.min(NOTEPAD_FONT_SIZES.length - 1, (idx === -1 ? 2 : idx) + dir));
+    updateNote(note.id, { fontSize: NOTEPAD_FONT_SIZES[nextIdx] });
+  };
+
+  const insertTextAtCursor = (note, text) => {
+    const blocks = note.blocks;
+    const ref = notepadActiveBlockRef.current;
+    let targetIdx =
+      ref.noteId === note.id ? blocks.findIndex((b) => b.id === ref.blockId && b.type === "text") : -1;
+    if (targetIdx === -1) {
+      for (let i = blocks.length - 1; i >= 0; i--) {
+        if (blocks[i].type === "text") {
+          targetIdx = i;
+          break;
+        }
+      }
+    }
+    if (targetIdx === -1) {
+      const newBlock = { id: makeBlockId(), type: "text", text };
+      updateNote(note.id, { blocks: [...blocks, newBlock] });
+      setNotepadFocusBlock({ blockId: newBlock.id, pos: text.length });
+      return;
+    }
+    const block = blocks[targetIdx];
+    const content = block.text || "";
+    const pos =
+      ref.noteId === note.id && ref.blockId === block.id
+        ? Math.max(0, Math.min(ref.pos ?? content.length, content.length))
+        : content.length;
+    const nextText = content.slice(0, pos) + text + content.slice(pos);
+    const newBlocks = blocks.map((b, i) => (i === targetIdx ? { ...b, text: nextText } : b));
+    updateNote(note.id, { blocks: newBlocks });
+    setNotepadFocusBlock({ blockId: block.id, pos: pos + text.length });
+  };
+
+  const insertDateTimeIntoNote = (note) => {
+    insertTextAtCursor(note, new Date().toLocaleString());
+  };
+
+  const replaceAllInNote = (note) => {
+    if (!notepadFindText) return;
+    const count = countOccurrencesInBlocks(note.blocks, notepadFindText);
+    if (count === 0) {
+      setNotepadMsg("No matches found.");
+      return;
+    }
+    updateNote(note.id, { blocks: replaceAllInBlocks(note.blocks, notepadFindText, notepadReplaceText) });
+    setNotepadMsg(`Replaced ${count} occurrence${count === 1 ? "" : "s"}.`);
+  };
+
+  const trackNotepadCursor = (noteId, blockId) => (e) => {
+    notepadActiveBlockRef.current = { noteId, blockId, pos: e.target.selectionStart };
+  };
+
+  const openNoteImagePicker = () => {
+    setNotepadImageError("");
+    if (notepadImageInputRef.current) notepadImageInputRef.current.click();
+  };
+
+  const handleNoteImageChange = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    const targetId = activeNoteId;
+    if (!file || !targetId) return;
+    setNotepadImageError("");
+    setNotepadImageSaving(true);
+    try {
+      const dataUrl = await resizeImageFile(file);
+      const note = notepadNotes.find((n) => n.id === targetId);
+      if (note && noteImageCount(note.blocks) < NOTEPAD_MAX_IMAGES_PER_NOTE) {
+        const result = insertImageBlock(note.blocks, notepadActiveBlockRef.current, targetId, dataUrl);
+        updateNote(targetId, { blocks: result.blocks });
+        setNotepadFocusBlock({ blockId: result.focusBlockId, pos: 0 });
+      }
+    } catch (err) {
+      setNotepadImageError("Couldn't attach that image, please try again.");
+    } finally {
+      setNotepadImageSaving(false);
+    }
+  };
+
+  const requestDeleteNoteImage = (noteId, blockId) => setPendingNoteImageDelete({ noteId, blockId });
+  const cancelDeleteNoteImage = () => setPendingNoteImageDelete(null);
+  const confirmDeleteNoteImage = () => {
+    if (!pendingNoteImageDelete) return;
+    const { noteId, blockId } = pendingNoteImageDelete;
+    const note = notepadNotes.find((n) => n.id === noteId);
+    if (note) {
+      updateNote(noteId, { blocks: removeImageBlock(note.blocks, blockId) });
+    }
+    setPendingNoteImageDelete(null);
+    setViewingNoteImage((cur) => (cur && cur.noteId === noteId && cur.blockId === blockId ? null : cur));
+  };
+
+  const downloadNoteImage = (src, note, blockId) => {
+    setNotepadMsg("");
+    try {
+      const imageBlocks = (note.blocks || []).filter((b) => b.type === "image");
+      const idx = imageBlocks.findIndex((b) => b.id === blockId);
+      const filename = `${(note.title || "note").replace(/[^\w\-]+/g, "_") || "note"}-image-${idx === -1 ? 1 : idx + 1}.jpg`;
+      const file = dataUrlToFile(src, filename);
+      downloadImageFile(file, filename, "Downloaded.");
+    } catch (err) {
+      setNotepadMsg("Couldn't prepare that image to download.");
+    }
+  };
+
+  const downloadNoteText = (note) => {
+    setNotepadMsg("");
+    try {
+      const blob = new Blob([blocksToExportText(note.blocks)], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${(note.title || "note").replace(/[^\w\-]+/g, "_") || "note"}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      setNotepadMsg("Downloaded.");
+    } catch (err) {
+      setNotepadMsg("Couldn't create the file, please try again.");
+    }
   };
 
   let body = null;
@@ -3149,7 +3583,8 @@ export default function LedgerApp() {
     const todayLoss = num(cs.todayLoss);
     const bestDay = num(cs.bestDay);
     const rule = num(cs.rule);
-    const maxDrawdownPct = 4; // fixed trailing max drawdown
+    const maxDrawdownPct = num(cs.maxDrawdownPct) || 4;
+    const ddMode = cs.ddMode === "static" ? "static" : "trail";
 
     const totalProfit = hasBoth ? currentBal - startBal : 0;
     const targetAmount = hasTarget ? startBal * (targetPct / 100) : 0;
@@ -3160,14 +3595,19 @@ export default function LedgerApp() {
     const dailyPass = hasStart ? todayLoss <= dailyLossAllowed : undefined;
     const dailyRemaining = Math.max(0, dailyLossAllowed - todayLoss);
 
-    const peakBalance = hasBoth ? Math.max(startBal, currentBal) : startBal;
+    const peakBalance = hasBoth
+      ? ddMode === "static"
+        ? startBal
+        : Math.max(startBal, currentBal)
+      : startBal;
     const maxDrawdownAllowed = peakBalance * (maxDrawdownPct / 100);
     const floorBalance = peakBalance - maxDrawdownAllowed;
     const overallPass = hasBoth ? currentBal >= floorBalance : undefined;
     const overallRemaining = Math.max(0, currentBal - floorBalance);
 
     const consistencyScore = hasBoth && totalProfit > 0 ? (bestDay / totalProfit) * 100 : 0;
-    const consistencyPass = hasBoth && totalProfit > 0 ? consistencyScore <= rule : undefined;
+    const consistencyPass =
+      hasBoth && totalProfit > 0 ? (rule === 0 ? true : consistencyScore <= rule) : undefined;
     const reqTotalForConsistency = rule > 0 ? bestDay / (rule / 100) : 0;
     const moreNeededForConsistency = Math.max(0, reqTotalForConsistency - totalProfit);
 
@@ -3271,6 +3711,8 @@ export default function LedgerApp() {
               detail={
                 consistencyPass === undefined
                   ? "Needs positive total profit"
+                  : rule === 0
+                  ? "No consistency rule set"
                   : consistencyPass
                   ? `${consistencyScore.toFixed(1)}% within the ${rule}% rule`
                   : `Need $${fmt(moreNeededForConsistency)} more total profit`
@@ -3361,8 +3803,41 @@ export default function LedgerApp() {
             <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
               Max Drawdown
             </span>
+            <PillGroup
+              options={[4, 6, 8, 10, 12]}
+              value={cs.maxDrawdownPct}
+              onChange={(v) => setCs({ ...cs, maxDrawdownPct: v })}
+            />
+
+            <div className="flex gap-2 mb-4">
+              {[
+                { id: "trail", label: "Trailing" },
+                { id: "static", label: "Static" },
+              ].map((m) => {
+                const active = ddMode === m.id;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => setCs({ ...cs, ddMode: m.id })}
+                    className={`px-3 py-1.5 rounded-full transition-colors ${TAP}`}
+                    style={{
+                      background: active ? palette.gold : palette.field,
+                      color: active ? palette.letterbox : palette.textMuted,
+                      border: `1px solid ${active ? palette.gold : palette.border}`,
+                      fontFamily: mono,
+                      fontSize: "13px",
+                    }}
+                  >
+                    {m.label}
+                  </button>
+                );
+              })}
+            </div>
             <p className="text-xs mb-4" style={{ color: palette.textMuted }}>
-              Fixed at 4%, trailing off your peak balance (starting or current, whichever is higher).
+              {ddMode === "static"
+                ? `Fixed at ${maxDrawdownPct}% off your starting balance \u2014 the floor never moves even as your balance grows.`
+                : `Fixed at ${maxDrawdownPct}%, trailing off your peak balance (starting or current, whichever is higher).`}
             </p>
 
             <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
@@ -3644,8 +4119,6 @@ export default function LedgerApp() {
 
     const domainPad = Math.max(10, Math.abs(peak - (running - maxDrawdown)) * 0.1) || 10;
 
-    // Revenge trading + discipline streak, both computed from the same
-    // shared helpers used by the weekly recap above.
     const revengeIds = computeRevengeIds(trades);
     const { current: disciplineCurrent, best: disciplineBest, hasData: disciplineHasData } =
       computeDisciplineStreak(trades);
@@ -3934,7 +4407,7 @@ export default function LedgerApp() {
             >
               <p className="text-xs mb-3" style={{ color: palette.text }}>
                 This will replace your current trades, starting balance, news events, custom setups, journal
-                entries, playbook rules, and theme on this device with the backup file (
+                entries, playbook rules, notepad notes, and theme on this device with the backup file (
                 {pendingImport.trades.length} trade{pendingImport.trades.length === 1 ? "" : "s"}). This can't be
                 undone.
               </p>
@@ -4484,10 +4957,6 @@ export default function LedgerApp() {
                             {shots.length > 0 && (
                               <span className="flex items-center gap-0.5">
                                 <Camera size={11} style={{ color: palette.textFaint }} aria-label="Has screenshot" />
-                                {shots.length > 1 && (
-                                  <span style={{ fontSize: "9px", color: palette.textFaint, fontFamily: mono }}>
-                                  </span>
-                                )}
                               </span>
                             )}
                             {savingThisTrade && (
@@ -4652,14 +5121,27 @@ export default function LedgerApp() {
     const noteTags = computeNoteTagAnalysis(trades);
     const consistency = computeConsistencyScore(trades);
 
+    const journalRows = filledJournalRows(journalEntries);
+    const hasJournalData = journalRows.length > 0;
+    const trendBreakdown = journalTrendBreakdown(journalRows);
+    const rrSeries = journalRRSeries(journalRows);
+    const mistakeFreq = journalMistakeFrequency(journalRows);
+    const setupRadarData = journalSetupRadar(journalRows, customSetups);
+    const mistakePatterns = journalMistakePatterns(journalRows);
+    const combinedMistakeRows = [
+      ...mistakePatterns.trendRows.map((r) => ({ ...r, group: "Trend" })),
+      ...mistakePatterns.weekdayRows.map((r) => ({ ...r, group: "Day" })),
+    ];
+    const pairFreq = journalPairFrequency(journalRows);
+    const weekdayFreq = journalWeekdayFrequency(journalRows);
+    const rrDist = journalRRDistribution(journalRows);
+    const monthlyVolume = journalMonthlyVolume(journalRows);
+    const sessionByDay = journalSessionByDay(journalRows);
+    const confidenceByDay = journalConfidenceByDay(journalRows);
+
     const fmtSigned = (n) => `${n >= 0 ? "+" : "-"}$${fmtMoney(n)}`;
     const fmtRatio = (n) => (Number.isFinite(n) ? n.toFixed(2) : "\u221e");
 
-    // Shared bar-chart tooltip/cursor settings used by every BarChart in
-    // this tab, so hovering a bar always shows theme-correct text (dark
-    // text was unreadable against the dark-mode tooltip background before)
-    // and never paints Recharts' default hover-cursor rectangle, which
-    // showed up as a washed-out white/dark "aura" behind the bars.
     const barTooltipProps = {
       cursor: false,
       contentStyle: {
@@ -4672,14 +5154,41 @@ export default function LedgerApp() {
       labelStyle: { color: palette.textMuted },
       itemStyle: { color: palette.text },
     };
-    // Thin bars, shared across every BarChart in this tab.
     const THIN_BAR_SIZE = 14;
+    const PIE_COLORS = [palette.gold, palette.green, palette.red, palette.textMuted, palette.goldBright];
 
-    const INSIGHT_SUB_TABS = [
+    const INSIGHTS_SUB_TABS = [
       { id: "overview", label: "Overview" },
       { id: "behavior", label: "Behavior" },
-      { id: "setup", label: "Setup" },
+      { id: "journal", label: "Journal" },
     ];
+
+    const insightsSubNav = (
+      <div className="flex gap-2 mb-6" style={{ overflowX: "auto" }}>
+        {INSIGHTS_SUB_TABS.map((s) => {
+          const active = insightsSubTab === s.id;
+          return (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => setInsightsSubTab(s.id)}
+              className={`flex-1 px-3 py-2 rounded-full transition-colors ${TAP}`}
+              style={{
+                background: active ? palette.gold : palette.field,
+                color: active ? palette.letterbox : palette.textMuted,
+                border: `1px solid ${active ? palette.gold : palette.border}`,
+                fontFamily: mono,
+                fontSize: "13px",
+                fontWeight: 600,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {s.label}
+            </button>
+          );
+        })}
+      </div>
+    );
 
     const metricCard = (key, label, valueText, tier) => (
       <div
@@ -4721,491 +5230,997 @@ export default function LedgerApp() {
       </div>
     );
 
-    body = (
+    const overviewSection = !hasData ? (
+      <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
+        No trades yet, insights will appear once you start logging on the Curve tab.
+      </p>
+    ) : (
       <>
-        <div className="flex gap-2 mb-6">
-          {INSIGHT_SUB_TABS.map((s) => {
-            const active = insightSubTab === s.id;
+        <span
+          className="block mb-1.5 uppercase"
+          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+        >
+          Performance Heatmap
+        </span>
+        <div
+          className="rounded-2xl p-3 mb-2"
+          style={{
+            background: palette.surface,
+            border: `1px solid ${palette.border}`,
+            boxShadow: palette.shadow,
+            overflowX: "auto",
+          }}
+        >
+          <div className="flex" style={{ gap: "3px" }}>
+            <div className="flex flex-col justify-between" style={{ gap: "3px", paddingRight: "4px" }}>
+              {WEEKDAY_LABELS.map((w, i) => (
+                <div
+                  key={i}
+                  style={{ width: "10px", height: "10px", fontSize: "7px", color: palette.textFaint, lineHeight: "10px" }}
+                >
+                  {i % 2 === 1 ? w : ""}
+                </div>
+              ))}
+            </div>
+            {heatmap.weeks.map((week, wi) => (
+              <div key={wi} className="flex flex-col" style={{ gap: "3px" }}>
+                {week.map((day, di) => {
+                  const intensity = day.pnl !== null && heatmap.maxAbs > 0 ? Math.min(1, Math.abs(day.pnl) / heatmap.maxAbs) : 0;
+                  const alphaHex = Math.round(30 + intensity * 190)
+                    .toString(16)
+                    .padStart(2, "0");
+                  const bg = day.future
+                    ? "transparent"
+                    : day.pnl === null
+                    ? palette.field
+                    : `${day.pnl > 0 ? palette.green : palette.red}${alphaHex}`;
+                  return (
+                    <div
+                      key={di}
+                      onClick={() =>
+                        !day.future &&
+                        day.pnl !== null &&
+                        setExpandedHeatmapDay(expandedHeatmapDay?.key === day.key ? null : day)
+                      }
+                      style={{
+                        width: "10px",
+                        height: "10px",
+                        borderRadius: "2px",
+                        background: bg,
+                        cursor: day.pnl !== null ? "pointer" : "default",
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+        {expandedHeatmapDay ? (
+          <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
+            {formatDayLabel(expandedHeatmapDay.key)}: {expandedHeatmapDay.pnl >= 0 ? "+" : "-"}$
+            {fmtMoney(expandedHeatmapDay.pnl)}
+          </p>
+        ) : (
+          <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
+            Last 6 months – tap a square for that day's total.
+          </p>
+        )}
+
+        {headline && (
+          <div
+            className="rounded-2xl p-4 mb-6"
+            style={{ background: palette.surface, border: `1px solid ${palette.gold}`, boxShadow: palette.shadow }}
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <Lightbulb size={14} style={{ color: palette.gold }} />
+              <span className="uppercase" style={{ color: palette.gold, letterSpacing: "0.08em", fontSize: "10px" }}>
+                Headline Insight
+              </span>
+            </div>
+            <div style={{ color: palette.text, fontSize: "13px" }}>{headline}</div>
+          </div>
+        )}
+
+        <span
+          className="block mb-1.5 uppercase"
+          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+        >
+          Performance Overview
+        </span>
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          {metricCard("pf", "Profit Factor", fmtRatio(perf.profitFactor), perf.tiers.profitFactor)}
+          {metricCard("rf", "Recovery Factor", fmtRatio(perf.recoveryFactor), perf.tiers.recoveryFactor)}
+          {metricCard("wl", "Win/Loss Ratio", fmtRatio(perf.winLossRatio), perf.tiers.winLossRatio)}
+          {metricCard("exp", "Expectancy", fmtSigned(perf.expectancy), perf.tiers.expectancy)}
+          <StatChip label="Largest Win" value={fmtSigned(perf.largestWin)} />
+          <StatChip label="Largest Loss" value={fmtSigned(perf.largestLoss)} />
+        </div>
+
+        <span
+          className="block mb-1.5 uppercase"
+          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+        >
+          This Month vs Last Month
+        </span>
+        <div
+          className="rounded-2xl p-4 mb-6"
+          style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
+        >
+          {[
+            { label: "Win Rate", thisV: monthCmp.thisMonth.winRate, lastV: monthCmp.lastMonth.winRate, fmt: (v) => `${v.toFixed(0)}%` },
+            { label: "Net P&L", thisV: monthCmp.thisMonth.net, lastV: monthCmp.lastMonth.net, fmt: fmtSigned },
+            { label: "Trade Count", thisV: monthCmp.thisMonth.count, lastV: monthCmp.lastMonth.count, fmt: (v) => `${v}` },
+          ].map((row, i) => {
+            const delta = row.thisV - row.lastV;
+            const up = delta > 0;
+            const flat = delta === 0;
             return (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => setInsightSubTab(s.id)}
-                className={`flex-1 px-3 py-2 rounded-full transition-colors ${TAP}`}
-                style={{
-                  background: active ? palette.gold : palette.field,
-                  color: active ? palette.letterbox : palette.textMuted,
-                  border: `1px solid ${active ? palette.gold : palette.border}`,
-                  fontFamily: mono,
-                  fontSize: "13px",
-                  fontWeight: 600,
-                }}
+              <div
+                key={row.label}
+                className="flex items-center justify-between"
+                style={{ marginBottom: i < 2 ? "8px" : 0 }}
               >
-                {s.label}
-              </button>
+                <span style={{ color: palette.textMuted, fontSize: "12px" }}>{row.label}</span>
+                <div className="flex items-center gap-2">
+                  <span style={{ fontFamily: mono, fontSize: "13px", color: palette.text }}>{row.fmt(row.thisV)}</span>
+                  <span style={{ fontSize: "11px", color: flat ? palette.textFaint : up ? palette.green : palette.red }}>
+                    {flat ? "\u2014" : up ? "\u2191" : "\u2193"} vs {row.fmt(row.lastV)}
+                  </span>
+                </div>
+              </div>
             );
           })}
         </div>
 
-        {!hasData ? (
-          <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-            No trades yet, insights will appear once you start logging on the Curve tab.
-          </p>
-        ) : insightSubTab === "overview" ? (
+        <span
+          className="block mb-1.5 uppercase"
+          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+        >
+          Journal Completeness
+        </span>
+        <div
+          className="rounded-2xl p-4 mb-2"
+          style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
+        >
+          <div className="flex items-baseline justify-between mb-2">
+            <span style={{ fontFamily: mono, fontSize: "1.3rem", color: palette.text }}>{completeness}%</span>
+            <span style={{ fontSize: "11px", color: palette.textFaint }}>note + setup + screenshot</span>
+          </div>
+          <div style={{ height: "6px", borderRadius: "999px", background: palette.field, overflow: "hidden" }}>
+            <div
+              style={{
+                height: "100%",
+                width: `${completeness}%`,
+                background: palette.gold,
+                borderRadius: "999px",
+                transition: "width 0.3s ease",
+              }}
+            />
+          </div>
+        </div>
+      </>
+    );
+
+    const behaviorSection = !hasData ? (
+      <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
+        No trades yet, behavior stats will appear once you start logging on the Curve tab.
+      </p>
+    ) : (
+      <>
+        <Readout
+          eyebrow="Discipline Grade"
+          value={grade.grade}
+          unit={grade.grade !== "N/A" ? `${grade.score}/100` : undefined}
+          sub="Combines discipline streak, revenge-trade rate, and journal completeness"
+          tone={grade.grade === "A" || grade.grade === "B" ? "good" : grade.grade === "D" || grade.grade === "F" ? "bad" : undefined}
+        />
+
+        <span
+          className="block mb-1.5 uppercase"
+          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+        >
+          Cost of Revenge Trading
+        </span>
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          <StatChip
+            label={`Revenge (${revengeCost.revengeCount})`}
+            value={revengeCost.revengeCount ? fmtSigned(revengeCost.revengeTotal) : "N/A"}
+          />
+          <StatChip label={`Everything Else (${revengeCost.cleanCount})`} value={fmtSigned(revengeCost.cleanTotal)} />
+        </div>
+
+        <span
+          className="block mb-1.5 uppercase"
+          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+        >
+          Win-Streak Sizing Check
+        </span>
+        <div
+          className="rounded-2xl p-4 mb-6"
+          style={{
+            background: palette.surface,
+            border: `1px solid ${overconfidence?.detected ? palette.red : palette.border}`,
+            boxShadow: palette.shadow,
+          }}
+        >
+          {!overconfidence ? (
+            <p className="text-xs" style={{ color: palette.textFaint }}>
+              Not enough trades yet to check this, needs a few 3+ win streaks in your history.
+            </p>
+          ) : (
+            <>
+              <div style={{ color: palette.text, fontSize: "13px", marginBottom: "4px" }}>
+                {overconfidence.detected
+                  ? `Trade size runs ${overconfidence.pctChange.toFixed(0)}% bigger after 3+ wins in a row.`
+                  : "Trade size stays steady after win streaks \u2014 no overconfidence pattern detected."}
+              </div>
+              {overconfidence.detected && (
+                <div className="text-xs" style={{ color: palette.textFaint }}>
+                  Consider sticking to your normal position size after a win streak.
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {disciplineTrend.length > 1 && (
           <>
             <span
               className="block mb-1.5 uppercase"
               style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
             >
-              Performance Heatmap
-            </span>
-            <div
-              className="rounded-2xl p-3 mb-2"
-              style={{
-                background: palette.surface,
-                border: `1px solid ${palette.border}`,
-                boxShadow: palette.shadow,
-                overflowX: "auto",
-              }}
-            >
-              <div className="flex" style={{ gap: "3px" }}>
-                <div className="flex flex-col justify-between" style={{ gap: "3px", paddingRight: "4px" }}>
-                  {WEEKDAY_LABELS.map((w, i) => (
-                    <div
-                      key={i}
-                      style={{ width: "10px", height: "10px", fontSize: "7px", color: palette.textFaint, lineHeight: "10px" }}
-                    >
-                      {i % 2 === 1 ? w : ""}
-                    </div>
-                  ))}
-                </div>
-                {heatmap.weeks.map((week, wi) => (
-                  <div key={wi} className="flex flex-col" style={{ gap: "3px" }}>
-                    {week.map((day, di) => {
-                      const intensity = day.pnl !== null && heatmap.maxAbs > 0 ? Math.min(1, Math.abs(day.pnl) / heatmap.maxAbs) : 0;
-                      const alphaHex = Math.round(30 + intensity * 190)
-                        .toString(16)
-                        .padStart(2, "0");
-                      const bg = day.future
-                        ? "transparent"
-                        : day.pnl === null
-                        ? palette.field
-                        : `${day.pnl > 0 ? palette.green : palette.red}${alphaHex}`;
-                      return (
-                        <div
-                          key={di}
-                          onClick={() =>
-                            !day.future &&
-                            day.pnl !== null &&
-                            setExpandedHeatmapDay(expandedHeatmapDay?.key === day.key ? null : day)
-                          }
-                          style={{
-                            width: "10px",
-                            height: "10px",
-                            borderRadius: "2px",
-                            background: bg,
-                            cursor: day.pnl !== null ? "pointer" : "default",
-                          }}
-                        />
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
-            </div>
-            {expandedHeatmapDay ? (
-              <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-                {formatDayLabel(expandedHeatmapDay.key)}: {expandedHeatmapDay.pnl >= 0 ? "+" : "-"}$
-                {fmtMoney(expandedHeatmapDay.pnl)}
-              </p>
-            ) : (
-              <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-                Last 6 months — tap a square for that day's total.
-              </p>
-            )}
-
-            {headline && (
-              <div
-                className="rounded-2xl p-4 mb-6"
-                style={{ background: palette.surface, border: `1px solid ${palette.gold}`, boxShadow: palette.shadow }}
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <Lightbulb size={14} style={{ color: palette.gold }} />
-                  <span className="uppercase" style={{ color: palette.gold, letterSpacing: "0.08em", fontSize: "10px" }}>
-                    Headline Insight
-                  </span>
-                </div>
-                <div style={{ color: palette.text, fontSize: "13px" }}>{headline}</div>
-              </div>
-            )}
-
-            <span
-              className="block mb-1.5 uppercase"
-              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
-            >
-              Performance Overview
-            </span>
-            <div className="grid grid-cols-2 gap-3 mb-6">
-              {metricCard("pf", "Profit Factor", fmtRatio(perf.profitFactor), perf.tiers.profitFactor)}
-              {metricCard("rf", "Recovery Factor", fmtRatio(perf.recoveryFactor), perf.tiers.recoveryFactor)}
-              {metricCard("wl", "Win/Loss Ratio", fmtRatio(perf.winLossRatio), perf.tiers.winLossRatio)}
-              {metricCard("exp", "Expectancy", fmtSigned(perf.expectancy), perf.tiers.expectancy)}
-              <StatChip label="Largest Win" value={fmtSigned(perf.largestWin)} />
-              <StatChip label="Largest Loss" value={fmtSigned(perf.largestLoss)} />
-            </div>
-
-            <span
-              className="block mb-1.5 uppercase"
-              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
-            >
-              This Month vs Last Month
+              Discipline Streak Trend
             </span>
             <div
               className="rounded-2xl p-4 mb-6"
               style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
             >
-              {[
-                { label: "Win Rate", thisV: monthCmp.thisMonth.winRate, lastV: monthCmp.lastMonth.winRate, fmt: (v) => `${v.toFixed(0)}%` },
-                { label: "Net P&L", thisV: monthCmp.thisMonth.net, lastV: monthCmp.lastMonth.net, fmt: fmtSigned },
-                { label: "Trade Count", thisV: monthCmp.thisMonth.count, lastV: monthCmp.lastMonth.count, fmt: (v) => `${v}` },
-              ].map((row, i) => {
-                const delta = row.thisV - row.lastV;
-                const up = delta > 0;
-                const flat = delta === 0;
-                return (
-                  <div
-                    key={row.label}
-                    className="flex items-center justify-between"
-                    style={{ marginBottom: i < 2 ? "8px" : 0 }}
-                  >
-                    <span style={{ color: palette.textMuted, fontSize: "12px" }}>{row.label}</span>
-                    <div className="flex items-center gap-2">
-                      <span style={{ fontFamily: mono, fontSize: "13px", color: palette.text }}>{row.fmt(row.thisV)}</span>
-                      <span style={{ fontSize: "11px", color: flat ? palette.textFaint : up ? palette.green : palette.red }}>
-                        {flat ? "\u2014" : up ? "\u2191" : "\u2193"} vs {row.fmt(row.lastV)}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
+              <div style={{ width: "100%", height: 140 }}>
+                <ResponsiveContainer>
+                  <LineChart data={disciplineTrend} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
+                    <CartesianGrid stroke={palette.border} strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="day" hide />
+                    <YAxis
+                      stroke={palette.textFaint}
+                      tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
+                      tickLine={false}
+                      axisLine={{ stroke: palette.border }}
+                      width={28}
+                      allowDecimals={false}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: palette.field,
+                        border: `1px solid ${palette.border}`,
+                        borderRadius: "8px",
+                        fontFamily: mono,
+                        fontSize: "12px",
+                      }}
+                      labelStyle={{ color: palette.textMuted }}
+                      itemStyle={{ color: palette.goldBright }}
+                      formatter={(v) => [`${v} day${v === 1 ? "" : "s"}`, "Streak"]}
+                      labelFormatter={() => ""}
+                    />
+                    <Line type="monotone" dataKey="streak" stroke={palette.gold} strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
             </div>
+          </>
+        )}
 
+        {noteTags.length > 0 && (
+          <>
             <span
               className="block mb-1.5 uppercase"
               style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
             >
-              Journal Completeness
+              Note Tag Win Rate
+            </span>
+            <div
+              className="rounded-2xl p-4 mb-6"
+              style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
+            >
+              <div style={{ width: "100%", height: 140 }}>
+                <ResponsiveContainer>
+                  <BarChart data={noteTags} margin={{ top: 6, right: 8, bottom: 0, left: 0 }} barCategoryGap="40%">
+                    <CartesianGrid stroke={palette.border} strokeDasharray="3 3" vertical={false} />
+                    <XAxis
+                      dataKey="tag"
+                      stroke={palette.textFaint}
+                      tick={{ fill: palette.textFaint, fontSize: 9, fontFamily: mono }}
+                      tickLine={false}
+                      axisLine={{ stroke: palette.border }}
+                    />
+                    <YAxis
+                      stroke={palette.textFaint}
+                      tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
+                      tickLine={false}
+                      axisLine={{ stroke: palette.border }}
+                      width={28}
+                      unit="%"
+                    />
+                    <Tooltip {...barTooltipProps} formatter={(v) => [`${v.toFixed(0)}%`, "Win Rate"]} />
+                    <Bar dataKey="winRate" radius={[4, 4, 0, 0]} barSize={THIN_BAR_SIZE} activeBar={false}>
+                      {noteTags.map((r, i) => (
+                        <Cell key={i} fill={r.winRate >= 50 ? palette.green : palette.red} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </>
+        )}
+
+        <span
+          className="block mb-1.5 uppercase"
+          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+        >
+          Consistency
+        </span>
+        <div className="mb-6">
+          <StatChip label="Day-to-Day Volatility" value={consistency ? consistency.label : "N/A"} />
+        </div>
+
+        {insights.setupRows.length > 0 ? (
+          <>
+            <span
+              className="block mb-1.5 uppercase"
+              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+            >
+              Setup Performance
             </span>
             <div
               className="rounded-2xl p-4 mb-2"
               style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
             >
-              <div className="flex items-baseline justify-between mb-2">
-                <span style={{ fontFamily: mono, fontSize: "1.3rem", color: palette.text }}>{completeness}%</span>
-                <span style={{ fontSize: "11px", color: palette.textFaint }}>note + setup + screenshot</span>
-              </div>
-              <div style={{ height: "6px", borderRadius: "999px", background: palette.field, overflow: "hidden" }}>
-                <div
-                  style={{
-                    height: "100%",
-                    width: `${completeness}%`,
-                    background: palette.gold,
-                    borderRadius: "999px",
-                    transition: "width 0.3s ease",
-                  }}
-                />
+              <div style={{ width: "100%", height: 160 }}>
+                <ResponsiveContainer>
+                  <BarChart data={insights.setupRows} margin={{ top: 6, right: 8, bottom: 0, left: 0 }} barCategoryGap="40%">
+                    <CartesianGrid stroke={palette.border} strokeDasharray="3 3" vertical={false} />
+                    <XAxis
+                      dataKey="label"
+                      stroke={palette.textFaint}
+                      tick={{ fill: palette.textFaint, fontSize: 9, fontFamily: mono }}
+                      tickLine={false}
+                      axisLine={{ stroke: palette.border }}
+                    />
+                    <YAxis
+                      stroke={palette.textFaint}
+                      tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
+                      tickLine={false}
+                      axisLine={{ stroke: palette.border }}
+                      width={28}
+                      unit="%"
+                    />
+                    <Tooltip {...barTooltipProps} formatter={(v) => [`${v.toFixed(0)}%`, "Win Rate"]} />
+                    <Bar dataKey="winRate" radius={[4, 4, 0, 0]} barSize={THIN_BAR_SIZE} activeBar={false}>
+                      {insights.setupRows.map((r, i) => (
+                        <Cell key={i} fill={r.winRate >= 50 ? palette.green : palette.red} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
             </div>
+            {insights.setupRows.map((r) => (
+              <div
+                key={r.id}
+                className="flex items-center justify-between rounded-lg px-3 py-2.5 mb-2"
+                style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
+              >
+                <div>
+                  <div style={{ color: palette.text, fontSize: "14px" }}>{r.label}</div>
+                  <div style={{ color: palette.textMuted, fontSize: "12px" }}>
+                    {r.count} trade{r.count === 1 ? "" : "s"} {r.winRate.toFixed(0)}% win rate
+                  </div>
+                </div>
+                <span style={{ fontFamily: mono, fontSize: "13px", color: r.pnl >= 0 ? palette.green : palette.red }}>
+                  {fmtSigned(r.pnl)}
+                </span>
+              </div>
+            ))}
           </>
-        ) : insightSubTab === "behavior" ? (
+        ) : (
+          <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
+            Tag trades with a Setup on the Curve tab to see setup performance here.
+          </p>
+        )}
+
+        {insights.moodRows.length > 0 && (
           <>
-            <Readout
-              eyebrow="Discipline Grade"
-              value={grade.grade}
-              unit={grade.grade !== "N/A" ? `${grade.score}/100` : undefined}
-              sub="Combines discipline streak, revenge-trade rate, and journal completeness"
-              tone={grade.grade === "A" || grade.grade === "B" ? "good" : grade.grade === "D" || grade.grade === "F" ? "bad" : undefined}
-            />
-
             <span
-              className="block mb-1.5 uppercase"
+              className="block mt-4 mb-1.5 uppercase"
               style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
             >
-              Cost of Revenge Trading
+              Mood Impact
             </span>
-            <div className="grid grid-cols-2 gap-3 mb-6">
-              <StatChip
-                label={`Revenge (${revengeCost.revengeCount})`}
-                value={revengeCost.revengeCount ? fmtSigned(revengeCost.revengeTotal) : "N/A"}
-              />
-              <StatChip label={`Everything Else (${revengeCost.cleanCount})`} value={fmtSigned(revengeCost.cleanTotal)} />
+            <div
+              className="rounded-2xl p-4 mb-2"
+              style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
+            >
+              <div style={{ width: "100%", height: 160 }}>
+                <ResponsiveContainer>
+                  <BarChart data={insights.moodRows} margin={{ top: 6, right: 8, bottom: 0, left: 0 }} barCategoryGap="40%">
+                    <CartesianGrid stroke={palette.border} strokeDasharray="3 3" vertical={false} />
+                    <XAxis
+                      dataKey="label"
+                      stroke={palette.textFaint}
+                      tick={{ fill: palette.textFaint, fontSize: 9, fontFamily: mono }}
+                      tickLine={false}
+                      axisLine={{ stroke: palette.border }}
+                    />
+                    <YAxis
+                      stroke={palette.textFaint}
+                      tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
+                      tickLine={false}
+                      axisLine={{ stroke: palette.border }}
+                      width={28}
+                      unit="%"
+                    />
+                    <Tooltip {...barTooltipProps} formatter={(v) => [`${v.toFixed(0)}%`, "Win Rate"]} />
+                    <Bar dataKey="winRate" radius={[4, 4, 0, 0]} barSize={THIN_BAR_SIZE} activeBar={false}>
+                      {insights.moodRows.map((r, i) => (
+                        <Cell key={i} fill={r.winRate >= 50 ? palette.green : palette.red} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
+            {insights.moodRows.map((r) => (
+              <div
+                key={r.id}
+                className="flex items-center justify-between rounded-lg px-3 py-2.5 mb-2"
+                style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
+              >
+                <div>
+                  <div style={{ color: palette.text, fontSize: "14px" }}>
+                    {r.emoji} {r.label}
+                  </div>
+                  <div style={{ color: palette.textMuted, fontSize: "12px" }}>
+                    {r.count} trade{r.count === 1 ? "" : "s"} {r.winRate.toFixed(0)}% win rate
+                  </div>
+                </div>
+                <span style={{ fontFamily: mono, fontSize: "13px", color: r.pnl >= 0 ? palette.green : palette.red }}>
+                  {fmtSigned(r.pnl)}
+                </span>
+              </div>
+            ))}
+          </>
+        )}
+      </>
+    );
 
+    const journalSection = !journalLoaded ? (
+      <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
+        Loading journal data\u2026
+      </p>
+    ) : !hasJournalData ? (
+      <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
+        No journal entries yet. Fill in some rows on the Journal tab (pair, trend, R:R, setup, mistakes) to see
+        analytics here.
+      </p>
+    ) : (
+      <>
+        <Readout
+          eyebrow="Journal Entries"
+          value={String(journalRows.length)}
+          unit={journalRows.length === 1 ? "row" : "rows"}
+          sub="Sourced from the Journal tab's spreadsheet, not your logged trades"
+        />
+
+        <span
+          className="block mb-1.5 uppercase"
+          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+        >
+          Journaling Activity (6 mo)
+        </span>
+        <div
+          className="rounded-2xl p-4 mb-6"
+          style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
+        >
+          <div style={{ width: "100%", height: 140 }}>
+            <ResponsiveContainer>
+              <BarChart data={monthlyVolume} margin={{ top: 6, right: 8, bottom: 0, left: 0 }} barCategoryGap="35%">
+                <CartesianGrid stroke={palette.border} strokeDasharray="3 3" vertical={false} />
+                <XAxis
+                  dataKey="label"
+                  stroke={palette.textFaint}
+                  tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
+                  tickLine={false}
+                  axisLine={{ stroke: palette.border }}
+                />
+                <YAxis
+                  stroke={palette.textFaint}
+                  tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
+                  tickLine={false}
+                  axisLine={{ stroke: palette.border }}
+                  width={28}
+                  allowDecimals={false}
+                />
+                <Tooltip {...barTooltipProps} formatter={(v) => [`${v}`, "Entries"]} />
+                <Bar dataKey="count" radius={[4, 4, 0, 0]} barSize={THIN_BAR_SIZE} fill={palette.gold} activeBar={false} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {weekdayFreq.some((d) => d.count > 0) && (
+          <>
             <span
               className="block mb-1.5 uppercase"
               style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
             >
-              Win-Streak Sizing Check
+              Entries by Weekday
             </span>
             <div
               className="rounded-2xl p-4 mb-6"
-              style={{
-                background: palette.surface,
-                border: `1px solid ${overconfidence?.detected ? palette.red : palette.border}`,
-                boxShadow: palette.shadow,
-              }}
+              style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
             >
-              {!overconfidence ? (
-                <p className="text-xs" style={{ color: palette.textFaint }}>
-                  Not enough trades yet to check this, needs a few 3+ win streaks in your history.
-                </p>
-              ) : (
-                <>
-                  <div style={{ color: palette.text, fontSize: "13px", marginBottom: "4px" }}>
-                    {overconfidence.detected
-                      ? `Trade size runs ${overconfidence.pctChange.toFixed(0)}% bigger after 3+ wins in a row.`
-                      : "Trade size stays steady after win streaks \u2014 no overconfidence pattern detected."}
-                  </div>
-                  {overconfidence.detected && (
-                    <div className="text-xs" style={{ color: palette.textFaint }}>
-                      Consider sticking to your normal position size after a win streak.
-                    </div>
-                  )}
-                </>
-              )}
+              <div style={{ width: "100%", height: 140 }}>
+                <ResponsiveContainer>
+                  <BarChart data={weekdayFreq} margin={{ top: 6, right: 8, bottom: 0, left: 0 }} barCategoryGap="30%">
+                    <CartesianGrid stroke={palette.border} strokeDasharray="3 3" vertical={false} />
+                    <XAxis
+                      dataKey="label"
+                      stroke={palette.textFaint}
+                      tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
+                      tickLine={false}
+                      axisLine={{ stroke: palette.border }}
+                    />
+                    <YAxis
+                      stroke={palette.textFaint}
+                      tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
+                      tickLine={false}
+                      axisLine={{ stroke: palette.border }}
+                      width={28}
+                      allowDecimals={false}
+                    />
+                    <Tooltip {...barTooltipProps} formatter={(v) => [`${v}`, "Entries"]} />
+                    <Bar dataKey="count" radius={[4, 4, 0, 0]} barSize={THIN_BAR_SIZE} fill={palette.goldBright} activeBar={false} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
+          </>
+        )}
 
-            {disciplineTrend.length > 1 && (
-              <>
-                <span
-                  className="block mb-1.5 uppercase"
-                  style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
-                >
-                  Discipline Streak Trend
-                </span>
-                <div
-                  className="rounded-2xl p-4 mb-6"
-                  style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
-                >
-                  <div style={{ width: "100%", height: 140 }}>
-                    <ResponsiveContainer>
-                      <LineChart data={disciplineTrend} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
-                        <CartesianGrid stroke={palette.border} strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="day" hide />
-                        <YAxis
-                          stroke={palette.textFaint}
-                          tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
-                          tickLine={false}
-                          axisLine={{ stroke: palette.border }}
-                          width={28}
-                          allowDecimals={false}
-                        />
-                        <Tooltip
-                          contentStyle={{
-                            background: palette.field,
-                            border: `1px solid ${palette.border}`,
-                            borderRadius: "8px",
-                            fontFamily: mono,
-                            fontSize: "12px",
-                          }}
-                          labelStyle={{ color: palette.textMuted }}
-                          itemStyle={{ color: palette.goldBright }}
-                          formatter={(v) => [`${v} day${v === 1 ? "" : "s"}`, "Streak"]}
-                          labelFormatter={() => ""}
-                        />
-                        <Line type="monotone" dataKey="streak" stroke={palette.gold} strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-              </>
-            )}
+        {sessionByDay.length > 0 && (
+          <>
+            <span
+              className="block mb-1.5 uppercase"
+              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+            >
+              Session Activity by Day
+            </span>
+            <div
+              className="rounded-2xl p-4 mb-6"
+              style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
+            >
+              <div style={{ width: "100%", height: 200 }}>
+                <ResponsiveContainer>
+                  <AreaChart data={sessionByDay} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
+                    <CartesianGrid stroke={palette.border} strokeDasharray="3 3" vertical={false} />
+                    <XAxis
+                      dataKey="label"
+                      stroke={palette.textFaint}
+                      tick={{ fill: palette.textFaint, fontSize: 9, fontFamily: mono }}
+                      tickLine={false}
+                      axisLine={{ stroke: palette.border }}
+                      minTickGap={20}
+                    />
+                    <YAxis
+                      stroke={palette.textFaint}
+                      tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
+                      tickLine={false}
+                      axisLine={{ stroke: palette.border }}
+                      width={28}
+                      allowDecimals={false}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: palette.field,
+                        border: `1px solid ${palette.border}`,
+                        borderRadius: "8px",
+                        fontFamily: mono,
+                        fontSize: "12px",
+                      }}
+                      labelStyle={{ color: palette.textMuted }}
+                    />
+                    <Legend
+                      wrapperStyle={{ fontFamily: mono, fontSize: "10px", color: palette.textMuted }}
+                      formatter={(v) => <span style={{ color: palette.textMuted }}>{v}</span>}
+                    />
+                    {MARKET_SESSIONS.map((s) => (
+                      <Area
+                        key={s.id}
+                        type="monotone"
+                        dataKey={s.label}
+                        stackId="1"
+                        stroke={s.color}
+                        fill={s.color}
+                        fillOpacity={0.55}
+                      />
+                    ))}
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+            <p className="text-xs mb-6" style={{ color: palette.textFaint }}>
+              Which session you journaled trades in, day by day \u2014 helps spot whether certain sessions get
+              logged more (or less) consistently.
+            </p>
+          </>
+        )}
 
-            {noteTags.length > 0 && (
-              <>
-                <span
-                  className="block mb-1.5 uppercase"
-                  style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
-                >
-                  Note Tag Win Rate
-                </span>
-                <div
-                  className="rounded-2xl p-4 mb-6"
-                  style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
-                >
-                  <div style={{ width: "100%", height: 140 }}>
-                    <ResponsiveContainer>
-                      <BarChart data={noteTags} margin={{ top: 6, right: 8, bottom: 0, left: 0 }} barCategoryGap="40%">
-                        <CartesianGrid stroke={palette.border} strokeDasharray="3 3" vertical={false} />
-                        <XAxis
-                          dataKey="tag"
-                          stroke={palette.textFaint}
-                          tick={{ fill: palette.textFaint, fontSize: 9, fontFamily: mono }}
-                          tickLine={false}
-                          axisLine={{ stroke: palette.border }}
-                        />
-                        <YAxis
-                          stroke={palette.textFaint}
-                          tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
-                          tickLine={false}
-                          axisLine={{ stroke: palette.border }}
-                          width={28}
-                          unit="%"
-                        />
-                        <Tooltip {...barTooltipProps} formatter={(v) => [`${v.toFixed(0)}%`, "Win Rate"]} />
-                        <Bar dataKey="winRate" radius={[4, 4, 0, 0]} barSize={THIN_BAR_SIZE} activeBar={false}>
-                          {noteTags.map((r, i) => (
-                            <Cell key={i} fill={r.winRate >= 50 ? palette.green : palette.red} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
+        {confidenceByDay.length > 1 && (
+          <>
+            <span
+              className="block mb-1.5 uppercase"
+              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+            >
+              Confidence by Day
+            </span>
+            <div
+              className="rounded-2xl p-4 mb-6"
+              style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
+            >
+              <div style={{ width: "100%", height: 160 }}>
+                <ResponsiveContainer>
+                  <LineChart data={confidenceByDay} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
+                    <CartesianGrid stroke={palette.border} strokeDasharray="3 3" vertical={false} />
+                    <XAxis
+                      dataKey="label"
+                      stroke={palette.textFaint}
+                      tick={{ fill: palette.textFaint, fontSize: 9, fontFamily: mono }}
+                      tickLine={false}
+                      axisLine={{ stroke: palette.border }}
+                      minTickGap={20}
+                    />
+                    <YAxis
+                      stroke={palette.textFaint}
+                      tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
+                      tickLine={false}
+                      axisLine={{ stroke: palette.border }}
+                      width={54}
+                      domain={[1, 3]}
+                      ticks={[1, 2, 3]}
+                      tickFormatter={(v) => (v === 1 ? "Low" : v === 2 ? "Medium" : "High")}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: palette.field,
+                        border: `1px solid ${palette.border}`,
+                        borderRadius: "8px",
+                        fontFamily: mono,
+                        fontSize: "12px",
+                      }}
+                      labelStyle={{ color: palette.textMuted }}
+                      itemStyle={{ color: palette.goldBright }}
+                      formatter={(v) => [
+                        v === 1 ? "Low" : v === 2 ? "Medium" : v === 3 ? "High" : v.toFixed(2),
+                        "Confidence",
+                      ]}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="avgConfidence"
+                      stroke={palette.gold}
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                      activeDot={{ r: 5 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+            <p className="text-xs mb-6" style={{ color: palette.textFaint }}>
+              Average confidence level logged per day (Low / Medium / High) \u2014 a dip here alongside a losing
+              streak can be worth a closer look.
+            </p>
+          </>
+        )}
+
+        {trendBreakdown.length > 0 && (
+          <>
+            <span
+              className="block mb-1.5 uppercase"
+              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+            >
+              Trend Breakdown
+            </span>
+            <div
+              className="rounded-2xl p-4 mb-6"
+              style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
+            >
+              <div style={{ width: "100%", height: 200 }}>
+                <ResponsiveContainer>
+                  <PieChart>
+                    <Pie
+                      data={trendBreakdown}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={40}
+                      outerRadius={72}
+                      paddingAngle={2}
+                    >
+                      {trendBreakdown.map((d, i) => (
+                        <Cell key={d.id} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{
+                        background: palette.field,
+                        border: `1px solid ${palette.border}`,
+                        borderRadius: "8px",
+                        fontFamily: mono,
+                        fontSize: "12px",
+                      }}
+                      labelStyle={{ color: palette.textMuted }}
+                      itemStyle={{ color: palette.text }}
+                    />
+                    <Legend
+                      wrapperStyle={{ fontFamily: mono, fontSize: "11px", color: palette.textMuted }}
+                      formatter={(v) => <span style={{ color: palette.textMuted }}>{v}</span>}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </>
+        )}
+
+        {rrSeries.length > 1 && (
+          <>
+            <span
+              className="block mb-1.5 uppercase"
+              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+            >
+              Planned R:R Over Time
+            </span>
+            <div
+              className="rounded-2xl p-4 mb-6"
+              style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
+            >
+              <div style={{ width: "100%", height: 160 }}>
+                <ResponsiveContainer>
+                  <AreaChart data={rrSeries} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
+                    <defs>
+                      <linearGradient id="rrFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={palette.gold} stopOpacity={0.35} />
+                        <stop offset="100%" stopColor={palette.gold} stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid stroke={palette.border} strokeDasharray="3 3" vertical={false} />
+                    <XAxis
+                      dataKey="label"
+                      stroke={palette.textFaint}
+                      tick={{ fill: palette.textFaint, fontSize: 9, fontFamily: mono }}
+                      tickLine={false}
+                      axisLine={{ stroke: palette.border }}
+                      minTickGap={24}
+                    />
+                    <YAxis
+                      stroke={palette.textFaint}
+                      tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
+                      tickLine={false}
+                      axisLine={{ stroke: palette.border }}
+                      width={28}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: palette.field,
+                        border: `1px solid ${palette.border}`,
+                        borderRadius: "8px",
+                        fontFamily: mono,
+                        fontSize: "12px",
+                      }}
+                      labelStyle={{ color: palette.textMuted }}
+                      itemStyle={{ color: palette.goldBright }}
+                      formatter={(v) => [`${v}`, "R:R"]}
+                    />
+                    <Area type="monotone" dataKey="rr" stroke={palette.gold} strokeWidth={2} fill="url(#rrFill)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </>
+        )}
+
+        {rrDist.length > 0 && (
+          <>
+            <span
+              className="block mb-1.5 uppercase"
+              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+            >
+              R:R Distribution
+            </span>
+            <div
+              className="rounded-2xl p-4 mb-6"
+              style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
+            >
+              <div style={{ width: "100%", height: 140 }}>
+                <ResponsiveContainer>
+                  <BarChart data={rrDist} margin={{ top: 6, right: 8, bottom: 0, left: 0 }} barCategoryGap="30%">
+                    <CartesianGrid stroke={palette.border} strokeDasharray="3 3" vertical={false} />
+                    <XAxis
+                      dataKey="label"
+                      stroke={palette.textFaint}
+                      tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
+                      tickLine={false}
+                      axisLine={{ stroke: palette.border }}
+                    />
+                    <YAxis
+                      stroke={palette.textFaint}
+                      tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
+                      tickLine={false}
+                      axisLine={{ stroke: palette.border }}
+                      width={28}
+                      allowDecimals={false}
+                    />
+                    <Tooltip {...barTooltipProps} formatter={(v) => [`${v}`, "Rows"]} />
+                    <Bar dataKey="count" radius={[4, 4, 0, 0]} barSize={THIN_BAR_SIZE} fill={palette.green} activeBar={false} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </>
+        )}
+
+        {combinedMistakeRows.length > 0 && (
+          <>
+            {(mistakePatterns.worstTrend?.mistakeRate >= 30 || mistakePatterns.worstWeekday?.mistakeRate >= 30) && (
+              <div
+                className="rounded-2xl p-4 mb-6"
+                style={{ background: palette.surface, border: `1px solid ${palette.red}`, boxShadow: palette.shadow }}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <Lightbulb size={14} style={{ color: palette.red }} />
+                  <span className="uppercase" style={{ color: palette.red, letterSpacing: "0.08em", fontSize: "10px" }}>
+                    Pattern Detected
+                  </span>
                 </div>
-              </>
+                <div style={{ color: palette.text, fontSize: "13px" }}>
+                  {mistakePatterns.worstTrend && mistakePatterns.worstTrend.mistakeRate >= 30 && (
+                    <>You log a mistake {mistakePatterns.worstTrend.mistakeRate}% of the time in {mistakePatterns.worstTrend.label.toLowerCase()} conditions. </>
+                  )}
+                  {mistakePatterns.worstWeekday && mistakePatterns.worstWeekday.mistakeRate >= 30 && (
+                    <>{mistakePatterns.worstWeekday.label}s are your worst day, {mistakePatterns.worstWeekday.mistakeRate}% of entries flagged.</>
+                  )}
+                </div>
+              </div>
             )}
 
             <span
               className="block mb-1.5 uppercase"
               style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
             >
-              Consistency
+              Mistake Rate by Trend & Weekday
             </span>
-            <StatChip label="Day-to-Day Volatility" value={consistency ? consistency.label : "N/A"} />
-          </>
-        ) : (
-          <>
-            {insights.setupRows.length > 0 ? (
-              <>
-                <span
-                  className="block mb-1.5 uppercase"
-                  style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
-                >
-                  Setup Performance
-                </span>
-                <div
-                  className="rounded-2xl p-4 mb-2"
-                  style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
-                >
-                  <div style={{ width: "100%", height: 160 }}>
-                    <ResponsiveContainer>
-                      <BarChart data={insights.setupRows} margin={{ top: 6, right: 8, bottom: 0, left: 0 }} barCategoryGap="40%">
-                        <CartesianGrid stroke={palette.border} strokeDasharray="3 3" vertical={false} />
-                        <XAxis
-                          dataKey="label"
-                          stroke={palette.textFaint}
-                          tick={{ fill: palette.textFaint, fontSize: 9, fontFamily: mono }}
-                          tickLine={false}
-                          axisLine={{ stroke: palette.border }}
-                        />
-                        <YAxis
-                          stroke={palette.textFaint}
-                          tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
-                          tickLine={false}
-                          axisLine={{ stroke: palette.border }}
-                          width={28}
-                          unit="%"
-                        />
-                        <Tooltip {...barTooltipProps} formatter={(v) => [`${v.toFixed(0)}%`, "Win Rate"]} />
-                        <Bar dataKey="winRate" radius={[4, 4, 0, 0]} barSize={THIN_BAR_SIZE} activeBar={false}>
-                          {insights.setupRows.map((r, i) => (
-                            <Cell key={i} fill={r.winRate >= 50 ? palette.green : palette.red} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-                {insights.setupRows.map((r) => (
-                  <div
-                    key={r.id}
-                    className="flex items-center justify-between rounded-lg px-3 py-2.5 mb-2"
-                    style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
-                  >
-                    <div>
-                      <div style={{ color: palette.text, fontSize: "14px" }}>{r.label}</div>
-                      <div style={{ color: palette.textMuted, fontSize: "12px" }}>
-                        {r.count} trade{r.count === 1 ? "" : "s"} {r.winRate.toFixed(0)}% win rate
-                      </div>
-                    </div>
-                    <span style={{ fontFamily: mono, fontSize: "13px", color: r.pnl >= 0 ? palette.green : palette.red }}>
-                      {fmtSigned(r.pnl)}
-                    </span>
-                  </div>
-                ))}
-              </>
-            ) : (
-              <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-                Tag trades with a Setup on the Curve tab to see setup performance here.
-              </p>
-            )}
+            <div
+              className="rounded-2xl p-4 mb-6"
+              style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
+            >
+              <div style={{ width: "100%", height: 180 }}>
+                <ResponsiveContainer>
+                  <BarChart data={combinedMistakeRows} margin={{ top: 6, right: 8, bottom: 8, left: 0 }} barCategoryGap="25%">
+                    <CartesianGrid stroke={palette.border} strokeDasharray="3 3" vertical={false} />
+                    <XAxis
+                      dataKey="label"
+                      stroke={palette.textFaint}
+                      tick={{ fill: palette.textFaint, fontSize: 9, fontFamily: mono }}
+                      tickLine={false}
+                      axisLine={{ stroke: palette.border }}
+                      interval={0}
+                      angle={-35}
+                      textAnchor="end"
+                      height={46}
+                    />
+                    <YAxis
+                      stroke={palette.textFaint}
+                      tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
+                      tickLine={false}
+                      axisLine={{ stroke: palette.border }}
+                      width={30}
+                      unit="%"
+                    />
+                    <Tooltip
+                      {...barTooltipProps}
+                      formatter={(v, name, props) => [`${v}%`, props.payload.group]}
+                    />
+                    <Bar dataKey="mistakeRate" radius={[4, 4, 0, 0]} barSize={THIN_BAR_SIZE} activeBar={false}>
+                      {combinedMistakeRows.map((r, i) => (
+                        <Cell key={i} fill={r.mistakeRate >= 50 ? palette.red : r.mistakeRate >= 25 ? palette.gold : palette.green} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
 
-            {insights.moodRows.length > 0 && (
-              <>
-                <span
-                  className="block mt-4 mb-1.5 uppercase"
-                  style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
-                >
-                  Mood Impact
-                </span>
-                <div
-                  className="rounded-2xl p-4 mb-2"
-                  style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
-                >
-                  <div style={{ width: "100%", height: 160 }}>
-                    <ResponsiveContainer>
-                      <BarChart data={insights.moodRows} margin={{ top: 6, right: 8, bottom: 0, left: 0 }} barCategoryGap="40%">
-                        <CartesianGrid stroke={palette.border} strokeDasharray="3 3" vertical={false} />
-                        <XAxis
-                          dataKey="label"
-                          stroke={palette.textFaint}
-                          tick={{ fill: palette.textFaint, fontSize: 9, fontFamily: mono }}
-                          tickLine={false}
-                          axisLine={{ stroke: palette.border }}
-                        />
-                        <YAxis
-                          stroke={palette.textFaint}
-                          tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
-                          tickLine={false}
-                          axisLine={{ stroke: palette.border }}
-                          width={28}
-                          unit="%"
-                        />
-                        <Tooltip {...barTooltipProps} formatter={(v) => [`${v.toFixed(0)}%`, "Win Rate"]} />
-                        <Bar dataKey="winRate" radius={[4, 4, 0, 0]} barSize={THIN_BAR_SIZE} activeBar={false}>
-                          {insights.moodRows.map((r, i) => (
-                            <Cell key={i} fill={r.winRate >= 50 ? palette.green : palette.red} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-                {insights.moodRows.map((r) => (
-                  <div
-                    key={r.id}
-                    className="flex items-center justify-between rounded-lg px-3 py-2.5 mb-2"
-                    style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
-                  >
-                    <div>
-                      <div style={{ color: palette.text, fontSize: "14px" }}>
-                        {r.emoji} {r.label}
-                      </div>
-                      <div style={{ color: palette.textMuted, fontSize: "12px" }}>
-                        {r.count} trade{r.count === 1 ? "" : "s"} {r.winRate.toFixed(0)}% win rate
-                      </div>
-                    </div>
-                    <span style={{ fontFamily: mono, fontSize: "13px", color: r.pnl >= 0 ? palette.green : palette.red }}>
-                      {fmtSigned(r.pnl)}
-                    </span>
-                  </div>
-                ))}
-              </>
-            )}
+            <p className="text-xs mb-6" style={{ color: palette.textFaint }}>
+              Percent of entries with a mistake logged, grouped by market condition and by day of week – this is
+              where to look for a habit to fix, not just a setup to favor.
+            </p>
           </>
         )}
 
-        {hasData && (
+        {mistakeFreq.length > 0 && (
+          <>
+            <span
+              className="block mb-1.5 uppercase"
+              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+            >
+              Recurring Mistakes
+            </span>
+            <div
+              className="rounded-2xl p-4 mb-6"
+              style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
+            >
+              <div style={{ width: "100%", height: Math.max(140, mistakeFreq.length * 34) }}>
+                <ResponsiveContainer>
+                  <BarChart
+                    data={mistakeFreq}
+                    layout="vertical"
+                    margin={{ top: 4, right: 16, bottom: 4, left: 4 }}
+                    barCategoryGap="30%"
+                  >
+                    <CartesianGrid stroke={palette.border} strokeDasharray="3 3" horizontal={false} />
+                    <XAxis type="number" hide allowDecimals={false} />
+                    <YAxis
+                      type="category"
+                      dataKey="label"
+                      width={120}
+                      stroke={palette.textFaint}
+                      tick={{ fill: palette.textMuted, fontSize: 10, fontFamily: mono }}
+                      tickLine={false}
+                      axisLine={{ stroke: palette.border }}
+                    />
+                    <Tooltip {...barTooltipProps} formatter={(v) => [`${v}`, "Count"]} />
+                    <Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={16} fill={palette.red} activeBar={false} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </>
+        )}
+
+        {pairFreq.length > 0 && (
+          <>
+            <span
+              className="block mb-1.5 uppercase"
+              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+            >
+              Most Journaled Pairs
+            </span>
+            <div className="grid grid-cols-2 gap-3 mb-2">
+              {pairFreq.map((p) => (
+                <StatChip key={p.pair} label={p.pair} value={`${p.count} entr${p.count === 1 ? "y" : "ies"}`} />
+              ))}
+            </div>
+          </>
+        )}
+
+        <p className="text-xs mt-4" style={{ color: palette.textFaint }}>
+          These charts read straight from your Journal tab rows, add or fill in more rows there to sharpen the
+          picture here.
+        </p>
+      </>
+    );
+
+    body = (
+      <>
+        {insightsSubNav}
+        {insightsSubTab === "overview" && overviewSection}
+        {insightsSubTab === "behavior" && behaviorSection}
+        {insightsSubTab === "journal" && journalSection}
+
+        {insightsSubTab !== "journal" && hasData && (
           <>
             <button
               type="button"
@@ -5268,10 +6283,6 @@ export default function LedgerApp() {
     );
 
     if (journalSubTab === "playbook") {
-      // ---- Playbook sub-tab: user-defined rules plus a once-a-day
-      // check-in card, a per-rule follow-rate list, and a compact recent
-      // check-in history \u2014 laid out as a clean, dashboard-style set of
-      // cards consistent with the rest of the app.
       const stats = computePlaybookStats(playbookRules, playbookCheckins);
       const todayKey = dayKeyFromDate(new Date());
       const alreadyCheckedInToday = playbookCheckins.some((c) => c.date === todayKey);
@@ -5545,7 +6556,7 @@ export default function LedgerApp() {
             </p>
           )}
           <p className="text-xs mt-1 mb-6" style={{ color: palette.textFaint }}>
-            Track up to {MAX_PLAYBOOK_RULES} rules at once. Removing a rule only affects future check-ins –
+            Track up to {MAX_PLAYBOOK_RULES} rules at once. Removing a rule only affects future check-ins,
             past history keeps whatever was recorded for it.
           </p>
 
@@ -5608,9 +6619,6 @@ export default function LedgerApp() {
         </>
       );
     } else if (journalMonth === null) {
-      // ---- Year grid: one box per month, filled months get a subtle
-      // gold-tinted background so the eye can scan "which months have
-      // entries" at a glance.
       const countsByMonth = {};
       journalEntries.forEach((r) => {
         if (!r.date) return;
@@ -5703,19 +6711,13 @@ export default function LedgerApp() {
         </>
       );
     } else {
-      // ---- Month table view.
-      const year = journalYear;
+            const year = journalYear;
       const monthIdx = journalMonth;
       const monthPrefix = `${year}-${pad2(monthIdx + 1)}`;
       const daysInMonth = new Date(year, monthIdx + 1, 0).getDate();
       const monthMinDate = `${monthPrefix}-01`;
       const monthMaxDate = `${monthPrefix}-${pad2(daysInMonth)}`;
 
-      // Only rows the user has actually touched for this month are shown.
-      // Rather than synthesizing a placeholder for every day in the month,
-      // just one blank starter row is offered when there's nothing yet \u2014
-      // the date cell itself is a manual date picker (constrained to this
-      // month via min/max below), and "Add Row" adds more as needed.
       const realRows = journalEntries
         .filter((r) => r.date && r.date.startsWith(monthPrefix))
         .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
@@ -5730,25 +6732,22 @@ export default function LedgerApp() {
                 trend: "",
                 rr: "",
                 setup: "",
+                outcome: "",
+                session: "",
+                mood: "",
+                confidence: "",
                 mistake: "",
                 note: "",
                 _placeholder: true,
               },
             ];
 
-      const totalTableWidth = JOURNAL_COLUMNS.reduce((s, c) => s + journalColWidths[c.id], 0) + 36;
+      const totalTableWidth =
+        JOURNAL_TOGGLE_COL_WIDTH + JOURNAL_COLUMNS.reduce((s, c) => s + journalColWidths[c.id], 0) + 36;
 
-      const cellInputStyle = { color: palette.text, fontFamily: mono, fontSize: "12px", border: "none" };
+      const cellInputStyle = { color: palette.text, fontFamily: mono, fontSize: "13px", border: "none" };
+      const detailFieldStyle = { color: palette.text, fontFamily: mono, fontSize: "13px", border: "none" };
 
-      // Mistake and Note are free-text fields that regularly run longer
-      // than their column width. Instead of overflowing sideways inside a
-      // single-line input (forcing a horizontal scroll to read the rest),
-      // these two render as auto-growing textareas: text wraps onto new
-      // lines within the column's width, and the textarea (and its row)
-      // grow taller to fit. autoResizeTextarea recalculates the height
-      // on every keystroke, and once on mount via the ref callback so
-      // existing long entries start at their full wrapped height instead
-      // of a clipped single line.
       const autoResizeTextarea = (el) => {
         if (!el) return;
         el.style.height = "auto";
@@ -5824,34 +6823,30 @@ export default function LedgerApp() {
             </select>
           );
         }
-        if (col.id === "mistake" || col.id === "note") {
+        if (col.id === "outcome") {
+          const val = row.outcome || "";
           return (
-            <textarea
-              ref={(el) => {
-                registerRef(el);
-                autoResizeTextarea(el);
-              }}
+            <select
+              ref={registerRef}
               onKeyDown={onCellKeyDown}
-              value={row[col.id] || ""}
-              onChange={(e) => {
-                updateJournalField(row.id, col.id, e.target.value, dateForRow);
-                autoResizeTextarea(e.target);
-              }}
-              placeholder={col.id === "note" ? "Add note" : "Add mistake"}
-              rows={1}
-              className="w-full bg-transparent outline-none block"
+              value={val}
+              onChange={(e) => updateJournalField(row.id, "outcome", e.target.value, dateForRow)}
+              className="w-full bg-transparent outline-none appearance-none"
               style={{
                 ...cellInputStyle,
-                resize: "none",
-                overflow: "hidden",
-                whiteSpace: "pre-wrap",
-                overflowWrap: "break-word",
-                wordBreak: "break-word",
-                lineHeight: "1.4",
-                padding: 0,
-                display: "block",
+                color:
+                  val === "win" ? palette.green : val === "loss" ? palette.red : val ? palette.text : palette.textFaint,
               }}
-            />
+            >
+              <option value="" style={{ background: palette.field, color: palette.textFaint }}>
+                Add outcome
+              </option>
+              {OUTCOME_OPTIONS.map((o) => (
+                <option key={o.id} value={o.id} style={{ background: palette.field, color: palette.text }}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
           );
         }
         const placeholderText = col.id === "pair" ? "Add pair" : "Add R:R";
@@ -5865,6 +6860,113 @@ export default function LedgerApp() {
             placeholder={placeholderText}
             className="w-full bg-transparent outline-none"
             style={cellInputStyle}
+          />
+        );
+      };
+
+      const renderDetailField = (row, field) => {
+        const dateForRow = row.date;
+        if (field.id === "session") {
+          const val = row.session || "";
+          return (
+            <select
+              value={val}
+              onChange={(e) => updateJournalField(row.id, "session", e.target.value, dateForRow)}
+              className="w-full bg-transparent outline-none appearance-none"
+              style={{
+                ...detailFieldStyle,
+                color: val ? palette.text : palette.textFaint,
+                border: `1px solid ${palette.border}`,
+                borderRadius: "6px",
+                padding: "8px 10px",
+              }}
+            >
+              <option value="" style={{ background: palette.field, color: palette.textFaint }}>
+                Add session
+              </option>
+              {MARKET_SESSIONS.map((s) => (
+                <option key={s.id} value={s.id} style={{ background: palette.field, color: palette.text }}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          );
+        }
+        if (field.id === "mood") {
+          const val = row.mood || "";
+          return (
+            <select
+              value={val}
+              onChange={(e) => updateJournalField(row.id, "mood", e.target.value, dateForRow)}
+              className="w-full bg-transparent outline-none appearance-none"
+              style={{
+                ...detailFieldStyle,
+                color: val ? palette.text : palette.textFaint,
+                border: `1px solid ${palette.border}`,
+                borderRadius: "6px",
+                padding: "8px 10px",
+              }}
+            >
+              <option value="" style={{ background: palette.field, color: palette.textFaint }}>
+                Add mood
+              </option>
+              {EMOTIONS.map((e) => (
+                <option key={e.id} value={e.id} style={{ background: palette.field, color: palette.text }}>
+                  {e.emoji} {e.label}
+                </option>
+              ))}
+            </select>
+          );
+        }
+        if (field.id === "confidence") {
+          const val = row.confidence || "";
+          return (
+            <select
+              value={val}
+              onChange={(e) => updateJournalField(row.id, "confidence", e.target.value, dateForRow)}
+              className="w-full bg-transparent outline-none appearance-none"
+              style={{
+                ...detailFieldStyle,
+                color: val ? palette.text : palette.textFaint,
+                border: `1px solid ${palette.border}`,
+                borderRadius: "6px",
+                padding: "8px 10px",
+              }}
+            >
+              <option value="" style={{ background: palette.field, color: palette.textFaint }}>
+                Add confidence
+              </option>
+              {CONFIDENCE_OPTIONS.map((c) => (
+                <option key={c.id} value={c.id} style={{ background: palette.field, color: palette.text }}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          );
+        }
+        return (
+          <textarea
+            value={row[field.id] || ""}
+            onChange={(e) => {
+              updateJournalField(row.id, field.id, e.target.value, dateForRow);
+              autoResizeTextarea(e.target);
+            }}
+            ref={autoResizeTextarea}
+            placeholder={field.id === "note" ? "Add note" : "Add mistake"}
+            rows={1}
+            className="w-full bg-transparent outline-none block"
+            style={{
+              ...detailFieldStyle,
+              border: `1px solid ${palette.border}`,
+              borderRadius: "6px",
+              padding: "8px 10px",
+              resize: "none",
+              overflow: "hidden",
+              whiteSpace: "pre-wrap",
+              overflowWrap: "break-word",
+              wordBreak: "break-word",
+              lineHeight: "1.5",
+            }}
           />
         );
       };
@@ -5901,13 +7003,24 @@ export default function LedgerApp() {
                 border: `1px solid ${palette.border}`,
                 boxShadow: palette.shadow,
                 overflow: "hidden",
-                maxHeight: "420px",
+                maxHeight: "480px",
               }}
             >
-              <div style={{ overflowY: "auto", overflowX: "auto", maxHeight: "420px", WebkitOverflowScrolling: "touch" }}>
+              <div style={{ overflowY: "auto", overflowX: "auto", maxHeight: "480px", WebkitOverflowScrolling: "touch" }}>
                 <table style={{ borderCollapse: "collapse", width: `${totalTableWidth}px` }}>
                   <thead>
                     <tr>
+                      <th
+                        style={{
+                          position: "sticky",
+                          top: 0,
+                          zIndex: 1,
+                          width: `${JOURNAL_TOGGLE_COL_WIDTH}px`,
+                          minWidth: `${JOURNAL_TOGGLE_COL_WIDTH}px`,
+                          background: palette.field,
+                          borderBottom: `1px solid ${palette.gold}55`,
+                        }}
+                      />
                       {JOURNAL_COLUMNS.map((col) => (
                         <th
                           key={col.id}
@@ -5922,7 +7035,7 @@ export default function LedgerApp() {
                             borderBottom: `1px solid ${palette.gold}55`,
                             borderRight: `1px solid ${palette.border}`,
                             textAlign: "left",
-                            padding: "10px 8px",
+                            padding: "14px 10px",
                           }}
                         >
                           <div className="flex items-center justify-between" style={{ position: "relative" }}>
@@ -5963,49 +7076,121 @@ export default function LedgerApp() {
                     </tr>
                   </thead>
                   <tbody>
-                    {allRows.map((row, rowIdx) => (
-                      <tr key={row.id} style={{ background: rowIdx % 2 === 1 ? `${palette.field}55` : "transparent" }}>
-                        {JOURNAL_COLUMNS.map((col, colIdx) => (
-                          <td
-                            key={col.id}
-                            style={{
-                              width: `${journalColWidths[col.id]}px`,
-                              minWidth: `${journalColWidths[col.id]}px`,
-                              maxWidth: `${journalColWidths[col.id]}px`,
-                              borderBottom: `1px solid ${palette.border}`,
-                              borderRight: `1px solid ${palette.border}`,
-                              padding: "8px 8px",
-                              verticalAlign: "top",
-                            }}
-                          >
-                            {renderCell(row, col, rowIdx, colIdx, allRows)}
-                          </td>
-                        ))}
-                        <td
-                          style={{
-                            width: "36px",
-                            minWidth: "36px",
-                            borderBottom: `1px solid ${palette.border}`,
-                            textAlign: "center",
-                            verticalAlign: "top",
-                            paddingTop: "8px",
-                          }}
-                        >
-                          {!row._placeholder && (
-                            <button
-                              type="button"
-                              onClick={() => deleteJournalRow(row.id)}
-                              className={TAP}
-                              style={{ color: palette.textFaint }}
-                              aria-label="Delete row"
+                    {allRows.map((row, rowIdx) => {
+                      const isExpanded = !!journalExpandedRows[row.id];
+                      return (
+                        <Fragment key={row.id}>
+                          <tr style={{ background: rowIdx % 2 === 1 ? `${palette.field}55` : "transparent" }}>
+                            <td
+                              style={{
+                                width: `${JOURNAL_TOGGLE_COL_WIDTH}px`,
+                                minWidth: `${JOURNAL_TOGGLE_COL_WIDTH}px`,
+                                borderBottom: `1px solid ${palette.border}`,
+                                textAlign: "center",
+                                verticalAlign: "top",
+                                paddingTop: "10px",
+                              }}
                             >
-                              <Trash2 size={13} />
-                            </button>
+                              {!row._placeholder && (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleJournalRowExpanded(row.id)}
+                                  className={TAP}
+                                  style={{
+                                    color: palette.textMuted,
+                                    width: "28px",
+                                    height: "28px",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                  }}
+                                  aria-label={isExpanded ? "Collapse row" : "Expand row"}
+                                >
+                                  {isExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                                </button>
+                              )}
+                            </td>
+                            {JOURNAL_COLUMNS.map((col, colIdx) => (
+                              <td
+                                key={col.id}
+                                style={{
+                                  width: `${journalColWidths[col.id]}px`,
+                                  minWidth: `${journalColWidths[col.id]}px`,
+                                  maxWidth: `${journalColWidths[col.id]}px`,
+                                  borderBottom: `1px solid ${palette.border}`,
+                                  borderRight: `1px solid ${palette.border}`,
+                                  padding: "10px 10px",
+                                  verticalAlign: "top",
+                                }}
+                              >
+                                {renderCell(row, col, rowIdx, colIdx, allRows)}
+                              </td>
+                            ))}
+                            <td
+                              style={{
+                                width: "36px",
+                                minWidth: "36px",
+                                borderBottom: `1px solid ${palette.border}`,
+                                textAlign: "center",
+                                verticalAlign: "top",
+                                paddingTop: "10px",
+                              }}
+                            >
+                              {!row._placeholder && (
+                                <button
+                                  type="button"
+                                  onClick={() => deleteJournalRow(row.id)}
+                                  className={TAP}
+                                  style={{ color: palette.textFaint }}
+                                  aria-label="Delete row"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                          {isExpanded && !row._placeholder && (
+                            <tr>
+                              <td
+                                colSpan={JOURNAL_COLUMNS.length + 2}
+                                style={{
+                                  borderBottom: `1px solid ${palette.border}`,
+                                  background: `${palette.field}55`,
+                                  padding: "14px 16px",
+                                }}
+                              >
+                                <div className="grid grid-cols-2 gap-3 mb-3">
+                                  {JOURNAL_DETAIL_FIELDS.filter(
+                                    (f) => f.id === "session" || f.id === "mood" || f.id === "confidence"
+                                  ).map((field) => (
+                                    <div key={field.id}>
+                                      <span
+                                        className="block mb-1 uppercase"
+                                        style={{ color: palette.textFaint, letterSpacing: "0.06em", fontSize: "10px" }}
+                                      >
+                                        {field.label}
+                                      </span>
+                                      {renderDetailField(row, field)}
+                                    </div>
+                                  ))}
+                                </div>
+                                {JOURNAL_DETAIL_FIELDS.filter((f) => f.id === "mistake" || f.id === "note").map((field) => (
+                                  <div key={field.id} className="mb-3">
+                                    <span
+                                      className="block mb-1 uppercase"
+                                      style={{ color: palette.textFaint, letterSpacing: "0.06em", fontSize: "10px" }}
+                                    >
+                                      {field.label}
+                                    </span>
+                                    {renderDetailField(row, field)}
+                                  </div>
+                                ))}
+                              </td>
+                            </tr>
                           )}
-                        </td>
-
-                      </tr>
-                    ))}
+                        </Fragment>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -6057,528 +7242,1082 @@ export default function LedgerApp() {
             </p>
           )}
 
+          <button
+            type="button"
+            onClick={triggerJournalImport}
+            className={`w-full flex items-center justify-center gap-2 rounded-lg py-3 mb-2 ${TAP}`}
+            style={{
+              background: palette.field,
+              border: `1px solid ${palette.border}`,
+              color: palette.text,
+              fontFamily: mono,
+              fontSize: "13px",
+              fontWeight: 600,
+              transition: `${THEME_TRANSITION}, transform 0.15s ease`,
+            }}
+          >
+            <Upload size={16} />
+            Import Journal (CSV)
+          </button>
+          <input
+            ref={journalImportInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            onChange={importJournalCSV}
+            style={{ display: "none" }}
+          />
+          {journalImportMsg && (
+            <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
+              {journalImportMsg}
+            </p>
+          )}
+
           <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-            Tap any cell to edit, Trend and Setup are quick-select. The date only lets you pick a day within{" "}
-            {MONTH_NAMES[monthIdx]} {year}. Mistake and Note wrap onto new lines and grow the row to fit instead
-            of scrolling sideways. Drag a column header's right edge to resize it. Rows sort by date
-            automatically, so add extra rows for multiple trades on the same day. Hold Alt and press an arrow
-            key to jump between cells, including into and out of the date field without leaving the
-            keyboard. Use Download Journal to save this month's entries as a CSV file.
+            Tap any cell to edit, Trend, Setup, and Outcome are quick-select. Tap the arrow on the left of a row
+            to open Session, Mood, Confidence, Mistake, and Note without widening the table. The date only lets
+            you pick a day within {MONTH_NAMES[monthIdx]} {year}. Drag a column header's right edge to resize it.
+            Rows sort by date automatically, so add extra rows for multiple trades on the same day. Hold Alt and
+            press an arrow key to jump between the visible cells. Use Download Journal to save this month's
+            entries, including the expanded fields, as a CSV file.
           </p>
         </>
       );
     }
   }
 
-  if (activeTab === "news") {
-    const now = new Date();
-    const withOcc = newsEvents.map((ev) => ({ ev, occMs: nextOccurrenceMs(ev, now) }));
+  if (activeTab === "notepad") {
+    const activeNote = activeNoteId ? notepadNotes.find((n) => n.id === activeNoteId) : null;
 
-    const future = withOcc.filter((x) => x.occMs >= now.getTime()).sort((a, b) => a.occMs - b.occMs);
-    const next = future[0];
-    const nextMs = next ? next.occMs - now.getTime() : Infinity;
-    const nextLabel = next ? `${next.ev.date} ${next.ev.time}` : "";
+    if (!notepadLoaded) {
+      body = (
+        <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
+          Loading notes\u2026
+        </p>
+      );
+    } else if (!activeNote) {
+      const query = notepadSearch.trim().toLowerCase();
+      const visibleNotes = [...notepadNotes]
+        .sort((a, b) => b.updatedAt - a.updatedAt)
+        .filter((n) => {
+          if (!query) return true;
+          return (
+            (n.title || "").toLowerCase().includes(query) ||
+            blocksText(n.blocks).toLowerCase().includes(query)
+          );
+        });
 
-    const impactColor = (level) =>
-      level === "high" ? palette.red : level === "medium" ? palette.goldBright : palette.textMuted;
+      body = (
+        <>
+          <Readout
+            eyebrow="Notepad"
+            value={String(notepadNotes.length)}
+            unit={notepadNotes.length === 1 ? "note" : "notes"}
+            sub="Notes with word wrap, find & replace, and photos inline in the text."
+          />
 
-    const dayGroups = {};
-    withOcc.forEach(({ ev, occMs }) => {
-      const d = new Date(occMs);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      if (!dayGroups[key]) dayGroups[key] = [];
-      dayGroups[key].push({ ev, occMs });
-    });
-    const dayKeys = Object.keys(dayGroups).sort();
+          <button
+            type="button"
+            onClick={createNote}
+            className={`w-full flex items-center justify-center gap-2 rounded-lg py-3 mb-4 ${TAP}`}
+            style={{
+              background: palette.gold,
+              color: palette.letterbox,
+              fontFamily: mono,
+              fontSize: "14px",
+              fontWeight: 600,
+              transition: `${THEME_TRANSITION}, transform 0.15s ease`,
+            }}
+          >
+            <Plus size={16} />
+            New Note
+          </button>
 
-    body = (
-      <>
-        <Readout
-          eyebrow="Next USD Event"
-          value={next ? formatCountdown(nextMs) : "N/A"}
-          sub={next ? `${next.ev.name}  ${nextLabel}` : "No upcoming events, add one below"}
-          tone={next && next.ev.impact === "high" && nextMs < 60 * 60 * 1000 ? "bad" : undefined}
-        />
+          {notepadNotes.length > 0 && (
+            <div
+              className="flex items-center rounded-lg px-3 mb-4"
+              style={{ background: palette.field, border: `1px solid ${palette.border}`, transition: THEME_TRANSITION }}
+            >
+              <Search size={14} style={{ color: palette.textFaint, flexShrink: 0 }} />
+              <input
+                type="text"
+                value={notepadSearch}
+                onChange={(e) => setNotepadSearch(e.target.value)}
+                placeholder="Search notes"
+                className="w-full bg-transparent py-3 px-2 outline-none"
+                style={{ color: palette.text, fontSize: "14px" }}
+              />
+              {notepadSearch && (
+                <button
+                  type="button"
+                  onClick={() => setNotepadSearch("")}
+                  className={TAP}
+                  style={{ color: palette.textFaint }}
+                  aria-label="Clear search"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          )}
 
-        {newsLoadError && (
-          <p className="text-xs mb-4" style={{ color: palette.red }}>
-            {newsLoadError}
-          </p>
-        )}
-
-        {notifPermission === "denied" && (
-          <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-            Notifications are blocked in your browser settings alarms will still ring with sound while this
-            app is open, just without a system notification.
-          </p>
-        )}
-
-        {!newsLoaded ? (
-          <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-            Loading saved events\u2026
-          </p>
-        ) : newsEvents.length === 0 ? (
-          <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-            No events added yet. Add one below to start tracking it.
-          </p>
-        ) : (
-          dayKeys.map((key) => {
-            const dayDate = new Date(`${key}T00:00:00`);
-            const dayLabel = dayDate.toLocaleDateString("default", {
-              weekday: "long",
-              month: "short",
-              day: "numeric",
-            });
-            const isPast = dayGroups[key].every((x) => x.occMs < now.getTime());
-            return (
-              <div key={key} className="mb-4">
+          {notepadNotes.length === 0 ? (
+            <div
+              className="rounded-2xl p-6 text-center"
+              style={{ background: palette.surface, border: `1px dashed ${palette.border}` }}
+            >
+              <FileText size={22} style={{ color: palette.textFaint, margin: "0 auto 8px" }} />
+              <p className="text-xs" style={{ color: palette.textFaint }}>
+                No notes yet. Tap New Note to start writing.
+              </p>
+            </div>
+          ) : visibleNotes.length === 0 ? (
+            <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
+              No notes match "{notepadSearch}".
+            </p>
+          ) : (
+            visibleNotes.map((n) => {
+              const imgCount = noteImageCount(n.blocks);
+              const preview = notePreview(n.blocks);
+              return (
                 <div
-                  className="uppercase mb-1.5"
+                  key={n.id}
+                  onClick={() => openNote(n.id)}
+                  className={`rounded-lg px-3 py-3 mb-2 ${TAP}`}
                   style={{
-                    color: isPast ? palette.textFaint : palette.textMuted,
-                    letterSpacing: "0.08em",
-                    fontSize: "11px",
+                    background: palette.surface,
+                    border: `1px solid ${palette.border}`,
+                    boxShadow: palette.shadow,
+                    cursor: "pointer",
+                    transition: THEME_TRANSITION,
                   }}
                 >
-                  {dayLabel}
-                </div>
-                {dayGroups[key]
-                  .sort((a, b) => a.ev.time.localeCompare(b.ev.time))
-                  .map(({ ev, occMs }) => {
-                    const passed = occMs < now.getTime();
-                    return (
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0" style={{ marginRight: "8px" }}>
                       <div
-                        key={ev.id}
-                        className="flex items-center justify-between rounded-lg px-3 py-2.5 mb-2"
-                        style={{
-                          background: palette.surface,
-                          border: `1px solid ${palette.border}`,
-                          boxShadow: palette.shadow,
-                          opacity: passed ? 0.55 : 1,
-                          transition: THEME_TRANSITION,
-                        }}
+                        className="flex items-center gap-1.5"
+                        style={{ color: palette.text, fontSize: "14px", fontWeight: 600, marginBottom: "3px" }}
                       >
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <span style={{ color: palette.text, fontSize: "14px" }}>{ev.name}</span>
-                            <span
-                              style={{
-                                fontSize: "9px",
-                                fontFamily: mono,
-                                color: impactColor(ev.impact),
-                                border: `1px solid ${impactColor(ev.impact)}`,
-                                borderRadius: "999px",
-                                padding: "1px 6px",
-                                textTransform: "uppercase",
-                              }}
-                            >
-                              {ev.impact}
-                            </span>
-                            {ev.alarm && <Bell size={11} style={{ color: palette.gold }} aria-label="Alarm set" />}
-                          </div>
-                          <div style={{ color: palette.textMuted, fontSize: "12px" }}>
-                            {ev.time}
-                            {passed ? ", released" : ""}
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => deleteNewsEvent(ev.id)}
-                          className={TAP}
-                          style={{ color: palette.textFaint }}
-                          aria-label="Delete event"
-                        >
-                          <Trash2 size={15} />
-                        </button>
+                        <span className="truncate">{n.title || "Untitled Note"}</span>
+                        {imgCount > 0 && (
+                          <span className="flex items-center gap-0.5 flex-shrink-0" style={{ color: palette.textFaint }}>
+                            <ImageIcon size={11} />
+                            <span style={{ fontSize: "10px", fontFamily: mono }}>{imgCount}</span>
+                          </span>
+                        )}
                       </div>
-                    );
-                  })}
-              </div>
-            );
-          })
-        )}
+                      {preview && (
+                        <div style={{ color: palette.textMuted, fontSize: "12px", marginBottom: "3px" }}>
+                          {preview}
+                        </div>
+                      )}
+                      <div style={{ color: palette.textFaint, fontSize: "10px", fontFamily: mono }}>
+                        {new Date(n.updatedAt).toLocaleString()}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        requestDeleteNote(n.id);
+                      }}
+                      className={`flex-shrink-0 ${TAP}`}
+                      style={{ color: palette.textFaint }}
+                      aria-label={`Delete ${n.title || "Untitled Note"}`}
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </>
+      );
+    } else {
+      const wordWrap = activeNote.wordWrap !== false;
+      const fontSize = activeNote.fontSize || DEFAULT_NOTEPAD_FONT_SIZE;
+      const blocks = activeNote.blocks;
+      const imgCount = noteImageCount(blocks);
+      const findMatches = notepadFindText ? countOccurrencesInBlocks(blocks, notepadFindText) : 0;
+      const bodyText = blocksText(blocks);
 
-        <p className="text-xs mt-1 mb-6" style={{ color: palette.textFaint }}>
-          Nothing here is added automatically add the events you want to track below. With Alarm on, this
-          app rings (sound + notification) {ALARM_LEAD_MINUTES} minutes before, but only while it's open in your
-          browser it can't set a true system alarm, so keep the tab open (or this installed as a
-          home-screen app) close to the event.
-        </p>
+      const autoGrowBlock = (el) => {
+        if (!el) return;
+        el.style.height = "auto";
+        el.style.height = `${el.scrollHeight}px`;
+      };
 
-        <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
-          Add Event
-        </span>
-        <label className="block mb-4">
-          <span
-            className="block mb-1.5 uppercase"
-            style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
-          >
-            Event Name
-          </span>
-          <div
-            className="flex items-center rounded-lg px-3"
-            style={{ background: palette.field, border: `1px solid ${palette.border}` }}
-          >
-            <input
-              type="text"
-              value={newEventName}
-              onChange={(e) => setNewEventName(e.target.value)}
-              placeholder="Non-Farm Payrolls"
-              className="w-full bg-transparent py-3 outline-none"
-              style={{ color: palette.text, fontFamily: mono, fontSize: "16px" }}
-            />
-          </div>
-        </label>
+      const updateBlockText = (blockId, text) => {
+        updateNote(activeNote.id, {
+          blocks: blocks.map((b) => (b.id === blockId ? { ...b, text } : b)),
+        });
+      };
 
-        <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
-          Impact
-        </span>
-        <div className="flex gap-2 mb-4">
-          {["high", "medium", "low"].map((lvl) => (
+      body = (
+        <>
+          <div className="flex items-center justify-between mb-3">
             <button
-              key={lvl}
               type="button"
-              onClick={() => setNewEventImpact(lvl)}
-              className={`px-3 py-1.5 rounded-full transition-colors ${TAP}`}
-              style={{
-                background: newEventImpact === lvl ? impactColor(lvl) : palette.field,
-                color: newEventImpact === lvl ? palette.letterbox : palette.textMuted,
-                border: `1px solid ${newEventImpact === lvl ? impactColor(lvl) : palette.border}`,
-                fontFamily: mono,
-                fontSize: "13px",
-                textTransform: "capitalize",
-              }}
+              onClick={closeNote}
+              className={`flex items-center gap-1 ${TAP}`}
+              style={{ color: palette.textMuted, fontSize: "12px", fontFamily: mono }}
             >
-              {lvl}
+              <ChevronLeft size={16} />
+              Notes
             </button>
-          ))}
-        </div>
-
-        <label className="block mb-4">
-          <span
-            className="block mb-1.5 uppercase"
-            style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
-          >
-            Date
-          </span>
-          <div
-            className="rounded-lg px-3"
-            style={{ background: palette.field, border: `1px solid ${palette.border}` }}
-          >
-            <input
-              type="date"
-              value={newEventDate}
-              onChange={(e) => setNewEventDate(e.target.value)}
-              className="w-full bg-transparent py-3 outline-none"
-              style={{ color: palette.text, fontFamily: mono, fontSize: "15px" }}
-            />
+            <button
+              type="button"
+              onClick={() => requestDeleteNote(activeNote.id)}
+              className={TAP}
+              style={{ color: palette.textFaint }}
+              aria-label="Delete note"
+            >
+              <Trash2 size={15} />
+            </button>
           </div>
-        </label>
 
-        <label className="block mb-4">
-          <span
-            className="block mb-1.5 uppercase"
-            style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
-          >
-            Time (local)
-          </span>
-          <div
-            className="rounded-lg px-3"
-            style={{ background: palette.field, border: `1px solid ${palette.border}` }}
-          >
-            <input
-              type="time"
-              value={newEventTime}
-              onChange={(e) => setNewEventTime(e.target.value)}
-              className="w-full bg-transparent py-3 outline-none"
-              style={{ color: palette.text, fontFamily: mono, fontSize: "15px" }}
-            />
+          <input
+            type="text"
+            value={activeNote.title}
+            onChange={(e) => updateNote(activeNote.id, { title: e.target.value })}
+            placeholder="Untitled Note"
+            className="w-full bg-transparent outline-none mb-3"
+            style={{ color: palette.text, fontFamily: mono, fontSize: "1.15rem", fontWeight: 700 }}
+          />
+
+          <div className="flex items-center gap-1.5 flex-wrap mb-2">
+            <button
+              type="button"
+              onClick={() => toggleNoteWordWrap(activeNote)}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg ${TAP}`}
+              style={{
+                background: wordWrap ? palette.gold : palette.field,
+                color: wordWrap ? palette.letterbox : palette.textMuted,
+                border: `1px solid ${wordWrap ? palette.gold : palette.border}`,
+                fontSize: "11px",
+                fontFamily: mono,
+              }}
+              title="Toggle word wrap"
+            >
+              <WrapText size={13} />
+              Wrap
+            </button>
+
+            <div
+              className="flex items-center rounded-lg overflow-hidden"
+              style={{ border: `1px solid ${palette.border}` }}
+            >
+              <button
+                type="button"
+                onClick={() => adjustNoteFontSize(activeNote, -1)}
+                className={TAP}
+                style={{ color: palette.textMuted, padding: "6px 8px", background: palette.field }}
+                aria-label="Decrease font size"
+              >
+                <Minus size={12} />
+              </button>
+              <span
+                style={{
+                  color: palette.text,
+                  fontFamily: mono,
+                  fontSize: "11px",
+                  padding: "0 8px",
+                  minWidth: "26px",
+                  textAlign: "center",
+                }}
+              >
+                {fontSize}
+              </span>
+              <button
+                type="button"
+                onClick={() => adjustNoteFontSize(activeNote, 1)}
+                className={TAP}
+                style={{ color: palette.textMuted, padding: "6px 8px", background: palette.field }}
+                aria-label="Increase font size"
+              >
+                <Plus size={12} />
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => insertDateTimeIntoNote(activeNote)}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg ${TAP}`}
+              style={{ background: palette.field, color: palette.textMuted, border: `1px solid ${palette.border}`, fontSize: "11px", fontFamily: mono }}
+              title="Insert date & time"
+            >
+              <CalendarClock size={13} />
+              Date/Time
+            </button>
+
+            <button
+              type="button"
+              onClick={openNoteImagePicker}
+              disabled={notepadImageSaving || imgCount >= NOTEPAD_MAX_IMAGES_PER_NOTE}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg ${TAP}`}
+              style={{
+                background: palette.field,
+                color: palette.textMuted,
+                border: `1px solid ${palette.border}`,
+                fontSize: "11px",
+                fontFamily: mono,
+                opacity: notepadImageSaving || imgCount >= NOTEPAD_MAX_IMAGES_PER_NOTE ? 0.5 : 1,
+              }}
+              title="Insert image at cursor"
+            >
+              <Camera size={13} />
+              {notepadImageSaving ? "Saving\u2026" : `Image (${imgCount}/${NOTEPAD_MAX_IMAGES_PER_NOTE})`}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setNotepadFindOpen((v) => !v);
+                setNotepadMsg("");
+              }}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg ${TAP}`}
+              style={{
+                background: notepadFindOpen ? palette.gold : palette.field,
+                color: notepadFindOpen ? palette.letterbox : palette.textMuted,
+                border: `1px solid ${notepadFindOpen ? palette.gold : palette.border}`,
+                fontSize: "11px",
+                fontFamily: mono,
+              }}
+              title="Find & replace"
+            >
+              <Search size={13} />
+              Find
+            </button>
           </div>
-        </label>
 
-        <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
-          Alarm
-        </span>
-        <button
-          type="button"
-          onClick={toggleNewEventAlarm}
-          className={`flex items-center gap-2 px-3 py-2.5 rounded-lg mb-1 transition-colors ${TAP}`}
-          style={{
-            background: newEventAlarm ? palette.gold : palette.field,
-            color: newEventAlarm ? palette.letterbox : palette.textMuted,
-            border: `1px solid ${newEventAlarm ? palette.gold : palette.border}`,
-            fontFamily: mono,
-            fontSize: "13px",
-          }}
-        >
-          <Bell size={15} />
-          {newEventAlarm ? `Ring ${ALARM_LEAD_MINUTES} min before` : "No alarm for this event"}
-        </button>
-        <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-          {notifPermission === "granted"
-            ? "Notifications are allowed \u2014 you'll get a system notification plus sound when it rings."
-            : notifPermission === "unsupported"
-            ? "This browser doesn't support notifications \u2014 the alarm will still ring with sound and an in-app popup."
-            : "Turning this on will ask for notification permission."}
-        </p>
+          {notepadFindOpen && (
+            <div
+              className="rounded-lg p-3 mb-3"
+              style={{ background: palette.field, border: `1px solid ${palette.border}` }}
+            >
+              <input
+                type="text"
+                value={notepadFindText}
+                onChange={(e) => {
+                  setNotepadFindText(e.target.value);
+                  setNotepadMsg("");
+                }}
+                placeholder="Find"
+                className="w-full rounded-lg px-3 py-2 mb-2 bg-transparent outline-none"
+                style={{ background: palette.surface, border: `1px solid ${palette.border}`, color: palette.text, fontSize: "13px" }}
+              />
+              <input
+                type="text"
+                value={notepadReplaceText}
+                onChange={(e) => setNotepadReplaceText(e.target.value)}
+                placeholder="Replace with"
+                className="w-full rounded-lg px-3 py-2 mb-2 bg-transparent outline-none"
+                style={{ background: palette.surface, border: `1px solid ${palette.border}`, color: palette.text, fontSize: "13px" }}
+              />
+              <div className="flex items-center justify-between">
+                <span style={{ color: palette.textFaint, fontSize: "11px", fontFamily: mono }}>
+                  {notepadFindText ? `${findMatches} match${findMatches === 1 ? "" : "es"}` : "\u00a0"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => replaceAllInNote(activeNote)}
+                  disabled={!notepadFindText}
+                  className={`rounded-lg px-3 py-1.5 ${TAP}`}
+                  style={{
+                    background: notepadFindText ? palette.gold : palette.border,
+                    color: notepadFindText ? palette.letterbox : palette.textFaint,
+                    fontFamily: mono,
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    opacity: notepadFindText ? 1 : 0.6,
+                  }}
+                >
+                  Replace All
+                </button>
+              </div>
+            </div>
+          )}
 
-        <button
-          type="button"
-          onClick={addNewsEvent}
-          className={`w-full rounded-lg py-3 mb-4 ${TAP}`}
-          style={{ background: palette.gold, color: palette.letterbox, fontFamily: mono, fontSize: "14px", transition: `${THEME_TRANSITION}, transform 0.15s ease` }}
-        >
-          + Add Event
-        </button>
-      </>
-    );
+          <div
+            className="w-full rounded-lg px-3 py-3 mb-1"
+            style={{
+              background: palette.surface,
+              border: `1px solid ${palette.border}`,
+              minHeight: "260px",
+              transition: THEME_TRANSITION,
+            }}
+          >
+            {blocks.map((block, i) => {
+              if (block.type === "image") {
+                return (
+                  <div key={block.id} className="relative my-2" style={{ display: "inline-block", maxWidth: "100%" }}>
+                    <img
+                      src={block.src}
+                      alt="Note attachment"
+                      onClick={() => setViewingNoteImage({ src: block.src, noteId: activeNote.id, blockId: block.id })}
+                      className={TAP}
+                      style={{
+                        display: "block",
+                        maxWidth: "100%",
+                        maxHeight: "280px",
+                        borderRadius: "10px",
+                        border: `1px solid ${palette.border}`,
+                        cursor: "pointer",
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => requestDeleteNoteImage(activeNote.id, block.id)}
+                      className={`absolute flex items-center justify-center rounded-full ${TAP}`}
+                      style={{
+                        top: "-6px",
+                        right: "-6px",
+                        width: "20px",
+                        height: "20px",
+                        background: palette.red,
+                        color: "#FFFFFF",
+                      }}
+                      aria-label="Remove image"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                );
+              }
+              return (
+                <textarea
+                  key={block.id}
+                  ref={getNotepadBlockRef(activeNote.id, block.id)}
+                  value={block.text}
+                  onChange={(e) => {
+                    updateBlockText(block.id, e.target.value);
+                    trackNotepadCursor(activeNote.id, block.id)(e);
+                    autoGrowBlock(e.target);
+                  }}
+                  onFocus={trackNotepadCursor(activeNote.id, block.id)}
+                  onClick={trackNotepadCursor(activeNote.id, block.id)}
+                  onKeyUp={trackNotepadCursor(activeNote.id, block.id)}
+                  placeholder={blocks.length === 1 ? "Start typing..." : ""}
+                  rows={1}
+                  className="w-full bg-transparent outline-none block"
+                  style={{
+                    border: "none",
+                    color: palette.text,
+                    fontFamily: mono,
+                    fontSize: `${fontSize}px`,
+                    lineHeight: 1.6,
+                    resize: "none",
+                    overflow: "hidden",
+                    whiteSpace: wordWrap ? "pre-wrap" : "pre",
+                    overflowWrap: wordWrap ? "break-word" : "normal",
+                    overflowX: wordWrap ? "hidden" : "auto",
+                    padding: 0,
+                    minHeight: blocks.length === 1 ? "236px" : "24px",
+                  }}
+                />
+              );
+            })}
+          </div>
+
+          <div className="flex items-center justify-between mb-4">
+            <span style={{ color: palette.textFaint, fontSize: "11px", fontFamily: mono }}>
+              {countLines(blocks)} ln \u2013 {countWords(bodyText)} words \u2013 {bodyText.length} chars
+            </span>
+            <span style={{ color: palette.textFaint, fontSize: "11px", fontFamily: mono }}>
+              Saved {new Date(activeNote.updatedAt).toLocaleTimeString()}
+            </span>
+          </div>
+
+          {notepadImageError && (
+            <p className="text-xs mb-2" style={{ color: palette.red }}>
+              {notepadImageError}
+            </p>
+          )}
+
+          <button
+            type="button"
+            onClick={() => downloadNoteText(activeNote)}
+            className={`w-full flex items-center justify-center gap-2 rounded-lg py-3 mt-2 mb-2 ${TAP}`}
+            style={{
+              background: palette.field,
+              border: `1px solid ${palette.border}`,
+              color: palette.text,
+              fontFamily: mono,
+              fontSize: "13px",
+              fontWeight: 600,
+              transition: `${THEME_TRANSITION}, transform 0.15s ease`,
+            }}
+          >
+            <Download size={16} />
+            Download as .txt
+          </button>
+          {notepadMsg && (
+            <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
+              {notepadMsg}
+            </p>
+          )}
+
+          <input
+            ref={notepadImageInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleNoteImageChange}
+            style={{ display: "none" }}
+          />
+        </>
+      );
+    }
   }
 
   if (activeTab === "sessions") {
-    const tzOffsetMinutes = currentTime.getTimezoneOffset();
-    const nowUTCHour =
-      currentTime.getUTCHours() + currentTime.getUTCMinutes() / 60 + currentTime.getUTCSeconds() / 3600;
-    const localTimeLabel = currentTime.toLocaleTimeString(undefined, {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: false,
-    });
-    let tzName = "";
-    try {
-      tzName = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
-    } catch (err) {
-      tzName = "";
-    }
+    const SESSIONS_SUB_TABS = [
+      { id: "sessions", label: "Sessions" },
+      { id: "news", label: "News" },
+    ];
 
-    const sessionStates = MARKET_SESSIONS.map((s) => ({
-      ...s,
-      ...sessionCountdown(s, nowUTCHour),
-      segments: sessionLocalSegments(s, tzOffsetMinutes),
-    }));
-    const openSessions = sessionStates.filter((s) => s.isOpen);
+    const sessionsSubNav = (
+      <div className="flex gap-2 mb-6">
+        {SESSIONS_SUB_TABS.map((s) => {
+          const active = sessionsSubTab === s.id;
+          return (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => setSessionsSubTab(s.id)}
+              className={`flex-1 px-3 py-2 rounded-full transition-colors ${TAP}`}
+              style={{
+                background: active ? palette.gold : palette.field,
+                color: active ? palette.letterbox : palette.textMuted,
+                border: `1px solid ${active ? palette.gold : palette.border}`,
+                fontFamily: mono,
+                fontSize: "13px",
+                fontWeight: 600,
+              }}
+            >
+              {s.label}
+            </button>
+          );
+        })}
+      </div>
+    );
 
-    const { startLocal: hlStart, endLocal: hlEnd } = highLiquidityWindowLocal(tzOffsetMinutes);
-    const highLiquidityActive =
-      openSessions.some((s) => s.id === "london") && openSessions.some((s) => s.id === "newyork");
+    let newsBody = null;
+    {
+      const now = new Date();
+      const withOcc = newsEvents.map((ev) => ({ ev, occMs: nextOccurrenceMs(ev, now) }));
 
-    // 48 half-hour local slots, each holding how many sessions are open —
-    // drives the overlap-intensity strip under the timeline.
-    const overlapSlots = [];
-    for (let i = 0; i < 48; i++) {
-      const localHour = i / 2;
-      const openIds = MARKET_SESSIONS.filter((s) =>
-        sessionOpenAtLocalHour(s, localHour, tzOffsetMinutes)
-      ).map((s) => s.id);
-      overlapSlots.push({ localHour, count: openIds.length, openIds });
-    }
+      const future = withOcc.filter((x) => x.occMs >= now.getTime()).sort((a, b) => a.occMs - b.occMs);
+      const next = future[0];
+      const nextMs = next ? next.occMs - now.getTime() : Infinity;
+      const nextLabel = next ? `${next.ev.date} ${next.ev.time}` : "";
 
-    const nowLocalHour = mod24(nowUTCHour - tzOffsetMinutes / 60);
-    const HOUR_TICKS = [0, 4, 8, 12, 16, 20];
+      const impactColor = (level) =>
+        level === "high" ? palette.red : level === "medium" ? palette.goldBright : palette.textMuted;
 
-    body = (
-      <>
-        <Readout
-          eyebrow="Your Local Time"
-          value={localTimeLabel}
-          sub={
-            openSessions.length > 0
-              ? `${openSessions.map((s) => s.label).join(", ")} open now${
-                  highLiquidityActive ? " \u2014 highest liquidity window" : ""
-                }`
-              : "No major session open right now"
-          }
-          tone={highLiquidityActive ? "good" : undefined}
-        />
+      const dayGroups = {};
+      withOcc.forEach(({ ev, occMs }) => {
+        const d = new Date(occMs);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        if (!dayGroups[key]) dayGroups[key] = [];
+        dayGroups[key].push({ ev, occMs });
+      });
+      const dayKeys = Object.keys(dayGroups).sort();
 
-        <div
-          className="rounded-2xl p-4 mb-2"
-          style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow, transition: THEME_TRANSITION }}
-        >
-          <div
-            className="uppercase mb-3"
-            style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
-          >
-            Session Timeline (Local Time)
+      newsBody = (
+        <>
+          <Readout
+            eyebrow="Next USD Event"
+            value={next ? formatCountdown(nextMs) : "N/A"}
+            sub={next ? `${next.ev.name}  ${nextLabel}` : "No upcoming events, add one below"}
+            tone={next && next.ev.impact === "high" && nextMs < 60 * 60 * 1000 ? "bad" : undefined}
+          />
+
+          {newsLoadError && (
+            <p className="text-xs mb-4" style={{ color: palette.red }}>
+              {newsLoadError}
+            </p>
+          )}
+
+          {notifPermission === "denied" && (
+            <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
+              Notifications are blocked in your browser settings alarms will still ring with sound while this
+              app is open, just without a system notification.
+            </p>
+          )}
+
+          {!newsLoaded ? (
+            <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
+              Loading saved events\u2026
+            </p>
+          ) : newsEvents.length === 0 ? (
+            <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
+              No events added yet. Add one below to start tracking it.
+            </p>
+          ) : (
+            dayKeys.map((key) => {
+              const dayDate = new Date(`${key}T00:00:00`);
+              const dayLabel = dayDate.toLocaleDateString("default", {
+                weekday: "long",
+                month: "short",
+                day: "numeric",
+              });
+              const isPast = dayGroups[key].every((x) => x.occMs < now.getTime());
+              return (
+                <div key={key} className="mb-4">
+                  <div
+                    className="uppercase mb-1.5"
+                    style={{
+                      color: isPast ? palette.textFaint : palette.textMuted,
+                      letterSpacing: "0.08em",
+                      fontSize: "11px",
+                    }}
+                  >
+                    {dayLabel}
+                  </div>
+                  {dayGroups[key]
+                    .sort((a, b) => a.ev.time.localeCompare(b.ev.time))
+                    .map(({ ev, occMs }) => {
+                      const passed = occMs < now.getTime();
+                      return (
+                        <div
+                          key={ev.id}
+                          className="flex items-center justify-between rounded-lg px-3 py-2.5 mb-2"
+                          style={{
+                            background: palette.surface,
+                            border: `1px solid ${palette.border}`,
+                            boxShadow: palette.shadow,
+                            opacity: passed ? 0.55 : 1,
+                            transition: THEME_TRANSITION,
+                          }}
+                        >
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span style={{ color: palette.text, fontSize: "14px" }}>{ev.name}</span>
+                              <span
+                                style={{
+                                  fontSize: "9px",
+                                  fontFamily: mono,
+                                  color: impactColor(ev.impact),
+                                  border: `1px solid ${impactColor(ev.impact)}`,
+                                  borderRadius: "999px",
+                                  padding: "1px 6px",
+                                  textTransform: "uppercase",
+                                }}
+                              >
+                                {ev.impact}
+                              </span>
+                              {ev.alarm && <Bell size={11} style={{ color: palette.gold }} aria-label="Alarm set" />}
+                            </div>
+                            <div style={{ color: palette.textMuted, fontSize: "12px" }}>
+                              {ev.time}
+                              {passed ? ", released" : ""}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => deleteNewsEvent(ev.id)}
+                            className={TAP}
+                            style={{ color: palette.textFaint }}
+                            aria-label="Delete event"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      );
+                    })}
+                </div>
+              );
+            })
+          )}
+
+          <p className="text-xs mt-1 mb-6" style={{ color: palette.textFaint }}>
+            Nothing here is added automatically add the events you want to track below. With Alarm on, this
+            app rings (sound + notification) {ALARM_LEAD_MINUTES} minutes before, but only while it's open in your
+            browser it can't set a true system alarm, so keep the tab open (or this installed as a
+            home-screen app) close to the event.
+          </p>
+
+          <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
+            Add Event
+          </span>
+          <label className="block mb-4">
+            <span
+              className="block mb-1.5 uppercase"
+              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+            >
+              Event Name
+            </span>
+            <div
+              className="flex items-center rounded-lg px-3"
+              style={{ background: palette.field, border: `1px solid ${palette.border}` }}
+            >
+              <input
+                type="text"
+                value={newEventName}
+                onChange={(e) => setNewEventName(e.target.value)}
+                placeholder="Non-Farm Payrolls"
+                className="w-full bg-transparent py-3 outline-none"
+                style={{ color: palette.text, fontFamily: mono, fontSize: "16px" }}
+              />
+            </div>
+          </label>
+
+          <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
+            Impact
+          </span>
+          <div className="flex gap-2 mb-4">
+            {["high", "medium", "low"].map((lvl) => (
+              <button
+                key={lvl}
+                type="button"
+                onClick={() => setNewEventImpact(lvl)}
+                className={`px-3 py-1.5 rounded-full transition-colors ${TAP}`}
+                style={{
+                  background: newEventImpact === lvl ? impactColor(lvl) : palette.field,
+                  color: newEventImpact === lvl ? palette.letterbox : palette.textMuted,
+                  border: `1px solid ${newEventImpact === lvl ? impactColor(lvl) : palette.border}`,
+                  fontFamily: mono,
+                  fontSize: "13px",
+                  textTransform: "capitalize",
+                }}
+              >
+                {lvl}
+              </button>
+            ))}
           </div>
 
-          {sessionStates.map((s) => (
-            <div key={s.id} className="flex items-center mb-2" style={{ gap: "8px" }}>
-              <span
-                style={{ width: "62px", flexShrink: 0, fontSize: "11px", fontFamily: mono, color: palette.textMuted }}
-              >
-                {s.label}
-              </span>
-              <div className="relative flex-1" style={{ height: "16px" }}>
-                <div
-                  className="absolute inset-0 rounded"
-                  style={{ background: palette.field, border: `1px solid ${palette.border}` }}
-                />
-                {s.segments.map((seg, i) => (
+          <label className="block mb-4">
+            <span
+              className="block mb-1.5 uppercase"
+              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+            >
+              Date
+            </span>
+            <div
+              className="rounded-lg px-3"
+              style={{ background: palette.field, border: `1px solid ${palette.border}` }}
+            >
+              <input
+                type="date"
+                value={newEventDate}
+                onChange={(e) => setNewEventDate(e.target.value)}
+                className="w-full bg-transparent py-3 outline-none"
+                style={{ color: palette.text, fontFamily: mono, fontSize: "15px" }}
+              />
+            </div>
+          </label>
+
+          <label className="block mb-4">
+            <span
+              className="block mb-1.5 uppercase"
+              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+            >
+              Time (local)
+            </span>
+            <div
+              className="rounded-lg px-3"
+              style={{ background: palette.field, border: `1px solid ${palette.border}` }}
+            >
+              <input
+                type="time"
+                value={newEventTime}
+                onChange={(e) => setNewEventTime(e.target.value)}
+                className="w-full bg-transparent py-3 outline-none"
+                style={{ color: palette.text, fontFamily: mono, fontSize: "15px" }}
+              />
+            </div>
+          </label>
+
+          <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
+            Alarm
+          </span>
+          <button
+            type="button"
+            onClick={toggleNewEventAlarm}
+            className={`flex items-center gap-2 px-3 py-2.5 rounded-lg mb-1 transition-colors ${TAP}`}
+            style={{
+              background: newEventAlarm ? palette.gold : palette.field,
+              color: newEventAlarm ? palette.letterbox : palette.textMuted,
+              border: `1px solid ${newEventAlarm ? palette.gold : palette.border}`,
+              fontFamily: mono,
+              fontSize: "13px",
+            }}
+          >
+            <Bell size={15} />
+            {newEventAlarm ? `Ring ${ALARM_LEAD_MINUTES} min before` : "No alarm for this event"}
+          </button>
+          <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
+            {notifPermission === "granted"
+              ? "Notifications are allowed \u2014 you'll get a system notification plus sound when it rings."
+              : notifPermission === "unsupported"
+              ? "This browser doesn't support notifications \u2014 the alarm will still ring with sound and an in-app popup."
+              : "Turning this on will ask for notification permission."}
+          </p>
+
+          <button
+            type="button"
+            onClick={addNewsEvent}
+            className={`w-full rounded-lg py-3 mb-4 ${TAP}`}
+            style={{ background: palette.gold, color: palette.letterbox, fontFamily: mono, fontSize: "14px", transition: `${THEME_TRANSITION}, transform 0.15s ease` }}
+          >
+            + Add Event
+          </button>
+        </>
+      );
+    }
+
+    let sessionsBody = null;
+    {
+      const tzOffsetMinutes = currentTime.getTimezoneOffset();
+      const nowUTCHour =
+        currentTime.getUTCHours() + currentTime.getUTCMinutes() / 60 + currentTime.getUTCSeconds() / 3600;
+      const localTimeLabel = currentTime.toLocaleTimeString(undefined, {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+      });
+      let tzName = "";
+      try {
+        tzName = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+      } catch (err) {
+        tzName = "";
+      }
+
+      const sessionStates = MARKET_SESSIONS.map((s) => ({
+        ...s,
+        ...sessionCountdown(s, nowUTCHour),
+        segments: sessionLocalSegments(s, tzOffsetMinutes),
+      }));
+      const openSessions = sessionStates.filter((s) => s.isOpen);
+
+      const { startLocal: hlStart, endLocal: hlEnd } = highLiquidityWindowLocal(tzOffsetMinutes);
+      const highLiquidityActive =
+        openSessions.some((s) => s.id === "london") && openSessions.some((s) => s.id === "newyork");
+
+      const overlapSlots = [];
+      for (let i = 0; i < 48; i++) {
+        const localHour = i / 2;
+        const openIds = MARKET_SESSIONS.filter((s) =>
+          sessionOpenAtLocalHour(s, localHour, tzOffsetMinutes)
+        ).map((s) => s.id);
+        overlapSlots.push({ localHour, count: openIds.length, openIds });
+      }
+
+      const nowLocalHour = mod24(nowUTCHour - tzOffsetMinutes / 60);
+      const HOUR_TICKS = [0, 4, 8, 12, 16, 20];
+
+      sessionsBody = (
+        <>
+          <Readout
+            eyebrow="Your Local Time"
+            value={localTimeLabel}
+            sub={
+              openSessions.length > 0
+                ? `${openSessions.map((s) => s.label).join(", ")} open now${
+                    highLiquidityActive ? " \u2014 highest liquidity window" : ""
+                  }`
+                : "No major session open right now"
+            }
+            tone={highLiquidityActive ? "good" : undefined}
+          />
+
+          <div
+            className="rounded-2xl p-4 mb-2"
+            style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow, transition: THEME_TRANSITION }}
+          >
+            <div
+              className="uppercase mb-3"
+              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+            >
+              Session Timeline (Local Time)
+            </div>
+
+            {sessionStates.map((s) => (
+              <div key={s.id} className="flex items-center mb-2" style={{ gap: "8px" }}>
+                <span
+                  style={{ width: "62px", flexShrink: 0, fontSize: "11px", fontFamily: mono, color: palette.textMuted }}
+                >
+                  {s.label}
+                </span>
+                <div className="relative flex-1" style={{ height: "16px" }}>
+                  <div
+                    className="absolute inset-0 rounded"
+                    style={{ background: palette.field, border: `1px solid ${palette.border}` }}
+                  />
+                  {s.segments.map((seg, i) => (
+                    <div
+                      key={i}
+                      className="absolute rounded"
+                      style={{
+                        top: 0,
+                        bottom: 0,
+                        left: `${(seg[0] / 24) * 100}%`,
+                        width: `${((seg[1] - seg[0]) / 24) * 100}%`,
+                        background: s.color,
+                        opacity: s.isOpen ? 0.85 : 0.4,
+                      }}
+                    />
+                  ))}
+                  <div
+                    className="absolute"
+                    style={{
+                      top: "-3px",
+                      bottom: "-3px",
+                      left: `${(nowLocalHour / 24) * 100}%`,
+                      width: "2px",
+                      background: palette.goldBright,
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
+
+            <div className="flex items-center mb-1" style={{ gap: "8px" }}>
+              <span style={{ width: "62px", flexShrink: 0 }} />
+              <div className="relative flex-1" style={{ height: "8px" }}>
+                {overlapSlots.map((slot, i) => (
                   <div
                     key={i}
-                    className="absolute rounded"
+                    className="absolute"
                     style={{
                       top: 0,
                       bottom: 0,
-                      left: `${(seg[0] / 24) * 100}%`,
-                      width: `${((seg[1] - seg[0]) / 24) * 100}%`,
-                      background: s.color,
-                      opacity: s.isOpen ? 0.85 : 0.4,
+                      left: `${(slot.localHour / 24) * 100}%`,
+                      width: `${(1 / 48) * 100}%`,
+                      background:
+                        slot.count >= 2
+                          ? slot.openIds.includes("london") && slot.openIds.includes("newyork")
+                            ? palette.goldBright
+                            : `${palette.gold}88`
+                          : "transparent",
                     }}
                   />
                 ))}
-                <div
-                  className="absolute"
-                  style={{
-                    top: "-3px",
-                    bottom: "-3px",
-                    left: `${(nowLocalHour / 24) * 100}%`,
-                    width: "2px",
-                    background: palette.goldBright,
-                  }}
-                />
               </div>
             </div>
-          ))}
 
-          <div className="flex items-center mb-1" style={{ gap: "8px" }}>
-            <span style={{ width: "62px", flexShrink: 0 }} />
-            <div className="relative flex-1" style={{ height: "8px" }}>
-              {overlapSlots.map((slot, i) => (
-                <div
-                  key={i}
-                  className="absolute"
-                  style={{
-                    top: 0,
-                    bottom: 0,
-                    left: `${(slot.localHour / 24) * 100}%`,
-                    width: `${(1 / 48) * 100}%`,
-                    background:
-                      slot.count >= 2
-                        ? slot.openIds.includes("london") && slot.openIds.includes("newyork")
-                          ? palette.goldBright
-                          : `${palette.gold}88`
-                        : "transparent",
-                  }}
-                />
-              ))}
-            </div>
-          </div>
-
-          <div className="flex items-center" style={{ gap: "8px" }}>
-            <span style={{ width: "62px", flexShrink: 0 }} />
-            <div className="relative flex-1" style={{ height: "12px" }}>
-              {HOUR_TICKS.map((h) => (
-                <span
-                  key={h}
-                  className="absolute"
-                  style={{
-                    left: `${(h / 24) * 100}%`,
-                    transform: "translateX(-50%)",
-                    fontSize: "9px",
-                    fontFamily: mono,
-                    color: palette.textFaint,
-                  }}
-                >
-                  {formatHourLabel(h)}
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
-        <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-          Gold marker is right now. The strip under the bars highlights overlaps — brighter gold marks
-          London and New York trading at once, the day's highest-liquidity window.
-        </p>
-
-        <div
-          className="rounded-2xl p-4 mb-6"
-          style={{ background: palette.surface, border: `1px solid ${palette.gold}`, boxShadow: palette.shadow }}
-        >
-          <div className="flex items-center gap-2 mb-1">
-            <Clock size={14} style={{ color: palette.gold }} />
-            <span className="uppercase" style={{ color: palette.gold, letterSpacing: "0.08em", fontSize: "10px" }}>
-              Highest Liquidity Window
-            </span>
-          </div>
-          <div style={{ color: palette.text, fontSize: "13px" }}>
-            London &amp; New York overlap, {formatHourLabel(hlStart)} \u2013 {formatHourLabel(hlEnd)} your time
-            {highLiquidityActive ? " \u2014 active right now." : "."}
-          </div>
-        </div>
-
-        <span
-          className="block mb-1.5 uppercase"
-          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
-        >
-          Session Status
-        </span>
-        {sessionStates.map((s) => {
-          const seg = s.segments;
-          const rangeStart = seg[0][0];
-          const rangeEnd = seg.length === 1 ? seg[0][1] : seg[1][1];
-          const rangeLabel = `${formatHourLabel(rangeStart)} \u2013 ${formatHourLabel(rangeEnd)}`;
-          const countdownLabel = formatCountdown(s.hours * 3600000);
-          return (
-            <div
-              key={s.id}
-              className="flex items-center justify-between rounded-lg px-3 py-3 mb-2"
-              style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow, transition: THEME_TRANSITION }}
-            >
-              <div className="flex items-center gap-2">
-                <span
-                  className="rounded-full flex-shrink-0"
-                  style={{ width: "8px", height: "8px", background: s.color }}
-                />
-                <div>
-                  <div style={{ color: palette.text, fontSize: "14px", marginBottom: "2px" }}>{s.label}</div>
-                  <div style={{ color: palette.textMuted, fontSize: "12px" }}>{rangeLabel}</div>
-                </div>
+            <div className="flex items-center" style={{ gap: "8px" }}>
+              <span style={{ width: "62px", flexShrink: 0 }} />
+              <div className="relative flex-1" style={{ height: "12px" }}>
+                {HOUR_TICKS.map((h) => (
+                  <span
+                    key={h}
+                    className="absolute"
+                    style={{
+                      left: `${(h / 24) * 100}%`,
+                      transform: "translateX(-50%)",
+                      fontSize: "9px",
+                      fontFamily: mono,
+                      color: palette.textFaint,
+                    }}
+                  >
+                    {formatHourLabel(h)}
+                  </span>
+                ))}
               </div>
-              <span
-                style={{
-                  fontFamily: mono,
-                  fontSize: "11px",
-                  letterSpacing: "0.06em",
-                  color: s.isOpen ? palette.green : palette.textFaint,
-                  border: `1px solid ${s.isOpen ? palette.green : palette.border}`,
-                  borderRadius: "999px",
-                  padding: "3px 8px",
-                  flexShrink: 0,
-                  marginLeft: "8px",
-                  textAlign: "right",
-                }}
-              >
-                {s.isOpen ? `OPEN \u00b7 ${countdownLabel} left` : `OPENS IN ${countdownLabel}`}
+            </div>
+          </div>
+          <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
+            Gold marker is right now. The strip under the bars highlights overlaps – brighter gold marks
+            London and New York trading at once, the day's highest-liquidity window.
+          </p>
+
+          <div
+            className="rounded-2xl p-4 mb-6"
+            style={{ background: palette.surface, border: `1px solid ${palette.gold}`, boxShadow: palette.shadow }}
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <Clock size={14} style={{ color: palette.gold }} />
+              <span className="uppercase" style={{ color: palette.gold, letterSpacing: "0.08em", fontSize: "10px" }}>
+                Highest Liquidity Window
               </span>
             </div>
-          );
-        })}
+            <div style={{ color: palette.text, fontSize: "13px" }}>
+              London &amp; New York overlap, {formatHourLabel(hlStart)} – {formatHourLabel(hlEnd)} your time
+              {highLiquidityActive ? " \u2014 active right now." : "."}
+            </div>
+          </div>
 
-        <p className="text-xs mt-2 mb-4" style={{ color: palette.textFaint }}>
-          Standard session hours in UTC: Sydney 22:00—07:00, Tokyo 00:00—09:00, London 08:00—17:00,
-          New York 13:00—22:00. Shown here converted to your device's local time (
-          {tzName || "detected automatically"}), not adjusted for daylight saving.
-        </p>
+          <span
+            className="block mb-1.5 uppercase"
+            style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+          >
+            Session Status
+          </span>
+          {sessionStates.map((s) => {
+            const seg = s.segments;
+            const rangeStart = seg[0][0];
+            const rangeEnd = seg.length === 1 ? seg[0][1] : seg[1][1];
+            const rangeLabel = `${formatHourLabel(rangeStart)} – ${formatHourLabel(rangeEnd)}`;
+            const countdownLabel = formatCountdown(s.hours * 3600000);
+            return (
+              <div
+                key={s.id}
+                className="flex items-center justify-between rounded-lg px-3 py-3 mb-2"
+                style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow, transition: THEME_TRANSITION }}
+              >
+                <div className="flex items-center gap-2">
+                  <span
+                    className="rounded-full flex-shrink-0"
+                    style={{ width: "8px", height: "8px", background: s.color }}
+                  />
+                  <div>
+                    <div style={{ color: palette.text, fontSize: "14px", marginBottom: "2px" }}>{s.label}</div>
+                    <div style={{ color: palette.textMuted, fontSize: "12px" }}>{rangeLabel}</div>
+                  </div>
+                </div>
+                <span
+                  style={{
+                    fontFamily: mono,
+                    fontSize: "11px",
+                    letterSpacing: "0.06em",
+                    color: s.isOpen ? palette.green : palette.textFaint,
+                    border: `1px solid ${s.isOpen ? palette.green : palette.border}`,
+                    borderRadius: "999px",
+                    padding: "3px 8px",
+                    flexShrink: 0,
+                    marginLeft: "8px",
+                    textAlign: "right",
+                  }}
+                >
+                  {s.isOpen ? `OPEN \u00b7 ${countdownLabel} left` : `OPENS IN ${countdownLabel}`}
+                </span>
+              </div>
+            );
+          })}
 
-        <button
-          type="button"
-          onClick={() => setActiveTab("news")}
-          className={`w-full flex items-center justify-center gap-2 rounded-lg py-3 mb-4 ${TAP}`}
-          style={{
-            background: palette.field,
-            border: `1px solid ${palette.border}`,
-            color: palette.text,
-            fontFamily: mono,
-            fontSize: "13px",
-            fontWeight: 600,
-            transition: `${THEME_TRANSITION}, transform 0.15s ease`,
-          }}
-        >
-          <Newspaper size={16} />
-          Check Today's News Events
-        </button>
+          <p className="text-xs mt-2 mb-4" style={{ color: palette.textFaint }}>
+            Standard session hours in UTC: Sydney 22:00–07:00, Tokyo 00:00–09:00, London 08:00–17:00,
+            New York 13:00–22:00. Shown here converted to your device's local time (
+            {tzName || "detected automatically"}), not adjusted for daylight saving.
+          </p>
+
+          <button
+            type="button"
+            onClick={() => setSessionsSubTab("news")}
+            className={`w-full flex items-center justify-center gap-2 rounded-lg py-3 mb-4 ${TAP}`}
+            style={{
+              background: palette.field,
+              border: `1px solid ${palette.border}`,
+              color: palette.text,
+              fontFamily: mono,
+              fontSize: "13px",
+              fontWeight: 600,
+              transition: `${THEME_TRANSITION}, transform 0.15s ease`,
+            }}
+          >
+            <Newspaper size={16} />
+            Check Today's News Events
+          </button>
+        </>
+      );
+    }
+
+    body = (
+      <>
+        {sessionsSubNav}
+        {sessionsSubTab === "sessions" ? sessionsBody : newsBody}
       </>
     );
   }
@@ -6694,7 +8433,6 @@ export default function LedgerApp() {
         </nav>
       </div>
 
-      {/* hidden canvas used only to render the weekly-recap share image */}
       <canvas ref={shareCanvasRef} style={{ display: "none" }} />
 
       {shareImageUrl && (
@@ -6880,6 +8618,179 @@ export default function LedgerApp() {
         </div>
       )}
 
+      {viewingNoteImage && (
+        <div
+          className="fixed inset-0 flex items-center justify-center z-50 p-4"
+          style={{ background: "rgba(5,7,12,0.9)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}
+          onClick={() => setViewingNoteImage(null)}
+        >
+          <div
+            className="w-full flex flex-col items-center modal-in"
+            style={{ maxWidth: "480px" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-full flex items-center justify-between mb-3">
+              <span style={{ color: "#EDEFF3", fontFamily: mono, fontSize: "13px" }}>
+                Note Image
+              </span>
+              <button
+                type="button"
+                onClick={() => setViewingNoteImage(null)}
+                className={TAP}
+                style={{ color: "#7C8AA0" }}
+                aria-label="Close"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <img
+              src={viewingNoteImage.src}
+              alt="Note attachment"
+              className="w-full rounded-2xl mb-3"
+              style={{ border: `1px solid ${palette.border}` }}
+            />
+            <div className="flex gap-2 w-full">
+              <button
+                type="button"
+                onClick={() => {
+                  const note = notepadNotes.find((n) => n.id === viewingNoteImage.noteId);
+                  downloadNoteImage(viewingNoteImage.src, note || {}, viewingNoteImage.blockId);
+                }}
+                className={`flex-1 flex items-center justify-center gap-2 rounded-lg py-3 ${TAP}`}
+                style={{
+                  background: palette.gold,
+                  color: palette.letterbox,
+                  fontFamily: mono,
+                  fontSize: "14px",
+                  fontWeight: 600,
+                }}
+              >
+                <Download size={16} />
+                Download
+              </button>
+              <button
+                type="button"
+                onClick={() => requestDeleteNoteImage(viewingNoteImage.noteId, viewingNoteImage.blockId)}
+                className={`flex items-center justify-center rounded-lg py-3 px-4 ${TAP}`}
+                style={{
+                  background: "transparent",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  color: "#EDEFF3",
+                }}
+                aria-label="Delete image"
+                title="Delete"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingNoteDelete && (
+        <div
+          className="fixed inset-0 flex items-center justify-center z-50 p-6"
+          style={{ background: "rgba(5,7,12,0.85)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}
+          onClick={cancelDeleteNote}
+        >
+          <div
+            className="w-full modal-in rounded-2xl p-5"
+            style={{ maxWidth: "300px", background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ color: palette.text, fontSize: "14px", fontWeight: 600, marginBottom: "6px", transition: THEME_TRANSITION }}>
+              Delete this note?
+            </div>
+            <p className="text-xs mb-4" style={{ color: palette.textMuted, transition: THEME_TRANSITION }}>
+              This can't be undone.
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={cancelDeleteNote}
+                className={`flex-1 rounded-lg py-2.5 ${TAP}`}
+                style={{
+                  background: "transparent",
+                  border: `1px solid ${palette.border}`,
+                  color: palette.textMuted,
+                  fontFamily: mono,
+                  fontSize: "13px",
+                  transition: THEME_TRANSITION,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteNote}
+                className={`flex-1 rounded-lg py-2.5 ${TAP}`}
+                style={{
+                  background: palette.red,
+                  color: "#FFFFFF",
+                  fontFamily: mono,
+                  fontSize: "13px",
+                  fontWeight: 600,
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingNoteImageDelete && (
+        <div
+          className="fixed inset-0 flex items-center justify-center z-50 p-6"
+          style={{ background: "rgba(5,7,12,0.85)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}
+          onClick={cancelDeleteNoteImage}
+        >
+          <div
+            className="w-full modal-in rounded-2xl p-5"
+            style={{ maxWidth: "300px", background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ color: palette.text, fontSize: "14px", fontWeight: 600, marginBottom: "6px", transition: THEME_TRANSITION }}>
+              Delete this image?
+            </div>
+            <p className="text-xs mb-4" style={{ color: palette.textMuted, transition: THEME_TRANSITION }}>
+              This can't be undone.
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={cancelDeleteNoteImage}
+                className={`flex-1 rounded-lg py-2.5 ${TAP}`}
+                style={{
+                  background: "transparent",
+                  border: `1px solid ${palette.border}`,
+                  color: palette.textMuted,
+                  fontFamily: mono,
+                  fontSize: "13px",
+                  transition: THEME_TRANSITION,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteNoteImage}
+                className={`flex-1 rounded-lg py-2.5 ${TAP}`}
+                style={{
+                  background: palette.red,
+                  color: "#FFFFFF",
+                  fontFamily: mono,
+                  fontSize: "13px",
+                  fontWeight: 600,
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {ringingEvent && (
         <div
           className="fixed inset-0 flex items-center justify-center z-50 p-6"
@@ -6938,12 +8849,4 @@ export default function LedgerApp() {
       )}
     </div>
   );
-}
-
-// ---- Mount: this file is loaded directly in the browser via Babel
-// standalone (see index.html) rather than bundled with a build tool, so
-// the app needs to mount itself here instead of a separate main.jsx.
-const rootEl = document.getElementById("root");
-if (rootEl) {
-  createRoot(rootEl).render(<LedgerApp />);
 }
