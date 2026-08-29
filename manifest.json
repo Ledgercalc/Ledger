@@ -1,16 +1,16 @@
 {
-  "name": "Ledger — Trade Math Calculator",
+  "name": "Ledger",
   "short_name": "Ledger",
-  "description": "Prop-firm risk calculator, equity curve, trade journal, and market session tracker.",
+  "description": "Trade math calculator, journal, and trading tools.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#05070C",
   "theme_color": "#0A0E16",
-  "orientation": "portrait",
   "icons": [
     {
-      "src": "./icon.png",
+      "src": "icon.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
