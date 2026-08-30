@@ -8554,8 +8554,6 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
       }}
     >
 <style>{`
-  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
-
   @media (prefers-reduced-motion: no-preference) {
     .ticker-glow { animation: pulse 3.2s ease-in-out infinite; }
   }
