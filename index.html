@@ -3,80 +3,97 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
-<title>Ledger</title>
-<meta name="description" content="Trade math calculator, journal, and trading tools." />
+<title>Ledger — Trade Math Calculator</title>
 
-<!-- PWA -->
-<link rel="manifest" href="manifest.json" />
 <meta name="theme-color" content="#0A0E16" />
+<meta name="description" content="Ledger — prop firm risk, position sizing, FX conversion, equity curve, journal, and trading insights." />
+
+<!-- iOS / PWA install hints -->
+<link rel="manifest" href="./manifest.json" />
+<link rel="icon" href="./icon.png" />
+<link rel="apple-touch-icon" href="./icon.png" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Ledger" />
-<link rel="apple-touch-icon" href="icon.png" />
-<link rel="icon" href="icon.png" />
+<meta name="mobile-web-app-capable" content="yes" />
 
-<!-- Tailwind (JIT, browser build — fine for this single-page use case) -->
+<!-- Fonts used by the app -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+<!-- Tailwind (JIT, no build step) -->
 <script src="https://cdn.tailwindcss.com"></script>
 
-<!-- Import map: lets LedgerApp.jsx use plain `import X from "react"` etc.
-     with no bundler, resolved as native ES modules straight from a CDN. -->
+<!-- Import map: lets the browser resolve bare "react" / "recharts" / "lucide-react"
+     imports straight from esm.sh, all sharing one copy of React -->
 <script type="importmap">
 {
   "imports": {
     "react": "https://esm.sh/react@18.3.1",
     "react-dom": "https://esm.sh/react-dom@18.3.1",
     "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
-    "react/jsx-runtime": "https://esm.sh/react@18.3.1/jsx-runtime",
-    "lucide-react": "https://esm.sh/lucide-react@0.383.0?external=react",
-    "recharts": "https://esm.sh/recharts@2?external=react,react-dom"
+    "recharts": "https://esm.sh/recharts@2.12.7?external=react,react-dom",
+    "lucide-react": "https://esm.sh/lucide-react@0.383.0?external=react,react-dom"
   }
 }
 </script>
 
 <style>
-  html, body, #root { height: 100%; margin: 0; padding: 0; background: #05070C; }
+  html, body { margin: 0; padding: 0; background: #05070C; height: 100%; }
+  #root { height: 100%; }
   * { -webkit-tap-highlight-color: transparent; }
 </style>
 </head>
 <body>
-<div id="root"></div>
+<div id="root">
+  <div style="display:flex;align-items:center;justify-content:center;height:100dvh;color:#7C8AA0;font-family:monospace;font-size:13px;">
+    Loading Ledger&hellip;
+  </div>
+</div>
 
-<!-- Babel standalone: used ONLY to strip JSX syntax from LedgerApp.jsx.
-     It leaves import/export statements untouched, so the import map above
-     handles module resolution natively in the browser. -->
-<script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+<!-- Babel standalone: only used to strip JSX out of LedgerApp.jsx at load time -->
+<script src="https://unpkg.com/@babel/standalone@7.25.6/babel.min.js"></script>
 
-<script>
-  (async () => {
-    const res = await fetch("LedgerApp.jsx");
-    const source = await res.text();
-    const { code } = Babel.transform(source, {
-      presets: ["react"],
-      filename: "LedgerApp.jsx",
-      sourceType: "module",
-    });
-    const blob = new Blob([code], { type: "text/javascript" });
-    const url = URL.createObjectURL(blob);
-    const mod = await import(url);
-    const LedgerApp = mod.default;
+<script type="module">
+  import React from "react";
+  import { createRoot } from "react-dom/client";
 
-    const ReactDOMClient = await import("react-dom/client");
-    const React = (await import("react")).default;
+  async function boot() {
+    try {
+      const res = await fetch("./LedgerApp.jsx", { cache: "no-store" });
+      if (!res.ok) throw new Error("Couldn't fetch LedgerApp.jsx (HTTP " + res.status + ")");
+      const source = await res.text();
 
-    const root = ReactDOMClient.createRoot(document.getElementById("root"));
-    root.render(React.createElement(LedgerApp));
-  })();
-</script>
-
-<!-- Register service worker for offline / installable PWA support -->
-<script>
-  if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => {
-      navigator.serviceWorker.register("sw.js").catch(() => {
-        // non-critical — app still works without offline caching
+      // Only strip JSX (leave the ES module import/export statements alone —
+      // the browser's native module loader + the import map above resolve those).
+      const { code } = Babel.transform(source, {
+        presets: ["react"],
+        filename: "LedgerApp.jsx",
       });
-    });
+
+      const blob = new Blob([code], { type: "text/javascript" });
+      const url = URL.createObjectURL(blob);
+      const mod = await import(url);
+      URL.revokeObjectURL(url);
+
+      const LedgerApp = mod.default;
+      const root = createRoot(document.getElementById("root"));
+      root.render(React.createElement(LedgerApp));
+
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.register("./sw.js").catch(() => {});
+      }
+    } catch (err) {
+      console.error(err);
+      document.getElementById("root").innerHTML =
+        '<div style="padding:24px;color:#DB6B63;font-family:monospace;font-size:13px;white-space:pre-wrap;">' +
+        "Failed to load Ledger.\n\n" + String(err && err.message ? err.message : err) +
+        '\n\nMake sure LedgerApp.jsx is in the same folder as index.html.</div>';
+    }
   }
+
+  boot();
 </script>
 </body>
 </html>
