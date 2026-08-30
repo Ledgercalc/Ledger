@@ -1,7 +1,7 @@
 // Ledger service worker — caches the app shell so it still opens offline.
 // Bump CACHE_NAME whenever you change index.html / LedgerApp.jsx to force
 // clients to pick up the new version.
-const CACHE_NAME = "ledger-cache-v1";
+const CACHE_NAME = "ledger-cache-v2";
 
 const APP_SHELL = [
   "./",
