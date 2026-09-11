@@ -423,12 +423,15 @@ function Field({ label, value, onChange, suffix, placeholder, readOnly, isDeskto
         {label}
       </span>
       <div
-        className="flex items-center rounded-lg px-3"
+        className="flex items-center px-3.5"
         style={{
           background: readOnly ? palette.surface : palette.field,
           border: `1px solid ${palette.border}`,
-          transition: THEME_TRANSITION,
+          borderRadius: "12px",
+          transition: `${THEME_TRANSITION}, border-color 0.15s ease`,
         }}
+        onFocusCapture={(e) => { e.currentTarget.style.borderColor = palette.gold; }}
+        onBlurCapture={(e) => { e.currentTarget.style.borderColor = palette.border; }}
       >
         <input
           type="text"
@@ -491,10 +494,11 @@ function SettingsSection({ icon: Icon, title, description, danger, children }) {
   const accent = danger ? palette.red : palette.gold;
   return (
     <div
-      className="rounded-2xl p-4 mb-4"
+      className="p-4 mb-4"
       style={{
         background: danger ? `${palette.red}0A` : palette.field,
         border: `1px solid ${danger ? `${palette.red}55` : palette.border}`,
+        borderRadius: "16px",
         transition: THEME_TRANSITION,
       }}
     >
@@ -562,20 +566,19 @@ function StatChip({ label, value, onClick, isDesktop }) {
             }
           : undefined
       }
-      className={`rounded-lg p-3 ${onClick ? `${TAP}` : ""}`}
+      className={`p-3.5 ${onClick ? `${TAP}` : ""}`}
       style={{
         background: palette.surface,
         border: `1px solid ${palette.border}`,
-        borderTop: isDesktop ? `2px solid ${palette.gold}55` : `1px solid ${palette.border}`,
-        borderRadius: isDesktop ? "10px" : "8px",
+        borderRadius: "14px",
         boxShadow: palette.shadow,
         cursor: onClick ? "pointer" : "default",
-        transition: `${THEME_TRANSITION}, box-shadow 0.15s ease`,
+        transition: `${THEME_TRANSITION}, box-shadow 0.15s ease, border-color 0.15s ease`,
       }}
     >
       <div
-        className="uppercase mb-1 flex items-center gap-1"
-        style={{ color: palette.textFaint, letterSpacing: "0.08em", fontSize: "11px", transition: THEME_TRANSITION }}
+        className="uppercase mb-1.5 flex items-center gap-1"
+        style={{ color: palette.textFaint, letterSpacing: "0.07em", fontSize: "10.5px", fontWeight: 600, transition: THEME_TRANSITION }}
       >
         {label}
         {onClick && <Info size={10} style={{ opacity: 0.7, flexShrink: 0 }} />}
@@ -583,7 +586,8 @@ function StatChip({ label, value, onClick, isDesktop }) {
       <div
         style={{
           fontFamily: mono,
-          fontSize: isDesktop ? "1.4rem" : "1.05rem",
+          fontSize: isDesktop ? "1.4rem" : "1.08rem",
+          fontWeight: 600,
           color: palette.text,
           fontVariantNumeric: "tabular-nums",
           transition: THEME_TRANSITION,
@@ -663,13 +667,12 @@ function Readout({ eyebrow, value, unit, sub, tone, isDesktop, rightContent }) {
     tone === "good" ? palette.green : tone === "bad" ? palette.red : palette.goldBright;
   return (
     <div
-      className="relative overflow-hidden rounded-2xl p-6 mb-6"
+      className="relative overflow-hidden rounded-2xl p-5 mb-6"
       style={{
-        background: isDesktop
-          ? `linear-gradient(135deg, ${palette.surface} 0%, ${palette.field}CC 100%)`
-          : palette.surface,
-        border: `1px solid ${isDesktop ? `${palette.gold}22` : palette.border}`,
-        boxShadow: isDesktop ? `${palette.shadow}, 0 0 0 1px ${palette.gold}0A inset` : palette.shadow,
+        background: `linear-gradient(135deg, ${palette.surface} 0%, ${palette.field}CC 100%)`,
+        border: `1px solid ${palette.gold}22`,
+        borderRadius: "18px",
+        boxShadow: `${palette.shadow}, 0 0 0 1px ${palette.gold}0A inset`,
         "--glow": palette.glow,
         transition: THEME_TRANSITION,
       }}
@@ -720,7 +723,7 @@ function Readout({ eyebrow, value, unit, sub, tone, isDesktop, rightContent }) {
           <span
             style={{
               fontFamily: mono,
-              fontSize: isDesktop ? "3.2rem" : "2.4rem",
+              fontSize: isDesktop ? "3.2rem" : "2.15rem",
               fontWeight: 600,
               color: toneColor,
               fontVariantNumeric: "tabular-nums",
@@ -13617,10 +13620,17 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
 <style>{`
   @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap');
 
+  * { -webkit-tap-highlight-color: transparent; }
+  html, body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; overscroll-behavior-y: none; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-thumb { background: ${palette.border}; border-radius: 999px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  input, select, textarea, button { font-family: inherit; }
+  button { -webkit-appearance: none; }
+
   @media (prefers-reduced-motion: no-preference) {
     .ticker-glow { animation: pulse 3.2s ease-in-out infinite; }
   }
-
 
         @media (prefers-reduced-motion: no-preference) {
   	.flame-flicker {
@@ -13725,14 +13735,27 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                 </div>
               </div>
             ) : (
-              <>
-                <div className="uppercase" style={{ color: palette.gold, letterSpacing: "0.16em", fontSize: "11px", transition: THEME_TRANSITION }}>
-                  Trade Math Calculator
+              <div className="flex items-center gap-2.5">
+                <span
+                  className="flex items-center justify-center rounded-xl flex-shrink-0"
+                  style={{
+                    width: "34px",
+                    height: "34px",
+                    background: `linear-gradient(135deg, ${palette.gold}, ${palette.goldBright})`,
+                    boxShadow: `0 3px 10px ${palette.gold}44`,
+                  }}
+                >
+                  <ActiveTabIcon size={17} style={{ color: palette.letterbox }} strokeWidth={2.2} />
+                </span>
+                <div>
+                  <h1 style={{ fontFamily: display, fontSize: "1.3rem", fontWeight: 700, color: palette.text, letterSpacing: "0.01em", lineHeight: 1.1, transition: THEME_TRANSITION }}>
+                    LEDGER
+                  </h1>
+                  <div className="uppercase" style={{ color: palette.textFaint, letterSpacing: "0.1em", fontSize: "10px", fontWeight: 600, transition: THEME_TRANSITION }}>
+                    Trade Math Calculator
+                  </div>
                 </div>
-<h1 className="mt-1" style={{ fontFamily: display, fontSize: "1.6rem", fontWeight: 700, color: palette.text, letterSpacing: "0.01em", transition: THEME_TRANSITION }}>
-  LEDGER
-</h1>
-              </>
+              </div>
             )}
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
@@ -13838,10 +13861,13 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                   }
                   style={{
                     color: active ? palette.goldBright : palette.textMuted,
-                    minWidth: isDesktop ? "auto" : "64px",
+                    minWidth: isDesktop ? "auto" : "66px",
                     background: active
-                      ? `linear-gradient(135deg, ${palette.gold}22, ${palette.gold}0A)`
+                      ? isDesktop
+                        ? `linear-gradient(135deg, ${palette.gold}22, ${palette.gold}0A)`
+                        : `${palette.gold}16`
                       : "transparent",
+                    borderRadius: isDesktop ? "10px" : "12px",
                     border: isDesktop ? `1px solid ${active ? `${palette.gold}3A` : "transparent"}` : "none",
                     boxShadow: isDesktop && active ? `0 2px 10px ${palette.gold}22` : "none",
                     transition: `${THEME_TRANSITION}, transform 0.15s ease, background 0.15s ease`,
