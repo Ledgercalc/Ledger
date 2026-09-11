@@ -1079,6 +1079,7 @@ const GOALS_STORAGE_KEY = "ledger:goals";
 const FX_LAST_PAIR_KEY = "fx:last-pair";
 const EDGE_STORAGE_KEY = "ledger:edge-inputs";
 const CS_STORAGE_KEY = "ledger:challenge-inputs";
+const LINKED_FIRM_KEY = "ledger:linked-firm";
 const PS_STORAGE_KEY = "ledger:size-inputs";
 const ACCOUNTS_LIST_KEY = "ledger:accounts:list";
 const ACCOUNTS_ACTIVE_KEY = "ledger:accounts:active";
@@ -3667,7 +3668,13 @@ const resetPropFirmWizard = () => {
       minDayGainPct: plan.minDayGainPct != null ? String(plan.minDayGainPct) : "0",
       profitSplitPct: plan.profitSplitPct != null ? String(plan.profitSplitPct) : cs.profitSplitPct,
     });
-    setLinkedFirm({ firmName: firm.name, planLabel: plan.label });
+    const newLinkedFirm = { firmName: firm.name, planLabel: plan.label };
+    setLinkedFirm(newLinkedFirm);
+    if (activeAccountId) {
+      window.storage
+        .set(scopedKey(LINKED_FIRM_KEY, activeAccountId), JSON.stringify(newLinkedFirm), false)
+        .catch(() => {});
+    }
     setActiveTab("risk");
     setRiskSubTab("challenge");
   };
@@ -4239,7 +4246,7 @@ RUNTIME.ALARM_LEAD_MS = RUNTIME.ALARM_LEAD_MINUTES * 60 * 1000;
       const acc = accounts.find((a) => a.id === activeAccountId);
       const isLegacy = !!(acc && acc.legacy);
       try {
-const [balRes, csRes, tradesRes, journalRes, playbookRulesRes, playbookCheckinsRes, notepadRes] =
+const [balRes, csRes, tradesRes, journalRes, playbookRulesRes, playbookCheckinsRes, notepadRes, linkedFirmRes] =
   await Promise.allSettled([
     window.storage.get(scopedKey(STORAGE_BAL_KEY, activeAccountId), false),
     window.storage.get(scopedKey(CS_STORAGE_KEY, activeAccountId), false),
@@ -4248,6 +4255,7 @@ const [balRes, csRes, tradesRes, journalRes, playbookRulesRes, playbookCheckinsR
     window.storage.get(scopedKey(PLAYBOOK_RULES_KEY, activeAccountId), false),
     window.storage.get(scopedKey(PLAYBOOK_CHECKINS_KEY, activeAccountId), false),
     window.storage.get(scopedKey(NOTEPAD_STORAGE_KEY, activeAccountId), false),
+    window.storage.get(scopedKey(LINKED_FIRM_KEY, activeAccountId), false),
   ]);
         if (cancelled) return;
 
@@ -4349,24 +4357,6 @@ const [balRes, csRes, tradesRes, journalRes, playbookRulesRes, playbookCheckinsR
           const parsed = JSON.parse(playbookCheckinsRes.value.value);
           if (!cancelled) setPlaybookCheckins(Array.isArray(parsed) ? parsed : []);
         } else if (isLegacy) {
-
-          // Notepad notes
-if (notepadRes.status === "fulfilled" && notepadRes.value) {
-  const parsed = JSON.parse(notepadRes.value.value);
-  if (!cancelled) setNotepadNotes(Array.isArray(parsed) ? parsed.map(migrateNoteShape) : []);
-} else if (isLegacy) {
-  const legacyNotes = await window.storage.get(NOTEPAD_STORAGE_KEY, false).catch(() => null);
-  if (!cancelled) {
-    try {
-      const parsed = legacyNotes ? JSON.parse(legacyNotes.value) : [];
-      setNotepadNotes(Array.isArray(parsed) ? parsed.map(migrateNoteShape) : []);
-    } catch (e) {
-      setNotepadNotes([]);
-    }
-  }
-} else if (!cancelled) {
-  setNotepadNotes([]);
-}
           const legacyCheckins = await window.storage.get(PLAYBOOK_CHECKINS_KEY, false).catch(() => null);
           if (!cancelled) {
             try {
@@ -4379,8 +4369,28 @@ if (notepadRes.status === "fulfilled" && notepadRes.value) {
         } else if (!cancelled) {
           setPlaybookCheckins([]);
         }
+
+        // Notepad notes
+        if (notepadRes.status === "fulfilled" && notepadRes.value) {
+          const parsed = JSON.parse(notepadRes.value.value);
+          if (!cancelled) setNotepadNotes(Array.isArray(parsed) ? parsed.map(migrateNoteShape) : []);
+        } else if (isLegacy) {
+          const legacyNotes = await window.storage.get(NOTEPAD_STORAGE_KEY, false).catch(() => null);
+          if (!cancelled) {
+            try {
+              const parsed = legacyNotes ? JSON.parse(legacyNotes.value) : [];
+              setNotepadNotes(Array.isArray(parsed) ? parsed.map(migrateNoteShape) : []);
+            } catch (e) {
+              setNotepadNotes([]);
+            }
+          }
+        } else if (!cancelled) {
+          setNotepadNotes([]);
+        }
+
       } catch (err) {
         // non-critical, fail silently
+
       } finally {
         if (!cancelled) {
           setAccountDataLoaded(true);
@@ -4388,8 +4398,22 @@ if (notepadRes.status === "fulfilled" && notepadRes.value) {
           setJournalLoaded(true);
           setPlaybookRulesLoaded(true);
           setPlaybookCheckinsLoaded(true);
+          setNotepadLoaded(true);
         }
       }
+
+        // Linked prop firm (shown under Profit Split on the Challenge tab)
+        if (linkedFirmRes.status === "fulfilled" && linkedFirmRes.value) {
+          try {
+            const parsed = JSON.parse(linkedFirmRes.value.value);
+            if (!cancelled) setLinkedFirm(parsed && typeof parsed === "object" ? parsed : null);
+          } catch (e) {
+            if (!cancelled) setLinkedFirm(null);
+          }
+        } else if (!cancelled) {
+          setLinkedFirm(null);
+        }
+
     })();
     return () => {
       cancelled = true;
