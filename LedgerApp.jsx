@@ -14203,7 +14203,10 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                     <div className="flex items-center justify-between gap-2">
                       <button
                         type="button"
-                        onClick={() => switchAccount(acc.id)}
+                        onClick={() => {
+                          switchAccount(acc.id);
+                          setSettingsOpen(false);
+                        }}
                         className="flex items-center gap-2 flex-1 text-left"
                         style={{ minWidth: 0 }}
                       >
