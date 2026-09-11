@@ -4570,19 +4570,14 @@ useEffect(() => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settingsLoaded]);
 
-const defaultAccountBalanceRef = useRef(settings.defaultAccountBalance);
-  useEffect(() => {
-    defaultAccountBalanceRef.current = settings.defaultAccountBalance;
-  }, [settings.defaultAccountBalance]);
-
-  useEffect(() => {
+useEffect(() => {
     if (!settingsLoaded || !calcInputsLoaded || !accountDataLoaded) return;
-    const def = defaultAccountBalanceRef.current;
+    const def = settings.defaultAccountBalance;
     if (!def) return;
     setEdge((e) => (e.accountBalance === "" ? { ...e, accountBalance: def } : e));
     setCs((c) => (c.startBal === "" ? { ...c, startBal: def } : c));
     setPs((p) => (p.balance === "" ? { ...p, balance: def } : p));
-  }, [settingsLoaded, calcInputsLoaded, accountDataLoaded]);
+  }, [settingsLoaded, calcInputsLoaded, accountDataLoaded, settings.defaultAccountBalance]);
 
   useEffect(() => {
     if (typeof document === "undefined") return;
