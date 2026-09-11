@@ -4060,26 +4060,16 @@ RUNTIME.ALARM_LEAD_MS = RUNTIME.ALARM_LEAD_MINUTES * 60 * 1000;
     let cancelled = false;
     (async () => {
       try {
-        const [tradesRes, themeRes] = await Promise.allSettled([
-          window.storage.get(STORAGE_KEY, false),
-          window.storage.get(THEME_STORAGE_KEY, false),
-        ]);
+        const themeRes = await window.storage.get(THEME_STORAGE_KEY, false);
         if (cancelled) return;
-        if (tradesRes.status === "fulfilled" && tradesRes.value) {
-          const parsed = JSON.parse(tradesRes.value.value);
-          if (Array.isArray(parsed)) setTrades(parsed);
-        }
-        if (themeRes.status === "fulfilled" && themeRes.value) {
-          const t = themeRes.value.value;
+        if (themeRes && themeRes.value) {
+          const t = themeRes.value;
           if (t === "light" || t === "dark") setTheme(t);
         }
       } catch (err) {
-        if (!cancelled) setTradesLoadError("Couldn't load saved trades.");
+        // non-critical, fail silently
       } finally {
-        if (!cancelled) {
-          setTradesLoaded(true);
-          setThemeLoaded(true);
-        }
+        if (!cancelled) setThemeLoaded(true);
       }
     })();
     return () => {
@@ -4273,25 +4263,16 @@ RUNTIME.ALARM_LEAD_MS = RUNTIME.ALARM_LEAD_MINUTES * 60 * 1000;
     let cancelled = false;
     (async () => {
       try {
-        const [entriesRes, widthsRes] = await Promise.allSettled([
-          window.storage.get(JOURNAL_STORAGE_KEY, false),
-          window.storage.get(JOURNAL_COLS_STORAGE_KEY, false),
-        ]);
+        const widthsRes = await window.storage.get(JOURNAL_COLS_STORAGE_KEY, false);
         if (cancelled) return;
-        if (entriesRes.status === "fulfilled" && entriesRes.value) {
-          const parsed = JSON.parse(entriesRes.value.value);
-          if (Array.isArray(parsed)) setJournalEntries(parsed);
-        }
-        if (widthsRes.status === "fulfilled" && widthsRes.value) {
-          const parsed = JSON.parse(widthsRes.value.value);
+        if (widthsRes && widthsRes.value) {
+          const parsed = JSON.parse(widthsRes.value);
           if (parsed && typeof parsed === "object") {
             setJournalColWidths({ ...DEFAULT_JOURNAL_COL_WIDTHS, ...parsed });
           }
         }
       } catch (err) {
         // non-critical, fail silently
-      } finally {
-        if (!cancelled) setJournalLoaded(true);
       }
     })();
     return () => {
@@ -4300,37 +4281,141 @@ RUNTIME.ALARM_LEAD_MS = RUNTIME.ALARM_LEAD_MINUTES * 60 * 1000;
   }, []);
 
   useEffect(() => {
+    if (!accountsLoaded || !activeAccountId) return;
     let cancelled = false;
+    setAccountDataLoaded(false);
     (async () => {
+      const acc = accounts.find((a) => a.id === activeAccountId);
+      const isLegacy = !!(acc && acc.legacy);
       try {
-        const [rulesRes, checkinsRes] = await Promise.allSettled([
-          window.storage.get(PLAYBOOK_RULES_KEY, false),
-          window.storage.get(PLAYBOOK_CHECKINS_KEY, false),
-        ]);
+        const [balRes, csRes, tradesRes, journalRes, playbookRulesRes, playbookCheckinsRes] =
+          await Promise.allSettled([
+            window.storage.get(scopedKey(STORAGE_BAL_KEY, activeAccountId), false),
+            window.storage.get(scopedKey(CS_STORAGE_KEY, activeAccountId), false),
+            window.storage.get(scopedKey(STORAGE_KEY, activeAccountId), false),
+            window.storage.get(scopedKey(JOURNAL_STORAGE_KEY, activeAccountId), false),
+            window.storage.get(scopedKey(PLAYBOOK_RULES_KEY, activeAccountId), false),
+            window.storage.get(scopedKey(PLAYBOOK_CHECKINS_KEY, activeAccountId), false),
+          ]);
         if (cancelled) return;
-        let loadedRules = null;
-        if (rulesRes.status === "fulfilled" && rulesRes.value) {
-          const parsed = JSON.parse(rulesRes.value.value);
-          if (Array.isArray(parsed)) loadedRules = parsed;
-        }
-        if (loadedRules) {
-          setPlaybookRules(loadedRules);
+
+        // Starting balance
+        if (balRes.status === "fulfilled" && balRes.value) {
+          setStartingBalance(balRes.value.value);
+        } else if (isLegacy) {
+          const legacyBal = await window.storage.get(STORAGE_BAL_KEY, false).catch(() => null);
+          if (!cancelled) setStartingBalance(legacyBal ? legacyBal.value : "");
         } else {
-          const seeded = PLAYBOOK_STARTER_RULES.map((text, i) => ({
-            id: `rule-${Date.now()}-${i}`,
-            text,
-          }));
-          setPlaybookRules(seeded);
-          window.storage.set(PLAYBOOK_RULES_KEY, JSON.stringify(seeded), false).catch(() => {});
+          setStartingBalance("");
         }
-        if (checkinsRes.status === "fulfilled" && checkinsRes.value) {
-          const parsed = JSON.parse(checkinsRes.value.value);
-          if (Array.isArray(parsed)) setPlaybookCheckins(parsed);
+
+        // Challenge calculator inputs
+        if (csRes.status === "fulfilled" && csRes.value) {
+          const parsed = JSON.parse(csRes.value.value);
+          if (parsed && typeof parsed === "object") setCs({ ...DEFAULT_CS_INPUTS, ...parsed });
+        } else if (isLegacy) {
+          const legacyCs = await window.storage.get(CS_STORAGE_KEY, false).catch(() => null);
+          if (!cancelled && legacyCs) {
+            const parsed = JSON.parse(legacyCs.value);
+            setCs(parsed && typeof parsed === "object" ? { ...DEFAULT_CS_INPUTS, ...parsed } : DEFAULT_CS_INPUTS);
+          } else if (!cancelled) {
+            setCs(DEFAULT_CS_INPUTS);
+          }
+        } else {
+          setCs(DEFAULT_CS_INPUTS);
+        }
+
+        // Trades
+        if (tradesRes.status === "fulfilled" && tradesRes.value) {
+          const parsed = JSON.parse(tradesRes.value.value);
+          if (!cancelled) setTrades(Array.isArray(parsed) ? parsed : []);
+        } else if (isLegacy) {
+          const legacyTrades = await window.storage.get(STORAGE_KEY, false).catch(() => null);
+          if (!cancelled) {
+            try {
+              const parsed = legacyTrades ? JSON.parse(legacyTrades.value) : [];
+              setTrades(Array.isArray(parsed) ? parsed : []);
+            } catch (e) {
+              setTrades([]);
+            }
+          }
+        } else if (!cancelled) {
+          setTrades([]);
+        }
+
+        // Journal entries
+        if (journalRes.status === "fulfilled" && journalRes.value) {
+          const parsed = JSON.parse(journalRes.value.value);
+          if (!cancelled) setJournalEntries(Array.isArray(parsed) ? parsed : []);
+        } else if (isLegacy) {
+          const legacyJournal = await window.storage.get(JOURNAL_STORAGE_KEY, false).catch(() => null);
+          if (!cancelled) {
+            try {
+              const parsed = legacyJournal ? JSON.parse(legacyJournal.value) : [];
+              setJournalEntries(Array.isArray(parsed) ? parsed : []);
+            } catch (e) {
+              setJournalEntries([]);
+            }
+          }
+        } else if (!cancelled) {
+          setJournalEntries([]);
+        }
+
+        // Playbook rules (seed starter rules for a brand-new account)
+        let loadedRules = null;
+        if (playbookRulesRes.status === "fulfilled" && playbookRulesRes.value) {
+          const parsed = JSON.parse(playbookRulesRes.value.value);
+          if (Array.isArray(parsed)) loadedRules = parsed;
+        } else if (isLegacy) {
+          const legacyRules = await window.storage.get(PLAYBOOK_RULES_KEY, false).catch(() => null);
+          if (legacyRules) {
+            try {
+              const parsed = JSON.parse(legacyRules.value);
+              if (Array.isArray(parsed)) loadedRules = parsed;
+            } catch (e) {
+              // ignore
+            }
+          }
+        }
+        if (!cancelled) {
+          if (loadedRules) {
+            setPlaybookRules(loadedRules);
+          } else {
+            const seeded = PLAYBOOK_STARTER_RULES.map((text, i) => ({
+              id: `rule-${Date.now()}-${i}`,
+              text,
+            }));
+            setPlaybookRules(seeded);
+            window.storage
+              .set(scopedKey(PLAYBOOK_RULES_KEY, activeAccountId), JSON.stringify(seeded), false)
+              .catch(() => {});
+          }
+        }
+
+        // Playbook check-ins
+        if (playbookCheckinsRes.status === "fulfilled" && playbookCheckinsRes.value) {
+          const parsed = JSON.parse(playbookCheckinsRes.value.value);
+          if (!cancelled) setPlaybookCheckins(Array.isArray(parsed) ? parsed : []);
+        } else if (isLegacy) {
+          const legacyCheckins = await window.storage.get(PLAYBOOK_CHECKINS_KEY, false).catch(() => null);
+          if (!cancelled) {
+            try {
+              const parsed = legacyCheckins ? JSON.parse(legacyCheckins.value) : [];
+              setPlaybookCheckins(Array.isArray(parsed) ? parsed : []);
+            } catch (e) {
+              setPlaybookCheckins([]);
+            }
+          }
+        } else if (!cancelled) {
+          setPlaybookCheckins([]);
         }
       } catch (err) {
         // non-critical, fail silently
       } finally {
         if (!cancelled) {
+          setAccountDataLoaded(true);
+          setTradesLoaded(true);
+          setJournalLoaded(true);
           setPlaybookRulesLoaded(true);
           setPlaybookCheckinsLoaded(true);
         }
@@ -4339,7 +4424,8 @@ RUNTIME.ALARM_LEAD_MS = RUNTIME.ALARM_LEAD_MINUTES * 60 * 1000;
     return () => {
       cancelled = true;
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountsLoaded, activeAccountId]);
 
   useEffect(() => {
     if (!playbookCheckinsLoaded) return;
@@ -4347,7 +4433,7 @@ RUNTIME.ALARM_LEAD_MS = RUNTIME.ALARM_LEAD_MINUTES * 60 * 1000;
     const existing = playbookCheckins.find((c) => c.date === todayKey);
     setTodayResults(existing ? { ...existing.results } : {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playbookCheckinsLoaded]);
+  }, [playbookCheckinsLoaded, activeAccountId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -4490,8 +4576,7 @@ useEffect(() => {
     setEdge((e) => (e.accountBalance === "" ? { ...e, accountBalance: def } : e));
     setCs((c) => (c.startBal === "" ? { ...c, startBal: def } : c));
     setPs((p) => (p.balance === "" ? { ...p, balance: def } : p));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settingsLoaded, calcInputsLoaded, accountDataLoaded]);
+  }, [settingsLoaded, calcInputsLoaded, accountDataLoaded, settings.defaultAccountBalance]);
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -4695,8 +4780,9 @@ useEffect(() => {
 
   const persistTrades = async (next) => {
     setTrades(next);
+    if (!activeAccountId) return;
     try {
-      await window.storage.set(STORAGE_KEY, JSON.stringify(next), false);
+      await window.storage.set(scopedKey(STORAGE_KEY, activeAccountId), JSON.stringify(next), false);
     } catch (err) {
       // non-critical, fail silently
     }
@@ -4886,8 +4972,9 @@ const selectInsightsSubTab = (id) => {
 
   const persistJournalEntries = async (next) => {
     setJournalEntries(next);
+    if (!activeAccountId) return;
     try {
-      await window.storage.set(JOURNAL_STORAGE_KEY, JSON.stringify(next), false);
+      await window.storage.set(scopedKey(JOURNAL_STORAGE_KEY, activeAccountId), JSON.stringify(next), false);
     } catch (err) {
       // non-critical, fail silently
     }
@@ -5367,8 +5454,9 @@ const updateSyncedJournalRow = (trade) => {
 
   const persistPlaybookRules = async (next) => {
     setPlaybookRules(next);
+    if (!activeAccountId) return;
     try {
-      await window.storage.set(PLAYBOOK_RULES_KEY, JSON.stringify(next), false);
+      await window.storage.set(scopedKey(PLAYBOOK_RULES_KEY, activeAccountId), JSON.stringify(next), false);
     } catch (err) {
       // non-critical, fail silently
     }
@@ -5376,8 +5464,9 @@ const updateSyncedJournalRow = (trade) => {
 
   const persistPlaybookCheckins = async (next) => {
     setPlaybookCheckins(next);
+    if (!activeAccountId) return;
     try {
-      await window.storage.set(PLAYBOOK_CHECKINS_KEY, JSON.stringify(next), false);
+      await window.storage.set(scopedKey(PLAYBOOK_CHECKINS_KEY, activeAccountId), JSON.stringify(next), false);
     } catch (err) {
       // non-critical, fail silently
     }
@@ -14099,10 +14188,10 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
           )}
 
           <p className="text-xs mt-3" style={{ color: palette.textFaint }}>
-            For now, accounts just have a name — trades, balances, and challenge rules will follow per-account
-            in a future update. Switching here changes which one is active.
+            Each account keeps its own starting balance, Challenge calculator inputs, trades, journal entries,
+            and Playbook check-ins. Setup/mood tags, notes, news events, and goals stay shared across every
+            account. Switching here changes which one is active.
           </p>
-        </SettingsSection>
 
         {/* APPEARANCE */}
         <SettingsSection icon={Palette} title="Appearance">
