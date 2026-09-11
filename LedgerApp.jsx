@@ -491,11 +491,12 @@ function CurrencySelect({ label, value, onChange }) {
   );
 }
 
-function SettingsSection({ icon: Icon, title, description, danger, children }) {
+function SettingsSection({ icon: Icon, title, description, danger, children, defaultOpen = false }) {
+  const [open, setOpen] = useState(defaultOpen);
   const accent = danger ? palette.red : palette.gold;
   return (
     <div
-      className="p-4 mb-4"
+      className="mb-4 overflow-hidden"
       style={{
         background: danger ? `${palette.red}0A` : palette.field,
         border: `1px solid ${danger ? `${palette.red}55` : palette.border}`,
@@ -503,7 +504,12 @@ function SettingsSection({ icon: Icon, title, description, danger, children }) {
         transition: THEME_TRANSITION,
       }}
     >
-      <div className="flex items-center gap-2.5 mb-3">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-2.5 p-4 text-left"
+        style={{ background: "transparent" }}
+      >
         {Icon && (
           <span
             className="flex items-center justify-center rounded-lg flex-shrink-0"
@@ -517,25 +523,39 @@ function SettingsSection({ icon: Icon, title, description, danger, children }) {
             <Icon size={14} strokeWidth={2.2} />
           </span>
         )}
-<span
-  style={{
-    fontFamily: display,
-    fontSize: "12.5px",
-    fontWeight: 700,
-    color: danger ? palette.red : palette.text,
-    letterSpacing: "0.04em",
-    textTransform: "uppercase",
-  }}
->
-  {title}
-</span>
-      </div>
-      {description && (
-        <p className="text-xs mb-3" style={{ color: palette.textFaint }}>
-          {description}
-        </p>
+        <span
+          style={{
+            fontFamily: display,
+            fontSize: "12.5px",
+            fontWeight: 700,
+            color: danger ? palette.red : palette.text,
+            letterSpacing: "0.04em",
+            textTransform: "uppercase",
+            flex: 1,
+          }}
+        >
+          {title}
+        </span>
+        <ChevronDown
+          size={16}
+          style={{
+            color: palette.textFaint,
+            flexShrink: 0,
+            transform: open ? "rotate(180deg)" : "rotate(0deg)",
+            transition: "transform 0.2s ease",
+          }}
+        />
+      </button>
+      {open && (
+        <div className="px-4 pb-4">
+          {description && (
+            <p className="text-xs mb-3" style={{ color: palette.textFaint }}>
+              {description}
+            </p>
+          )}
+          {children}
+        </div>
       )}
-      {children}
     </div>
   );
 }
@@ -14147,7 +14167,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
 
       <div className="p-5">
         {/* ACCOUNTS */}
-        <SettingsSection icon={Building2} title="Accounts">
+        <SettingsSection icon={Building2} title="Accounts" defaultOpen>
           <SettingsSubLabel>Active Account</SettingsSubLabel>
 
           {!accountsLoaded ? (
@@ -14318,7 +14338,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
         </SettingsSection>
 
         {/* APPEARANCE */}
-        <SettingsSection icon={Palette} title="Appearance">
+        <SettingsSection icon={Palette} title="Appearance" defaultOpen>
           <SettingsSubLabel>Theme</SettingsSubLabel>
           <div className="flex gap-2 mb-1 flex-wrap">
             {[
@@ -14455,7 +14475,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
           </p>
 
           <SettingsSubLabel>Default Insights Tab</SettingsSubLabel>
-          <div className="flex gap-2">
+          <div className="grid grid-cols-3 gap-2">
             {[
               { id: "overview", label: "Overview" },
               { id: "behavior", label: "Behavior" },
@@ -14467,14 +14487,18 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                   key={opt.id}
                   type="button"
                   onClick={() => persistSettings({ ...settings, defaultInsightsTab: opt.id })}
-                  className={`flex-1 px-3 py-2 rounded-lg transition-colors ${TAP}`}
+                  className={`px-1 py-2 rounded-lg transition-colors ${TAP}`}
                   style={{
                     background: active ? palette.gold : palette.surface,
                     color: active ? palette.letterbox : palette.textMuted,
                     border: `1px solid ${active ? palette.gold : palette.border}`,
                     fontFamily: mono,
-                    fontSize: "12.5px",
+                    fontSize: "12px",
                     fontWeight: 600,
+                    minWidth: 0,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
                   }}
                 >
                   {opt.label}
@@ -14507,7 +14531,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
           </p>
 
           <SettingsSubLabel>Statement Period</SettingsSubLabel>
-          <div className="flex gap-2">
+          <div className="grid grid-cols-3 gap-2">
             {[
               { id: "month", label: "Monthly" },
               { id: "quarter", label: "Quarterly" },
@@ -14519,7 +14543,8 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                   key={opt.id}
                   type="button"
                   onClick={() => persistSettings({ ...settings, statementPeriodType: opt.id })}
-                  className={`flex-1 px-3 py-2 rounded-lg transition-colors ${TAP}`}
+                  className={`px-1 py-2 rounded-lg transition-colors ${TAP}`}
+                  style={{ minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
                   style={{
                     background: active ? palette.gold : palette.surface,
                     color: active ? palette.letterbox : palette.textMuted,
