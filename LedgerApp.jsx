@@ -4574,9 +4574,11 @@ useEffect(() => {
     if (!settingsLoaded || !calcInputsLoaded || !accountDataLoaded) return;
     const def = settings.defaultAccountBalance;
     if (!def) return;
-    setEdge((e) => (e.accountBalance === "" ? { ...e, accountBalance: def } : e));
-    setCs((c) => (c.startBal === "" ? { ...c, startBal: def } : c));
-    setPs((p) => (p.balance === "" ? { ...p, balance: def } : p));
+    setEdge((e) => ({ ...e, accountBalance: def }));
+    setCs((c) => ({ ...c, startBal: def }));
+    setPs((p) => ({ ...p, balance: def }));
+    persistStartingBalance(def);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settingsLoaded, calcInputsLoaded, accountDataLoaded, settings.defaultAccountBalance]);
 
   useEffect(() => {
