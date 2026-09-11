@@ -14036,7 +14036,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                         )}
                       </div>
                     </div>
-                  );
+                  )}
                 </div>
               );
             })
