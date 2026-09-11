@@ -4239,15 +4239,16 @@ RUNTIME.ALARM_LEAD_MS = RUNTIME.ALARM_LEAD_MINUTES * 60 * 1000;
       const acc = accounts.find((a) => a.id === activeAccountId);
       const isLegacy = !!(acc && acc.legacy);
       try {
-        const [balRes, csRes, tradesRes, journalRes, playbookRulesRes, playbookCheckinsRes] =
-          await Promise.allSettled([
-            window.storage.get(scopedKey(STORAGE_BAL_KEY, activeAccountId), false),
-            window.storage.get(scopedKey(CS_STORAGE_KEY, activeAccountId), false),
-            window.storage.get(scopedKey(STORAGE_KEY, activeAccountId), false),
-            window.storage.get(scopedKey(JOURNAL_STORAGE_KEY, activeAccountId), false),
-            window.storage.get(scopedKey(PLAYBOOK_RULES_KEY, activeAccountId), false),
-            window.storage.get(scopedKey(PLAYBOOK_CHECKINS_KEY, activeAccountId), false),
-          ]);
+const [balRes, csRes, tradesRes, journalRes, playbookRulesRes, playbookCheckinsRes, notepadRes] =
+  await Promise.allSettled([
+    window.storage.get(scopedKey(STORAGE_BAL_KEY, activeAccountId), false),
+    window.storage.get(scopedKey(CS_STORAGE_KEY, activeAccountId), false),
+    window.storage.get(scopedKey(STORAGE_KEY, activeAccountId), false),
+    window.storage.get(scopedKey(JOURNAL_STORAGE_KEY, activeAccountId), false),
+    window.storage.get(scopedKey(PLAYBOOK_RULES_KEY, activeAccountId), false),
+    window.storage.get(scopedKey(PLAYBOOK_CHECKINS_KEY, activeAccountId), false),
+    window.storage.get(scopedKey(NOTEPAD_STORAGE_KEY, activeAccountId), false),
+  ]);
         if (cancelled) return;
 
         // Starting balance
@@ -4348,6 +4349,24 @@ RUNTIME.ALARM_LEAD_MS = RUNTIME.ALARM_LEAD_MINUTES * 60 * 1000;
           const parsed = JSON.parse(playbookCheckinsRes.value.value);
           if (!cancelled) setPlaybookCheckins(Array.isArray(parsed) ? parsed : []);
         } else if (isLegacy) {
+
+          // Notepad notes
+if (notepadRes.status === "fulfilled" && notepadRes.value) {
+  const parsed = JSON.parse(notepadRes.value.value);
+  if (!cancelled) setNotepadNotes(Array.isArray(parsed) ? parsed.map(migrateNoteShape) : []);
+} else if (isLegacy) {
+  const legacyNotes = await window.storage.get(NOTEPAD_STORAGE_KEY, false).catch(() => null);
+  if (!cancelled) {
+    try {
+      const parsed = legacyNotes ? JSON.parse(legacyNotes.value) : [];
+      setNotepadNotes(Array.isArray(parsed) ? parsed.map(migrateNoteShape) : []);
+    } catch (e) {
+      setNotepadNotes([]);
+    }
+  }
+} else if (!cancelled) {
+  setNotepadNotes([]);
+}
           const legacyCheckins = await window.storage.get(PLAYBOOK_CHECKINS_KEY, false).catch(() => null);
           if (!cancelled) {
             try {
@@ -4385,27 +4404,6 @@ RUNTIME.ALARM_LEAD_MS = RUNTIME.ALARM_LEAD_MINUTES * 60 * 1000;
     setTodayResults(existing ? { ...existing.results } : {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playbookCheckinsLoaded, activeAccountId]);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await window.storage.get(NOTEPAD_STORAGE_KEY, false);
-        if (cancelled) return;
-        if (res && res.value) {
-          const parsed = JSON.parse(res.value);
-          if (Array.isArray(parsed)) setNotepadNotes(parsed.map(migrateNoteShape));
-        }
-      } catch (err) {
-        // non-critical, fail silently
-      } finally {
-        if (!cancelled) setNotepadLoaded(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -4520,14 +4518,19 @@ useEffect(() => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settingsLoaded]);
 
+const defaultAccountBalanceRef = useRef(settings.defaultAccountBalance);
+  useEffect(() => {
+    defaultAccountBalanceRef.current = settings.defaultAccountBalance;
+  }, [settings.defaultAccountBalance]);
+
   useEffect(() => {
     if (!settingsLoaded || !calcInputsLoaded || !accountDataLoaded) return;
-    const def = settings.defaultAccountBalance;
+    const def = defaultAccountBalanceRef.current;
     if (!def) return;
     setEdge((e) => (e.accountBalance === "" ? { ...e, accountBalance: def } : e));
     setCs((c) => (c.startBal === "" ? { ...c, startBal: def } : c));
     setPs((p) => (p.balance === "" ? { ...p, balance: def } : p));
-  }, [settingsLoaded, calcInputsLoaded, accountDataLoaded, settings.defaultAccountBalance]);
+  }, [settingsLoaded, calcInputsLoaded, accountDataLoaded]);
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -4804,11 +4807,13 @@ useEffect(() => {
   };
 
 const switchAccount = (id) => {
-    if (id !== activeAccountId) {
-      setAccountDataLoaded(false);
-      persistActiveAccountId(id);
-    }
-  };
+  if (id !== activeAccountId) {
+    setAccountDataLoaded(false);
+    setLinkedFirm(null);
+    setActiveNoteId(null); // add this
+    persistActiveAccountId(id);
+  }
+};
 
   const confirmAddAccount = () => {
     const name = newAccountName.trim();
@@ -6182,14 +6187,13 @@ if (data.theme === "light" || data.theme === "dark" || data.theme === "amber" ||
     setMasterExportMsg("");
   };
 
-  const persistNotepadNotes = async (next) => {
-    setNotepadNotes(next);
-    try {
-      await window.storage.set(NOTEPAD_STORAGE_KEY, JSON.stringify(next), false);
-    } catch (err) {
-      // non-critical, fail silently
-    }
-  };
+const persistNotepadNotes = async (next) => {
+  setNotepadNotes(next);
+  if (!activeAccountId) return;
+  try {
+    await window.storage.set(scopedKey(NOTEPAD_STORAGE_KEY, activeAccountId), JSON.stringify(next), false);
+  } catch (err) {}
+};
 
   const createNote = () => {
     const id = `note-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
