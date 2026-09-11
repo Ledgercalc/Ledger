@@ -14192,6 +14192,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
             and Playbook check-ins. Setup/mood tags, notes, news events, and goals stay shared across every
             account. Switching here changes which one is active.
           </p>
+        </SettingsSection>
 
         {/* APPEARANCE */}
         <SettingsSection icon={Palette} title="Appearance">
