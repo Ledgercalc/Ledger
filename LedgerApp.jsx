@@ -4125,55 +4125,6 @@ RUNTIME.ALARM_LEAD_MS = RUNTIME.ALARM_LEAD_MINUTES * 60 * 1000;
   }, []);
 
   useEffect(() => {
-    if (!accountsLoaded || !activeAccountId) return;
-    let cancelled = false;
-    setAccountDataLoaded(false);
-    (async () => {
-      const acc = accounts.find((a) => a.id === activeAccountId);
-      const isLegacy = !!(acc && acc.legacy);
-      try {
-        const [balRes, csRes] = await Promise.allSettled([
-          window.storage.get(scopedKey(STORAGE_BAL_KEY, activeAccountId), false),
-          window.storage.get(scopedKey(CS_STORAGE_KEY, activeAccountId), false),
-        ]);
-        if (cancelled) return;
-
-        if (balRes.status === "fulfilled" && balRes.value) {
-          setStartingBalance(balRes.value.value);
-        } else if (isLegacy) {
-          const legacyBal = await window.storage.get(STORAGE_BAL_KEY, false).catch(() => null);
-          if (!cancelled) setStartingBalance(legacyBal ? legacyBal.value : "");
-        } else {
-          setStartingBalance("");
-        }
-
-        if (csRes.status === "fulfilled" && csRes.value) {
-          const parsed = JSON.parse(csRes.value.value);
-          if (parsed && typeof parsed === "object") setCs({ ...DEFAULT_CS_INPUTS, ...parsed });
-        } else if (isLegacy) {
-          const legacyCs = await window.storage.get(CS_STORAGE_KEY, false).catch(() => null);
-          if (!cancelled && legacyCs) {
-            const parsed = JSON.parse(legacyCs.value);
-            setCs(parsed && typeof parsed === "object" ? { ...DEFAULT_CS_INPUTS, ...parsed } : DEFAULT_CS_INPUTS);
-          } else if (!cancelled) {
-            setCs(DEFAULT_CS_INPUTS);
-          }
-        } else {
-          setCs(DEFAULT_CS_INPUTS);
-        }
-      } catch (err) {
-        // non-critical, fail silently
-      } finally {
-        if (!cancelled) setAccountDataLoaded(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accountsLoaded, activeAccountId]);
-
-  useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
