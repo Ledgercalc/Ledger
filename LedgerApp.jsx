@@ -4087,11 +4087,6 @@ RUNTIME.ALARM_LEAD_MS = RUNTIME.ALARM_LEAD_MINUTES * 60 * 1000;
     };
   }, []);
 
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   useEffect(() => {
     let cancelled = false;
     (async () => {
