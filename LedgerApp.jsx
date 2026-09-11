@@ -234,6 +234,7 @@ const DEFAULT_SETTINGS = {
   defaultInsightsTab: "overview",
   heatmapWeeksBack: "26",
   hiddenTabs: [],
+  mobileNavPinnedTabs: [],
   journalTableLayout: "auto", // "auto" | "cards" | "table"
   showRevengeTag: true,
   tourCompleted: false,
@@ -4904,6 +4905,19 @@ const selectInsightsSubTab = (id) => {
     persistSettings({ ...settings, hiddenTabs: next });
   };
 
+  const togglePinnedMobileTab = (tabId) => {
+    const current = settings.mobileNavPinnedTabs || [];
+    const isPinned = current.includes(tabId);
+    let next;
+    if (isPinned) {
+      next = current.filter((id) => id !== tabId);
+    } else {
+      if (current.length >= MOBILE_NAV_PRIMARY_COUNT) return; // bar only fits this many + More
+      next = [...current, tabId];
+    }
+    persistSettings({ ...settings, mobileNavPinnedTabs: next });
+  };
+
   const removeDefaultSetup = (id) => {
     if (hiddenDefaultSetupIds.includes(id)) return;
     persistHiddenDefaultSetups([...hiddenDefaultSetupIds, id]);
@@ -6356,8 +6370,17 @@ const persistNotepadNotes = async (next) => {
 const hiddenTabIds = settings.hiddenTabs || [];
   const visibleTabs = TABS.filter((t) => !hiddenTabIds.includes(t.id));
   const navTabs = visibleTabs.length > 0 ? visibleTabs : TABS;
-  const mobileNavPrimaryTabs = navTabs.slice(0, MOBILE_NAV_PRIMARY_COUNT);
-  const mobileNavOverflowTabs = navTabs.slice(MOBILE_NAV_PRIMARY_COUNT);
+
+  const pinnedTabIdsRaw = (settings.mobileNavPinnedTabs || []).filter((id) =>
+    navTabs.some((t) => t.id === id)
+  );
+  const mobileNavPrimaryTabs =
+    pinnedTabIdsRaw.length > 0
+      ? pinnedTabIdsRaw.map((id) => navTabs.find((t) => t.id === id)).filter(Boolean)
+      : navTabs.slice(0, MOBILE_NAV_PRIMARY_COUNT);
+  const mobileNavOverflowTabs = navTabs.filter(
+    (t) => !mobileNavPrimaryTabs.some((p) => p.id === t.id)
+  );
   const activeInMobileOverflow = mobileNavOverflowTabs.some((t) => t.id === activeTab);
 
   let body = null;
@@ -14380,6 +14403,52 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
           </div>
           <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
             Tap to hide a tab from your navigation. At least one must stay visible.
+          </p>
+
+          <SettingsSubLabel>Mobile Bottom Bar</SettingsSubLabel>
+          <div className="flex gap-2 flex-wrap mb-1">
+            {navTabs.map((t) => {
+              const pinnedList = settings.mobileNavPinnedTabs || [];
+              const isPinned = pinnedList.includes(t.id);
+              const pinnedIndex = pinnedList.indexOf(t.id);
+              const atLimit = pinnedList.length >= MOBILE_NAV_PRIMARY_COUNT;
+              const disabled = !isPinned && atLimit;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => togglePinnedMobileTab(t.id)}
+                  disabled={disabled}
+                  className={`px-3 py-1.5 rounded-full transition-colors ${disabled ? "" : TAP}`}
+                  style={{
+                    background: isPinned ? palette.gold : palette.surface,
+                    color: isPinned ? palette.letterbox : disabled ? palette.textFaint : palette.textMuted,
+                    border: `1px solid ${isPinned ? palette.gold : palette.border}`,
+                    fontFamily: mono,
+                    fontSize: "12.5px",
+                    opacity: disabled ? 0.5 : 1,
+                  }}
+                >
+                  {isPinned ? `${pinnedIndex + 1}. ` : ""}
+                  {t.label}
+                </button>
+              );
+            })}
+          </div>
+          {(settings.mobileNavPinnedTabs || []).length > 0 && (
+            <button
+              type="button"
+              onClick={() => persistSettings({ ...settings, mobileNavPinnedTabs: [] })}
+              className={`mb-2 block ${TAP}`}
+              style={{ color: palette.textFaint, fontSize: "11px", fontFamily: mono, textDecoration: "underline" }}
+            >
+              Reset to default
+            </button>
+          )}
+          <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
+            Pick up to {MOBILE_NAV_PRIMARY_COUNT} tabs to pin in the mobile bottom bar (numbered in tap order) —
+            everything else lands in "More." Leave empty to use the first {MOBILE_NAV_PRIMARY_COUNT} tabs
+            automatically.
           </p>
 
           <SettingsSubLabel>Default Insights Tab</SettingsSubLabel>
