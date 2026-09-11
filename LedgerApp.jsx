@@ -13812,14 +13812,21 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
             flexShrink: 0,
             borderTop: isDesktop ? "none" : `1px solid ${palette.border}`,
             borderRight: isDesktop ? `1px solid ${palette.border}` : "none",
+            borderTopLeftRadius: isDesktop ? 0 : "20px",
+            borderTopRightRadius: isDesktop ? 0 : "20px",
             background: isDesktop
               ? `linear-gradient(180deg, ${palette.surface} 0%, ${palette.bg} 100%)`
               : palette.surface,
             boxShadow: palette.navShadow,
-            paddingBottom: isDesktop ? "20px" : "env(safe-area-inset-bottom)",
-            paddingTop: isDesktop ? 0 : 0,
+            paddingBottom: isDesktop ? "20px" : "calc(env(safe-area-inset-bottom) + 8px)",
+            paddingTop: isDesktop ? 0 : "8px",
+            paddingLeft: isDesktop ? 0 : "6px",
+            paddingRight: isDesktop ? 0 : "6px",
+            gap: isDesktop ? 0 : "4px",
             width: isDesktop ? "252px" : "auto",
             height: isDesktop ? "100%" : "auto",
+            overflowX: isDesktop ? "visible" : "auto",
+            scrollSnapType: isDesktop ? "none" : "x proximity",
             transition: THEME_TRANSITION,
           }}
         >
@@ -13836,7 +13843,11 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
             const Icon = tab.icon;
             const active = activeTab === tab.id;
             return (
-              <div key={tab.id} className={isDesktop ? "flex relative" : "flex items-stretch flex-shrink-0"}>
+              <div
+                key={tab.id}
+                className={isDesktop ? "flex relative" : "flex items-stretch flex-shrink-0"}
+                style={!isDesktop ? { scrollSnapAlign: "center" } : undefined}
+              >
                 {isDesktop && active && (
                   <span
                     style={{
@@ -13850,6 +13861,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                     }}
                   />
                 )}
+
                 <button
                   type="button"
                   data-tour-id={`tab-${tab.id}`}
@@ -13857,17 +13869,15 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                   className={
                     isDesktop
                       ? `w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl ${TAP}`
-                      : `flex flex-col items-center gap-1 py-3 flex-shrink-0 ${TAP}`
+                      : `flex flex-col items-center justify-center gap-0.5 py-2 flex-shrink-0 ${TAP}`
                   }
                   style={{
-                    color: active ? palette.goldBright : palette.textMuted,
-                    minWidth: isDesktop ? "auto" : "66px",
-                    background: active
-                      ? isDesktop
-                        ? `linear-gradient(135deg, ${palette.gold}22, ${palette.gold}0A)`
-                        : `${palette.gold}16`
+                    color: active ? palette.goldBright : palette.textFaint,
+                    minWidth: isDesktop ? "auto" : "60px",
+                    background: isDesktop && active
+                      ? `linear-gradient(135deg, ${palette.gold}22, ${palette.gold}0A)`
                       : "transparent",
-                    borderRadius: isDesktop ? "10px" : "12px",
+                    borderRadius: isDesktop ? "10px" : "14px",
                     border: isDesktop ? `1px solid ${active ? `${palette.gold}3A` : "transparent"}` : "none",
                     boxShadow: isDesktop && active ? `0 2px 10px ${palette.gold}22` : "none",
                     transition: `${THEME_TRANSITION}, transform 0.15s ease, background 0.15s ease`,
@@ -13876,15 +13886,36 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                   <span
                     className="flex items-center justify-center flex-shrink-0"
                     style={{
-                      width: isDesktop ? "30px" : "auto",
-                      height: isDesktop ? "30px" : "auto",
-                      borderRadius: isDesktop ? "9px" : 0,
-                      background: isDesktop && active ? `${palette.gold}20` : "transparent",
+                      width: isDesktop ? "30px" : "34px",
+                      height: isDesktop ? "30px" : "22px",
+                      borderRadius: isDesktop ? "9px" : "10px",
+                      background: isDesktop
+                        ? active
+                          ? `${palette.gold}20`
+                          : "transparent"
+                        : active
+                        ? palette.gold
+                        : "transparent",
+                      transition: THEME_TRANSITION,
                     }}
                   >
-                    <Icon size={isDesktop ? 17 : 18} strokeWidth={active ? 2.4 : 1.8} />
+                    <Icon
+                      size={isDesktop ? 17 : 16}
+                      strokeWidth={active ? 2.4 : 1.8}
+                      style={!isDesktop && active ? { color: palette.letterbox } : undefined}
+                    />
                   </span>
-                  <span style={{ fontSize: isDesktop ? "14px" : "10px", letterSpacing: "0.02em", fontWeight: isDesktop ? 600 : 400 }}>
+                  <span
+                    style={{
+                      fontSize: isDesktop ? "14px" : "9.5px",
+                      letterSpacing: "0.02em",
+                      fontWeight: isDesktop ? 600 : active ? 600 : 400,
+                      maxWidth: isDesktop ? "none" : "60px",
+                      overflow: isDesktop ? "visible" : "hidden",
+                      textOverflow: isDesktop ? "clip" : "ellipsis",
+                      whiteSpace: isDesktop ? "normal" : "nowrap",
+                    }}
+                  >
                     {tab.label}
                   </span>
                 </button>
