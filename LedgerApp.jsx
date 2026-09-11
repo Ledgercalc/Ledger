@@ -4370,6 +4370,7 @@ const [balRes, csRes, tradesRes, journalRes, playbookRulesRes, playbookCheckinsR
           setPlaybookCheckins([]);
         }
 
+
         // Notepad notes
         if (notepadRes.status === "fulfilled" && notepadRes.value) {
           const parsed = JSON.parse(notepadRes.value.value);
@@ -4388,6 +4389,18 @@ const [balRes, csRes, tradesRes, journalRes, playbookRulesRes, playbookCheckinsR
           setNotepadNotes([]);
         }
 
+        // Linked prop firm (shown under Profit Split on the Challenge tab)
+        if (linkedFirmRes.status === "fulfilled" && linkedFirmRes.value) {
+          try {
+            const parsed = JSON.parse(linkedFirmRes.value.value);
+            if (!cancelled) setLinkedFirm(parsed && typeof parsed === "object" ? parsed : null);
+          } catch (e) {
+            if (!cancelled) setLinkedFirm(null);
+          }
+        } else if (!cancelled) {
+          setLinkedFirm(null);
+        }
+
       } catch (err) {
         // non-critical, fail silently
 
@@ -4401,20 +4414,8 @@ const [balRes, csRes, tradesRes, journalRes, playbookRulesRes, playbookCheckinsR
           setNotepadLoaded(true);
         }
       }
-
-        // Linked prop firm (shown under Profit Split on the Challenge tab)
-        if (linkedFirmRes.status === "fulfilled" && linkedFirmRes.value) {
-          try {
-            const parsed = JSON.parse(linkedFirmRes.value.value);
-            if (!cancelled) setLinkedFirm(parsed && typeof parsed === "object" ? parsed : null);
-          } catch (e) {
-            if (!cancelled) setLinkedFirm(null);
-          }
-        } else if (!cancelled) {
-          setLinkedFirm(null);
-        }
-
     })();
+
     return () => {
       cancelled = true;
     };
