@@ -1082,6 +1082,24 @@ const CS_STORAGE_KEY = "ledger:challenge-inputs";
 const PS_STORAGE_KEY = "ledger:size-inputs";
 const ACCOUNTS_LIST_KEY = "ledger:accounts:list";
 const ACCOUNTS_ACTIVE_KEY = "ledger:accounts:active";
+const scopedKey = (base, accountId) => `${base}:${accountId}`;
+
+const DEFAULT_CS_INPUTS = {
+  startBal: "",
+  currentBal: "",
+  targetPct: "10",
+  dailyLossPct: "5",
+  todayLoss: "",
+  bestDay: "",
+  rule: "30",
+  maxDrawdownPct: "4",
+  ddMode: "trail",
+  minTradingDays: "0",
+  minTrades: "0",
+  minDayGainPct: "0",
+  profitSplitPct: "80",
+  profitSplitEnabled: true,
+};
 
 const PROFIT_TARGET_OPTIONS = [5, 6, 8, 10, 12];
 
@@ -3510,6 +3528,7 @@ export default function LedgerApp() {
   const [editingAccountId, setEditingAccountId] = useState(null);
   const [editAccountName, setEditAccountName] = useState("");
   const [pendingAccountDelete, setPendingAccountDelete] = useState(null);
+  const [accountDataLoaded, setAccountDataLoaded] = useState(false);
 
   const [riskSubTab, setRiskSubTab] = useState("challenge");
   const [edgeProjectionPeriodIdx, setEdgeProjectionPeriodIdx] = useState(1);
@@ -3550,22 +3569,7 @@ const [edge, setEdge] = useState({
   tradesPerMonth: "",
 });
 
-const [cs, setCs] = useState({
-  startBal: "",
-  currentBal: "",
-  targetPct: "10",
-  dailyLossPct: "5",
-  todayLoss: "",
-  bestDay: "",
-  rule: "30",
-  maxDrawdownPct: "4",
-  ddMode: "trail",
-  minTradingDays: "0",
-  minTrades: "0",
-  minDayGainPct: "0",
-  profitSplitPct: "80",
-  profitSplitEnabled: true,
-});
+const [cs, setCs] = useState(DEFAULT_CS_INPUTS);
 
   const [ps, setPs] = useState({
     balance: "",
@@ -3974,19 +3978,14 @@ RUNTIME.ALARM_LEAD_MS = RUNTIME.ALARM_LEAD_MINUTES * 60 * 1000;
     let cancelled = false;
     (async () => {
       try {
-        const [edgeRes, csRes, psRes] = await Promise.allSettled([
+        const [edgeRes, psRes] = await Promise.allSettled([
           window.storage.get(EDGE_STORAGE_KEY, false),
-          window.storage.get(CS_STORAGE_KEY, false),
           window.storage.get(PS_STORAGE_KEY, false),
         ]);
         if (cancelled) return;
         if (edgeRes.status === "fulfilled" && edgeRes.value) {
           const parsed = JSON.parse(edgeRes.value.value);
           if (parsed && typeof parsed === "object") setEdge((e) => ({ ...e, ...parsed }));
-        }
-        if (csRes.status === "fulfilled" && csRes.value) {
-          const parsed = JSON.parse(csRes.value.value);
-          if (parsed && typeof parsed === "object") setCs((c) => ({ ...c, ...parsed }));
         }
         if (psRes.status === "fulfilled" && psRes.value) {
           const parsed = JSON.parse(psRes.value.value);
@@ -4009,9 +4008,9 @@ RUNTIME.ALARM_LEAD_MS = RUNTIME.ALARM_LEAD_MINUTES * 60 * 1000;
   }, [edge, calcInputsLoaded]);
 
   useEffect(() => {
-    if (!calcInputsLoaded) return;
-    window.storage.set(CS_STORAGE_KEY, JSON.stringify(cs), false).catch(() => {});
-  }, [cs, calcInputsLoaded]);
+    if (!accountDataLoaded || !activeAccountId) return;
+    window.storage.set(scopedKey(CS_STORAGE_KEY, activeAccountId), JSON.stringify(cs), false).catch(() => {});
+  }, [cs, accountDataLoaded, activeAccountId]);
 
   useEffect(() => {
     if (!calcInputsLoaded) return;
@@ -4061,18 +4060,14 @@ RUNTIME.ALARM_LEAD_MS = RUNTIME.ALARM_LEAD_MINUTES * 60 * 1000;
     let cancelled = false;
     (async () => {
       try {
-        const [tradesRes, balRes, themeRes] = await Promise.allSettled([
+        const [tradesRes, themeRes] = await Promise.allSettled([
           window.storage.get(STORAGE_KEY, false),
-          window.storage.get(STORAGE_BAL_KEY, false),
           window.storage.get(THEME_STORAGE_KEY, false),
         ]);
         if (cancelled) return;
         if (tradesRes.status === "fulfilled" && tradesRes.value) {
           const parsed = JSON.parse(tradesRes.value.value);
           if (Array.isArray(parsed)) setTrades(parsed);
-        }
-        if (balRes.status === "fulfilled" && balRes.value) {
-          setStartingBalance(balRes.value.value);
         }
         if (themeRes.status === "fulfilled" && themeRes.value) {
           const t = themeRes.value.value;
@@ -4120,7 +4115,7 @@ RUNTIME.ALARM_LEAD_MS = RUNTIME.ALARM_LEAD_MINUTES * 60 * 1000;
 
         if (!list) {
           const id = `acc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-          list = [{ id, name: "My Account", createdAt: Date.now(), archived: false }];
+          list = [{ id, name: "My Account", createdAt: Date.now(), archived: false, legacy: true }];
           activeId = id;
           window.storage.set(ACCOUNTS_LIST_KEY, JSON.stringify(list), false).catch(() => {});
           window.storage.set(ACCOUNTS_ACTIVE_KEY, id, false).catch(() => {});
@@ -4143,6 +4138,55 @@ RUNTIME.ALARM_LEAD_MS = RUNTIME.ALARM_LEAD_MINUTES * 60 * 1000;
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!accountsLoaded || !activeAccountId) return;
+    let cancelled = false;
+    setAccountDataLoaded(false);
+    (async () => {
+      const acc = accounts.find((a) => a.id === activeAccountId);
+      const isLegacy = !!(acc && acc.legacy);
+      try {
+        const [balRes, csRes] = await Promise.allSettled([
+          window.storage.get(scopedKey(STORAGE_BAL_KEY, activeAccountId), false),
+          window.storage.get(scopedKey(CS_STORAGE_KEY, activeAccountId), false),
+        ]);
+        if (cancelled) return;
+
+        if (balRes.status === "fulfilled" && balRes.value) {
+          setStartingBalance(balRes.value.value);
+        } else if (isLegacy) {
+          const legacyBal = await window.storage.get(STORAGE_BAL_KEY, false).catch(() => null);
+          if (!cancelled) setStartingBalance(legacyBal ? legacyBal.value : "");
+        } else {
+          setStartingBalance("");
+        }
+
+        if (csRes.status === "fulfilled" && csRes.value) {
+          const parsed = JSON.parse(csRes.value.value);
+          if (parsed && typeof parsed === "object") setCs({ ...DEFAULT_CS_INPUTS, ...parsed });
+        } else if (isLegacy) {
+          const legacyCs = await window.storage.get(CS_STORAGE_KEY, false).catch(() => null);
+          if (!cancelled && legacyCs) {
+            const parsed = JSON.parse(legacyCs.value);
+            setCs(parsed && typeof parsed === "object" ? { ...DEFAULT_CS_INPUTS, ...parsed } : DEFAULT_CS_INPUTS);
+          } else if (!cancelled) {
+            setCs(DEFAULT_CS_INPUTS);
+          }
+        } else {
+          setCs(DEFAULT_CS_INPUTS);
+        }
+      } catch (err) {
+        // non-critical, fail silently
+      } finally {
+        if (!cancelled) setAccountDataLoaded(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountsLoaded, activeAccountId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -4445,14 +4489,14 @@ useEffect(() => {
   }, [settingsLoaded]);
 
   useEffect(() => {
-    if (!settingsLoaded || !calcInputsLoaded) return;
+    if (!settingsLoaded || !calcInputsLoaded || !accountDataLoaded) return;
     const def = settings.defaultAccountBalance;
     if (!def) return;
     setEdge((e) => (e.accountBalance === "" ? { ...e, accountBalance: def } : e));
     setCs((c) => (c.startBal === "" ? { ...c, startBal: def } : c));
     setPs((p) => (p.balance === "" ? { ...p, balance: def } : p));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settingsLoaded, calcInputsLoaded]);
+  }, [settingsLoaded, calcInputsLoaded, accountDataLoaded]);
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -4665,8 +4709,9 @@ useEffect(() => {
 
   const persistStartingBalance = async (val) => {
     setStartingBalance(val);
+    if (!activeAccountId) return;
     try {
-      await window.storage.set(STORAGE_BAL_KEY, val, false);
+      await window.storage.set(scopedKey(STORAGE_BAL_KEY, activeAccountId), val, false);
     } catch (err) {
       // starting balance is non-critical, fail silently
     }
