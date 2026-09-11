@@ -4803,8 +4803,11 @@ useEffect(() => {
     }
   };
 
-  const switchAccount = (id) => {
-    if (id !== activeAccountId) persistActiveAccountId(id);
+const switchAccount = (id) => {
+    if (id !== activeAccountId) {
+      setAccountDataLoaded(false);
+      persistActiveAccountId(id);
+    }
   };
 
   const confirmAddAccount = () => {
