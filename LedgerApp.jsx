@@ -768,6 +768,8 @@ const TABS = [
   { id: "sessions", label: "Sessions", icon: Clock },
 ];
 
+const MOBILE_NAV_PRIMARY_COUNT = 4;
+
 const TOUR_STEPS = [
   {
     id: "welcome",
@@ -3522,6 +3524,7 @@ export default function LedgerApp() {
   const ActiveTabIcon = TABS.find((t) => t.id === activeTab)?.icon || Scale;
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [pulseOpen, setPulseOpen] = useState(false);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
 
   const [accounts, setAccounts] = useState([]);
   const [accountsLoaded, setAccountsLoaded] = useState(false);
@@ -6353,19 +6356,11 @@ const persistNotepadNotes = async (next) => {
 const hiddenTabIds = settings.hiddenTabs || [];
   const visibleTabs = TABS.filter((t) => !hiddenTabIds.includes(t.id));
   const navTabs = visibleTabs.length > 0 ? visibleTabs : TABS;
+  const mobileNavPrimaryTabs = navTabs.slice(0, MOBILE_NAV_PRIMARY_COUNT);
+  const mobileNavOverflowTabs = navTabs.slice(MOBILE_NAV_PRIMARY_COUNT);
+  const activeInMobileOverflow = mobileNavOverflowTabs.some((t) => t.id === activeTab);
 
   let body = null;
-
-
-
-
-
-
-
-
-
-
-
 
   if (activeTab === "risk") {
     const RISK_SUB_TABS = [
@@ -13662,6 +13657,11 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
           to { opacity: 1; transform: scale(1) translateY(0); }
         }
         .modal-in { animation: modalIn 0.18s ease-out; }
+        @keyframes sheetUp {
+          from { opacity: 0; transform: translateY(16px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .sheet-in { animation: sheetUp 0.2s ease-out; }
         input:focus, select:focus, textarea:focus { outline: none; }
         select option { background: ${palette.field}; }
         .journal-row-date-input::-webkit-calendar-picker-indicator { display: none; -webkit-appearance: none; }
@@ -13806,31 +13806,25 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
         </main>
         </div>
 
+
         <nav
-          className={isDesktop ? "flex flex-col order-first" : "flex overflow-x-auto"}
+          className={isDesktop ? "flex flex-col order-first" : "flex items-stretch"}
           style={{
             flexShrink: 0,
             borderTop: isDesktop ? "none" : `1px solid ${palette.border}`,
             borderRight: isDesktop ? `1px solid ${palette.border}` : "none",
-            borderTopLeftRadius: isDesktop ? 0 : "20px",
-            borderTopRightRadius: isDesktop ? 0 : "20px",
             background: isDesktop
               ? `linear-gradient(180deg, ${palette.surface} 0%, ${palette.bg} 100%)`
               : palette.surface,
             boxShadow: palette.navShadow,
-            paddingBottom: isDesktop ? "20px" : "calc(env(safe-area-inset-bottom) + 8px)",
-            paddingTop: isDesktop ? 0 : "8px",
-            paddingLeft: isDesktop ? 0 : "6px",
-            paddingRight: isDesktop ? 0 : "6px",
-            gap: isDesktop ? 0 : "4px",
+            paddingBottom: isDesktop ? "20px" : "env(safe-area-inset-bottom)",
+            paddingTop: isDesktop ? 0 : 0,
             width: isDesktop ? "252px" : "auto",
             height: isDesktop ? "100%" : "auto",
-            overflowX: isDesktop ? "visible" : "auto",
-            scrollSnapType: isDesktop ? "none" : "x proximity",
             transition: THEME_TRANSITION,
           }}
         >
-          <div className={isDesktop ? "flex flex-col px-4 pt-6 gap-1" : "contents"}>
+          <div className={isDesktop ? "flex flex-col px-4 pt-6 gap-1" : "flex flex-1 items-stretch"}>
           {isDesktop && (
             <div
               className="uppercase mb-2 px-2"
@@ -13839,15 +13833,11 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
               Navigate
             </div>
           )}
-           {navTabs.map((tab) => {
+           {(isDesktop ? navTabs : mobileNavPrimaryTabs).map((tab) => {
             const Icon = tab.icon;
             const active = activeTab === tab.id;
             return (
-              <div
-                key={tab.id}
-                className={isDesktop ? "flex relative" : "flex items-stretch flex-shrink-0"}
-                style={!isDesktop ? { scrollSnapAlign: "center" } : undefined}
-              >
+              <div key={tab.id} className={isDesktop ? "flex relative" : "flex flex-1 items-stretch"}>
                 {isDesktop && active && (
                   <span
                     style={{
@@ -13861,7 +13851,6 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                     }}
                   />
                 )}
-
                 <button
                   type="button"
                   data-tour-id={`tab-${tab.id}`}
@@ -13869,15 +13858,16 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                   className={
                     isDesktop
                       ? `w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl ${TAP}`
-                      : `flex flex-col items-center justify-center gap-0.5 py-2 flex-shrink-0 ${TAP}`
+                      : `w-full flex flex-col items-center justify-center gap-1 py-3 ${TAP}`
                   }
                   style={{
-                    color: active ? palette.goldBright : palette.textFaint,
-                    minWidth: isDesktop ? "auto" : "60px",
-                    background: isDesktop && active
-                      ? `linear-gradient(135deg, ${palette.gold}22, ${palette.gold}0A)`
+                    color: active ? palette.goldBright : palette.textMuted,
+                    background: active
+                      ? isDesktop
+                        ? `linear-gradient(135deg, ${palette.gold}22, ${palette.gold}0A)`
+                        : `${palette.gold}16`
                       : "transparent",
-                    borderRadius: isDesktop ? "10px" : "14px",
+                    borderRadius: isDesktop ? "10px" : "12px",
                     border: isDesktop ? `1px solid ${active ? `${palette.gold}3A` : "transparent"}` : "none",
                     boxShadow: isDesktop && active ? `0 2px 10px ${palette.gold}22` : "none",
                     transition: `${THEME_TRANSITION}, transform 0.15s ease, background 0.15s ease`,
@@ -13886,42 +13876,44 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                   <span
                     className="flex items-center justify-center flex-shrink-0"
                     style={{
-                      width: isDesktop ? "30px" : "34px",
-                      height: isDesktop ? "30px" : "22px",
-                      borderRadius: isDesktop ? "9px" : "10px",
-                      background: isDesktop
-                        ? active
-                          ? `${palette.gold}20`
-                          : "transparent"
-                        : active
-                        ? palette.gold
-                        : "transparent",
-                      transition: THEME_TRANSITION,
+                      width: isDesktop ? "30px" : "auto",
+                      height: isDesktop ? "30px" : "auto",
+                      borderRadius: isDesktop ? "9px" : 0,
+                      background: isDesktop && active ? `${palette.gold}20` : "transparent",
                     }}
                   >
-                    <Icon
-                      size={isDesktop ? 17 : 16}
-                      strokeWidth={active ? 2.4 : 1.8}
-                      style={!isDesktop && active ? { color: palette.letterbox } : undefined}
-                    />
+                    <Icon size={isDesktop ? 17 : 18} strokeWidth={active ? 2.4 : 1.8} />
                   </span>
-                  <span
-                    style={{
-                      fontSize: isDesktop ? "14px" : "9.5px",
-                      letterSpacing: "0.02em",
-                      fontWeight: isDesktop ? 600 : active ? 600 : 400,
-                      maxWidth: isDesktop ? "none" : "60px",
-                      overflow: isDesktop ? "visible" : "hidden",
-                      textOverflow: isDesktop ? "clip" : "ellipsis",
-                      whiteSpace: isDesktop ? "normal" : "nowrap",
-                    }}
-                  >
+                  <span style={{ fontSize: isDesktop ? "14px" : "10px", letterSpacing: "0.02em", fontWeight: isDesktop ? 600 : 400 }}>
                     {tab.label}
                   </span>
                 </button>
               </div>
             );
           })}
+
+          {!isDesktop && mobileNavOverflowTabs.length > 0 && (
+            <div className="flex flex-1 items-stretch">
+              <button
+                type="button"
+                onClick={() => setMoreMenuOpen(true)}
+                className={`w-full flex flex-col items-center justify-center gap-1 py-3 ${TAP}`}
+                style={{
+                  color: activeInMobileOverflow ? palette.goldBright : palette.textMuted,
+                  background: activeInMobileOverflow ? `${palette.gold}16` : "transparent",
+                  borderRadius: "12px",
+                  transition: `${THEME_TRANSITION}, transform 0.15s ease, background 0.15s ease`,
+                }}
+              >
+                <span className="flex items-center justify-center flex-shrink-0">
+                  <LayoutGrid size={18} strokeWidth={activeInMobileOverflow ? 2.4 : 1.8} />
+                </span>
+                <span style={{ fontSize: "10px", letterSpacing: "0.02em", fontWeight: activeInMobileOverflow ? 600 : 400 }}>
+                  More
+                </span>
+              </button>
+            </div>
+          )}
           </div>
 
 {isDesktop && (() => {
@@ -14002,6 +13994,71 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
       </div>
 
       <canvas ref={shareCanvasRef} style={{ display: "none" }} />
+
+      {moreMenuOpen && (
+        <div
+          className="fixed inset-0 flex items-end justify-center z-50"
+          style={{ background: "rgba(5,7,12,0.75)", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)" }}
+          onClick={() => setMoreMenuOpen(false)}
+        >
+          <div
+            className="w-full sheet-in"
+            style={{
+              maxWidth: "440px",
+              background: palette.surface,
+              border: `1px solid ${palette.border}`,
+              borderTopLeftRadius: "22px",
+              borderTopRightRadius: "22px",
+              boxShadow: palette.shadow,
+              paddingBottom: "env(safe-area-inset-bottom)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-center pt-3 pb-1">
+              <span style={{ width: "36px", height: "4px", borderRadius: "999px", background: palette.border }} />
+            </div>
+            <div className="flex items-center justify-between px-5 pt-2 pb-3">
+              <span style={{ fontFamily: display, fontSize: "15px", fontWeight: 700, color: palette.text }}>
+                More
+              </span>
+              <button
+                type="button"
+                onClick={() => setMoreMenuOpen(false)}
+                className={`flex items-center justify-center rounded-full ${TAP}`}
+                style={{ width: "30px", height: "30px", color: palette.textFaint, background: palette.field, border: `1px solid ${palette.border}` }}
+                aria-label="Close"
+              >
+                <X size={15} />
+              </button>
+            </div>
+            <div className="grid grid-cols-4 gap-2 px-4 pb-6">
+              {mobileNavOverflowTabs.map((tab) => {
+                const Icon = tab.icon;
+                const active = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => {
+                      setActiveTab(tab.id);
+                      setMoreMenuOpen(false);
+                    }}
+                    className={`flex flex-col items-center justify-center gap-1.5 py-3.5 rounded-xl ${TAP}`}
+                    style={{
+                      background: active ? `${palette.gold}16` : palette.field,
+                      border: `1px solid ${active ? palette.gold : palette.border}`,
+                      color: active ? palette.goldBright : palette.textMuted,
+                    }}
+                  >
+                    <Icon size={19} strokeWidth={active ? 2.4 : 1.8} />
+                    <span style={{ fontSize: "10.5px", fontWeight: active ? 600 : 400 }}>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
 {settingsOpen && (
   <div
