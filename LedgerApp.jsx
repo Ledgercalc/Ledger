@@ -13911,7 +13911,6 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
 
 
 
-
 if (activeTab === "community") {
   const getInitials = (name) =>
     (name || "?").trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("") || "?";
@@ -13929,35 +13928,473 @@ if (activeTab === "community") {
     return AVATAR_HUES[h % AVATAR_HUES.length];
   };
 
-  const Avatar = ({ name, size = 40, ring }) => {
+  const Avatar = ({ name, size = 40, ring, online }) => {
     const a = avatarStyleFor(name || "?");
     return (
-      <span
-        className="flex items-center justify-center rounded-full flex-shrink-0"
-        style={{
-          width: `${size}px`,
-          height: `${size}px`,
-          background: a.bg,
-          color: a.fg,
-          fontFamily: mono,
-          fontWeight: 800,
-          fontSize: `${Math.round(size * 0.38)}px`,
-          boxShadow: ring ? `0 0 0 2px ${palette.surface}, 0 0 0 3.5px ${palette.gold}66` : "0 2px 6px rgba(0,0,0,0.25)",
-        }}
-      >
-        {getInitials(name)}
+      <span className="relative inline-flex flex-shrink-0" style={{ width: `${size}px`, height: `${size}px` }}>
+        <span
+          className="flex items-center justify-center rounded-full w-full h-full"
+          style={{
+            background: a.bg,
+            color: a.fg,
+            fontFamily: mono,
+            fontWeight: 800,
+            fontSize: `${Math.round(size * 0.38)}px`,
+            boxShadow: ring ? `0 0 0 2px ${palette.surface}, 0 0 0 3.5px ${palette.gold}66` : "0 2px 6px rgba(0,0,0,0.25)",
+          }}
+        >
+          {getInitials(name)}
+        </span>
+        {online && (
+          <span
+            style={{
+              position: "absolute",
+              bottom: "-1px",
+              right: "-1px",
+              width: `${Math.max(9, size * 0.26)}px`,
+              height: `${Math.max(9, size * 0.26)}px`,
+              borderRadius: "999px",
+              background: palette.green,
+              border: `2px solid ${palette.surface}`,
+            }}
+          />
+        )}
       </span>
     );
   };
 
+  // ---------- Reusable chat panel (used standalone on mobile, embedded in split view on desktop) ----------
+  const renderChatPanel = (heightStyle) => {
+    const group = myGroups.find((g) => g.id === activeGroupId);
+    return (
+      <div className="flex flex-col h-full" style={heightStyle}>
+        {/* Header */}
+        <div
+          className="flex items-center gap-3 px-4 py-3 flex-shrink-0"
+          style={{
+            borderBottom: `1px solid ${palette.border}`,
+            background: `linear-gradient(180deg, ${palette.surface}, ${palette.surface}CC)`,
+            borderTopLeftRadius: isDesktop ? "16px" : 0,
+            borderTopRightRadius: isDesktop ? "16px" : 0,
+          }}
+        >
+          {!isDesktop && (
+            <button
+              type="button"
+              onClick={() => setActiveGroupId(null)}
+              className={`flex items-center justify-center rounded-full flex-shrink-0 ${TAP}`}
+              style={{ width: "32px", height: "32px", background: palette.field, border: `1px solid ${palette.border}`, color: palette.textMuted }}
+              aria-label="Back to groups"
+            >
+              <ChevronLeft size={16} />
+            </button>
+          )}
+          <Avatar name={group ? group.name : "?"} size={40} online />
+          <div className="flex-1 min-w-0">
+            <div style={{ fontFamily: display, fontSize: "15px", fontWeight: 700, color: palette.text }} className="truncate">
+              {group ? group.name : "Group"}
+            </div>
+            <div className="flex items-center gap-1.5" style={{ color: palette.textFaint, fontSize: "11px", fontFamily: mono }}>
+              <span style={{ width: "6px", height: "6px", borderRadius: "999px", background: palette.green, display: "inline-block", boxShadow: `0 0 6px ${palette.green}` }} />
+              Live · {groupMessages.length} message{groupMessages.length === 1 ? "" : "s"}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setManageNameDraft(group?.name || "");
+              setManageDescDraft(group?.description || "");
+              setManageMsg("");
+              setGroupManageTab("members");
+              setGroupManageOpen(true);
+            }}
+            className={`flex items-center justify-center rounded-full flex-shrink-0 ${TAP}`}
+            style={{ width: "34px", height: "34px", background: palette.field, border: `1px solid ${palette.border}`, color: palette.textMuted }}
+            aria-label="Manage group"
+            title="Manage group"
+          >
+            <Users size={15} />
+          </button>
+        </div>
+
+        {/* Messages */}
+        <div
+          className="flex-1 px-4 py-4"
+          style={{
+            background: `radial-gradient(ellipse 800px 400px at 50% 0%, ${palette.gold}08, transparent), ${palette.bg}`,
+            overflowY: "auto",
+            minHeight: 0,
+          }}
+        >
+          {!groupMessagesLoaded ? (
+            <p className="text-xs" style={{ color: palette.textFaint }}>Loading messages…</p>
+          ) : groupMessages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-center py-8">
+              <span
+                className="flex items-center justify-center rounded-full mb-3"
+                style={{ width: "52px", height: "52px", background: `${palette.gold}14`, border: `1px solid ${palette.gold}33` }}
+              >
+                <Users size={22} style={{ color: palette.gold }} />
+              </span>
+              <p style={{ color: palette.text, fontSize: "14px", fontWeight: 600, marginBottom: "3px" }}>No messages yet</p>
+              <p className="text-xs" style={{ color: palette.textFaint, maxWidth: "260px" }}>
+                Say hello or post the first trade signal to get the conversation going.
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {groupMessages.map((m, i) => {
+                const isMe = m.author === communityUsername;
+                const prev = groupMessages[i - 1];
+                const grouped = prev && prev.author === m.author && m.ts - prev.ts < 3 * 60 * 1000;
+                const bubbleColor = isMe
+                  ? `linear-gradient(135deg, ${palette.gold}, ${palette.goldBright})`
+                  : palette.surface;
+                const textColor = isMe ? palette.letterbox : palette.text;
+                return (
+                  <div
+                    key={m.id}
+                    className="flex"
+                    style={{ justifyContent: isMe ? "flex-end" : "flex-start", gap: "8px", marginTop: grouped ? "-6px" : 0 }}
+                  >
+                    {!isMe && (
+                      <span style={{ width: "28px", flexShrink: 0 }}>
+                        {!grouped && <Avatar name={m.author} size={28} />}
+                      </span>
+                    )}
+                    <div style={{ maxWidth: isDesktop ? "62%" : "78%" }}>
+                      {!isMe && !grouped && (
+                        <div style={{ color: palette.gold, fontSize: "11.5px", fontWeight: 700, marginBottom: "3px", marginLeft: "3px" }}>
+                          {m.author}
+                        </div>
+                      )}
+                      {m.type === "signal" ? (
+                        <div
+                          className="rounded-2xl p-3.5"
+                          style={{
+                            background: palette.surface,
+                            border: `1px solid ${m.direction === "sell" ? palette.red : palette.green}55`,
+                            borderTop: `3px solid ${m.direction === "sell" ? palette.red : palette.green}`,
+                            boxShadow: palette.shadow,
+                          }}
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <span
+                              style={{
+                                fontSize: "9.5px", fontFamily: mono, fontWeight: 800,
+                                color: m.direction === "sell" ? palette.red : palette.green,
+                                background: `${m.direction === "sell" ? palette.red : palette.green}1E`,
+                                borderRadius: "999px", padding: "2px 9px", textTransform: "uppercase", letterSpacing: "0.04em",
+                              }}
+                            >
+                              {m.direction === "sell" ? "↓ Sell" : "↑ Buy"}
+                            </span>
+                            <span style={{ fontFamily: mono, fontSize: "14px", color: palette.text, fontWeight: 800 }}>
+                              {m.pair}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-3 gap-1.5">
+                            {[["Entry", m.entry], ["SL", m.sl], ["TP", m.tp]].map(([lbl, val]) => (
+                              <div key={lbl} style={{ background: palette.field, borderRadius: "8px", padding: "5px 6px", textAlign: "center", border: `1px solid ${palette.border}` }}>
+                                <div style={{ fontSize: "8.5px", color: palette.textFaint, textTransform: "uppercase", letterSpacing: "0.04em" }}>{lbl}</div>
+                                <div style={{ fontFamily: mono, fontSize: "12px", color: palette.text, fontWeight: 700 }}>{val || "—"}</div>
+                              </div>
+                            ))}
+                          </div>
+                          {m.text && <div style={{ color: palette.textMuted, fontSize: "12.5px", marginTop: "8px", lineHeight: 1.4 }}>{m.text}</div>}
+                        </div>
+                      ) : (
+                        <div
+                          className="rounded-2xl px-4 py-2.5"
+                          style={{
+                            background: bubbleColor,
+                            color: textColor,
+                            fontSize: "14px",
+                            lineHeight: 1.45,
+                            boxShadow: isMe ? `0 3px 10px ${palette.gold}33` : palette.shadow,
+                            borderTopRightRadius: isMe && grouped ? "6px" : "16px",
+                            borderTopLeftRadius: !isMe && grouped ? "6px" : "16px",
+                          }}
+                        >
+                          {m.text}
+                        </div>
+                      )}
+                      <div style={{ color: palette.textFaint, fontSize: "9.5px", fontFamily: mono, marginTop: "3px", textAlign: isMe ? "right" : "left" }}>
+                        {new Date(m.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              <div ref={communityMessagesEndRef} />
+            </div>
+          )}
+        </div>
+
+        {/* Composer */}
+        <div
+          className="flex-shrink-0 px-4 pt-3 pb-4 relative"
+          style={{ borderTop: `1px solid ${palette.border}`, background: palette.surface }}
+        >
+          <div className="flex gap-1.5 mb-2.5">
+            {[
+              { id: "chat", label: "Message", icon: FileText },
+              { id: "signal", label: "Signal", icon: TrendingUp },
+            ].map((mode) => {
+              const active = communityMsgMode === mode.id;
+              const Icon = mode.icon;
+              return (
+                <button
+                  key={mode.id}
+                  type="button"
+                  onClick={() => setCommunityMsgMode(mode.id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-colors ${TAP}`}
+                  style={{
+                    background: active ? palette.gold : palette.field,
+                    color: active ? palette.letterbox : palette.textMuted,
+                    border: `1px solid ${active ? palette.gold : palette.border}`,
+                    fontFamily: mono, fontSize: "11.5px", fontWeight: 700,
+                  }}
+                >
+                  <Icon size={12} />
+                  {mode.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {communityMsgMode === "signal" && (
+            <div
+              className="rounded-2xl p-3.5 mb-2.5"
+              style={{ background: palette.field, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
+            >
+              <div className="grid grid-cols-2 gap-2 mb-2">
+                <input
+                  type="text" value={signalPair} onChange={(e) => setSignalPair(e.target.value.toUpperCase())} placeholder="Pair (XAUUSD)"
+                  className="rounded-xl px-3 py-2 bg-transparent outline-none"
+                  style={{ background: palette.surface, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "12.5px" }}
+                />
+                <div className="flex gap-1">
+                  {["buy", "sell"].map((d) => (
+                    <button
+                      key={d} type="button" onClick={() => setSignalDirection(d)}
+                      className={`flex-1 rounded-xl py-2 ${TAP}`}
+                      style={{
+                        background: signalDirection === d ? (d === "sell" ? palette.red : palette.green) : palette.surface,
+                        color: signalDirection === d ? "#FFFFFF" : palette.textMuted,
+                        border: `1px solid ${signalDirection === d ? "transparent" : palette.border}`,
+                        fontFamily: mono, fontSize: "11.5px", textTransform: "uppercase", fontWeight: 700,
+                      }}
+                    >
+                      {d}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <input type="text" value={signalEntry} onChange={(e) => setSignalEntry(e.target.value)} placeholder="Entry"
+                  className="rounded-xl px-2.5 py-2 bg-transparent outline-none"
+                  style={{ background: palette.surface, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "12px" }} />
+                <input type="text" value={signalSL} onChange={(e) => setSignalSL(e.target.value)} placeholder="SL"
+                  className="rounded-xl px-2.5 py-2 bg-transparent outline-none"
+                  style={{ background: palette.surface, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "12px" }} />
+                <input type="text" value={signalTP} onChange={(e) => setSignalTP(e.target.value)} placeholder="TP"
+                  className="rounded-xl px-2.5 py-2 bg-transparent outline-none"
+                  style={{ background: palette.surface, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "12px" }} />
+              </div>
+            </div>
+          )}
+
+          <div
+            className="flex items-center gap-2 rounded-2xl"
+            style={{ background: palette.field, border: `1px solid ${palette.border}`, padding: "4px 4px 4px 16px" }}
+          >
+            <input
+              type="text"
+              value={communityMsgText}
+              onChange={(e) => setCommunityMsgText(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); sendCommunityMessage(); } }}
+              placeholder={communityMsgMode === "signal" ? "Add a note (optional)" : "Type a message…"}
+              className="flex-1 bg-transparent py-3 outline-none"
+              style={{ color: palette.text, fontSize: "14px" }}
+            />
+            <button
+              type="button"
+              onClick={sendCommunityMessage}
+              disabled={communityMsgMode === "signal" ? !signalPair.trim() : !communityMsgText.trim()}
+              className={`flex items-center justify-center rounded-full flex-shrink-0 ${TAP}`}
+              style={{
+                width: "40px", height: "40px",
+                background: `linear-gradient(135deg, ${palette.gold}, ${palette.goldBright})`,
+                color: palette.letterbox,
+                boxShadow: `0 3px 10px ${palette.gold}44`,
+                opacity: (communityMsgMode === "signal" ? !signalPair.trim() : !communityMsgText.trim()) ? 0.5 : 1,
+              }}
+              aria-label="Send"
+            >
+              <Send size={16} />
+            </button>
+          </div>
+          {communityApiError && (
+            <p className="text-xs mt-2" style={{ color: palette.red }}>{communityApiError}</p>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // ---------- Sidebar (desktop only, persistent) ----------
+  const renderSidebar = () => (
+    <div
+      className="flex flex-col flex-shrink-0"
+      style={{
+        width: "260px",
+        borderRight: `1px solid ${palette.border}`,
+        background: palette.surface,
+      }}
+    >
+      <div className="flex items-center gap-2.5 p-4" style={{ borderBottom: `1px solid ${palette.border}` }}>
+        <Avatar name={communityUsername} size={38} ring />
+        <div className="flex-1 min-w-0">
+          <div style={{ color: palette.text, fontSize: "13.5px", fontWeight: 700 }} className="truncate">
+            {communityUsername}
+          </div>
+          <div style={{ color: palette.textFaint, fontSize: "10.5px", fontFamily: mono }}>
+            {myGroups.length} group{myGroups.length === 1 ? "" : "s"}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => { setCommunityUsernameDraft(communityUsername); persistCommunityUsername(""); }}
+          className={`flex items-center justify-center rounded-lg flex-shrink-0 ${TAP}`}
+          style={{ width: "28px", height: "28px", background: palette.field, border: `1px solid ${palette.border}`, color: palette.textMuted }}
+          aria-label="Edit profile"
+        >
+          <Pencil size={12} />
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-2">
+        {myGroups.map((g) => {
+          const active = g.id === activeGroupId;
+          return (
+            <button
+              key={g.id}
+              type="button"
+              onClick={() => setActiveGroupId(g.id)}
+              className={`w-full flex items-center gap-2.5 rounded-xl px-2.5 py-2.5 mb-1 text-left ${TAP}`}
+              style={{
+                background: active ? `${palette.gold}16` : "transparent",
+                border: `1px solid ${active ? `${palette.gold}44` : "transparent"}`,
+              }}
+            >
+              <Avatar name={g.name} size={34} online={active} />
+              <div className="flex-1 min-w-0">
+                <div style={{ color: active ? palette.goldBright : palette.text, fontSize: "13px", fontWeight: active ? 700 : 600 }} className="truncate">
+                  {g.name}
+                </div>
+                <div style={{ color: palette.textFaint, fontSize: "10.5px" }} className="truncate">
+                  {g.description || "Private trading group"}
+                </div>
+              </div>
+            </button>
+          );
+        })}
+        {myGroups.length === 0 && (
+          <p className="text-xs px-2 py-3" style={{ color: palette.textFaint }}>
+            No groups yet — create or join one below.
+          </p>
+        )}
+      </div>
+
+      <div className="p-2.5" style={{ borderTop: `1px solid ${palette.border}` }}>
+        {!addingGroup ? (
+          <button
+            type="button"
+            onClick={() => setAddingGroup(true)}
+            className={`w-full flex items-center justify-center gap-2 rounded-xl py-2.5 ${TAP}`}
+            style={{
+              background: `linear-gradient(135deg, ${palette.gold}, ${palette.goldBright})`,
+              color: palette.letterbox,
+              fontFamily: mono, fontSize: "12.5px", fontWeight: 700,
+            }}
+          >
+            <Plus size={14} />
+            New Group
+          </button>
+        ) : (
+          <div className="rounded-xl p-3" style={{ background: palette.field, border: `1px solid ${palette.gold}55` }}>
+            <input
+              type="text" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)}
+              placeholder="Group name" maxLength={40}
+              className="w-full rounded-lg px-2.5 py-2 mb-1.5 bg-transparent outline-none"
+              style={{ background: palette.surface, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "12.5px" }}
+            />
+            <input
+              type="text" value={newGroupCode}
+              onChange={(e) => { setNewGroupCode(e.target.value); if (groupCodeError) setGroupCodeError(""); }}
+              placeholder="Entry code (4+ chars)" maxLength={40}
+              className="w-full rounded-lg px-2.5 py-2 mb-1 bg-transparent outline-none"
+              style={{ background: palette.surface, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "12.5px" }}
+            />
+            {groupCodeError && <p className="text-xs mb-1.5" style={{ color: palette.red }}>{groupCodeError}</p>}
+            <div className="flex gap-1.5">
+              <button
+                type="button" onClick={createCommunityGroup}
+                disabled={!newGroupName.trim() || newGroupCode.trim().length < 4 || creatingGroup}
+                className={`flex-1 rounded-lg py-2 ${TAP}`}
+                style={{
+                  background: newGroupName.trim() && newGroupCode.trim().length >= 4 ? palette.gold : palette.border,
+                  color: newGroupName.trim() && newGroupCode.trim().length >= 4 ? palette.letterbox : palette.textFaint,
+                  fontFamily: mono, fontSize: "11.5px", fontWeight: 700,
+                }}
+              >
+                {creatingGroup ? "…" : "Create"}
+              </button>
+              <button
+                type="button" onClick={() => { setAddingGroup(false); setNewGroupName(""); setNewGroupCode(""); setGroupCodeError(""); }}
+                className={`px-3 rounded-lg ${TAP}`}
+                style={{ background: "transparent", border: `1px solid ${palette.border}`, color: palette.textMuted, fontFamily: mono, fontSize: "11.5px" }}
+              >
+                <X size={12} />
+              </button>
+            </div>
+          </div>
+        )}
+        <div className="flex gap-1.5 mt-2">
+          <input
+            type="text" value={joinCodeInput}
+            onChange={(e) => { setJoinCodeInput(e.target.value); if (joinCodeError) setJoinCodeError(""); }}
+            onKeyDown={(e) => { if (e.key === "Enter") joinGroupByCode(); }}
+            placeholder="Have a code?"
+            className="flex-1 rounded-lg px-2.5 py-2 bg-transparent outline-none"
+            style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "12px" }}
+          />
+          <button
+            type="button" onClick={joinGroupByCode} disabled={!joinCodeInput.trim() || joiningGroup}
+            className={`flex-shrink-0 rounded-lg px-3 ${TAP}`}
+            style={{
+              background: joinCodeInput.trim() ? palette.gold : palette.border,
+              color: joinCodeInput.trim() ? palette.letterbox : palette.textFaint,
+              fontFamily: mono, fontSize: "11.5px", fontWeight: 700,
+            }}
+          >
+            {joiningGroup ? "…" : "Join"}
+          </button>
+        </div>
+        {joinCodeError && <p className="text-xs mt-1.5" style={{ color: palette.red }}>{joinCodeError}</p>}
+      </div>
+    </div>
+  );
+
   if (!communityUsernameLoaded || !myGroupsLoaded) {
     body = (
       <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-        Loading community\u2026
+        Loading community…
       </p>
     );
   } else if (!communityUsername) {
-    // ---------- ONBOARDING (Skool-style) ----------
+    // ---------- ONBOARDING (unchanged) ----------
     body = (
       <>
         <div
@@ -13979,10 +14416,7 @@ if (activeTab === "community") {
           </p>
         </div>
 
-        <span
-          className="block mb-1.5 uppercase"
-          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
-        >
+        <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
           Your Display Name
         </span>
         <input
@@ -14006,9 +14440,7 @@ if (activeTab === "community") {
           style={{
             background: `linear-gradient(135deg, ${palette.gold}, ${palette.goldBright})`,
             color: palette.letterbox,
-            fontFamily: mono,
-            fontSize: "14px",
-            fontWeight: 700,
+            fontFamily: mono, fontSize: "14px", fontWeight: 700,
             boxShadow: `0 6px 18px ${palette.gold}44`,
           }}
         >
@@ -14019,10 +14451,39 @@ if (activeTab === "community") {
         </p>
       </>
     );
+  } else if (isDesktop) {
+    // ---------- DESKTOP: persistent sidebar + chat pane (Discord/Telegram merged) ----------
+    body = (
+      <div
+        className="flex rounded-2xl overflow-hidden"
+        style={{ height: "calc(100vh - 148px)", border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
+      >
+        {renderSidebar()}
+        <div className="flex-1 min-w-0">
+          {activeGroupId ? (
+            renderChatPanel({ background: palette.bg })
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full text-center px-8" style={{ background: palette.bg }}>
+              <span
+                className="flex items-center justify-center rounded-full mb-4"
+                style={{ width: "64px", height: "64px", background: `${palette.gold}14`, border: `1px solid ${palette.gold}33` }}
+              >
+                <Users size={28} style={{ color: palette.gold }} />
+              </span>
+              <div style={{ fontFamily: display, fontSize: "17px", fontWeight: 700, color: palette.text, marginBottom: "6px" }}>
+                Pick a group to start chatting
+              </div>
+              <p className="text-xs" style={{ color: palette.textFaint, maxWidth: "280px" }}>
+                Select one of your groups on the left, or create/join a new one.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
   } else if (!activeGroupId) {
-    // ---------- LOBBY (Skool-style community grid) ----------
+    // ---------- MOBILE LOBBY (unchanged) ----------
     const joined = myGroups;
-
     body = (
       <>
         <div
@@ -14065,9 +14526,7 @@ if (activeTab === "community") {
               style={{
                 background: `linear-gradient(135deg, ${palette.gold}, ${palette.goldBright})`,
                 color: palette.letterbox,
-                fontFamily: mono,
-                fontSize: "13px",
-                fontWeight: 700,
+                fontFamily: mono, fontSize: "13px", fontWeight: 700,
                 boxShadow: `0 6px 16px ${palette.gold}3A`,
               }}
             >
@@ -14129,7 +14588,7 @@ if (activeTab === "community") {
                   fontFamily: mono, fontSize: "13px", fontWeight: 700,
                 }}
               >
-                {creatingGroup ? "Creating\u2026" : "Create Group"}
+                {creatingGroup ? "Creating…" : "Create Group"}
               </button>
               <button
                 type="button"
@@ -14148,7 +14607,7 @@ if (activeTab === "community") {
             <span className="block mb-2 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
               Your Circles
             </span>
-            <div className={isDesktop ? "grid grid-cols-2 gap-3 mb-5" : "mb-5"}>
+            <div className="mb-5">
               {joined.map((g) => (
                 <button
                   key={g.id}
@@ -14182,10 +14641,7 @@ if (activeTab === "community") {
           </>
         )}
 
-        <div
-          className="rounded-2xl p-4"
-          style={{ background: "transparent", border: `1px dashed ${palette.border}` }}
-        >
+        <div className="rounded-2xl p-4" style={{ background: "transparent", border: `1px dashed ${palette.border}` }}>
           <span className="block mb-2 uppercase" style={{ color: palette.textFaint, letterSpacing: "0.08em", fontSize: "10.5px", fontWeight: 700 }}>
             Have an Entry Code?
           </span>
@@ -14210,7 +14666,7 @@ if (activeTab === "community") {
                 fontFamily: mono, fontSize: "13px", fontWeight: 700,
               }}
             >
-              {joiningGroup ? "\u2026" : "Join"}
+              {joiningGroup ? "…" : "Join"}
             </button>
           </div>
           {joinCodeError && <p className="text-xs mt-2" style={{ color: palette.red }}>{joinCodeError}</p>}
@@ -14218,256 +14674,10 @@ if (activeTab === "community") {
       </>
     );
   } else {
-    // ---------- CHAT (Telegram-style) ----------
-    const group = myGroups.find((g) => g.id === activeGroupId);
-
-    body = (
-     <div className="flex flex-col" style={{ height: "calc(100dvh - 190px)", minHeight: "420px" }}>
-        <div
-          className="flex items-center gap-3 px-1 pb-3 mb-3 flex-shrink-0"
-          style={{ borderBottom: `1px solid ${palette.border}` }}
-        >
-          <button
-            type="button"
-            onClick={() => setActiveGroupId(null)}
-            className={`flex items-center justify-center rounded-full flex-shrink-0 ${TAP}`}
-            style={{ width: "32px", height: "32px", background: palette.field, border: `1px solid ${palette.border}`, color: palette.textMuted }}
-            aria-label="Back to groups"
-          >
-            <ChevronLeft size={16} />
-          </button>
-          <Avatar name={group ? group.name : "?"} size={38} />
-          <div className="flex-1 min-w-0">
-            <div style={{ fontFamily: display, fontSize: "14.5px", fontWeight: 700, color: palette.text }} className="truncate">
-              {group ? group.name : "Group"}
-            </div>
-            <div className="flex items-center gap-1" style={{ color: palette.green, fontSize: "10.5px", fontFamily: mono }}>
-              <span style={{ width: "6px", height: "6px", borderRadius: "999px", background: palette.green, display: "inline-block" }} />
-              Live
-            </div>
-          </div>
-<button
-  type="button"
-  onClick={() => {
-    setManageNameDraft(group?.name || "");
-    setManageDescDraft(group?.description || "");
-    setManageMsg("");
-    setGroupManageTab("members");
-    setGroupManageOpen(true);
-  }}
-  className={`flex items-center justify-center rounded-full flex-shrink-0 ${TAP}`}
-  style={{ width: "34px", height: "34px", background: palette.field, border: `1px solid ${palette.border}`, color: palette.textMuted }}
-  aria-label="Manage group"
->
-  <Users size={15} />
-</button>
-        </div>
-
-        <div
-          className="flex-1 rounded-2xl p-3"
-          style={{
-            background: `linear-gradient(180deg, ${palette.field}44, transparent 40%), ${palette.bg}`,
-            border: `1px solid ${palette.border}`,
-            overflowY: "auto",
-            minHeight: 0,
-          }}
-        >
-          {!groupMessagesLoaded ? (
-            <p className="text-xs" style={{ color: palette.textFaint }}>Loading messages\u2026</p>
-          ) : groupMessages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-center py-8">
-              <Users size={22} style={{ color: palette.textFaint, marginBottom: "8px" }} />
-              <p className="text-xs" style={{ color: palette.textFaint }}>
-                No messages yet — say hello or post the first signal.
-              </p>
-            </div>
-          ) : (
-            groupMessages.map((m) => {
-              const isMe = m.author === communityUsername;
-              const bubbleColor = isMe
-                ? `linear-gradient(135deg, ${palette.gold}, ${palette.goldBright})`
-                : palette.surface;
-              const textColor = isMe ? palette.letterbox : palette.text;
-              return (
-                <div key={m.id} className="flex mb-3" style={{ justifyContent: isMe ? "flex-end" : "flex-start", gap: "8px" }}>
-                  {!isMe && <Avatar name={m.author} size={28} />}
-                  <div style={{ maxWidth: "78%" }}>
-                    {!isMe && (
-                      <div style={{ color: palette.gold, fontSize: "11px", fontWeight: 700, marginBottom: "2px", marginLeft: "2px" }}>
-                        {m.author}
-                      </div>
-                    )}
-                    {m.type === "signal" ? (
-                      <div
-                        className="rounded-2xl p-3"
-                        style={{
-                          background: palette.surface,
-                          border: `1px solid ${m.direction === "sell" ? palette.red : palette.green}66`,
-                          borderTop: `3px solid ${m.direction === "sell" ? palette.red : palette.green}`,
-                          boxShadow: palette.shadow,
-                        }}
-                      >
-                        <div className="flex items-center gap-2 mb-1.5">
-                          <span
-                            style={{
-                              fontSize: "9px", fontFamily: mono, fontWeight: 800,
-                              color: m.direction === "sell" ? palette.red : palette.green,
-                              background: `${m.direction === "sell" ? palette.red : palette.green}1E`,
-                              borderRadius: "999px", padding: "2px 8px", textTransform: "uppercase",
-                            }}
-                          >
-                            {m.direction === "sell" ? "\u2193 Sell" : "\u2191 Buy"}
-                          </span>
-                          <span style={{ fontFamily: mono, fontSize: "13.5px", color: palette.text, fontWeight: 800 }}>
-                            {m.pair}
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-3 gap-1.5">
-                          {[["Entry", m.entry], ["SL", m.sl], ["TP", m.tp]].map(([lbl, val]) => (
-                            <div key={lbl} style={{ background: palette.field, borderRadius: "8px", padding: "4px 6px", textAlign: "center" }}>
-                              <div style={{ fontSize: "8.5px", color: palette.textFaint, textTransform: "uppercase" }}>{lbl}</div>
-                              <div style={{ fontFamily: mono, fontSize: "11.5px", color: palette.text, fontWeight: 700 }}>{val || "\u2014"}</div>
-                            </div>
-                          ))}
-                        </div>
-                        {m.text && <div style={{ color: palette.textMuted, fontSize: "12px", marginTop: "6px" }}>{m.text}</div>}
-                      </div>
-                    ) : (
-                      <div
-                        className="rounded-2xl px-3.5 py-2.5"
-                        style={{ background: bubbleColor, color: textColor, fontSize: "13.5px", boxShadow: isMe ? `0 3px 10px ${palette.gold}33` : palette.shadow }}
-                      >
-                        {m.text}
-                      </div>
-                    )}
-                    <div style={{ color: palette.textFaint, fontSize: "9.5px", fontFamily: mono, marginTop: "3px", textAlign: isMe ? "right" : "left" }}>
-                      {new Date(m.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                    </div>
-                  </div>
-                </div>
-              );
-            })
-          )}
-          <div ref={communityMessagesEndRef} />
-        </div>
-
-
-
-  <div className="flex-shrink-0 pt-3 relative">
-    <div className="flex gap-1.5 mb-2">
-      {[
-        { id: "chat", label: "Chat", icon: FileText },
-        { id: "signal", label: "Signal", icon: TrendingUp },
-      ].map((mode) => {
-        const active = communityMsgMode === mode.id;
-        const Icon = mode.icon;
-        return (
-          <button
-            key={mode.id}
-            type="button"
-            onClick={() => setCommunityMsgMode(mode.id)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-colors ${TAP}`}
-            style={{
-              background: active ? palette.gold : palette.field,
-              color: active ? palette.letterbox : palette.textMuted,
-              border: `1px solid ${active ? palette.gold : palette.border}`,
-              fontFamily: mono, fontSize: "11.5px", fontWeight: 700,
-            }}
-          >
-            <Icon size={12} />
-            {mode.label}
-          </button>
-        );
-      })}
-    </div>
-
-    {communityMsgMode === "signal" && (
-      <div
-        className="rounded-2xl p-3"
-        style={{
-          position: "absolute",
-          left: 0,
-          right: 0,
-          bottom: "100%",
-          marginBottom: "10px",
-          background: palette.surface,
-          border: `1px solid ${palette.border}`,
-          boxShadow: palette.shadow,
-          zIndex: 5,
-        }}
-      >
-        <div className="grid grid-cols-2 gap-2 mb-2">
-          <input type="text" value={signalPair} onChange={(e) => setSignalPair(e.target.value.toUpperCase())} placeholder="Pair (XAUUSD)"
-            className="rounded-xl px-3 py-2 bg-transparent outline-none"
-            style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "12.5px" }} />
-          <div className="flex gap-1">
-            {["buy", "sell"].map((d) => (
-              <button key={d} type="button" onClick={() => setSignalDirection(d)}
-                className={`flex-1 rounded-xl py-2 ${TAP}`}
-                style={{
-                  background: signalDirection === d ? (d === "sell" ? palette.red : palette.green) : palette.field,
-                  color: signalDirection === d ? "#FFFFFF" : palette.textMuted,
-                  border: `1px solid ${signalDirection === d ? "transparent" : palette.border}`,
-                  fontFamily: mono, fontSize: "11.5px", textTransform: "uppercase", fontWeight: 700,
-                }}>
-                {d}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="grid grid-cols-3 gap-2">
-          <input type="text" value={signalEntry} onChange={(e) => setSignalEntry(e.target.value)} placeholder="Entry"
-            className="rounded-xl px-2.5 py-2 bg-transparent outline-none"
-            style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "12px" }} />
-          <input type="text" value={signalSL} onChange={(e) => setSignalSL(e.target.value)} placeholder="SL"
-            className="rounded-xl px-2.5 py-2 bg-transparent outline-none"
-            style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "12px" }} />
-          <input type="text" value={signalTP} onChange={(e) => setSignalTP(e.target.value)} placeholder="TP"
-            className="rounded-xl px-2.5 py-2 bg-transparent outline-none"
-            style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "12px" }} />
-        </div>
-      </div>
-    )}
-
-
-
-          <div className="flex items-center gap-2">
-            <div
-              className="flex-1 flex items-center rounded-full px-4"
-              style={{ background: palette.field, border: `1px solid ${palette.border}` }}
-            >
-              <input
-                type="text"
-                value={communityMsgText}
-                onChange={(e) => setCommunityMsgText(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); sendCommunityMessage(); } }}
-                placeholder={communityMsgMode === "signal" ? "Add a note (optional)" : "Message"}
-                className="w-full bg-transparent py-3 outline-none"
-                style={{ color: palette.text, fontSize: "13.5px" }}
-              />
-            </div>
-            <button
-              type="button"
-              onClick={sendCommunityMessage}
-              className={`flex items-center justify-center rounded-full flex-shrink-0 ${TAP}`}
-              style={{
-                width: "44px", height: "44px",
-                background: `linear-gradient(135deg, ${palette.gold}, ${palette.goldBright})`,
-                color: palette.letterbox,
-                boxShadow: `0 4px 12px ${palette.gold}44`,
-              }}
-              aria-label="Send"
-            >
-              <Send size={17} />
-            </button>
-          </div>
-        </div>
-      </div>
-    );
+    // ---------- MOBILE CHAT ----------
+    body = renderChatPanel({ height: "calc(100dvh - 190px)", minHeight: "420px" });
   }
 }
-
-
 
 
 
