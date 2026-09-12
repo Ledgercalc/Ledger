@@ -4570,17 +4570,6 @@ useEffect(() => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settingsLoaded]);
 
-useEffect(() => {
-    if (!settingsLoaded || !calcInputsLoaded || !accountDataLoaded) return;
-    const def = settings.defaultAccountBalance;
-    if (!def) return;
-    setEdge((e) => ({ ...e, accountBalance: def }));
-    setCs((c) => ({ ...c, startBal: def }));
-    setPs((p) => ({ ...p, balance: def }));
-    persistStartingBalance(def);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settingsLoaded, calcInputsLoaded, accountDataLoaded, settings.defaultAccountBalance]);
-
   useEffect(() => {
     if (typeof document === "undefined") return;
     document.documentElement.style.backgroundColor = palette.letterbox;
@@ -4835,6 +4824,15 @@ useEffect(() => {
     } catch (err) {
       // non-critical, fail silently
     }
+  };
+
+  const setDefaultAccountBalance = (value) => {
+    persistSettings({ ...settings, defaultAccountBalance: value });
+    if (!value) return;
+    setEdge((e) => (e.accountBalance === "" ? { ...e, accountBalance: value } : e));
+    setCs((c) => (c.startBal === "" ? { ...c, startBal: value } : c));
+    setPs((p) => (p.balance === "" ? { ...p, balance: value } : p));
+    if (startingBalance === "") persistStartingBalance(value);
   };
 
   const persistAccounts = async (next) => {
@@ -14517,7 +14515,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
               type="text"
               inputMode="decimal"
               value={settings.defaultAccountBalance}
-              onChange={(e) => persistSettings({ ...settings, defaultAccountBalance: e.target.value })}
+              onChange={(e) => setDefaultAccountBalance(e.target.value)}
               placeholder="10000"
               className="w-full bg-transparent py-2.5 outline-none"
               style={{ color: palette.text, fontFamily: mono, fontSize: "14px" }}
