@@ -4826,12 +4826,7 @@ useEffect(() => {
     }
   };
 
-  const [defaultBalanceInput, setDefaultBalanceInput] = useState(settings.defaultAccountBalance || "");
   const defaultBalanceDebounceRef = useRef(null);
-
-  useEffect(() => {
-    setDefaultBalanceInput(settings.defaultAccountBalance || "");
-  }, [settings.defaultAccountBalance]);
 
   const applyDefaultAccountBalance = (value) => {
     persistSettings({ ...settings, defaultAccountBalance: value });
@@ -4843,7 +4838,6 @@ useEffect(() => {
   };
 
   const handleDefaultBalanceChange = (value) => {
-    setDefaultBalanceInput(value);
     if (defaultBalanceDebounceRef.current) clearTimeout(defaultBalanceDebounceRef.current);
     defaultBalanceDebounceRef.current = setTimeout(() => {
       applyDefaultAccountBalance(value);
@@ -14527,9 +14521,10 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
           >
             <span className="text-sm pr-1" style={{ color: palette.textFaint }}>$</span>
             <input
+              key={settingsOpen ? "settings-open" : "settings-closed"}
               type="text"
               inputMode="decimal"
-              value={defaultBalanceInput}
+              defaultValue={settings.defaultAccountBalance}
               onChange={(e) => handleDefaultBalanceChange(e.target.value)}
               placeholder="10000"
               className="w-full bg-transparent py-2.5 outline-none"
