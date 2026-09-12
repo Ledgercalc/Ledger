@@ -4141,6 +4141,46 @@ RUNTIME.ALARM_LEAD_MS = RUNTIME.ALARM_LEAD_MINUTES * 60 * 1000;
   const [signalSL, setSignalSL] = useState("");
   const [signalTP, setSignalTP] = useState("");
   const communityMessagesEndRef = useRef(null);
+const [groupManageOpen, setGroupManageOpen] = useState(false);
+const [groupManageTab, setGroupManageTab] = useState("members");
+const [manageNameDraft, setManageNameDraft] = useState("");
+const [manageDescDraft, setManageDescDraft] = useState("");
+const [manageMsg, setManageMsg] = useState("");
+const [pendingKick, setPendingKick] = useState(null);
+
+const renameCommunityGroup = async () => {
+  const membership = myGroups.find((g) => g.id === activeGroupId);
+  if (!membership) return;
+  const name = manageNameDraft.trim();
+  if (!name) return;
+  try {
+    await communityApi(`/groups/${activeGroupId}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${membership.token}` },
+      body: JSON.stringify({ name, description: manageDescDraft.trim() }),
+    });
+    await persistMyGroups(myGroups.map((g) => g.id === activeGroupId ? { ...g, name, description: manageDescDraft.trim() } : g));
+    setManageMsg("Group updated.");
+  } catch (err) {
+    setManageMsg(err.message || "Couldn't update the group.");
+  }
+};
+
+const kickCommunityMember = async (authorName) => {
+  const membership = myGroups.find((g) => g.id === activeGroupId);
+  if (!membership) return;
+  try {
+    await communityApi(`/groups/${activeGroupId}/kick`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${membership.token}` },
+      body: JSON.stringify({ member: authorName }),
+    });
+    setManageMsg(`${authorName} removed.`);
+  } catch (err) {
+    setManageMsg(err.message || "Couldn't remove them.");
+  }
+  setPendingKick(null);
+};
 
 
   useEffect(() => {
@@ -4965,7 +5005,7 @@ useEffect(() => {
         method: "POST",
         body: JSON.stringify({ name, description: newGroupDesc.trim(), code, username: communityUsername }),
       });
-      const membership = { id: data.id, token: data.token, name: data.name, description: data.description };
+      const membership = { id: data.id, token: data.token, name: data.name, description: data.description, role: "owner" };
       await persistMyGroups([...myGroups, membership]);
       setAddingGroup(false);
       setNewGroupName("");
@@ -4989,7 +5029,7 @@ useEffect(() => {
         method: "POST",
         body: JSON.stringify({ code, username: communityUsername }),
       });
-      const membership = { id: data.id, token: data.token, name: data.name, description: data.description };
+      const membership = { id: data.id, token: data.token, name: data.name, description: data.description, role: "member" };
       const already = myGroups.some((g) => g.id === data.id);
       await persistMyGroups(already ? myGroups : [...myGroups, membership]);
       setJoinCodeInput("");
@@ -14206,14 +14246,21 @@ if (activeTab === "community") {
               Live
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => leaveCommunityGroup(activeGroupId)}
-            className={TAP}
-            style={{ color: palette.textFaint, fontSize: "11px", fontFamily: mono, flexShrink: 0 }}
-          >
-            Leave
-          </button>
+<button
+  type="button"
+  onClick={() => {
+    setManageNameDraft(group?.name || "");
+    setManageDescDraft(group?.description || "");
+    setManageMsg("");
+    setGroupManageTab("members");
+    setGroupManageOpen(true);
+  }}
+  className={`flex items-center justify-center rounded-full flex-shrink-0 ${TAP}`}
+  style={{ width: "34px", height: "34px", background: palette.field, border: `1px solid ${palette.border}`, color: palette.textMuted }}
+  aria-label="Manage group"
+>
+  <Users size={15} />
+</button>
         </div>
 
         <div
@@ -16440,6 +16487,124 @@ if (activeTab === "community") {
           </div>
         </div>
       )}
+
+       {groupManageOpen && (() => {
+  const membership = myGroups.find((g) => g.id === activeGroupId);
+  const isOwner = membership?.role === "owner";
+  const authors = Array.from(new Set(groupMessages.map((m) => m.author))).filter(Boolean);
+
+  return (
+    <div className="fixed inset-0 flex items-center justify-center z-50 p-4"
+      style={{ background: "rgba(5,7,12,0.85)", backdropFilter: "blur(6px)" }}
+      onClick={() => setGroupManageOpen(false)}>
+      <div className="w-full modal-in rounded-2xl overflow-hidden"
+        style={{ maxWidth: "420px", maxHeight: "80vh", background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow, display: "flex", flexDirection: "column" }}
+        onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between p-4" style={{ borderBottom: `1px solid ${palette.border}` }}>
+          <div>
+            <div style={{ fontFamily: display, fontSize: "15px", fontWeight: 700, color: palette.text }}>
+              {membership?.name || "Group"}
+            </div>
+            <div style={{ color: palette.textFaint, fontSize: "10.5px", fontFamily: mono, textTransform: "uppercase" }}>
+              {isOwner ? "You are the owner" : "Member"}
+            </div>
+          </div>
+          <button type="button" onClick={() => setGroupManageOpen(false)} className={TAP} style={{ color: palette.textFaint }}>
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="flex gap-2 px-4 pt-3">
+          {["members", ...(isOwner ? ["settings"] : [])].map((t) => {
+            const active = groupManageTab === t;
+            return (
+              <button key={t} type="button" onClick={() => setGroupManageTab(t)}
+                className={`px-3 py-1.5 rounded-full ${TAP}`}
+                style={{
+                  background: active ? palette.gold : palette.field,
+                  color: active ? palette.letterbox : palette.textMuted,
+                  border: `1px solid ${active ? palette.gold : palette.border}`,
+                  fontFamily: mono, fontSize: "12px", fontWeight: 700, textTransform: "capitalize",
+                }}>
+                {t}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="p-4" style={{ overflowY: "auto" }}>
+          {groupManageTab === "members" ? (
+            <>
+              <div className="flex items-center justify-between rounded-xl px-3 py-2.5 mb-2"
+                style={{ background: palette.field, border: `1px solid ${palette.gold}55` }}>
+                <span style={{ color: palette.text, fontSize: "13px", fontWeight: 600 }}>
+                  {isOwner ? communityUsername : "Owner"}
+                </span>
+                <span style={{ fontSize: "9px", fontFamily: mono, color: palette.gold, border: `1px solid ${palette.gold}`, borderRadius: "999px", padding: "1px 7px", textTransform: "uppercase" }}>
+                  Owner
+                </span>
+              </div>
+              {authors.filter((a) => a !== communityUsername).map((a) => (
+                <div key={a} className="flex items-center justify-between rounded-xl px-3 py-2.5 mb-2"
+                  style={{ background: palette.field, border: `1px solid ${palette.border}` }}>
+                  <span style={{ color: palette.text, fontSize: "13px" }}>{a}</span>
+                  {isOwner && (
+                    <button type="button" onClick={() => setPendingKick(a)} className={TAP}
+                      style={{ color: palette.red, fontSize: "11px", fontFamily: mono }}>
+                      Remove
+                    </button>
+                  )}
+                </div>
+              ))}
+              {authors.filter((a) => a !== communityUsername).length === 0 && (
+                <p className="text-xs" style={{ color: palette.textFaint }}>
+                  No other members have posted yet — this list is built from chat activity.
+                </p>
+              )}
+            </>
+          ) : (
+            <>
+              <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "10.5px" }}>Group Name</span>
+              <input type="text" value={manageNameDraft} onChange={(e) => setManageNameDraft(e.target.value)} maxLength={40}
+                className="w-full rounded-xl px-3 py-2.5 mb-3 bg-transparent outline-none"
+                style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "13.5px" }} />
+              <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "10.5px" }}>Description</span>
+              <input type="text" value={manageDescDraft} onChange={(e) => setManageDescDraft(e.target.value)} maxLength={100}
+                className="w-full rounded-xl px-3 py-2.5 mb-3 bg-transparent outline-none"
+                style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "13px" }} />
+              <button type="button" onClick={renameCommunityGroup} className={`w-full rounded-xl py-2.5 ${TAP}`}
+                style={{ background: palette.gold, color: palette.letterbox, fontFamily: mono, fontSize: "13px", fontWeight: 700 }}>
+                Save Changes
+              </button>
+            </>
+          )}
+          {manageMsg && <p className="text-xs mt-1" style={{ color: palette.textFaint }}>{manageMsg}</p>}
+        </div>
+
+        <div className="p-4" style={{ borderTop: `1px solid ${palette.border}` }}>
+          <button type="button" onClick={() => { setGroupManageOpen(false); leaveCommunityGroup(activeGroupId); }}
+            className={`w-full rounded-xl py-2.5 ${TAP}`}
+            style={{ background: "transparent", border: `1px solid ${palette.red}`, color: palette.red, fontFamily: mono, fontSize: "13px", fontWeight: 600 }}>
+            Leave Group
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+})()}
+
+{pendingKick && (
+  <div className="fixed inset-0 flex items-center justify-center z-50 p-6" style={{ background: "rgba(5,7,12,0.85)" }} onClick={() => setPendingKick(null)}>
+    <div className="w-full modal-in rounded-2xl p-5" style={{ maxWidth: "300px", background: palette.surface, border: `1px solid ${palette.border}` }} onClick={(e) => e.stopPropagation()}>
+      <div style={{ color: palette.text, fontSize: "14px", fontWeight: 600, marginBottom: "6px" }}>Remove {pendingKick}?</div>
+      <p className="text-xs mb-4" style={{ color: palette.textMuted }}>They'll lose access to this group.</p>
+      <div className="flex gap-2">
+        <button type="button" onClick={() => setPendingKick(null)} className={`flex-1 rounded-lg py-2.5 ${TAP}`} style={{ background: "transparent", border: `1px solid ${palette.border}`, color: palette.textMuted, fontFamily: mono, fontSize: "13px" }}>Cancel</button>
+        <button type="button" onClick={() => kickCommunityMember(pendingKick)} className={`flex-1 rounded-lg py-2.5 ${TAP}`} style={{ background: palette.red, color: "#FFFFFF", fontFamily: mono, fontSize: "13px", fontWeight: 600 }}>Remove</button>
+      </div>
+    </div>
+  </div>
+)}
 
       {pendingScreenshotDelete && (
         <div
