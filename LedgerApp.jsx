@@ -14556,7 +14556,6 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                   type="button"
                   onClick={() => persistSettings({ ...settings, statementPeriodType: opt.id })}
                   className={`px-1 py-2 rounded-lg transition-colors ${TAP}`}
-                  style={{ minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
                   style={{
                     background: active ? palette.gold : palette.surface,
                     color: active ? palette.letterbox : palette.textMuted,
@@ -14564,6 +14563,10 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                     fontFamily: mono,
                     fontSize: "12.5px",
                     fontWeight: 600,
+                    minWidth: 0,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
                   }}
                 >
                   {opt.label}
