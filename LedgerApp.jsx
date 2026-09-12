@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, Fragment } from "react";
-import { Scale, LineChart as CurveIcon, ArrowLeftRight, Trash2, Plus, ChevronLeft, ChevronRight, ChevronDown, RotateCcw, Newspaper, Share2, X, Download, Upload, Copy, Sun, Moon, Bell, Info, Camera, Pencil, Check, Clock, Lightbulb, BookOpen, ClipboardCheck, TrendingUp, Flame, Target, FileText, Search, Minus, WrapText, CalendarClock, Settings, Palette, LayoutGrid, ShieldAlert, Tags, Table2, AlertTriangle, Building2, Filter } from "lucide-react";
+import { Scale, LineChart as CurveIcon, ArrowLeftRight, Trash2, Plus, ChevronLeft, ChevronRight, ChevronDown, RotateCcw, Newspaper, Share2, X, Download, Upload, Copy, Sun, Moon, Bell, Info, Camera, Pencil, Check, Clock, Lightbulb, BookOpen, ClipboardCheck, TrendingUp, Flame, Target, FileText, Search, Minus, WrapText, CalendarClock, Settings, Palette, LayoutGrid, ShieldAlert, Tags, Table2, AlertTriangle, Building2, Filter, Users, Send } from "lucide-react";
 import {
   ResponsiveContainer,
   LineChart,
@@ -787,7 +787,9 @@ const TABS = [
   { id: "journal", label: "Journal", icon: BookOpen },
   { id: "notepad", label: "Notepad", icon: FileText },
   { id: "sessions", label: "Sessions", icon: Clock },
+  { id: "community", label: "Community", icon: Users },
 ];
+
 
 const MOBILE_NAV_PRIMARY_COUNT = 4;
 
@@ -1110,6 +1112,25 @@ const PS_STORAGE_KEY = "ledger:size-inputs";
 const ACCOUNTS_LIST_KEY = "ledger:accounts:list";
 const ACCOUNTS_ACTIVE_KEY = "ledger:accounts:active";
 const scopedKey = (base, accountId) => `${base}:${accountId}`;
+
+
+// --- Community (shared across everyone using this app instance) ---
+const COMMUNITY_GROUPS_KEY = "community:groups:list"; // shared
+const communityMessagesKey = (groupId) => `community:group:${groupId}:messages`; // shared
+const COMMUNITY_USERNAME_KEY = "community:username"; // personal
+const COMMUNITY_MY_GROUPS_KEY = "community:my-groups"; // personal
+const COMMUNITY_MESSAGE_POLL_MS = 6000;
+const MAX_COMMUNITY_MESSAGES = 300;
+
+async function hashCommunityCode(code) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(code.trim().toLowerCase());
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 
 const DEFAULT_CS_INPUTS = {
   startBal: "",
@@ -4090,6 +4111,35 @@ RUNTIME.ALARM_LEAD_MS = RUNTIME.ALARM_LEAD_MINUTES * 60 * 1000;
   const [notepadFocusBlock, setNotepadFocusBlock] = useState(null);
   const [pendingNoteDelete, setPendingNoteDelete] = useState(null);
 
+
+  // --- Community state ---
+  const [communityUsername, setCommunityUsername] = useState("");
+  const [communityUsernameLoaded, setCommunityUsernameLoaded] = useState(false);
+  const [communityUsernameDraft, setCommunityUsernameDraft] = useState("");
+  const [communityGroups, setCommunityGroups] = useState([]);
+  const [communityGroupsLoaded, setCommunityGroupsLoaded] = useState(false);
+  const [myGroupIds, setMyGroupIds] = useState([]);
+  const [activeGroupId, setActiveGroupId] = useState(null);
+  const [groupMessages, setGroupMessages] = useState([]);
+  const [groupMessagesLoaded, setGroupMessagesLoaded] = useState(false);
+  const [addingGroup, setAddingGroup] = useState(false);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [newGroupDesc, setNewGroupDesc] = useState("");
+  const [communityMsgText, setCommunityMsgText] = useState("");
+  const [communityMsgMode, setCommunityMsgMode] = useState("chat");
+  const [signalPair, setSignalPair] = useState("");
+  const [signalDirection, setSignalDirection] = useState("buy");
+  const [signalEntry, setSignalEntry] = useState("");
+  const [signalSL, setSignalSL] = useState("");
+  const [signalTP, setSignalTP] = useState("");
+  const [newGroupCode, setNewGroupCode] = useState("");
+  const [groupCodeError, setGroupCodeError] = useState("");
+  const [joinCodeInput, setJoinCodeInput] = useState("");
+  const [joinCodeError, setJoinCodeError] = useState("");
+  const [joiningGroup, setJoiningGroup] = useState(false);
+  const communityMessagesEndRef = useRef(null);
+
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -4110,6 +4160,91 @@ RUNTIME.ALARM_LEAD_MS = RUNTIME.ALARM_LEAD_MINUTES * 60 * 1000;
       cancelled = true;
     };
   }, []);
+
+
+  // Load community username + which groups this device has joined (personal/local)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [nameRes, myGroupsRes] = await Promise.allSettled([
+          window.storage.get(COMMUNITY_USERNAME_KEY, false),
+          window.storage.get(COMMUNITY_MY_GROUPS_KEY, false),
+        ]);
+        if (cancelled) return;
+        if (nameRes.status === "fulfilled" && nameRes.value) {
+          setCommunityUsername(nameRes.value.value);
+        }
+        if (myGroupsRes.status === "fulfilled" && myGroupsRes.value) {
+          const parsed = JSON.parse(myGroupsRes.value.value);
+          if (Array.isArray(parsed)) setMyGroupIds(parsed);
+        }
+      } catch (err) {
+        // non-critical, fail silently
+      } finally {
+        if (!cancelled) setCommunityUsernameLoaded(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const loadCommunityGroups = async () => {
+    try {
+      const res = await window.storage.get(COMMUNITY_GROUPS_KEY, true);
+      if (res && res.value) {
+        const parsed = JSON.parse(res.value);
+        if (Array.isArray(parsed)) setCommunityGroups(parsed);
+      }
+    } catch (err) {
+      // no groups yet, or fetch failed
+    } finally {
+      setCommunityGroupsLoaded(true);
+    }
+  };
+
+  useEffect(() => {
+    loadCommunityGroups();
+  }, []);
+
+  // Load (and lightly poll) messages for whichever group is open
+  useEffect(() => {
+    if (!activeGroupId) {
+      setGroupMessages([]);
+      setGroupMessagesLoaded(false);
+      return;
+    }
+    let cancelled = false;
+    const loadMessages = async () => {
+      try {
+        const res = await window.storage.get(communityMessagesKey(activeGroupId), true);
+        if (cancelled) return;
+        if (res && res.value) {
+          const parsed = JSON.parse(res.value);
+          setGroupMessages(Array.isArray(parsed) ? parsed : []);
+        } else {
+          setGroupMessages([]);
+        }
+      } catch (err) {
+        if (!cancelled) setGroupMessages([]);
+      } finally {
+        if (!cancelled) setGroupMessagesLoaded(true);
+      }
+    };
+    setGroupMessagesLoaded(false);
+    loadMessages();
+    const id = setInterval(loadMessages, COMMUNITY_MESSAGE_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [activeGroupId]);
+
+  useEffect(() => {
+    if (communityMessagesEndRef.current) {
+      communityMessagesEndRef.current.scrollIntoView({ block: "end" });
+    }
+  }, [groupMessages, activeGroupId]);
+
 
   useEffect(() => {
     let cancelled = false;
@@ -4825,6 +4960,155 @@ useEffect(() => {
       // non-critical, fail silently
     }
   };
+
+
+
+  // --- Community actions ---
+  const persistCommunityUsername = async (name) => {
+    setCommunityUsername(name);
+    try {
+      await window.storage.set(COMMUNITY_USERNAME_KEY, name, false);
+    } catch (err) {
+      // non-critical, fail silently
+    }
+  };
+
+  const persistMyGroupIds = async (next) => {
+    setMyGroupIds(next);
+    try {
+      await window.storage.set(COMMUNITY_MY_GROUPS_KEY, JSON.stringify(next), false);
+    } catch (err) {
+      // non-critical, fail silently
+    }
+  };
+
+  const createCommunityGroup = async () => {
+    const name = newGroupName.trim();
+    const code = newGroupCode.trim();
+    setGroupCodeError("");
+    if (!name) return;
+    if (code.length < 4) {
+      setGroupCodeError("Pick a code at least 4 characters long.");
+      return;
+    }
+    const codeHash = await hashCommunityCode(code);
+    const id = `grp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const newGroup = {
+      id,
+      name,
+      description: newGroupDesc.trim(),
+      createdAt: Date.now(),
+      createdBy: communityUsername || "Anonymous",
+      codeHash,
+    };
+    try {
+      // Re-fetch the latest list first so we don't clobber groups others created since our last load
+      let latest = communityGroups;
+      try {
+        const res = await window.storage.get(COMMUNITY_GROUPS_KEY, true);
+        if (res && res.value) {
+          const parsed = JSON.parse(res.value);
+          if (Array.isArray(parsed)) latest = parsed;
+        }
+      } catch (err) {
+        // no existing list yet, fine to start fresh
+      }
+      const next = [...latest, newGroup];
+      await window.storage.set(COMMUNITY_GROUPS_KEY, JSON.stringify(next), true);
+      setCommunityGroups(next);
+      persistMyGroupIds([...myGroupIds, id]);
+      setAddingGroup(false);
+      setNewGroupName("");
+      setNewGroupDesc("");
+      setNewGroupCode("");
+      setActiveGroupId(id);
+    } catch (err) {
+      setGroupCodeError("Couldn't create the group, please try again.");
+    }
+  };
+
+  const joinGroupByCode = async () => {
+    const code = joinCodeInput.trim();
+    setJoinCodeError("");
+    if (!code) return;
+    setJoiningGroup(true);
+    try {
+      // Always fetch the latest group list — the group you're joining may not be in local state yet
+      let latest = communityGroups;
+      try {
+        const res = await window.storage.get(COMMUNITY_GROUPS_KEY, true);
+        if (res && res.value) {
+          const parsed = JSON.parse(res.value);
+          if (Array.isArray(parsed)) latest = parsed;
+        }
+      } catch (err) {
+        // fall through to whatever we already had loaded
+      }
+      setCommunityGroups(latest);
+      const codeHash = await hashCommunityCode(code);
+      const match = latest.find((g) => g.codeHash === codeHash);
+      if (!match) {
+        setJoinCodeError("No group matches that code.");
+        return;
+      }
+      if (!myGroupIds.includes(match.id)) persistMyGroupIds([...myGroupIds, match.id]);
+      setJoinCodeInput("");
+      setActiveGroupId(match.id);
+    } catch (err) {
+      setJoinCodeError("Couldn't check that code, please try again.");
+    } finally {
+      setJoiningGroup(false);
+    }
+  };
+
+  const leaveCommunityGroup = (id) => {
+    persistMyGroupIds(myGroupIds.filter((g) => g !== id));
+    if (activeGroupId === id) setActiveGroupId(null);
+  };
+
+  const sendCommunityMessage = async () => {
+    if (!activeGroupId) return;
+    const isSignal = communityMsgMode === "signal";
+    if (isSignal && !signalPair.trim()) return;
+    if (!isSignal && !communityMsgText.trim()) return;
+
+    const msg = {
+      id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      ts: Date.now(),
+      author: communityUsername || "Anonymous",
+      type: isSignal ? "signal" : "chat",
+      text: communityMsgText.trim(),
+      pair: isSignal ? signalPair.trim().toUpperCase() : undefined,
+      direction: isSignal ? signalDirection : undefined,
+      entry: isSignal ? signalEntry.trim() : undefined,
+      sl: isSignal ? signalSL.trim() : undefined,
+      tp: isSignal ? signalTP.trim() : undefined,
+    };
+
+    try {
+      let current = groupMessages;
+      try {
+        const res = await window.storage.get(communityMessagesKey(activeGroupId), true);
+        if (res && res.value) {
+          const parsed = JSON.parse(res.value);
+          if (Array.isArray(parsed)) current = parsed;
+        }
+      } catch (err) {
+        // no messages yet, start fresh
+      }
+      const next = [...current, msg].slice(-MAX_COMMUNITY_MESSAGES);
+      await window.storage.set(communityMessagesKey(activeGroupId), JSON.stringify(next), true);
+      setGroupMessages(next);
+      setCommunityMsgText("");
+      setSignalPair("");
+      setSignalEntry("");
+      setSignalSL("");
+      setSignalTP("");
+    } catch (err) {
+      // message wasn't sent — safe to let the person retry
+    }
+  };
+
 
   const defaultBalanceInputRef = useRef(null);
   const defaultBalanceDebounceRef = useRef(null);
@@ -13649,6 +13933,441 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
         {sessionsSubTab === "sessions" ? sessionsBody : newsBody}
       </>
     );
+  }
+
+  if (activeTab === "community") {
+    if (!communityUsernameLoaded || !communityGroupsLoaded) {
+      body = (
+        <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
+          Loading community\u2026
+        </p>
+      );
+    } else if (!communityUsername) {
+      body = (
+        <>
+          <Readout
+            eyebrow="Community"
+            value="Set a Name"
+            sub="Pick a display name other traders will see next to your messages and signals. This is shared with everyone using this app."
+          />
+          <input
+            type="text"
+            value={communityUsernameDraft}
+            onChange={(e) => setCommunityUsernameDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && communityUsernameDraft.trim()) {
+                persistCommunityUsername(communityUsernameDraft.trim());
+              }
+            }}
+            placeholder="e.g. FX_Rafi"
+            maxLength={24}
+            className="w-full rounded-lg px-3 py-3 mb-3 bg-transparent outline-none"
+            style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "15px" }}
+          />
+          <button
+            type="button"
+            onClick={() => communityUsernameDraft.trim() && persistCommunityUsername(communityUsernameDraft.trim())}
+            className={`w-full rounded-lg py-3 ${TAP}`}
+            style={{ background: palette.gold, color: palette.letterbox, fontFamily: mono, fontSize: "14px", fontWeight: 600 }}
+          >
+            Continue
+          </button>
+          <p className="text-xs mt-3" style={{ color: palette.textFaint }}>
+            Your name, group names, and anything you post here are visible to everyone else using this app —
+            don't share personal info you want kept private.
+          </p>
+        </>
+      );
+
+
+    } else if (!activeGroupId) {
+      const joined = communityGroups.filter((g) => myGroupIds.includes(g.id));
+
+      body = (
+        <>
+          <Readout
+            eyebrow="Community"
+            value={String(joined.length)}
+            unit={joined.length === 1 ? "group joined" : "groups joined"}
+            sub={`Signed in as ${communityUsername}`}
+            rightContent={
+              <button
+                type="button"
+                onClick={() => {
+                  setCommunityUsernameDraft(communityUsername);
+                  persistCommunityUsername("");
+                }}
+                className={TAP}
+                style={{ color: palette.textFaint, fontSize: "11px", fontFamily: mono }}
+              >
+                Change name
+              </button>
+            }
+          />
+
+          {!addingGroup ? (
+            <button
+              type="button"
+              onClick={() => setAddingGroup(true)}
+              className={`w-full flex items-center justify-center gap-2 rounded-lg py-3 mb-4 ${TAP}`}
+              style={{ background: palette.gold, color: palette.letterbox, fontFamily: mono, fontSize: "14px", fontWeight: 600 }}
+            >
+              <Plus size={16} />
+              Create a Private Group
+            </button>
+          ) : (
+            <div className="rounded-2xl p-4 mb-4" style={{ background: palette.surface, border: `1px solid ${palette.gold}`, boxShadow: palette.shadow }}>
+              <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
+                Group Name
+              </span>
+              <input
+                type="text"
+                value={newGroupName}
+                onChange={(e) => setNewGroupName(e.target.value)}
+                placeholder="e.g. Gold Scalpers"
+                maxLength={40}
+                className="w-full rounded-lg px-3 py-2.5 mb-2 bg-transparent outline-none"
+                style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "14px" }}
+              />
+              <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
+                Description (optional)
+              </span>
+              <input
+                type="text"
+                value={newGroupDesc}
+                onChange={(e) => setNewGroupDesc(e.target.value)}
+                placeholder="What's this group about?"
+                maxLength={100}
+                className="w-full rounded-lg px-3 py-2.5 mb-2 bg-transparent outline-none"
+                style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "13px" }}
+              />
+              <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
+                Entry Code (people need this to join)
+              </span>
+              <input
+                type="text"
+                value={newGroupCode}
+                onChange={(e) => { setNewGroupCode(e.target.value); if (groupCodeError) setGroupCodeError(""); }}
+                placeholder="At least 4 characters"
+                maxLength={40}
+                className="w-full rounded-lg px-3 py-2.5 mb-1 bg-transparent outline-none"
+                style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "14px" }}
+              />
+              {groupCodeError && (
+                <p className="text-xs mb-2" style={{ color: palette.red }}>{groupCodeError}</p>
+              )}
+              <p className="text-xs mb-3" style={{ color: palette.textFaint }}>
+                This group won't be listed or searchable — you'll need to share this code directly with whoever
+                you want to invite. Keep it somewhere safe; there's no way to recover or change it later in this
+                version.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={createCommunityGroup}
+                  disabled={!newGroupName.trim() || newGroupCode.trim().length < 4}
+                  className={`flex-1 rounded-lg py-2.5 ${TAP}`}
+                  style={{
+                    background: newGroupName.trim() && newGroupCode.trim().length >= 4 ? palette.gold : palette.border,
+                    color: newGroupName.trim() && newGroupCode.trim().length >= 4 ? palette.letterbox : palette.textFaint,
+                    fontFamily: mono,
+                    fontSize: "13px",
+                    fontWeight: 600,
+                  }}
+                >
+                  Create
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setAddingGroup(false); setNewGroupName(""); setNewGroupDesc(""); setNewGroupCode(""); setGroupCodeError(""); }}
+                  className={`flex-1 rounded-lg py-2.5 ${TAP}`}
+                  style={{ background: "transparent", border: `1px solid ${palette.border}`, color: palette.textMuted, fontFamily: mono, fontSize: "13px" }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {joined.length > 0 && (
+            <>
+              <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
+                Your Groups
+              </span>
+              {joined.map((g) => (
+                <button
+                  key={g.id}
+                  type="button"
+                  onClick={() => setActiveGroupId(g.id)}
+                  className={`w-full flex items-center justify-between rounded-lg px-4 py-3.5 mb-2 ${TAP}`}
+                  style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
+                >
+                  <div className="text-left">
+                    <div style={{ color: palette.text, fontSize: "14px", fontWeight: 600 }}>{g.name}</div>
+                    {g.description && (
+                      <div style={{ color: palette.textFaint, fontSize: "11px", marginTop: "2px" }}>{g.description}</div>
+                    )}
+                  </div>
+                  <ChevronRight size={16} style={{ color: palette.textFaint, flexShrink: 0 }} />
+                </button>
+              ))}
+            </>
+          )}
+
+          <span className="block mb-1.5 uppercase mt-2" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
+            Have an Entry Code?
+          </span>
+          <div className="flex gap-2 mb-1">
+            <input
+              type="text"
+              value={joinCodeInput}
+              onChange={(e) => { setJoinCodeInput(e.target.value); if (joinCodeError) setJoinCodeError(""); }}
+              onKeyDown={(e) => { if (e.key === "Enter") joinGroupByCode(); }}
+              placeholder="Enter code to join a private group"
+              className="flex-1 rounded-lg px-3 py-2.5 bg-transparent outline-none"
+              style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "14px" }}
+            />
+            <button
+              type="button"
+              onClick={joinGroupByCode}
+              disabled={!joinCodeInput.trim() || joiningGroup}
+              className={`flex-shrink-0 rounded-lg px-4 py-2.5 ${TAP}`}
+              style={{
+                background: joinCodeInput.trim() ? palette.gold : palette.border,
+                color: joinCodeInput.trim() ? palette.letterbox : palette.textFaint,
+                fontFamily: mono,
+                fontSize: "13px",
+                fontWeight: 600,
+              }}
+            >
+              {joiningGroup ? "Checking\u2026" : "Join"}
+            </button>
+          </div>
+          {joinCodeError && (
+            <p className="text-xs mb-2" style={{ color: palette.red }}>{joinCodeError}</p>
+          )}
+
+          <p className="text-xs mt-3" style={{ color: palette.textFaint }}>
+            Groups are private by default — there's no public directory. The only way in is a code shared
+            directly by the group's creator. Messages and signals inside a group are still stored in shared app
+            storage, so don't post anything you wouldn't want another member to screenshot and share elsewhere.
+          </p>
+        </>
+      );
+
+
+    } else {
+      const group = communityGroups.find((g) => g.id === activeGroupId);
+      body = (
+        <>
+          <div className="flex items-center justify-between mb-4">
+            <button
+              type="button"
+              onClick={() => setActiveGroupId(null)}
+              className={`flex items-center gap-1 ${TAP}`}
+              style={{ color: palette.textMuted, fontSize: "12px", fontFamily: mono }}
+            >
+              <ChevronLeft size={16} />
+              Groups
+            </button>
+            <button
+              type="button"
+              onClick={() => leaveCommunityGroup(activeGroupId)}
+              className={TAP}
+              style={{ color: palette.textFaint, fontSize: "11px", fontFamily: mono }}
+            >
+              Leave group
+            </button>
+          </div>
+
+          <div className="mb-3">
+            <div style={{ fontFamily: display, fontSize: "17px", fontWeight: 700, color: palette.text }}>
+              {group ? group.name : "Group"}
+            </div>
+            {group?.description && (
+              <div style={{ color: palette.textFaint, fontSize: "12px", marginTop: "2px" }}>{group.description}</div>
+            )}
+          </div>
+
+          <div
+            className="rounded-2xl mb-3 p-3"
+            style={{
+              background: palette.surface,
+              border: `1px solid ${palette.border}`,
+              boxShadow: palette.shadow,
+              height: isDesktop ? "420px" : "320px",
+              overflowY: "auto",
+            }}
+          >
+            {!groupMessagesLoaded ? (
+              <p className="text-xs" style={{ color: palette.textFaint }}>Loading messages\u2026</p>
+            ) : groupMessages.length === 0 ? (
+              <p className="text-xs" style={{ color: palette.textFaint }}>
+                No messages yet — say hello or post the first signal.
+              </p>
+            ) : (
+              groupMessages.map((m) => (
+                <div key={m.id} className="mb-3">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span style={{ color: palette.gold, fontSize: "12px", fontWeight: 600 }}>{m.author}</span>
+                    <span style={{ color: palette.textFaint, fontSize: "10px", fontFamily: mono }}>
+                      {new Date(m.ts).toLocaleString()}
+                    </span>
+                  </div>
+                  {m.type === "signal" ? (
+                    <div
+                      className="rounded-lg p-2.5"
+                      style={{ background: palette.field, border: `1px solid ${m.direction === "sell" ? palette.red : palette.green}55` }}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <span
+                          style={{
+                            fontSize: "9px",
+                            fontFamily: mono,
+                            fontWeight: 700,
+                            color: m.direction === "sell" ? palette.red : palette.green,
+                            border: `1px solid ${m.direction === "sell" ? palette.red : palette.green}`,
+                            borderRadius: "999px",
+                            padding: "1px 7px",
+                            textTransform: "uppercase",
+                          }}
+                        >
+                          {m.direction}
+                        </span>
+                        <span style={{ fontFamily: mono, fontSize: "13px", color: palette.text, fontWeight: 700 }}>
+                          {m.pair}
+                        </span>
+                      </div>
+                      <div style={{ fontFamily: mono, fontSize: "11px", color: palette.textMuted }}>
+                        {m.entry && `Entry ${m.entry}`}{m.sl && `  SL ${m.sl}`}{m.tp && `  TP ${m.tp}`}
+                      </div>
+                      {m.text && <div style={{ color: palette.text, fontSize: "12.5px", marginTop: "4px" }}>{m.text}</div>}
+                    </div>
+                  ) : (
+                    <div style={{ color: palette.text, fontSize: "13px" }}>{m.text}</div>
+                  )}
+                </div>
+              ))
+            )}
+            <div ref={communityMessagesEndRef} />
+          </div>
+
+          <div className="flex gap-2 mb-2">
+            {[
+              { id: "chat", label: "Chat" },
+              { id: "signal", label: "Signal" },
+            ].map((mode) => {
+              const active = communityMsgMode === mode.id;
+              return (
+                <button
+                  key={mode.id}
+                  type="button"
+                  onClick={() => setCommunityMsgMode(mode.id)}
+                  className={`flex-1 px-3 py-2 rounded-full transition-colors ${TAP}`}
+                  style={{
+                    background: active ? palette.gold : palette.field,
+                    color: active ? palette.letterbox : palette.textMuted,
+                    border: `1px solid ${active ? palette.gold : palette.border}`,
+                    fontFamily: mono,
+                    fontSize: "12.5px",
+                    fontWeight: 600,
+                  }}
+                >
+                  {mode.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {communityMsgMode === "signal" && (
+            <div className="grid grid-cols-2 gap-2 mb-2">
+              <input
+                type="text"
+                value={signalPair}
+                onChange={(e) => setSignalPair(e.target.value.toUpperCase())}
+                placeholder="Pair (e.g. XAUUSD)"
+                className="rounded-lg px-3 py-2 bg-transparent outline-none"
+                style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "13px" }}
+              />
+              <div className="flex gap-1">
+                {["buy", "sell"].map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setSignalDirection(d)}
+                    className={`flex-1 rounded-lg py-2 ${TAP}`}
+                    style={{
+                      background: signalDirection === d ? (d === "sell" ? palette.red : palette.green) : palette.field,
+                      color: signalDirection === d ? "#FFFFFF" : palette.textMuted,
+                      border: `1px solid ${signalDirection === d ? "transparent" : palette.border}`,
+                      fontFamily: mono,
+                      fontSize: "12px",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    {d}
+                  </button>
+                ))}
+              </div>
+              <input
+                type="text"
+                value={signalEntry}
+                onChange={(e) => setSignalEntry(e.target.value)}
+                placeholder="Entry"
+                className="rounded-lg px-3 py-2 bg-transparent outline-none"
+                style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "13px" }}
+              />
+              <input
+                type="text"
+                value={signalSL}
+                onChange={(e) => setSignalSL(e.target.value)}
+                placeholder="Stop Loss"
+                className="rounded-lg px-3 py-2 bg-transparent outline-none"
+                style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "13px" }}
+              />
+              <input
+                type="text"
+                value={signalTP}
+                onChange={(e) => setSignalTP(e.target.value)}
+                placeholder="Take Profit"
+                className="rounded-lg px-3 py-2 bg-transparent outline-none col-span-2"
+                style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "13px" }}
+              />
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={communityMsgText}
+              onChange={(e) => setCommunityMsgText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  sendCommunityMessage();
+                }
+              }}
+              placeholder={communityMsgMode === "signal" ? "Notes (optional)" : "Message"}
+              className="flex-1 rounded-lg px-3 py-2.5 bg-transparent outline-none"
+              style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontSize: "13px" }}
+            />
+            <button
+              type="button"
+              onClick={sendCommunityMessage}
+              className={`flex items-center justify-center rounded-lg flex-shrink-0 ${TAP}`}
+              style={{ width: "46px", background: palette.gold, color: palette.letterbox }}
+              aria-label="Send"
+            >
+              <Send size={17} />
+            </button>
+          </div>
+          <p className="text-xs mt-3" style={{ color: palette.textFaint }}>
+            Messages refresh automatically every few seconds. This is a simple shared board — no editing or
+            deleting messages yet.
+          </p>
+        </>
+      );
+    }
   }
 
   return (
