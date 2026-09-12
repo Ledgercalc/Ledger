@@ -1114,21 +1114,23 @@ const ACCOUNTS_ACTIVE_KEY = "ledger:accounts:active";
 const scopedKey = (base, accountId) => `${base}:${accountId}`;
 
 
-// --- Community (shared across everyone using this app instance) ---
-const COMMUNITY_GROUPS_KEY = "community:groups:list"; // shared
-const communityMessagesKey = (groupId) => `community:group:${groupId}:messages`; // shared
-const COMMUNITY_USERNAME_KEY = "community:username"; // personal
-const COMMUNITY_MY_GROUPS_KEY = "community:my-groups"; // personal
+// --- Community (real backend — Cloudflare Worker + D1) ---
+const COMMUNITY_API_BASE = "https://ledger-community.ledgercalc.workers.dev";
+const COMMUNITY_USERNAME_KEY = "community:username";
+const COMMUNITY_MEMBERSHIPS_KEY = "community:memberships";
 const COMMUNITY_MESSAGE_POLL_MS = 6000;
-const MAX_COMMUNITY_MESSAGES = 300;
 
-async function hashCommunityCode(code) {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(code.trim().toLowerCase());
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(hashBuffer))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+async function communityApi(path, options = {}) {
+  if (!COMMUNITY_API_BASE || COMMUNITY_API_BASE.includes("PASTE-YOUR")) {
+    throw new Error("Set COMMUNITY_API_BASE to your deployed Worker URL first.");
+  }
+  const res = await fetch(`${COMMUNITY_API_BASE}${path}`, {
+    ...options,
+    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "Request failed.");
+  return data;
 }
 
 
@@ -4116,15 +4118,21 @@ RUNTIME.ALARM_LEAD_MS = RUNTIME.ALARM_LEAD_MINUTES * 60 * 1000;
   const [communityUsername, setCommunityUsername] = useState("");
   const [communityUsernameLoaded, setCommunityUsernameLoaded] = useState(false);
   const [communityUsernameDraft, setCommunityUsernameDraft] = useState("");
-  const [communityGroups, setCommunityGroups] = useState([]);
-  const [communityGroupsLoaded, setCommunityGroupsLoaded] = useState(false);
-  const [myGroupIds, setMyGroupIds] = useState([]);
+  const [myGroups, setMyGroups] = useState([]);
+  const [myGroupsLoaded, setMyGroupsLoaded] = useState(false);
   const [activeGroupId, setActiveGroupId] = useState(null);
   const [groupMessages, setGroupMessages] = useState([]);
   const [groupMessagesLoaded, setGroupMessagesLoaded] = useState(false);
+  const [communityApiError, setCommunityApiError] = useState("");
   const [addingGroup, setAddingGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
   const [newGroupDesc, setNewGroupDesc] = useState("");
+  const [newGroupCode, setNewGroupCode] = useState("");
+  const [groupCodeError, setGroupCodeError] = useState("");
+  const [joinCodeInput, setJoinCodeInput] = useState("");
+  const [joinCodeError, setJoinCodeError] = useState("");
+  const [joiningGroup, setJoiningGroup] = useState(false);
+  const [creatingGroup, setCreatingGroup] = useState(false);
   const [communityMsgText, setCommunityMsgText] = useState("");
   const [communityMsgMode, setCommunityMsgMode] = useState("chat");
   const [signalPair, setSignalPair] = useState("");
@@ -4132,11 +4140,6 @@ RUNTIME.ALARM_LEAD_MS = RUNTIME.ALARM_LEAD_MINUTES * 60 * 1000;
   const [signalEntry, setSignalEntry] = useState("");
   const [signalSL, setSignalSL] = useState("");
   const [signalTP, setSignalTP] = useState("");
-  const [newGroupCode, setNewGroupCode] = useState("");
-  const [groupCodeError, setGroupCodeError] = useState("");
-  const [joinCodeInput, setJoinCodeInput] = useState("");
-  const [joinCodeError, setJoinCodeError] = useState("");
-  const [joiningGroup, setJoiningGroup] = useState(false);
   const communityMessagesEndRef = useRef(null);
 
 
@@ -4162,70 +4165,48 @@ RUNTIME.ALARM_LEAD_MS = RUNTIME.ALARM_LEAD_MINUTES * 60 * 1000;
   }, []);
 
 
-  // Load community username + which groups this device has joined (personal/local)
+  // Load username + this device's group memberships (personal/local — tokens live here)
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [nameRes, myGroupsRes] = await Promise.allSettled([
+        const [nameRes, membershipsRes] = await Promise.allSettled([
           window.storage.get(COMMUNITY_USERNAME_KEY, false),
-          window.storage.get(COMMUNITY_MY_GROUPS_KEY, false),
+          window.storage.get(COMMUNITY_MEMBERSHIPS_KEY, false),
         ]);
         if (cancelled) return;
-        if (nameRes.status === "fulfilled" && nameRes.value) {
-          setCommunityUsername(nameRes.value.value);
-        }
-        if (myGroupsRes.status === "fulfilled" && myGroupsRes.value) {
-          const parsed = JSON.parse(myGroupsRes.value.value);
-          if (Array.isArray(parsed)) setMyGroupIds(parsed);
+        if (nameRes.status === "fulfilled" && nameRes.value) setCommunityUsername(nameRes.value.value);
+        if (membershipsRes.status === "fulfilled" && membershipsRes.value) {
+          const parsed = JSON.parse(membershipsRes.value.value);
+          if (Array.isArray(parsed)) setMyGroups(parsed);
         }
       } catch (err) {
         // non-critical, fail silently
       } finally {
-        if (!cancelled) setCommunityUsernameLoaded(true);
+        if (!cancelled) { setCommunityUsernameLoaded(true); setMyGroupsLoaded(true); }
       }
     })();
     return () => { cancelled = true; };
   }, []);
 
-  const loadCommunityGroups = async () => {
-    try {
-      const res = await window.storage.get(COMMUNITY_GROUPS_KEY, true);
-      if (res && res.value) {
-        const parsed = JSON.parse(res.value);
-        if (Array.isArray(parsed)) setCommunityGroups(parsed);
-      }
-    } catch (err) {
-      // no groups yet, or fetch failed
-    } finally {
-      setCommunityGroupsLoaded(true);
-    }
-  };
-
-  useEffect(() => {
-    loadCommunityGroups();
-  }, []);
-
-  // Load (and lightly poll) messages for whichever group is open
+  // Load (and poll) messages for whichever group is open, from the real backend
   useEffect(() => {
     if (!activeGroupId) {
       setGroupMessages([]);
       setGroupMessagesLoaded(false);
       return;
     }
+    const membership = myGroups.find((g) => g.id === activeGroupId);
+    if (!membership) return;
     let cancelled = false;
     const loadMessages = async () => {
       try {
-        const res = await window.storage.get(communityMessagesKey(activeGroupId), true);
-        if (cancelled) return;
-        if (res && res.value) {
-          const parsed = JSON.parse(res.value);
-          setGroupMessages(Array.isArray(parsed) ? parsed : []);
-        } else {
-          setGroupMessages([]);
-        }
+        const data = await communityApi(`/groups/${activeGroupId}/messages`, {
+          headers: { Authorization: `Bearer ${membership.token}` },
+        });
+        if (!cancelled) { setGroupMessages(data.messages || []); setCommunityApiError(""); }
       } catch (err) {
-        if (!cancelled) setGroupMessages([]);
+        if (!cancelled) setCommunityApiError(err.message);
       } finally {
         if (!cancelled) setGroupMessagesLoaded(true);
       }
@@ -4233,17 +4214,15 @@ RUNTIME.ALARM_LEAD_MS = RUNTIME.ALARM_LEAD_MINUTES * 60 * 1000;
     setGroupMessagesLoaded(false);
     loadMessages();
     const id = setInterval(loadMessages, COMMUNITY_MESSAGE_POLL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, [activeGroupId]);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [activeGroupId, myGroups]);
 
   useEffect(() => {
     if (communityMessagesEndRef.current) {
       communityMessagesEndRef.current.scrollIntoView({ block: "end" });
     }
   }, [groupMessages, activeGroupId]);
+
 
 
   useEffect(() => {
@@ -4963,67 +4942,46 @@ useEffect(() => {
 
 
 
-  // --- Community actions ---
+  // --- Community actions (talk to the real backend) ---
   const persistCommunityUsername = async (name) => {
     setCommunityUsername(name);
     try {
       await window.storage.set(COMMUNITY_USERNAME_KEY, name, false);
-    } catch (err) {
-      // non-critical, fail silently
-    }
+    } catch (err) {}
   };
 
-  const persistMyGroupIds = async (next) => {
-    setMyGroupIds(next);
+  const persistMyGroups = async (next) => {
+    setMyGroups(next);
     try {
-      await window.storage.set(COMMUNITY_MY_GROUPS_KEY, JSON.stringify(next), false);
-    } catch (err) {
-      // non-critical, fail silently
-    }
+      await window.storage.set(COMMUNITY_MEMBERSHIPS_KEY, JSON.stringify(next), false);
+    } catch (err) {}
   };
 
   const createCommunityGroup = async () => {
     const name = newGroupName.trim();
     const code = newGroupCode.trim();
     setGroupCodeError("");
-    if (!name) return;
-    if (code.length < 4) {
-      setGroupCodeError("Pick a code at least 4 characters long.");
+    if (!name || code.length < 4) {
+      setGroupCodeError("Name and a code (4+ characters) are required.");
       return;
     }
-    const codeHash = await hashCommunityCode(code);
-    const id = `grp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    const newGroup = {
-      id,
-      name,
-      description: newGroupDesc.trim(),
-      createdAt: Date.now(),
-      createdBy: communityUsername || "Anonymous",
-      codeHash,
-    };
+    setCreatingGroup(true);
     try {
-      // Re-fetch the latest list first so we don't clobber groups others created since our last load
-      let latest = communityGroups;
-      try {
-        const res = await window.storage.get(COMMUNITY_GROUPS_KEY, true);
-        if (res && res.value) {
-          const parsed = JSON.parse(res.value);
-          if (Array.isArray(parsed)) latest = parsed;
-        }
-      } catch (err) {
-        // no existing list yet, fine to start fresh
-      }
-      const next = [...latest, newGroup];
-      await window.storage.set(COMMUNITY_GROUPS_KEY, JSON.stringify(next), true);
-      setCommunityGroups(next);
-      persistMyGroupIds([...myGroupIds, id]);
+      const data = await communityApi("/groups", {
+        method: "POST",
+        body: JSON.stringify({ name, description: newGroupDesc.trim(), code, username: communityUsername }),
+      });
+      const membership = { id: data.id, token: data.token, name: data.name, description: data.description };
+      await persistMyGroups([...myGroups, membership]);
       setAddingGroup(false);
       setNewGroupName("");
       setNewGroupDesc("");
       setNewGroupCode("");
-      setActiveGroupId(id);
+      setActiveGroupId(data.id);
     } catch (err) {
-      setGroupCodeError("Couldn't create the group, please try again.");
+      setGroupCodeError(err.message);
+    } finally {
+      setCreatingGroup(false);
     }
   };
 
@@ -5033,79 +4991,61 @@ useEffect(() => {
     if (!code) return;
     setJoiningGroup(true);
     try {
-      // Always fetch the latest group list — the group you're joining may not be in local state yet
-      let latest = communityGroups;
-      try {
-        const res = await window.storage.get(COMMUNITY_GROUPS_KEY, true);
-        if (res && res.value) {
-          const parsed = JSON.parse(res.value);
-          if (Array.isArray(parsed)) latest = parsed;
-        }
-      } catch (err) {
-        // fall through to whatever we already had loaded
-      }
-      setCommunityGroups(latest);
-      const codeHash = await hashCommunityCode(code);
-      const match = latest.find((g) => g.codeHash === codeHash);
-      if (!match) {
-        setJoinCodeError("No group matches that code.");
-        return;
-      }
-      if (!myGroupIds.includes(match.id)) persistMyGroupIds([...myGroupIds, match.id]);
+      const data = await communityApi("/groups/join", {
+        method: "POST",
+        body: JSON.stringify({ code, username: communityUsername }),
+      });
+      const membership = { id: data.id, token: data.token, name: data.name, description: data.description };
+      const already = myGroups.some((g) => g.id === data.id);
+      await persistMyGroups(already ? myGroups : [...myGroups, membership]);
       setJoinCodeInput("");
-      setActiveGroupId(match.id);
+      setActiveGroupId(data.id);
     } catch (err) {
-      setJoinCodeError("Couldn't check that code, please try again.");
+      setJoinCodeError(err.message);
     } finally {
       setJoiningGroup(false);
     }
   };
 
   const leaveCommunityGroup = (id) => {
-    persistMyGroupIds(myGroupIds.filter((g) => g !== id));
+    persistMyGroups(myGroups.filter((g) => g.id !== id));
     if (activeGroupId === id) setActiveGroupId(null);
   };
 
   const sendCommunityMessage = async () => {
     if (!activeGroupId) return;
+    const membership = myGroups.find((g) => g.id === activeGroupId);
+    if (!membership) return;
     const isSignal = communityMsgMode === "signal";
     if (isSignal && !signalPair.trim()) return;
     if (!isSignal && !communityMsgText.trim()) return;
 
-    const msg = {
-      id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      ts: Date.now(),
-      author: communityUsername || "Anonymous",
-      type: isSignal ? "signal" : "chat",
-      text: communityMsgText.trim(),
-      pair: isSignal ? signalPair.trim().toUpperCase() : undefined,
-      direction: isSignal ? signalDirection : undefined,
-      entry: isSignal ? signalEntry.trim() : undefined,
-      sl: isSignal ? signalSL.trim() : undefined,
-      tp: isSignal ? signalTP.trim() : undefined,
-    };
-
     try {
-      let current = groupMessages;
-      try {
-        const res = await window.storage.get(communityMessagesKey(activeGroupId), true);
-        if (res && res.value) {
-          const parsed = JSON.parse(res.value);
-          if (Array.isArray(parsed)) current = parsed;
-        }
-      } catch (err) {
-        // no messages yet, start fresh
-      }
-      const next = [...current, msg].slice(-MAX_COMMUNITY_MESSAGES);
-      await window.storage.set(communityMessagesKey(activeGroupId), JSON.stringify(next), true);
-      setGroupMessages(next);
+      await communityApi(`/groups/${activeGroupId}/messages`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${membership.token}` },
+        body: JSON.stringify({
+          author: communityUsername || "Anonymous",
+          type: isSignal ? "signal" : "chat",
+          text: communityMsgText.trim(),
+          pair: isSignal ? signalPair.trim().toUpperCase() : undefined,
+          direction: isSignal ? signalDirection : undefined,
+          entry: isSignal ? signalEntry.trim() : undefined,
+          sl: isSignal ? signalSL.trim() : undefined,
+          tp: isSignal ? signalTP.trim() : undefined,
+        }),
+      });
       setCommunityMsgText("");
       setSignalPair("");
       setSignalEntry("");
       setSignalSL("");
       setSignalTP("");
+      const data = await communityApi(`/groups/${activeGroupId}/messages`, {
+        headers: { Authorization: `Bearer ${membership.token}` },
+      });
+      setGroupMessages(data.messages || []);
     } catch (err) {
-      // message wasn't sent — safe to let the person retry
+      setCommunityApiError(err.message);
     }
   };
 
@@ -13936,7 +13876,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
   }
 
   if (activeTab === "community") {
-    if (!communityUsernameLoaded || !communityGroupsLoaded) {
+    if (!communityUsernameLoaded || !myGroupsLoaded) {
       body = (
         <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
           Loading community\u2026
@@ -13981,7 +13921,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
 
 
     } else if (!activeGroupId) {
-      const joined = communityGroups.filter((g) => myGroupIds.includes(g.id));
+      const joined = myGroups;
 
       body = (
         <>
@@ -14065,7 +14005,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                 <button
                   type="button"
                   onClick={createCommunityGroup}
-                  disabled={!newGroupName.trim() || newGroupCode.trim().length < 4}
+                  disabled={!newGroupName.trim() || newGroupCode.trim().length < 4 || creatingGroup}
                   className={`flex-1 rounded-lg py-2.5 ${TAP}`}
                   style={{
                     background: newGroupName.trim() && newGroupCode.trim().length >= 4 ? palette.gold : palette.border,
@@ -14075,7 +14015,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                     fontWeight: 600,
                   }}
                 >
-                  Create
+                  {creatingGroup ? "Creating\u2026" : "Create"}
                 </button>
                 <button
                   type="button"
@@ -14148,16 +14088,15 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
           )}
 
           <p className="text-xs mt-3" style={{ color: palette.textFaint }}>
-            Groups are private by default — there's no public directory. The only way in is a code shared
-            directly by the group's creator. Messages and signals inside a group are still stored in shared app
-            storage, so don't post anything you wouldn't want another member to screenshot and share elsewhere.
+            Groups are private by default — there's no public directory, and only whoever knows the exact code
+            can join.
           </p>
         </>
       );
 
 
     } else {
-      const group = communityGroups.find((g) => g.id === activeGroupId);
+      const group = myGroups.find((g) => g.id === activeGroupId);
       body = (
         <>
           <div className="flex items-center justify-between mb-4">
