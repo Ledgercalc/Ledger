@@ -14182,7 +14182,7 @@ if (activeTab === "community") {
     const group = myGroups.find((g) => g.id === activeGroupId);
 
     body = (
-      <div className="flex flex-col" style={{ height: "calc(100dvh - 220px)", minHeight: "420px" }}>
+     <div className="flex flex-col" style={{ height: "calc(100dvh - 190px)", minHeight: "420px" }}>
         <div
           className="flex items-center gap-3 px-1 pb-3 mb-3 flex-shrink-0"
           style={{ borderBottom: `1px solid ${palette.border}` }}
@@ -14304,80 +14304,85 @@ if (activeTab === "community") {
           <div ref={communityMessagesEndRef} />
         </div>
 
-        <div className="flex-shrink-0 pt-3">
-          <div className="flex gap-1.5 mb-2">
-            {[
-              { id: "chat", label: "Chat", icon: FileText },
-              { id: "signal", label: "Signal", icon: TrendingUp },
-            ].map((mode) => {
-              const active = communityMsgMode === mode.id;
-              const Icon = mode.icon;
-              return (
-                <button
-                  key={mode.id}
-                  type="button"
-                  onClick={() => setCommunityMsgMode(mode.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-colors ${TAP}`}
-                  style={{
-                    background: active ? palette.gold : palette.field,
-                    color: active ? palette.letterbox : palette.textMuted,
-                    border: `1px solid ${active ? palette.gold : palette.border}`,
-                    fontFamily: mono, fontSize: "11.5px", fontWeight: 700,
-                  }}
-                >
-                  <Icon size={12} />
-                  {mode.label}
-                </button>
-              );
-            })}
-          </div>
 
-          {communityMsgMode === "signal" && (
-            <div
-              className="rounded-2xl p-3 mb-2"
-              style={{ background: palette.surface, border: `1px solid ${palette.border}` }}
-            >
-              <div className="grid grid-cols-2 gap-2 mb-2">
-                <input
-                  type="text"
-                  value={signalPair}
-                  onChange={(e) => setSignalPair(e.target.value.toUpperCase())}
-                  placeholder="Pair (XAUUSD)"
-                  className="rounded-xl px-3 py-2 bg-transparent outline-none"
-                  style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "12.5px" }}
-                />
-                <div className="flex gap-1">
-                  {["buy", "sell"].map((d) => (
-                    <button
-                      key={d}
-                      type="button"
-                      onClick={() => setSignalDirection(d)}
-                      className={`flex-1 rounded-xl py-2 ${TAP}`}
-                      style={{
-                        background: signalDirection === d ? (d === "sell" ? palette.red : palette.green) : palette.field,
-                        color: signalDirection === d ? "#FFFFFF" : palette.textMuted,
-                        border: `1px solid ${signalDirection === d ? "transparent" : palette.border}`,
-                        fontFamily: mono, fontSize: "11.5px", textTransform: "uppercase", fontWeight: 700,
-                      }}
-                    >
-                      {d}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                <input type="text" value={signalEntry} onChange={(e) => setSignalEntry(e.target.value)} placeholder="Entry"
-                  className="rounded-xl px-2.5 py-2 bg-transparent outline-none"
-                  style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "12px" }} />
-                <input type="text" value={signalSL} onChange={(e) => setSignalSL(e.target.value)} placeholder="SL"
-                  className="rounded-xl px-2.5 py-2 bg-transparent outline-none"
-                  style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "12px" }} />
-                <input type="text" value={signalTP} onChange={(e) => setSignalTP(e.target.value)} placeholder="TP"
-                  className="rounded-xl px-2.5 py-2 bg-transparent outline-none"
-                  style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "12px" }} />
-              </div>
-            </div>
-          )}
+
+  <div className="flex-shrink-0 pt-3 relative">
+    <div className="flex gap-1.5 mb-2">
+      {[
+        { id: "chat", label: "Chat", icon: FileText },
+        { id: "signal", label: "Signal", icon: TrendingUp },
+      ].map((mode) => {
+        const active = communityMsgMode === mode.id;
+        const Icon = mode.icon;
+        return (
+          <button
+            key={mode.id}
+            type="button"
+            onClick={() => setCommunityMsgMode(mode.id)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-colors ${TAP}`}
+            style={{
+              background: active ? palette.gold : palette.field,
+              color: active ? palette.letterbox : palette.textMuted,
+              border: `1px solid ${active ? palette.gold : palette.border}`,
+              fontFamily: mono, fontSize: "11.5px", fontWeight: 700,
+            }}
+          >
+            <Icon size={12} />
+            {mode.label}
+          </button>
+        );
+      })}
+    </div>
+
+    {communityMsgMode === "signal" && (
+      <div
+        className="rounded-2xl p-3"
+        style={{
+          position: "absolute",
+          left: 0,
+          right: 0,
+          bottom: "100%",
+          marginBottom: "10px",
+          background: palette.surface,
+          border: `1px solid ${palette.border}`,
+          boxShadow: palette.shadow,
+          zIndex: 5,
+        }}
+      >
+        <div className="grid grid-cols-2 gap-2 mb-2">
+          <input type="text" value={signalPair} onChange={(e) => setSignalPair(e.target.value.toUpperCase())} placeholder="Pair (XAUUSD)"
+            className="rounded-xl px-3 py-2 bg-transparent outline-none"
+            style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "12.5px" }} />
+          <div className="flex gap-1">
+            {["buy", "sell"].map((d) => (
+              <button key={d} type="button" onClick={() => setSignalDirection(d)}
+                className={`flex-1 rounded-xl py-2 ${TAP}`}
+                style={{
+                  background: signalDirection === d ? (d === "sell" ? palette.red : palette.green) : palette.field,
+                  color: signalDirection === d ? "#FFFFFF" : palette.textMuted,
+                  border: `1px solid ${signalDirection === d ? "transparent" : palette.border}`,
+                  fontFamily: mono, fontSize: "11.5px", textTransform: "uppercase", fontWeight: 700,
+                }}>
+                {d}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <input type="text" value={signalEntry} onChange={(e) => setSignalEntry(e.target.value)} placeholder="Entry"
+            className="rounded-xl px-2.5 py-2 bg-transparent outline-none"
+            style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "12px" }} />
+          <input type="text" value={signalSL} onChange={(e) => setSignalSL(e.target.value)} placeholder="SL"
+            className="rounded-xl px-2.5 py-2 bg-transparent outline-none"
+            style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "12px" }} />
+          <input type="text" value={signalTP} onChange={(e) => setSignalTP(e.target.value)} placeholder="TP"
+            className="rounded-xl px-2.5 py-2 bg-transparent outline-none"
+            style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "12px" }} />
+        </div>
+      </div>
+    )}
+
+
 
           <div className="flex items-center gap-2">
             <div
