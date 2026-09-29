@@ -1,0 +1,19 @@
+{
+  "name": "Tredzi",
+  "short_name": "Tredzi",
+  "description": "Track income, expenses, and balances",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0A0C11",
+  "theme_color": "#12151C",
+  "icons": [
+    {
+      "src": "/icons/icon.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
