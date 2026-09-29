@@ -1,4 +1,5 @@
 import { COMMUNITY_API_BASE, COMMUNITY_AVATAR_KEY, COMMUNITY_JOIN_REQUESTS_KEY, COMMUNITY_MEMBERSHIPS_KEY, COMMUNITY_MESSAGE_POLL_MS, COMMUNITY_ONBOARDING_KEY, COMMUNITY_SESSION_KEY, COMMUNITY_USERNAME_KEY, communityApi } from "./api/community.js";
+import LiveFlame from "./components/LiveFlame.jsx";
 import { OnboardingAmbientBG } from "./components/onboarding.jsx";
 import { Avatar, PillGroup, SettingsSection, SettingsSubLabel } from "./components/ui.jsx";
 import { FX_CACHE_MS, FX_LIVE_STORAGE_KEY, fetchLiveFxRates } from "./data/currencies.js";
@@ -7208,11 +7209,7 @@ if (activeTab === "community") {
                   style={{ fontFamily: mono, fontSize: "10px", color: palette.gold, letterSpacing: "0.08em", fontWeight: 700 }}
                 >
                   <span className="flex items-center gap-1.5">
-                      <Flame
-                        size={12}
-                        className={pulseFlameActive ? "flame-flicker" : ""}
-                        style={{ color: pulseFlameActive ? palette.gold : palette.textFaint }}
-                      />
+                      <LiveFlame size={30} active={pulseFlameActive} dimColor={palette.textFaint} style={{ margin: "-10px -3px -8px -3px" }} />
                     TODAY'S PULSE
                   </span>
                   <ChevronRight size={12} style={{ color: palette.gold, opacity: 0.7 }} />
@@ -8877,16 +8874,7 @@ if (activeTab === "community") {
           style={{ borderBottom: `1px solid ${palette.border}`, position: "sticky", top: 0, background: palette.surface, zIndex: 2 }}
         >
 <div className="flex items-center gap-2">
-  <Flame
-    size={16}
-    className={(todayTradesPulse.length > 0 && todayNetPulse > 0) || disciplinePulse.current > 0 ? "flame-flicker" : ""}
-    style={{
-      color:
-        (todayTradesPulse.length > 0 && todayNetPulse > 0) || disciplinePulse.current > 0
-          ? palette.gold
-          : palette.textFaint,
-    }}
-  />
+  <LiveFlame size={44} active={(todayTradesPulse.length > 0 && todayNetPulse > 0) || disciplinePulse.current > 0} dimColor={palette.textFaint} style={{ margin: "-10px -2px -10px -2px" }} />
   <span style={{ fontFamily: mono, fontSize: "16px", fontWeight: 700, color: palette.text }}>
     Today's Pulse
   </span>
