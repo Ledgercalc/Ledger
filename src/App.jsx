@@ -1,5 +1,5 @@
 import { COMMUNITY_API_BASE, COMMUNITY_AVATAR_KEY, COMMUNITY_JOIN_REQUESTS_KEY, COMMUNITY_MEMBERSHIPS_KEY, COMMUNITY_MESSAGE_POLL_MS, COMMUNITY_ONBOARDING_KEY, COMMUNITY_SESSION_KEY, COMMUNITY_USERNAME_KEY, communityApi } from "./api/community.js";
-import LiveFlame from "./components/LiveFlame.jsx";
+import LiveFlame from "./LiveFlame.jsx";
 import { OnboardingAmbientBG } from "./components/onboarding.jsx";
 import { Avatar, PillGroup, SettingsSection, SettingsSubLabel } from "./components/ui.jsx";
 import { FX_CACHE_MS, FX_LIVE_STORAGE_KEY, fetchLiveFxRates } from "./data/currencies.js";
