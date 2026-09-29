@@ -651,6 +651,9 @@ RUNTIME.ALARM_LEAD_MS = RUNTIME.ALARM_LEAD_MINUTES * 60 * 1000;
   const [groupMessages, setGroupMessages] = useState([]);
   const groupMessagesRef = useRef([]);
   groupMessagesRef.current = groupMessages;
+  // Last-known messages per group (kept in memory). Opening a group shows these instantly,
+  // then only the few new messages are fetched, instead of re-downloading the whole chat.
+  const groupMessagesCacheRef = useRef({});
   const [groupMessagesLoaded, setGroupMessagesLoaded] = useState(false);
   const [communityApiError, setCommunityApiError] = useState("");
   const [addingGroup, setAddingGroup] = useState(false);
@@ -1118,31 +1121,27 @@ useEffect(() => {
   let cancelled = false;
 
   const loadGroupAndMembers = async () => {
-    try {
-      const data = await communityApi(`/groups/${activeGroupId}`, {
-        headers: { Authorization: `Bearer ${membership.token}` },
-      });
-      if (!cancelled) {
-        setPinnedMessageId(data.pinned_message_id || null);
-        setGroupInfo(data);
-        if (data.avatar) setGroupAvatarMap((cur) => ({ ...cur, [activeGroupId]: data.avatar }));
-      }
-    } catch (err) {}
-    try {
-      const memData = await communityApi(`/groups/${activeGroupId}/members`, {
-        headers: { Authorization: `Bearer ${membership.token}` },
-      });
-      if (!cancelled) setGroupMembersList(memData.members || []);
-    } catch (err) {
-    } finally {
-      if (!cancelled) setGroupMembersLoaded(true);
+    const headers = { Authorization: `Bearer ${membership.token}` };
+    // Both requests go out together (they used to run one after the other).
+    const [infoRes, memRes] = await Promise.allSettled([
+      communityApi(`/groups/${activeGroupId}`, { headers }),
+      communityApi(`/groups/${activeGroupId}/members`, { headers }),
+    ]);
+    if (cancelled) return;
+    if (infoRes.status === "fulfilled") {
+      const data = infoRes.value;
+      setPinnedMessageId(data.pinned_message_id || null);
+      setGroupInfo(data);
+      if (data.avatar) setGroupAvatarMap((cur) => ({ ...cur, [activeGroupId]: data.avatar }));
     }
+    if (memRes.status === "fulfilled") setGroupMembersList(memRes.value.members || []);
+    setGroupMembersLoaded(true);
   };
 
   loadGroupAndMembers();
   // Same cadence as message polling, so new joins/leaves and role changes
   // show up without the person having to leave and reopen the group.
-  const id = setInterval(loadGroupAndMembers, COMMUNITY_MESSAGE_POLL_MS);
+  const id = setInterval(loadGroupAndMembers, 15000);
   return () => { cancelled = true; clearInterval(id); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [activeGroupId]);
@@ -2248,6 +2247,14 @@ const toggleStoryReaction = async (storyId, emojiKey) => {
     if (!membership) return;
     let cancelled = false;
     let haveFull = false; // first load per group is a full fetch; after that we only ask for what's new
+    const cachedMsgs = groupMessagesCacheRef.current[activeGroupId];
+    if (cachedMsgs && cachedMsgs.length) {
+      // Show the last-known chat immediately, then just fetch what's new since then.
+      groupMessagesRef.current = cachedMsgs;
+      setGroupMessages(cachedMsgs);
+      setGroupMessagesLoaded(true);
+      haveFull = true;
+    }
     let lastLoad = 0;
     let ws = null;
     let wsOpen = false;
@@ -2347,7 +2354,7 @@ const toggleStoryReaction = async (storyId, emojiKey) => {
     };
     document.addEventListener("visibilitychange", onVisible);
 
-    setGroupMessagesLoaded(false);
+    if (!haveFull) setGroupMessagesLoaded(false);
     loadMessages();
     connect();
     // Polling stays as a safety net; with a live socket it backs off to every 30s.
@@ -2364,6 +2371,37 @@ const toggleStoryReaction = async (storyId, emojiKey) => {
       if (ws) { ws.onclose = null; ws.onerror = null; try { ws.close(); } catch (e) {} }
     };
   }, [activeGroupId, myGroups]);
+
+  // Keep the per-group cache fresh (only messages that really belong to this group,
+  // so a group switch can never leak the previous chat into the wrong cache slot).
+  useEffect(() => {
+    if (!activeGroupId || !groupMessagesLoaded || !groupMessages.length) return;
+    const mine = groupMessages.filter((m) => !String(m.id).startsWith("tmp_") && m.group_id === activeGroupId);
+    if (mine.length) groupMessagesCacheRef.current[activeGroupId] = mine.slice(-150);
+  }, [activeGroupId, groupMessages, groupMessagesLoaded]);
+
+  // Warm up: once the Community tab is open, quietly fetch the latest messages of the
+  // user's other groups (a few, one at a time) so opening any of them is instant.
+  useEffect(() => {
+    if (activeTab !== "community" || !myGroupsLoaded || !myGroups.length) return;
+    let cancelled = false;
+    (async () => {
+      for (const g of myGroups.slice(0, 6)) {
+        if (cancelled) return;
+        if (g.id === activeGroupId || groupMessagesCacheRef.current[g.id]) continue;
+        try {
+          const data = await communityApi(`/groups/${g.id}/messages`, {
+            headers: { Authorization: `Bearer ${g.token}` },
+          });
+          if (!cancelled && data.messages && !groupMessagesCacheRef.current[g.id]) {
+            groupMessagesCacheRef.current[g.id] = data.messages.slice(-150);
+          }
+        } catch (e) {}
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, myGroupsLoaded, myGroups]);
 
   // Land on the newest message whenever the chat opens — on first load, on
   // switching groups, and on coming back to the chat sub-tab from another one
