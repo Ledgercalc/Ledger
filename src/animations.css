@@ -1,0 +1,49 @@
+/* Tredzi — subtle motion layer. Pure CSS, GPU-friendly (opacity + transform only). */
+
+:root {
+  --tz-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 1. Cards/sections inside a tab fade up one after another */
+@keyframes tzFadeUp {
+  from { opacity: 0; transform: translate3d(0, 10px, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+.tz-stagger > * {
+  animation: tzFadeUp 0.42s var(--tz-ease) both;
+}
+.tz-stagger > *:nth-child(1)  { animation-delay: 0ms; }
+.tz-stagger > *:nth-child(2)  { animation-delay: 45ms; }
+.tz-stagger > *:nth-child(3)  { animation-delay: 90ms; }
+.tz-stagger > *:nth-child(4)  { animation-delay: 135ms; }
+.tz-stagger > *:nth-child(5)  { animation-delay: 180ms; }
+.tz-stagger > *:nth-child(6)  { animation-delay: 220ms; }
+.tz-stagger > *:nth-child(7)  { animation-delay: 260ms; }
+.tz-stagger > *:nth-child(8)  { animation-delay: 300ms; }
+.tz-stagger > *:nth-child(n+9) { animation-delay: 330ms; }
+
+/* 2. Loading placeholder while a tab chunk downloads (invisible if it is quick) */
+@keyframes tzFadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes tzPulse  { 0%, 100% { opacity: 0.35; } 50% { opacity: 0.8; } }
+.tz-tab-loading {
+  min-height: 160px;
+  margin: 24px auto;
+  width: min(420px, 80%);
+  border-radius: 16px;
+  background: rgba(127, 127, 127, 0.14);
+  opacity: 0;
+  animation: tzFadeIn 0.2s ease 0.18s forwards, tzPulse 1.4s ease-in-out 0.4s infinite;
+}
+
+/* 3. Gentle hover feedback on desktop (mouse only) */
+@media (hover: hover) and (pointer: fine) {
+  button:not(:disabled) { transition: filter 0.18s ease, transform 0.15s ease; }
+  button:not(:disabled):hover { filter: brightness(1.08); }
+}
+
+/* 4. Anyone who asked their device for less motion gets none of it */
+@media (prefers-reduced-motion: reduce) {
+  .tz-stagger > * { animation: none !important; }
+  .tz-tab-loading { animation: none; opacity: 0.4; }
+  button:not(:disabled) { transition: none; }
+}
