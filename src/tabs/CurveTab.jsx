@@ -6,8 +6,14 @@ import { MONTH_NAMES, WEEKDAY_LABELS, dayKeyFromDate, dayKeyFromTs, fmt, fmtMone
 import { SCREENSHOT_MAX_PER_TRADE, tradeScreenshots } from "../lib/images.js";
 import { TAP, THEME_TRANSITION, mono, palette } from "../lib/theme.js";
 import { Camera, Check, ChevronLeft, ChevronRight, Copy, Download, FileText, Pencil, Plus, Share2, Trash2, TrendingUp, Upload, X } from "lucide-react";
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+
+// Stable references: recharts restarts the line draw animation when these change identity,
+// so they must not be re-created on every render.
+const CHART_MARGIN = { top: 6, right: 8, bottom: 0, left: 0 };
+const ACTIVE_DOT = { r: 4 };
+const DRAW_MS = 1400;
 
 export default function CurveTab(props) {
   const {
@@ -87,6 +93,54 @@ export default function CurveTab(props) {
     });
     return out;
   }, [trades, startingBalance]);
+
+  // Memoised so the axis domain keeps the same identity between renders.
+  const yDomain = useMemo(() => {
+    const start = num(startingBalance);
+    let run = start;
+    let peakBal = start;
+    let dd = 0;
+    trades.forEach((t) => {
+      run += t.pnl;
+      peakBal = Math.max(peakBal, run);
+      dd = Math.max(dd, peakBal - run);
+    });
+    const pad = Math.max(10, Math.abs(peakBal - (run - dd)) * 0.1) || 10;
+    return [(dataMin) => Math.floor(dataMin - pad), (dataMax) => Math.ceil(dataMax + pad)];
+  }, [trades, startingBalance]);
+
+  // Draw-on animation: plays once each time the tab opens, then switches off so later
+  // re-renders (new trades, theme changes, clock ticks) can never restart or cut it short.
+  const hasChart = trades.length > 0;
+  const [chartReady, setChartReady] = useState(false);
+  const [lineDrawn, setLineDrawn] = useState(false);
+  const handleDrawEnd = useCallback(() => setLineDrawn(true), []);
+
+  // Mount the chart only after the layout has settled (two frames), so the draw never
+  // starts against a zero-width container and skips straight to the finished line.
+  useEffect(() => {
+    if (!hasChart) {
+      setChartReady(false);
+      setLineDrawn(false);
+      return undefined;
+    }
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => setChartReady(true));
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      if (raf2) cancelAnimationFrame(raf2);
+    };
+  }, [hasChart]);
+
+  // Safety net: if the animation is ever interrupted, force the full line to show.
+  useEffect(() => {
+    if (!chartReady) return undefined;
+    const id = setTimeout(() => setLineDrawn(true), DRAW_MS + 900);
+    return () => clearTimeout(id);
+  }, [chartReady]);
+
   let body = null;
     const startBal = num(startingBalance);
     const wins = trades.filter((t) => t.pnl > 0);
@@ -119,8 +173,6 @@ export default function CurveTab(props) {
       bestStreak = Math.max(bestStreak, curStreak);
       worstStreak = Math.min(worstStreak, curStreak);
     });
-
-    const domainPad = Math.max(10, Math.abs(peak - (running - maxDrawdown)) * 0.1) || 10;
 
     const revengeIds = computeRevengeIds(trades);
     const { current: disciplineCurrent, best: disciplineBest, hasData: disciplineHasData } =
@@ -201,8 +253,9 @@ export default function CurveTab(props) {
             style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow, transition: THEME_TRANSITION }}
           >
             <div style={{ width: "100%", height: isDesktop ? 340 : 180 }}>
-              <ResponsiveContainer>
-                <LineChart data={chartData} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
+              {chartReady && (
+              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                <LineChart data={chartData} margin={CHART_MARGIN}>
                   <CartesianGrid stroke={palette.border} strokeDasharray="3 3" vertical={false} />
                   <XAxis
                     dataKey="trade"
@@ -217,10 +270,7 @@ export default function CurveTab(props) {
                     tickLine={false}
                     axisLine={{ stroke: palette.border }}
                     width={54}
-                    domain={[
-                      (dataMin) => Math.floor(dataMin - domainPad),
-                      (dataMax) => Math.ceil(dataMax + domainPad),
-                    ]}
+                    domain={yDomain}
                   />
                   <ReferenceLine y={startBal} stroke={palette.textFaint} strokeDasharray="4 4" />
                   <Tooltip
@@ -242,14 +292,16 @@ export default function CurveTab(props) {
                     stroke={netPnl >= 0 ? palette.green : palette.red}
                     strokeWidth={2}
                     dot={false}
-                    activeDot={{ r: 4 }}
-                    isAnimationActive={true}
-                    animationBegin={150}
-                    animationDuration={1600}
+                    activeDot={ACTIVE_DOT}
+                    isAnimationActive={!lineDrawn}
+                    animationBegin={100}
+                    animationDuration={DRAW_MS}
                     animationEasing="ease-in-out"
+                    onAnimationEnd={handleDrawEnd}
                   />
                 </LineChart>
               </ResponsiveContainer>
+              )}
             </div>
           </div>
         )}
