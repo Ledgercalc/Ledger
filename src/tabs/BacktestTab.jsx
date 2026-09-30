@@ -50,6 +50,9 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
   const [loadedFor, setLoadedFor] = useState(null);
   const [filterSymbol, setFilterSymbol] = useState("all");
   const [confirmClear, setConfirmClear] = useState(false);
+  const [showJump, setShowJump] = useState(false);
+  const [showNote, setShowNote] = useState(false);
+  const [showMoreStats, setShowMoreStats] = useState(false);
 
   const fileRef = useRef(null);
 
@@ -341,7 +344,7 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
   };
 
   // ---- styles (read palette at render so theme switches apply) ----
-  const card = { background: palette.surface, border: `1px solid ${palette.border}`, borderRadius: 14, padding: 16 };
+  const card = { background: palette.surface, border: `1px solid ${palette.border}`, borderRadius: 14, padding: isDesktop ? 16 : 14 };
   const field = {
     background: palette.field,
     border: `1px solid ${palette.border}`,
@@ -436,7 +439,9 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
         )}
         {!hasData && !error && (
           <p style={{ color: palette.textMuted, fontFamily: mono, fontSize: 12.5, lineHeight: 1.6, margin: "12px 0 0" }}>
-            Load free candles for forex, gold or indices, or import your own CSV (MT4/MT5, Dukascopy and TradingView exports work). Then step through the chart one candle at a time and place trades with no hindsight.
+            {isDesktop
+              ? "Load free candles for forex, gold or indices, or import your own CSV (MT4/MT5, Dukascopy and TradingView exports work). Then step through the chart one candle at a time and place trades with no hindsight."
+              : "Load free candles or import a CSV, then step through one candle at a time."}
           </p>
         )}
       </div>
@@ -444,13 +449,13 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
       {hasData && (
         <div style={{ display: isDesktop ? "grid" : "flex", flexDirection: "column", gridTemplateColumns: isDesktop ? "minmax(0,1fr) 330px" : undefined, gap: 16, alignItems: "start" }}>
           {/* Chart + replay controls */}
-          <div style={{ ...card, padding: isDesktop ? 16 : 12, minWidth: 0 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+          <div style={{ ...card, padding: isDesktop ? 16 : "12px 0", minWidth: 0 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, flexWrap: "wrap", marginBottom: 8, padding: isDesktop ? 0 : "0 12px" }}>
               <div style={{ fontFamily: display, fontWeight: 700, color: palette.text, fontSize: 16 }}>
                 {meta.symbol} <span style={{ color: palette.textFaint, fontWeight: 500, fontSize: 13 }}>{meta.tf}{meta.source ? ` - ${meta.source}` : ""}</span>
               </div>
               <div style={{ fontFamily: mono, fontSize: 12, color: palette.textMuted }}>
-                {bar ? `${fmtTime(bar.time)} UTC` : ""}  -  bar {idx + 1}/{candles.length}
+                {bar ? `${fmtTime(bar.time)} UTC` : ""}{isDesktop ? `  -  bar ${idx + 1}/${candles.length}` : ""}
               </div>
             </div>
 
@@ -461,6 +466,7 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
               markers={markers}
               colors={chartColors}
               precision={precision}
+              compact={!isDesktop}
               height={isDesktop ? 480 : 340}
               pickMode={pickMode}
               onPickPrice={onPickPrice}
@@ -473,11 +479,13 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
               }}
             />
             {pickMode && (
-              <p style={{ color: palette.gold, fontFamily: mono, fontSize: 12.5, margin: "8px 0 0" }}>
+              <p style={{ color: palette.gold, fontFamily: mono, fontSize: 12.5, margin: "8px 0 0", padding: isDesktop ? 0 : "0 12px" }}>
                 Tap the chart at your {pickMode === "sl" ? "stop loss" : "take profit"} level.
               </p>
             )}
 
+            {isDesktop ? (
+              <>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 12 }}>
               <button type="button" onClick={() => setPlaying((p) => !p)} disabled={idx >= last} className={TAP} style={{ ...ghostBtn(playing), ...(idx >= last ? disabledBtn : null) }} aria-label={playing ? "Pause" : "Play"}>
                 {playing ? <Pause size={15} /> : <Play size={15} />} {playing ? "Pause" : "Play"}
@@ -511,6 +519,38 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
             <p style={{ color: palette.textFaint, fontFamily: mono, fontSize: 11.5, margin: "10px 0 0" }}>
               Shortcuts: right arrow = next candle, space = play or pause.
             </p>
+              </>
+            ) : (
+              <div style={{ padding: "0 12px" }}>
+                <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                  <button type="button" onClick={() => setPlaying((p) => !p)} disabled={idx >= last} className={TAP} style={{ ...ghostBtn(playing), flex: 1, justifyContent: "center", ...(idx >= last ? disabledBtn : null) }} aria-label={playing ? "Pause" : "Play"}>
+                    {playing ? <Pause size={15} /> : <Play size={15} />} {playing ? "Pause" : "Play"}
+                  </button>
+                  <button type="button" onClick={() => { setPlaying(false); step(); }} disabled={idx >= last} className={TAP} style={{ ...ghostBtn(false), flex: 1, justifyContent: "center", ...(idx >= last ? disabledBtn : null) }} aria-label="Next candle">
+                    <StepForward size={15} /> Next
+                  </button>
+                  <button type="button" onClick={() => setSpeed(SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length])} className={TAP} style={ghostBtn(false)} aria-label={`Replay speed ${speed}x, tap to change`}>
+                    {speed}x
+                  </button>
+                  <button type="button" onClick={() => setShowJump((v) => !v)} className={TAP} style={ghostBtn(showJump)} aria-label="Jump options" aria-expanded={showJump}>
+                    <Shuffle size={15} />
+                  </button>
+                </div>
+                {showJump && (
+                  <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                    <button type="button" onClick={jumpRandom} disabled={!!pos} className={TAP} style={{ ...ghostBtn(false), ...(pos ? disabledBtn : null) }} title={pos ? "Close your trade first" : "Jump to a random point"}>
+                      <Shuffle size={15} /> Random
+                    </button>
+                    <input type="date" aria-label="Jump to date" disabled={!!pos} onChange={(e) => jumpToDate(e.target.value)} style={{ ...field, flex: 1, ...(pos ? disabledBtn : null) }} />
+                  </div>
+                )}
+                {idx >= last && (
+                  <p style={{ color: palette.textMuted, fontFamily: mono, fontSize: 12.5, margin: "10px 0 0" }}>
+                    You've reached the end of this data.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Order + stats column */}
@@ -546,10 +586,16 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
                     <label style={label} htmlFor="bt-risk">Risk per trade ($)</label>
                     <input id="bt-risk" inputMode="decimal" value={risk} onChange={(e) => setRisk(e.target.value)} style={field} />
                   </div>
-                  <div style={{ marginTop: 10 }}>
-                    <label style={label} htmlFor="bt-note">Note (why this trade?)</label>
-                    <input id="bt-note" value={note} onChange={(e) => setNote(e.target.value)} maxLength={140} placeholder="e.g. break and retest of the London high" style={field} />
-                  </div>
+                  {isDesktop || showNote || note ? (
+                    <div style={{ marginTop: 10 }}>
+                      <label style={label} htmlFor="bt-note">Note (why this trade?)</label>
+                      <input id="bt-note" value={note} onChange={(e) => setNote(e.target.value)} maxLength={140} placeholder="e.g. break and retest of the London high" style={field} />
+                    </div>
+                  ) : (
+                    <button type="button" onClick={() => setShowNote(true)} className={TAP} style={{ background: "transparent", border: "none", color: palette.textMuted, fontFamily: mono, fontSize: 12.5, padding: "10px 0 0", cursor: "pointer" }}>
+                      + Add note
+                    </button>
+                  )}
                   {orderError && (
                     <p role="alert" style={{ color: palette.red, fontFamily: mono, fontSize: 12.5, margin: "10px 0 0" }}>{orderError}</p>
                   )}
@@ -557,7 +603,9 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
                     {side === "buy" ? "Buy" : "Sell"} at {bar ? bar.close.toFixed(precision) : "-"}
                   </button>
                   <p style={{ color: palette.textFaint, fontFamily: mono, fontSize: 11.5, lineHeight: 1.5, margin: "8px 0 0" }}>
-                    Fills at the close of the current candle. No spread or slippage is applied. If one candle touches both SL and TP, the stop counts as hit first.
+                    {isDesktop
+                      ? "Fills at the close of the current candle. No spread or slippage is applied. If one candle touches both SL and TP, the stop counts as hit first."
+                      : "Fills at candle close, no spread. If one candle hits both SL and TP, the stop wins."}
                   </p>
                 </>
               ) : (
@@ -599,11 +647,20 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
                     {statTile("Win rate", `${stats.winRate.toFixed(0)}%`)}
                     {statTile("Total R", `${signed(stats.totalR)}R`, stats.totalR >= 0 ? palette.green : palette.red)}
                     {statTile("Total P&L", money(stats.totalPnl), stats.totalPnl >= 0 ? palette.green : palette.red)}
-                    {statTile("Avg R", `${signed(stats.avgR)}R`)}
-                    {statTile("Profit factor", stats.profitFactor == null ? "-" : Number.isFinite(stats.profitFactor) ? stats.profitFactor.toFixed(2) : "inf")}
-                    {statTile("Max drawdown", `${stats.maxDrawdownR.toFixed(2)}R`, palette.red)}
+                    {(isDesktop || showMoreStats) && (
+                      <>
+                        {statTile("Avg R", `${signed(stats.avgR)}R`)}
+                        {statTile("Profit factor", stats.profitFactor == null ? "-" : Number.isFinite(stats.profitFactor) ? stats.profitFactor.toFixed(2) : "inf")}
+                        {statTile("Max drawdown", `${stats.maxDrawdownR.toFixed(2)}R`, palette.red)}
+                      </>
+                    )}
                   </div>
-                  <div style={{ height: 150, marginTop: 12 }}>
+                  {!isDesktop && (
+                    <button type="button" onClick={() => setShowMoreStats((v) => !v)} className={TAP} style={{ background: "transparent", border: "none", color: palette.textMuted, fontFamily: mono, fontSize: 12.5, padding: "10px 0 0", cursor: "pointer" }}>
+                      {showMoreStats ? "Fewer stats" : "More stats"}
+                    </button>
+                  )}
+                  <div style={{ height: isDesktop ? 150 : 120, marginTop: 12 }}>
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={stats.equity} margin={{ top: 6, right: 6, left: 0, bottom: 0 }}>
                         <CartesianGrid stroke={palette.border} strokeDasharray="3 3" vertical={false} />
@@ -647,6 +704,7 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
               )}
             </div>
           </div>
+          {isDesktop ? (
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: mono, fontSize: 12.5, color: palette.textMuted, minWidth: 560 }}>
               <thead>
@@ -676,6 +734,27 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
               </tbody>
             </table>
           </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              {[...shownTrades].reverse().slice(0, 100).map((t) => (
+                <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 0", borderBottom: `1px solid ${palette.border}` }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: mono, fontSize: 13, color: palette.text }}>
+                      {t.symbol} <span style={{ color: t.side === "buy" ? palette.green : palette.red }}>{t.side}</span> <span style={{ color: palette.textFaint }}>{t.tf}</span>
+                    </div>
+                    <div style={{ fontFamily: mono, fontSize: 11.5, color: palette.textFaint, marginTop: 2 }}>{fmtTime(t.closeTime)} - {t.reason}</div>
+                  </div>
+                  <div style={{ textAlign: "right", fontFamily: mono, fontSize: 13 }}>
+                    <div style={{ color: t.r >= 0 ? palette.green : palette.red }}>{signed(t.r)}R</div>
+                    <div style={{ color: t.pnl >= 0 ? palette.green : palette.red, fontSize: 11.5 }}>{money(t.pnl)}</div>
+                  </div>
+                  <button type="button" onClick={() => deleteTrade(t.id)} aria-label="Delete trade" className={TAP} style={{ background: "transparent", border: "none", color: palette.textFaint, cursor: "pointer", padding: 6 }}>
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
