@@ -1,7 +1,6 @@
-import HeatmapCalendar from "../components/HeatmapCalendar.jsx";
 import { OnboardingTip } from "../components/onboarding.jsx";
 import { Readout, StatChip } from "../components/ui.jsx";
-import { METRIC_INFO, MIN_TRADES_FOR_TIERS, computeConsistencyScore, computeDisciplineGrade, computeDisciplineStreakTrend, computeHeadlineInsight, computeInsights, computeJournalCompleteness, computeMonthComparison, computeNoteTagAnalysis, computeOverconfidenceCheck, computePerformanceMetrics, computeRevengeCostSplit, filledJournalRows, joinWithAnd, journalConfidenceByDay, journalDailyPnLSeries, journalMistakeFrequency, journalMistakePatterns, journalMonthlyPnLSeries, journalMonthlyVolume, journalPairFrequency, journalPnLByDay, journalPnLByMonth, journalRRDistribution, journalRRSeries, journalSessionByDay, journalSessionFrequency, journalSetupRadar, journalTrendBreakdown, journalWeekdayFrequency, tierColor } from "../lib/analytics.js";
+import { METRIC_INFO, MIN_TRADES_FOR_TIERS, computeConsistencyScore, computeDisciplineGrade, computeDisciplineStreakTrend, computeHeadlineInsight, computeHeatmapWeeks, computeInsights, computeJournalCompleteness, computeMonthComparison, computeNoteTagAnalysis, computeOverconfidenceCheck, computePerformanceMetrics, computeRevengeCostSplit, filledJournalRows, joinWithAnd, journalConfidenceByDay, journalDailyPnLSeries, journalMistakeFrequency, journalMistakePatterns, journalMonthlyPnLSeries, journalMonthlyVolume, journalPairFrequency, journalPnLByDay, journalPnLByMonth, journalRRDistribution, journalRRSeries, journalSessionByDay, journalSessionFrequency, journalSetupRadar, journalTrendBreakdown, journalWeekdayFrequency, tierColor } from "../lib/analytics.js";
 import { MONTH_NAMES, MONTH_SHORT, WEEKDAY_LABELS, fmtMoney, formatDayLabel } from "../lib/format.js";
 import { TAP, THEME_TRANSITION, display, mono, palette } from "../lib/theme.js";
 import { ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, Clock, Download, Lightbulb, Plus, Send, ShieldAlert, Sparkles, Trash2 } from "lucide-react";
@@ -36,6 +35,7 @@ export default function InsightsTab(props) {
     newCoachChat,
     openCoachChat,
     persistSettings,
+    renderSubNav,
     selectInsightsSubTab,
     sendCoachMessage,
     session,
@@ -52,6 +52,8 @@ export default function InsightsTab(props) {
   let body = null;
     const hasData = trades.length > 0;
     const insights = computeInsights(trades, customSetups, customMoods);
+    const heatmapWeeksBack = Number(settings.heatmapWeeksBack) || 26;
+    const heatmap = computeHeatmapWeeks(trades, heatmapWeeksBack);
     const headline = computeHeadlineInsight(trades, customSetups, customMoods);
     const perf = computePerformanceMetrics(trades);
     const monthCmp = computeMonthComparison(trades);
@@ -112,83 +114,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
       { id: "coach", label: "Coach" },
     ];
 
-    const insightsSubNav = isDesktop ? (
-      <div
-        className="flex items-center gap-7 mb-8"
-        style={{
-          borderBottom: `1px solid ${palette.border}`,
-          position: "sticky",
-          top: 0,
-          zIndex: 5,
-          background: palette.bg,
-          paddingTop: "6px",
-        }}
-      >
-        {INSIGHTS_SUB_TABS.map((s) => {
-          const active = insightsSubTab === s.id;
-          return (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => selectInsightsSubTab(s.id)}
-              className={TAP}
-              style={{
-                background: "transparent",
-                border: "none",
-                borderBottom: `2.5px solid ${active ? palette.gold : "transparent"}`,
-                color: active ? palette.text : palette.textFaint,
-                fontFamily: display,
-                fontSize: "14.5px",
-                fontWeight: active ? 700 : 500,
-                padding: "0 2px 14px 2px",
-                marginBottom: "-1px",
-                cursor: "pointer",
-                transition: "color 0.15s ease, border-color 0.15s ease",
-              }}
-            >
-              {s.label}
-            </button>
-          );
-        })}
-      </div>
-    ) : (
-      <div
-        className="flex gap-2 mb-6"
-        style={{
-          overflowX: "auto",
-          WebkitOverflowScrolling: "touch",
-          position: "sticky",
-          top: 0,
-          zIndex: 5,
-          background: palette.bg,
-          paddingTop: "8px",
-          paddingBottom: "8px",
-        }}
-      >
-        {INSIGHTS_SUB_TABS.map((s) => {
-          const active = insightsSubTab === s.id;
-          return (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => selectInsightsSubTab(s.id)}
-              className={`flex-1 px-3 py-2 rounded-full transition-colors ${TAP}`}
-              style={{
-                background: active ? palette.gold : palette.field,
-                color: active ? palette.letterbox : palette.textMuted,
-                border: `1px solid ${active ? palette.gold : palette.border}`,
-                fontFamily: mono,
-                fontSize: "13px",
-                fontWeight: 600,
-                whiteSpace: "nowrap",
-              }}
-            >
-              {s.label}
-            </button>
-          );
-        })}
-      </div>
-    );
+    const insightsSubNav = renderSubNav(INSIGHTS_SUB_TABS, insightsSubTab, selectInsightsSubTab);
 
 
     const metricCard = (key, label, valueText, tier) => (
@@ -244,7 +170,83 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
           settings={settings}
           persistSettings={persistSettings}
         />
-        <HeatmapCalendar trades={trades} isDesktop={isDesktop} />
+        <span
+          className="block mb-1.5 uppercase"
+          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+        >
+          Performance Heatmap
+        </span>
+        <div
+          className={isDesktop ? "rounded-2xl p-6 mb-2" : "rounded-2xl p-3 mb-2"}
+          style={{
+            background: palette.surface,
+            border: `1px solid ${palette.border}`,
+            boxShadow: palette.shadow,
+            overflowX: "auto",
+            WebkitOverflowScrolling: "touch",
+          }}
+        >
+          <div className="flex" style={{ gap: isDesktop ? "5px" : "3px", justifyContent: isDesktop ? "center" : "normal" }}>
+            <div className="flex flex-col justify-between" style={{ gap: isDesktop ? "5px" : "3px", paddingRight: isDesktop ? "8px" : "4px" }}>
+              {WEEKDAY_LABELS.map((w, i) => (
+                <div
+                  key={i}
+                  style={{
+                    width: isDesktop ? "16px" : "10px",
+                    height: isDesktop ? "16px" : "10px",
+                    fontSize: isDesktop ? "10px" : "7px",
+                    color: palette.textFaint,
+                    lineHeight: isDesktop ? "16px" : "10px",
+                  }}
+                >
+                  {i % 2 === 1 ? w : ""}
+                </div>
+              ))}
+            </div>
+            {heatmap.weeks.map((week, wi) => (
+              <div key={wi} className="flex flex-col" style={{ gap: isDesktop ? "5px" : "3px" }}>
+                {week.map((day, di) => {
+                  const intensity = day.pnl !== null && heatmap.maxAbs > 0 ? Math.min(1, Math.abs(day.pnl) / heatmap.maxAbs) : 0;
+                  const alphaHex = Math.round(30 + intensity * 190)
+                    .toString(16)
+                    .padStart(2, "0");
+                  const bg = day.future
+                    ? "transparent"
+                    : day.pnl === null
+                    ? palette.field
+                    : `${day.pnl > 0 ? palette.green : palette.red}${alphaHex}`;
+                  return (
+                    <div
+                      key={di}
+                      onClick={() =>
+                        !day.future &&
+                        day.pnl !== null &&
+                        setExpandedHeatmapDay(expandedHeatmapDay?.key === day.key ? null : day)
+                      }
+                      style={{
+                        width: isDesktop ? "16px" : "10px",
+                        height: isDesktop ? "16px" : "10px",
+                        borderRadius: isDesktop ? "3px" : "2px",
+                        background: bg,
+                        cursor: day.pnl !== null ? "pointer" : "default",
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+        {expandedHeatmapDay ? (
+          <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
+            {formatDayLabel(expandedHeatmapDay.key)}: {expandedHeatmapDay.pnl >= 0 ? "+" : "-"}$
+            {fmtMoney(expandedHeatmapDay.pnl)}
+          </p>
+        ) : (
+          <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
+            Last {heatmapWeeksBack} weeks – tap a square for that day's total.
+          </p>
+        )}
 
         {headline && (
           <div
