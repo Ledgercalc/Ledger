@@ -167,7 +167,7 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
     try {
       const list = await fetchCandles(symbol, tf);
       if (list.length < 30) throw new Error("Not enough candles came back for that timeframe.");
-      applyDataset(list, { symbol, tf, source: "Yahoo Finance" }, defaultStart);
+      applyDataset(list, { symbol, tf, source: "" }, defaultStart);
     } catch (err) {
       setError(err.message || "Couldn't load candles.");
     } finally {
@@ -447,7 +447,7 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
           <div style={{ ...card, padding: isDesktop ? 16 : 12, minWidth: 0 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
               <div style={{ fontFamily: display, fontWeight: 700, color: palette.text, fontSize: 16 }}>
-                {meta.symbol} <span style={{ color: palette.textFaint, fontWeight: 500, fontSize: 13 }}>{meta.tf} - {meta.source}</span>
+                {meta.symbol} <span style={{ color: palette.textFaint, fontWeight: 500, fontSize: 13 }}>{meta.tf}{meta.source ? ` - ${meta.source}` : ""}</span>
               </div>
               <div style={{ fontFamily: mono, fontSize: 12, color: palette.textMuted }}>
                 {bar ? `${fmtTime(bar.time)} UTC` : ""}  -  bar {idx + 1}/{candles.length}
