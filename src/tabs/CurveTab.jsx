@@ -49,7 +49,7 @@ export default function CurveTab(props) {
     fileInputRef,
     findSetupLabel,
     generateWeeklyShare,
-    goals,
+    goals: goalsProp,
     handleScreenshotChange,
     importBackup,
     isDesktop,
@@ -95,6 +95,8 @@ export default function CurveTab(props) {
     tradesLoadError,
     tradesLoaded
   } = props;
+  // Safe fallback so a missing prop can never blank the whole tab.
+  const goals = goalsProp || { weeklyTargetPct: "", monthlyTargetPct: "" };
   const chartData = useMemo(() => {
     const start = num(startingBalance);
     let run = start;
@@ -233,7 +235,7 @@ export default function CurveTab(props) {
             style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow, transition: THEME_TRANSITION }}
           >
             <style>{CURVE_REVEAL_CSS}</style>
-            <div className="curve-reveal" style={{ width: "100%", height: isDesktop ? 340 : 180 }}>
+            <div key={tradesLoaded ? "loaded" : "loading"} className="curve-reveal" style={{ width: "100%", height: isDesktop ? 340 : 180 }}>
               <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                 <LineChart data={chartData} margin={CHART_MARGIN}>
                   <CartesianGrid stroke={palette.border} strokeDasharray="3 3" vertical={false} />
