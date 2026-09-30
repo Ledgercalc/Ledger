@@ -3,11 +3,17 @@ import { CRAB_EVENT } from "../lib/mascot.js";
 import { palette } from "../lib/theme.js";
 
 const SLEEP_AFTER_MS = 45000;
-const MOOD_MS = { win: 1700, loss: 1900, save: 1100, poof: 900, type: 650, tap: 900, wave: 1600 };
+const MOOD_MS = { win: 1700, loss: 1900, save: 1100, edit: 1100, streak: 2000, limit: 2300, goal: 2400, revenge: 1500, sent: 1300, peek: 800, poof: 900, type: 650, tap: 900, wave: 1600 };
 const LINES = {
   win: ["Nice one!", "Shell yeah!", "Green candle!"],
   loss: ["Shell-shocked...", "Next one.", "Breathe."],
   save: ["Saved!"],
+  edit: ["Updated!", "Got it."],
+  streak: ["On fire!", "Hat trick!"],
+  limit: ["Enough for today.", "Step back."],
+  goal: ["Goal smashed!"],
+  revenge: ["Cool off...", "Revenge?"],
+  sent: ["Sent!"],
   poof: ["Poof."],
   tap: ["Hi!", "Crunching...", "Tap tap."],
 };
@@ -25,6 +31,12 @@ function screenFor(mood, d) {
     case "win": return `+${fmtAmt(d.amount)}`;
     case "loss": return `-${fmtAmt(d.amount)}`;
     case "save": return "OK";
+    case "edit": return "OK";
+    case "streak": return `x${d.count || 3}`;
+    case "limit": return "STOP";
+    case "goal": return "GOAL";
+    case "revenge": return "NO!";
+    case "sent": return "SENT";
     case "poof": return "C";
     case "tap": return "42.";
     case "wave": return "Hi";
@@ -58,6 +70,14 @@ const CSS = `
 @keyframes tzCrabTap{0%,100%{transform:rotate(0)}50%{transform:rotate(-18deg)}}
 @keyframes tzCrabKey{0%,100%{opacity:1}50%{opacity:.55}}
 @keyframes tzCrabShrink{0%,100%{transform:translateX(0) scale(1)}15%,75%{transform:translateX(10px) scale(.92)}}
+@keyframes tzCrabNod{0%,100%{transform:rotate(0)}30%{transform:rotate(12deg) translateY(2px)}60%{transform:rotate(-3deg)}}
+@keyframes tzCrabNodBody{0%,100%{transform:translateY(0)}35%{transform:translateY(2px)}}
+@keyframes tzCrabDance{0%,100%{transform:rotate(0) translateY(0)}25%{transform:rotate(-7deg) translateY(-8px)}75%{transform:rotate(7deg) translateY(-8px)}}
+@keyframes tzCrabBigHop{0%,100%{transform:translateY(0) scale(1,1)}20%{transform:translateY(0) scale(1.08,.92)}55%{transform:translateY(-22px) scale(.95,1.08)}}
+@keyframes tzCrabHide{0%,100%{transform:translateX(0) scale(1)}15%,85%{transform:translateX(14px) scale(.8)}}
+@keyframes tzCrabShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-3px)}40%{transform:translateX(3px)}60%{transform:translateX(-3px)}80%{transform:translateX(3px)}}
+@keyframes tzCrabHeadShake{0%,100%{transform:rotate(0)}25%{transform:rotate(-9deg)}75%{transform:rotate(9deg)}}
+@keyframes tzCrabPeek{0%,100%{transform:translateX(0)}30%,70%{transform:translateX(-5px)}}
 @keyframes tzCrabSquish{0%,100%{transform:scale(1,1)}40%{transform:scale(1.1,.82)}}
 @keyframes tzCrabSpark{0%{opacity:0;transform:scale(.2)}40%{opacity:1;transform:scale(1.2)}100%{opacity:0;transform:scale(.8) translateY(-6px)}}
 @keyframes tzCrabZ{0%{opacity:0;transform:translate(0,4px)}40%{opacity:1}100%{opacity:0;transform:translate(6px,-10px)}}
@@ -67,9 +87,9 @@ const CSS = `
 .tz-crab--win .tz-crab__all{animation:tzCrabHop .8s ease-out 2}
 .tz-crab--win .tz-crab__claw{animation:tzCrabPump .4s ease-in-out 4}
 .tz-crab--win .tz-crab__screen{fill:#9BE7B0}
-.tz-crab--win .tz-crab__spark{animation:tzCrabSpark 1.2s ease-out both}
-.tz-crab--win .tz-crab__spark:nth-of-type(2){animation-delay:.15s}
-.tz-crab--win .tz-crab__spark:nth-of-type(3){animation-delay:.3s}
+.tz-crab--win .tz-crab__spark,.tz-crab--streak .tz-crab__spark,.tz-crab--goal .tz-crab__spark{animation:tzCrabSpark 1.2s ease-out both}
+.tz-crab--win .tz-crab__spark:nth-of-type(2),.tz-crab--streak .tz-crab__spark:nth-of-type(2),.tz-crab--goal .tz-crab__spark:nth-of-type(2){animation-delay:.15s}
+.tz-crab--win .tz-crab__spark:nth-of-type(3),.tz-crab--streak .tz-crab__spark:nth-of-type(3),.tz-crab--goal .tz-crab__spark:nth-of-type(3){animation-delay:.3s}
 .tz-crab--loss .tz-crab__all{animation:tzCrabShrink 1.9s ease-in-out 1}
 .tz-crab--loss .tz-crab__eyes,.tz-crab--worry .tz-crab__eyes{animation:none}
 .tz-crab--loss .tz-crab__eyes{transform:rotate(14deg)}
@@ -83,6 +103,25 @@ const CSS = `
 .tz-crab--tap .tz-crab__pincer-up,.tz-crab--save .tz-crab__pincer-up{animation:tzCrabSnap .25s ease-in-out 3}
 .tz-crab--save .tz-crab__screen{fill:#9BE7B0}
 .tz-crab--wave .tz-crab__claw{animation:tzCrabWave .5s ease-in-out 3}
+.tz-crab--edit .tz-crab__eyes{animation:tzCrabNod .38s ease-in-out 3}
+.tz-crab--edit .tz-crab__all{animation:tzCrabNodBody .38s ease-in-out 3}
+.tz-crab--edit .tz-crab__screen{fill:#E6D8A8}
+.tz-crab--streak .tz-crab__all{animation:tzCrabDance .5s ease-in-out 4}
+.tz-crab--streak .tz-crab__claw,.tz-crab--goal .tz-crab__claw{animation:tzCrabPump .4s ease-in-out 5}
+.tz-crab--streak .tz-crab__claw2,.tz-crab--goal .tz-crab__claw2{animation:tzCrabTap .28s ease-in-out infinite}
+.tz-crab--streak .tz-crab__screen,.tz-crab--goal .tz-crab__screen{fill:#9BE7B0}
+.tz-crab--goal .tz-crab__all{animation:tzCrabBigHop .8s ease-out 3}
+.tz-crab--limit .tz-crab__all{animation:tzCrabHide 2.3s ease-in-out 1}
+.tz-crab--limit .tz-crab__eyes{animation:none;transform:rotate(14deg)}
+.tz-crab--limit .tz-crab__screen{fill:#F1C08A}
+.tz-crab--revenge .tz-crab__all{animation:tzCrabShake .3s linear 4}
+.tz-crab--revenge .tz-crab__eyes{animation:tzCrabHeadShake .4s ease-in-out 3}
+.tz-crab--revenge .tz-crab__screen{fill:#F1A3A3}
+.tz-crab--sent .tz-crab__all{animation:tzCrabHopS .5s ease-out 1}
+.tz-crab--sent .tz-crab__claw{animation:tzCrabWave .5s ease-in-out 3}
+.tz-crab--sent .tz-crab__screen{fill:#9BE7B0}
+.tz-crab--peek .tz-crab__all{animation:tzCrabPeek .8s ease-in-out 1}
+.tz-crab--peek .tz-crab__pupil{animation:none;transform:translateX(-1.6px)}
 .tz-crab--poof .tz-crab__all{animation:tzCrabSquish .5s ease-out 1}
 .tz-crab--sleep .tz-crab__all{animation:tzCrabBreath 3.2s ease-in-out infinite}
 .tz-crab--sleep .tz-crab__eye{animation:none;transform:scaleY(.12)}
@@ -135,7 +174,7 @@ export default function CrabMascot({ size = 92, rest, enabled = true }) {
 
   useEffect(() => {
     if (!enabled) return undefined;
-    react("wave", { say: "" });
+    const waveTimer = setTimeout(() => react("wave", { say: "" }), 0);
     const onPoke = (e) => {
       const d = (e && e.detail) || {};
       if (!d.mood) return;
@@ -150,6 +189,7 @@ export default function CrabMascot({ size = 92, rest, enabled = true }) {
     window.addEventListener(CRAB_EVENT, onPoke);
     return () => {
       window.removeEventListener(CRAB_EVENT, onPoke);
+      clearTimeout(waveTimer);
       clearTimeout(moodTimer.current);
       clearTimeout(sleepTimer.current);
       clearTimeout(bubbleTimer.current);
@@ -159,7 +199,7 @@ export default function CrabMascot({ size = 92, rest, enabled = true }) {
   if (!enabled) return null;
   const effective = mood || rest || "idle";
   const W = Math.round(size * 1.27);
-  const sad = effective === "loss" || effective === "worry";
+  const sad = effective === "loss" || effective === "worry" || effective === "limit";
   const asleep = effective === "sleep";
 
   return (
@@ -212,6 +252,18 @@ export default function CrabMascot({ size = 92, rest, enabled = true }) {
               <g className="tz-crab__eye"><circle cx="40" cy="55" r="5" fill="#fff" /><circle className="tz-crab__pupil" cx="41" cy="55.5" r="2.4" fill="#1F2430" /></g>
               <g className="tz-crab__eye"><circle cx="55" cy="53" r="5" fill="#fff" /><circle className="tz-crab__pupil" cx="56" cy="53.5" r="2.4" fill="#1F2430" /></g>
             </g>
+            {effective === "goal" && (
+              <g>
+                <path d="M33 52 L41 34 L49 52 Z" fill={palette.gold || "#D9A441"} stroke="#7A2E1C" strokeWidth="1" />
+                <circle cx="41" cy="33" r="2.6" fill="#EE8463" />
+              </g>
+            )}
+            {effective === "revenge" && (
+              <g stroke="#7A2E1C" strokeWidth="2" strokeLinecap="round">
+                <line x1="34" y1="47" x2="45" y2="51" />
+                <line x1="50" y1="48" x2="61" y2="44" />
+              </g>
+            )}
             <path
               d={sad ? "M45 89 Q49 85 53 89" : asleep ? "M45 87 L53 87" : "M45 86 Q49 90 53 86"}
               fill="none"
