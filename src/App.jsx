@@ -5,7 +5,7 @@ import { FX_CACHE_MS, FX_LIVE_STORAGE_KEY, fetchLiveFxRates } from "./data/curre
 import { ONBOARDING_SLIDES, TOUR_STEPS } from "./data/onboarding.js";
 import { buildWeekRecap, computeConsistencyScore, computeDisciplineGrade, computeDisciplineStreak, computeDisciplineStreakTrend, computeHeadlineInsight, computeInsights, computeJournalCompleteness, computeMonthComparison, computeNoteTagAnalysis, computeOverconfidenceCheck, computePerformanceMetrics, computeRevengeCostSplit, computeSessionWinRates, computeStatementData, filledJournalRows, generateThreeCurveProjection, journalMistakeFrequency } from "./lib/analytics.js";
 import { FMP_CACHE_MS, FMP_STORAGE_KEY, fetchEconomicCalendar, registerAlarmServiceWorker } from "./lib/calendar.js";
-import { ACCOUNTS_ACTIVE_KEY, ACCOUNTS_LIST_KEY, ALARM_CHECK_INTERVAL_MS, ALARM_STALE_WINDOW_MS, CONFIDENCE_OPTIONS, CS_STORAGE_KEY, CUSTOM_MOODS_STORAGE_KEY, CUSTOM_SETUPS_STORAGE_KEY, DEFAULT_CS_INPUTS, DEFAULT_JOURNAL_COL_WIDTHS, DEFAULT_NOTEPAD_FONT_SIZE, DEFAULT_SETTINGS, EDGE_PROJECTION_PERIODS, EDGE_STORAGE_KEY, EMOTIONS, FX_LAST_PAIR_KEY, GOALS_STORAGE_KEY, HIDDEN_DEFAULT_SETUPS_KEY, JOURNAL_COLS_STORAGE_KEY, JOURNAL_COLUMNS, JOURNAL_COL_MAX, JOURNAL_COL_MIN, JOURNAL_STORAGE_KEY, LINKED_FIRM_KEY, MAX_CUSTOM_MOODS, MAX_CUSTOM_SETUPS, MAX_JOURNAL_PHOTOS_PER_ROW, MAX_PLAYBOOK_RULES, MOBILE_NAV_PRIMARY_COUNT, NEWS_STORAGE_KEY, NOTEPAD_FONT_SIZES, NOTEPAD_STORAGE_KEY, OUTCOME_OPTIONS, PLAYBOOK_CHECKINS_KEY, PLAYBOOK_RULES_KEY, PLAYBOOK_STARTER_RULES, PS_STORAGE_KEY, RUNTIME, SETTINGS_STORAGE_KEY, SETUPS, STORAGE_BAL_KEY, STORAGE_KEY, TABS, THEME_STORAGE_KEY, TREND_OPTIONS, WEEK_MS, confidenceLabel, emotionMeta, outcomeLabel, scopedKey, sessionLabelFor, setupMeta } from "./lib/constants.js";
+import { ACCOUNTS_ACTIVE_KEY, ACCOUNTS_LIST_KEY, ALARM_CHECK_INTERVAL_MS, ALARM_STALE_WINDOW_MS, CONFIDENCE_OPTIONS, CS_STORAGE_KEY, CUSTOM_MOODS_STORAGE_KEY, CUSTOM_SETUPS_STORAGE_KEY, DEFAULT_CS_INPUTS, DEFAULT_JOURNAL_COL_WIDTHS, DEFAULT_NOTEPAD_FONT_SIZE, DEFAULT_SETTINGS, EDGE_PROJECTION_PERIODS, EDGE_STORAGE_KEY, EMOTIONS, FX_LAST_PAIR_KEY, GOALS_STORAGE_KEY, HIDDEN_DEFAULT_SETUPS_KEY, JOURNAL_COLS_STORAGE_KEY, JOURNAL_COLUMNS, JOURNAL_COL_MAX, JOURNAL_COL_MIN, JOURNAL_STORAGE_KEY, LINKED_FIRM_KEY, MAX_CUSTOM_MOODS, MAX_CUSTOM_SETUPS, MAX_JOURNAL_PHOTOS_PER_ROW, MAX_PLAYBOOK_RULES, MOBILE_NAV_PRIMARY_COUNT, NEWS_STORAGE_KEY, NOTEPAD_FONT_SIZES, NOTEPAD_STORAGE_KEY, OUTCOME_OPTIONS, PLAYBOOK_CHECKINS_KEY, PLAYBOOK_RULES_KEY, PLAYBOOK_STARTER_RULES, PS_STORAGE_KEY, RUNTIME, SETTINGS_STORAGE_KEY, SETUPS, STORAGE_BAL_KEY, STORAGE_KEY, TABS as BASE_TABS, THEME_STORAGE_KEY, TREND_OPTIONS, WEEK_MS, confidenceLabel, emotionMeta, outcomeLabel, scopedKey, sessionLabelFor, setupMeta } from "./lib/constants.js";
 import { STORY_SLIDE_MS, feedTimeAgo, isWithinStoryWindow } from "./lib/feed.js";
 import { dayKeyFromDate, dayKeyFromTs, fmt, fmtMoney, fmtPct, formatDayLabel, num, pad2 } from "./lib/format.js";
 import { SCREENSHOT_MAX_PER_TRADE, dataUrlToFile, readStickerFileRaw, resizeImageFile, resizeStickerFile, tradeScreenshots } from "./lib/images.js";
@@ -15,7 +15,7 @@ import { MARKET_SESSIONS, sessionOpenAtUTCHour } from "./lib/sessions.js";
 import { drawShareCard } from "./lib/shareCard.js";
 import { DARK_PALETTE, LIGHT_PALETTE, TAP, THEME_TRANSITION, TREDZI_LOGO_SRC, VOID_PALETTE, display, mono, palette, sans } from "./lib/theme.js";
 import { formatCountdown, formatMinSec, nextOccurrenceMs } from "./lib/time.js";
-import { AlertTriangle, ArrowLeftRight, Bell, Building2, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, Flame, Heart, LayoutGrid, Lightbulb, LogOut, MessageCircle, Moon, Newspaper, Palette, Pencil, Plus, RotateCcw, Scale, Search, Send, Settings, Share2, ShieldAlert, Sun, Table2, Tags, Trash2, Upload, Users, X } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, Bell, Building2, Camera, CandlestickChart, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, Flame, Heart, LayoutGrid, Lightbulb, LogOut, MessageCircle, Moon, Newspaper, Palette, Pencil, Plus, RotateCcw, Scale, Search, Send, Settings, Share2, ShieldAlert, Sun, Table2, Tags, Trash2, Upload, Users, X } from "lucide-react";
 import React, { Suspense, lazy, useEffect, useId, useMemo, useRef, useState } from "react";
 
 const RiskTab = lazy(() => import("./tabs/RiskTab.jsx"));
@@ -27,6 +27,13 @@ const JournalTab = lazy(() => import("./tabs/JournalTab.jsx"));
 const NotepadTab = lazy(() => import("./tabs/NotepadTab.jsx"));
 const SessionsTab = lazy(() => import("./tabs/SessionsTab.jsx"));
 const CommunityTab = lazy(() => import("./tabs/CommunityTab.jsx"));
+const BacktestTab = lazy(() => import("./tabs/BacktestTab.jsx"));
+
+// The Backtest tab is added here so constants.js stays untouched. If you later add a
+// "backtest" entry to TABS in constants.js, this line simply uses that one instead.
+const TABS = BASE_TABS.some((t) => t.id === "backtest")
+  ? BASE_TABS
+  : [...BASE_TABS, { id: "backtest", label: "Backtest", icon: CandlestickChart }];
 
 // Warm the tab chunks in the background so switching tabs feels instant.
 if (typeof window !== "undefined") {
@@ -40,6 +47,7 @@ if (typeof window !== "undefined") {
     import("./tabs/NotepadTab.jsx");
     import("./tabs/SessionsTab.jsx");
     import("./tabs/CommunityTab.jsx");
+    import("./tabs/BacktestTab.jsx");
   };
   (window.requestIdleCallback || ((fn) => setTimeout(fn, 1500)))(warm);
 }
@@ -6647,6 +6655,10 @@ const hiddenTabIds = settings.hiddenTabs || [];
 
   if (activeTab === "notepad") {
     body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><NotepadTab {...{ activeNoteId, adjustNoteFontSize, closeNote, createNote, downloadNoteText, getNotepadBlockRef, insertDateTimeIntoNote, isDesktop, notepadFindOpen, notepadFindText, notepadLoaded, notepadMsg, notepadNotes, notepadReplaceText, notepadSearch, openNote, persistSettings, replaceAllInNote, requestDeleteNote, setNotepadFindOpen, setNotepadFindText, setNotepadMsg, setNotepadReplaceText, setNotepadSearch, settings, toggleNoteWordWrap, trackNotepadCursor, updateNote }} /></Suspense>;
+  }
+
+  if (activeTab === "backtest") {
+    body = <BacktestTab {...{ activeAccountId, isDesktop }} />;
   }
 
   if (activeTab === "sessions") {
