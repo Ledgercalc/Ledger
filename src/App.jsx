@@ -56,6 +56,8 @@ export { RUNTIME, WEEK_MS } from "./lib/constants";
 
 export default function TredziApp() {
   const [activeTab, setActiveTab] = useState("risk");
+  // Remembers the previous tab so the mobile switch animation knows which way to slide.
+  const tabDirRef = useRef({ tab: "risk", dir: 1 });
   const ActiveTabIcon = TABS.find((t) => t.id === activeTab)?.icon || Scale;
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsMobileSection, setSettingsMobileSection] = useState(null);
@@ -6680,6 +6682,17 @@ const hiddenTabIds = settings.hiddenTabs || [];
       </div>
     );
 
+  // Direction of the tab switch (1 = moving right along the dock, -1 = moving left).
+  {
+    const order = [...mobileNavPrimaryTabs, ...mobileNavOverflowTabs].map((t) => t.id);
+    const prev = tabDirRef.current;
+    if (prev.tab !== activeTab) {
+      const from = order.indexOf(prev.tab);
+      const to = order.indexOf(activeTab);
+      tabDirRef.current = { tab: activeTab, dir: from !== -1 && to !== -1 && to < from ? -1 : 1 };
+    }
+  }
+
   let body = null;
 
   if (activeTab === "risk") {
@@ -6854,6 +6867,49 @@ if (activeTab === "community") {
 .ledger-dock-item:hover { transform: none; }
 .ledger-seg-thumb { transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1); will-change: transform; }
 @media (prefers-reduced-motion: reduce) { .ledger-seg-thumb { transition: none !important; } }
+
+/* Mobile tab switch: content slides in from the side you are moving towards */
+@keyframes tabEnterFwd {
+  from { opacity: 0; transform: translate3d(32px, 0, 0) scale(0.985); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+@keyframes tabEnterBack {
+  from { opacity: 0; transform: translate3d(-32px, 0, 0) scale(0.985); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+@keyframes tabFadeOnly {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.ledger-tab-enter-fwd  { animation: tabEnterFwd 0.34s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.ledger-tab-enter-back { animation: tabEnterBack 0.34s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* Dock pill: label unfolds and icon pops when a tab becomes active */
+@keyframes dockLabelIn {
+  from { opacity: 0; max-width: 0; }
+  to   { opacity: 1; max-width: 140px; }
+}
+@keyframes dockIconPop {
+  0%   { transform: scale(0.7); }
+  60%  { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+.ledger-dock-label {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: middle;
+  animation: dockLabelIn 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.ledger-dock-item[data-dock-active="true"] svg {
+  animation: dockIconPop 0.38s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ledger-tab-enter-fwd,
+  .ledger-tab-enter-back { animation: tabFadeOnly 0.2s ease-out both !important; }
+  .ledger-dock-label { animation: none !important; }
+  .ledger-dock-item[data-dock-active="true"] svg { animation: none !important; }
+}
 
 .ledger-nav-dot {
   animation: navDotIn 0.22s cubic-bezier(0.22, 1, 0.36, 1);
@@ -7044,7 +7100,7 @@ if (activeTab === "community") {
 <main
   key={activeTab}
   onScroll={communityFullBleed ? undefined : handleMobileNavScroll}
-  className={`${tourActive ? "" : "ledger-page-transition"} ${tourActive || communityFullBleed ? "" : "tz-stagger"} ${
+  className={`${tourActive || (!isDesktop && !communityFullBleed) ? "" : "ledger-page-transition"} ${tourActive || communityFullBleed ? "" : "tz-stagger"} ${
     communityFullBleed
       ? (isDesktop ? "" : "px-0")
       : (isDesktop ? "px-8 pt-0 pb-6" : "px-5 pt-0 pb-5")
@@ -7053,6 +7109,7 @@ if (activeTab === "community") {
                 flex: "1 1 auto",
                 minHeight: 0,
                 overflowY: communityFullBleed ? "hidden" : "auto",
+                overflowX: communityFullBleed ? undefined : "hidden",
                 WebkitOverflowScrolling: "touch",
                 overscrollBehavior: "contain",
                 display: communityFullBleed ? "flex" : "block",
@@ -7066,7 +7123,12 @@ if (activeTab === "community") {
               {communityFullBleed ? (
                 body
               ) : !isDesktop ? (
-                <div style={{ paddingTop: "20px" }}>{body}</div>
+                <div
+                  className={tourActive ? undefined : tabDirRef.current.dir < 0 ? "ledger-tab-enter-back" : "ledger-tab-enter-fwd"}
+                  style={{ paddingTop: "20px" }}
+                >
+                  {body}
+                </div>
               ) : (
                 <div style={{ width: "100%", maxWidth: "1400px", margin: "0 auto", paddingTop: "24px" }}>
                   {body}
@@ -7187,7 +7249,7 @@ if (activeTab === "community") {
 
           {(isDesktop || active) && (
             <span
-              className="whitespace-nowrap"
+              className={isDesktop ? "whitespace-nowrap" : "whitespace-nowrap ledger-dock-label"}
               style={{
                 fontSize: isDesktop ? "14px" : "12.5px",
                 letterSpacing: "0.02em",
