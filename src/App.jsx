@@ -1,4 +1,5 @@
 import { COMMUNITY_API_BASE, COMMUNITY_AVATAR_KEY, COMMUNITY_JOIN_REQUESTS_KEY, COMMUNITY_MEMBERSHIPS_KEY, COMMUNITY_MESSAGE_POLL_MS, COMMUNITY_ONBOARDING_KEY, COMMUNITY_SESSION_KEY, COMMUNITY_USERNAME_KEY, communityApi } from "./api/community.js";
+import { pokeCrab } from "./lib/mascot.js";
 import { OnboardingAmbientBG } from "./components/onboarding.jsx";
 import { Avatar, PillGroup, SettingsSection, SettingsSubLabel } from "./components/ui.jsx";
 import { FX_CACHE_MS, FX_LIVE_STORAGE_KEY, fetchLiveFxRates } from "./data/currencies.js";
@@ -5744,6 +5745,7 @@ const updateSyncedJournalRow = (trade) => {
           : t
       );
       persistTrades(next);
+      pokeCrab("save");
       if (settings.autoSyncTradesToJournal) {
         const updated = next.find((t) => t.id === editingTradeId);
         if (updated) updateSyncedJournalRow(updated);
@@ -5763,6 +5765,7 @@ const updateSyncedJournalRow = (trade) => {
     };
     const next = [...trades, newTrade];
     persistTrades(next);
+    pokeCrab(pnl > 0 ? "win" : "loss", { amount: pnl });
     if (settings.autoSyncTradesToJournal) {
       syncTradeToJournal(newTrade);
     } else {
@@ -5796,11 +5799,13 @@ if (lastTrade.pnl < 0 && Date.now() - lastTrade.ts <= RUNTIME.REVENGE_WINDOW_MS)
 
   const deleteTrade = (id) => {
     persistTrades(trades.filter((t) => t.id !== id));
+    pokeCrab("poof");
     if (editingTradeId === id) resetTradeForm();
   };
 
   const clearTrades = () => {
     persistTrades([]);
+    pokeCrab("poof");
     resetTradeForm();
   };
 
