@@ -80,7 +80,7 @@ export const TOUR_STEPS = [
     tabId: "journal",
     target: "tab-journal",
     title: "Trade Journal",
-    text: "A full spreadsheet-style journal plus a Playbook to track how well you follow your own rules.",
+    text: "A full spreadsheet-style journal plus a Trade plan for your goals, risk limits, setups and rules.",
   },
   {
     id: "tab-notepad",
