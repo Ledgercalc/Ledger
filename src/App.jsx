@@ -1,5 +1,7 @@
 import { COMMUNITY_API_BASE, COMMUNITY_AVATAR_KEY, COMMUNITY_JOIN_REQUESTS_KEY, COMMUNITY_MEMBERSHIPS_KEY, COMMUNITY_MESSAGE_POLL_MS, COMMUNITY_ONBOARDING_KEY, COMMUNITY_SESSION_KEY, COMMUNITY_USERNAME_KEY, communityApi } from "./api/community.js";
 import { pokeCrab } from "./lib/mascot.js";
+import CrabMascot from "./components/CrabMascot.jsx";
+import { computeGoalProgress } from "./lib/analytics.js";
 import { OnboardingAmbientBG } from "./components/onboarding.jsx";
 import { Avatar, PillGroup, SettingsSection, SettingsSubLabel } from "./components/ui.jsx";
 import { FX_CACHE_MS, FX_LIVE_STORAGE_KEY, fetchLiveFxRates } from "./data/currencies.js";
@@ -57,6 +59,13 @@ export { RUNTIME, WEEK_MS } from "./lib/constants";
 
 export default function TredziApp() {
   const [activeTab, setActiveTab] = useState("risk");
+  const crabPrevTabRef = useRef("risk");
+  useEffect(() => {
+    if (crabPrevTabRef.current !== activeTab) {
+      crabPrevTabRef.current = activeTab;
+      pokeCrab("peek", { say: "" });
+    }
+  }, [activeTab]);
   // Remembers the previous tab so the mobile switch animation knows which way to slide.
   const tabDirRef = useRef({ tab: "risk", dir: 1 });
   const ActiveTabIcon = TABS.find((t) => t.id === activeTab)?.icon || Scale;
@@ -5736,7 +5745,44 @@ const updateSyncedJournalRow = (trade) => {
     resetTradeForm();
   };
 
-  const commitTrade = () => {
+  // Picks the crab's reaction to a freshly logged trade. Priority: revenge > limit > goal > streak > win/loss.
+  const crabReactToTrade = (pnl, nextTrades, { revenge = false } = {}) => {
+    try {
+      const todayKey = dayKeyFromDate(new Date());
+      const todayTrades = nextTrades.filter((t) => dayKeyFromTs(t.ts) === todayKey);
+      const count = todayTrades.length;
+      const lossTotal = todayTrades.filter((t) => t.pnl < 0).reduce((s, t) => s + t.pnl, 0);
+      const prevLoss = lossTotal - (pnl < 0 ? pnl : 0);
+      const lossLimit = num(settings.dailyLossLimit);
+      const maxTrades = num(settings.maxTradesPerDay);
+      const crossedLoss = lossLimit > 0 && Math.abs(lossTotal) >= lossLimit && Math.abs(prevLoss) < lossLimit;
+      const crossedMax = maxTrades > 0 && count >= maxTrades && count - 1 < maxTrades;
+
+      let goalMet = false;
+      const startBal = num(startingBalance);
+      [["weeklyTargetPct", "week"], ["monthlyTargetPct", "month"]].forEach(([key, period]) => {
+        const target = num(goals[key]);
+        if (goals[key] === "" || !(target > 0)) return;
+        const before = computeGoalProgress(trades, startBal, period);
+        const after = computeGoalProgress(nextTrades, startBal, period);
+        if (after && after.pct >= target && !(before && before.pct >= target)) goalMet = true;
+      });
+
+      const sorted = [...nextTrades].sort((a, b) => a.ts - b.ts);
+      let winStreak = 0;
+      for (let i = sorted.length - 1; i >= 0 && sorted[i].pnl > 0; i--) winStreak++;
+
+      if (revenge) return pokeCrab("revenge");
+      if (crossedLoss || crossedMax) return pokeCrab("limit");
+      if (goalMet) return pokeCrab("goal");
+      if (pnl > 0 && winStreak >= 3) return pokeCrab("streak", { count: winStreak });
+    } catch (err) {
+      // The mascot must never break trade logging.
+    }
+    pokeCrab(pnl > 0 ? "win" : "loss", { amount: pnl });
+  };
+
+  const commitTrade = (opts = {}) => {
     const pnl = num(tradeInput);
     if (editingTradeId) {
       const next = trades.map((t) =>
@@ -5745,7 +5791,7 @@ const updateSyncedJournalRow = (trade) => {
           : t
       );
       persistTrades(next);
-      pokeCrab("save");
+      pokeCrab("edit");
       if (settings.autoSyncTradesToJournal) {
         const updated = next.find((t) => t.id === editingTradeId);
         if (updated) updateSyncedJournalRow(updated);
@@ -5765,7 +5811,7 @@ const updateSyncedJournalRow = (trade) => {
     };
     const next = [...trades, newTrade];
     persistTrades(next);
-    pokeCrab(pnl > 0 ? "win" : "loss", { amount: pnl });
+    crabReactToTrade(pnl, next, { revenge: opts.revenge === true });
     if (settings.autoSyncTradesToJournal) {
       syncTradeToJournal(newTrade);
     } else {
@@ -5792,7 +5838,7 @@ if (lastTrade.pnl < 0 && Date.now() - lastTrade.ts <= RUNTIME.REVENGE_WINDOW_MS)
 
   const confirmRevengeLog = () => {
     setPendingRevengeLog(false);
-    commitTrade();
+    commitTrade({ revenge: true });
   };
 
   const cancelRevengeLog = () => setPendingRevengeLog(false);
@@ -5995,6 +6041,7 @@ const dataUrl = drawShareCard(shareCanvasRef.current, {
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
+      pokeCrab("sent");
     } catch (err) {
       window.open(shareImageUrl, "_blank");
     }
@@ -6545,6 +6592,14 @@ const persistNotepadNotes = async (next) => {
   // Scroll-aware bottom nav (mobile only): hides on scroll-down, reappears on
   // scroll-up or near the top — matches the Facebook / X app-shell behavior.
   const MOBILE_NAV_SPACE = "calc(84px + env(safe-area-inset-bottom, 0px))";
+  const crabRest = (() => {
+    const k = dayKeyFromDate(new Date());
+    const today = trades.filter((t) => dayKeyFromTs(t.ts) === k);
+    const lossLimit = num(settings.dailyLossLimit);
+    const maxTrades = num(settings.maxTradesPerDay);
+    const loss = today.filter((t) => t.pnl < 0).reduce((s, t) => s + t.pnl, 0);
+    return (lossLimit > 0 && Math.abs(loss) >= lossLimit) || (maxTrades > 0 && today.length >= maxTrades) ? "worry" : undefined;
+  })();
   const handleMobileNavScroll = (e) => {
     if (isDesktop) return;
     const y = e.currentTarget.scrollTop;
@@ -7097,6 +7152,19 @@ if (activeTab === "community") {
             </button>
           </div>
         </header>
+        )}
+
+        {settings.mascotEnabled !== false && !(!isDesktop && activeTab === "community" && (!!activeGroupId || communityMobileFeedOpen)) && (
+          <div
+            style={{
+              position: "fixed",
+              right: isDesktop ? "20px" : "10px",
+              bottom: isDesktop ? "20px" : "calc(92px + env(safe-area-inset-bottom, 0px))",
+              zIndex: 40,
+            }}
+          >
+            <CrabMascot size={isDesktop ? 84 : 62} rest={crabRest} />
+          </div>
         )}
 
         {(() => {
