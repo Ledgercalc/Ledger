@@ -6658,7 +6658,7 @@ const hiddenTabIds = settings.hiddenTabs || [];
   }
 
   if (activeTab === "backtest") {
-    body = <BacktestTab {...{ activeAccountId, isDesktop }} />;
+    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><BacktestTab {...{ activeAccountId, isDesktop }} /></Suspense>;
   }
 
   if (activeTab === "sessions") {
