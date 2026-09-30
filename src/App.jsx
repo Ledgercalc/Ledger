@@ -834,6 +834,12 @@ const [communityMobileFeedOpen, setCommunityMobileFeedOpen] = useState(false);
 const [mobileNavHidden, setMobileNavHidden] = useState(false);
 useEffect(() => { setMobileNavHidden(false); }, [activeTab]);
 const lastNavScrollYRef = useRef(0);
+const dockRef = useRef(null);
+useEffect(() => {
+  if (isDesktop) return;
+  const el = dockRef.current?.querySelector('[data-dock-active="true"]');
+  el?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+}, [activeTab, isDesktop]);
 const [lightboxPost, setLightboxPost] = useState(null); // global-feed post being viewed full-screen, or null
 const [globalFeedPending, setGlobalFeedPending] = useState([]);
 const [globalFeedNewCount, setGlobalFeedNewCount] = useState(0);
@@ -6531,7 +6537,7 @@ const persistNotepadNotes = async (next) => {
 
   // Scroll-aware bottom nav (mobile only): hides on scroll-down, reappears on
   // scroll-up or near the top — matches the Facebook / X app-shell behavior.
-  const MOBILE_NAV_SPACE = "calc(60px + env(safe-area-inset-bottom, 0px))";
+  const MOBILE_NAV_SPACE = "calc(84px + env(safe-area-inset-bottom, 0px))";
   const handleMobileNavScroll = (e) => {
     if (isDesktop) return;
     const y = e.currentTarget.scrollTop;
@@ -6787,6 +6793,19 @@ if (activeTab === "community") {
   transform: scale(0.97);
 }
 
+.ledger-dock-scroll {
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%);
+}
+.ledger-dock-scroll::-webkit-scrollbar { display: none; }
+.ledger-dock-item { scroll-snap-align: center; }
+.ledger-dock-item:hover { transform: none; }
+
 .ledger-nav-dot {
   animation: navDotIn 0.22s cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -7014,29 +7033,30 @@ if (activeTab === "community") {
           className={isDesktop ? "flex flex-col order-first" : "flex items-stretch"}
           style={{
             flexShrink: 0,
-            border: "none",
+            border: isDesktop ? "none" : `1px solid ${palette.border}`,
+            borderRadius: isDesktop ? undefined : "999px",
             background: isDesktop
               ? palette.surface
               : `${palette.surface}F2`,
             backdropFilter: isDesktop ? undefined : "blur(10px)",
             WebkitBackdropFilter: isDesktop ? undefined : "blur(10px)",
-            boxShadow: isDesktop ? palette.navShadow : "0 -6px 18px rgba(0,0,0,0.18)",
-            paddingBottom: isDesktop ? "20px" : "env(safe-area-inset-bottom)",
+            boxShadow: isDesktop ? palette.navShadow : "0 8px 24px rgba(0,0,0,0.35)",
+            paddingBottom: isDesktop ? "20px" : 0,
             paddingTop: isDesktop ? 0 : 0,
             width: isDesktop ? "252px" : "auto",
             height: isDesktop ? "100%" : "auto",
             overflowY: isDesktop ? "auto" : "visible",
             overflowX: "hidden",
             position: isDesktop ? "static" : "fixed",
-            left: isDesktop ? "auto" : 0,
-            right: isDesktop ? "auto" : 0,
-            bottom: isDesktop ? "auto" : 0,
+            left: isDesktop ? "auto" : "12px",
+            right: isDesktop ? "auto" : "12px",
+            bottom: isDesktop ? "auto" : "calc(12px + env(safe-area-inset-bottom, 0px))",
             zIndex: isDesktop ? "auto" : 60,
-            transform: isDesktop ? "none" : mobileNavHidden ? "translateY(100%)" : "translateY(0)",
+            transform: isDesktop ? "none" : mobileNavHidden ? "translateY(calc(100% + 32px))" : "translateY(0)",
             transition: `${THEME_TRANSITION}, transform 0.28s cubic-bezier(0.22, 1, 0.36, 1)`,
           }}
         >
-          <div className={isDesktop ? "flex flex-col px-4 pt-6 gap-1" : "flex flex-1 items-stretch"}>
+          <div ref={dockRef} className={isDesktop ? "flex flex-col px-4 pt-6 gap-1" : "ledger-dock-scroll flex flex-1 items-center gap-1 p-1.5"}>
           {isDesktop && (
             <div
               className="uppercase mb-2 px-2"
@@ -7047,14 +7067,14 @@ if (activeTab === "community") {
           )}
 
 
-{(isDesktop ? navTabs : mobileNavPrimaryTabs).map((tab) => {
+{(isDesktop ? navTabs : [...mobileNavPrimaryTabs, ...mobileNavOverflowTabs]).map((tab) => {
   const Icon = tab.icon;
   const active = activeTab === tab.id;
 
   return (
     <div
       key={tab.id}
-      className={isDesktop ? "flex relative" : "flex flex-1 items-stretch"}
+      className={isDesktop ? "flex relative" : "flex flex-shrink-0 items-stretch"}
     >
       {isDesktop && active && (
         <span
@@ -7075,6 +7095,7 @@ if (activeTab === "community") {
       <button
         type="button"
         data-tour-id={`tab-${tab.id}`}
+        data-dock-active={!isDesktop && active ? "true" : undefined}
         onClick={() => {
           setActiveTab(tab.id);
           setMoreMenuOpen(false);
@@ -7082,12 +7103,12 @@ if (activeTab === "community") {
         className={
           isDesktop
             ? `ledger-nav-item w-full flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl ${TAP}`
-            : `ledger-nav-item w-full flex flex-col items-center justify-center gap-1 py-3 ${TAP}`
+            : `ledger-nav-item ledger-dock-item flex flex-row items-center justify-center gap-2 px-4 py-3 ${TAP}`
         }
         style={{
           color: active ? palette.goldBright : palette.textMuted,
           background: active ? `${palette.gold}16` : "transparent",
-          borderRadius: isDesktop ? "10px" : "12px",
+          borderRadius: isDesktop ? "10px" : "999px",
           border: isDesktop
             ? `1px solid ${active ? `${palette.gold}3A` : "transparent"}`
             : "none",
@@ -7110,36 +7131,23 @@ if (activeTab === "community") {
             }}
           >
             <Icon
-              size={isDesktop ? 17 : 18}
+              size={isDesktop ? 17 : 20}
               strokeWidth={active ? 2.4 : 1.8}
             />
-
-            {!isDesktop && active && (
-              <span
-                className="ledger-nav-dot"
-                style={{
-                  position: "absolute",
-                  bottom: "-5px",
-                  width: "4px",
-                  height: "4px",
-                  borderRadius: "999px",
-                  background: palette.goldBright,
-                  boxShadow: `0 0 8px ${palette.gold}88`,
-                }}
-              />
-            )}
           </span>
 
-          <span
-            className="truncate"
-            style={{
-              fontSize: isDesktop ? "14px" : "10px",
-              letterSpacing: "0.02em",
-              fontWeight: isDesktop ? 600 : 400,
-            }}
-          >
-            {tab.label}
-          </span>
+          {(isDesktop || active) && (
+            <span
+              className="whitespace-nowrap"
+              style={{
+                fontSize: isDesktop ? "14px" : "12.5px",
+                letterSpacing: "0.02em",
+                fontWeight: 600,
+              }}
+            >
+              {tab.label}
+            </span>
+          )}
         </span>
 
         {isDesktop && (
@@ -7155,42 +7163,6 @@ if (activeTab === "community") {
   );
 })}
 
-{!isDesktop && mobileNavOverflowTabs.length > 0 && (
-  <div className="flex flex-1 items-stretch">
-    <button
-      type="button"
-      onClick={() => setMoreMenuOpen(true)}
-      className={`w-full flex flex-col items-center justify-center gap-1 py-3 ${TAP}`}
-      style={{
-        color: activeInMobileOverflow
-          ? palette.goldBright
-          : palette.textMuted,
-        background: activeInMobileOverflow
-          ? `${palette.gold}16`
-          : "transparent",
-        borderRadius: "12px",
-        transition: `${THEME_TRANSITION}, transform 0.15s ease, background 0.15s ease`,
-      }}
-    >
-      <span className="flex items-center justify-center flex-shrink-0">
-        <LayoutGrid
-          size={18}
-          strokeWidth={activeInMobileOverflow ? 2.4 : 1.8}
-        />
-      </span>
-
-      <span
-        style={{
-          fontSize: "10px",
-          letterSpacing: "0.02em",
-          fontWeight: activeInMobileOverflow ? 600 : 400,
-        }}
-      >
-        More
-      </span>
-    </button>
-  </div>
-)}
 </div>
 
 {isDesktop && <div style={{ flex: "1 1 auto", minHeight: "12px" }} />}
