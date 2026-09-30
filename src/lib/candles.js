@@ -101,7 +101,7 @@ export function parseCandlesCsv(text) {
   }
   const list = [...byTime.values()].sort((a, b) => a.time - b.time);
   if (list.length < 30) throw new Error("I could only read " + list.length + " valid candles. Need at least 30.");
-  return list.length > 100000 ? list.slice(-100000) : list;
+  return list.length > 600000 ? list.slice(-600000) : list;
 }
 
 export function resample(list, minutes) {
