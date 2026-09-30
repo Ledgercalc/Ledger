@@ -6,14 +6,26 @@ import { MONTH_NAMES, WEEKDAY_LABELS, dayKeyFromDate, dayKeyFromTs, fmt, fmtMone
 import { SCREENSHOT_MAX_PER_TRADE, tradeScreenshots } from "../lib/images.js";
 import { TAP, THEME_TRANSITION, mono, palette } from "../lib/theme.js";
 import { Camera, Check, ChevronLeft, ChevronRight, Copy, Download, FileText, Pencil, Plus, Share2, Trash2, TrendingUp, Upload, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
-// Stable references: recharts restarts the line draw animation when these change identity,
-// so they must not be re-created on every render.
+// Stable references so recharts never sees new prop identities on re-render.
 const CHART_MARGIN = { top: 6, right: 8, bottom: 0, left: 0 };
 const ACTIVE_DOT = { r: 4 };
 const DRAW_MS = 1400;
+
+// The draw-on effect is a plain CSS left-to-right reveal on the chart wrapper. It does not
+// depend on recharts' internal animation (which skips to the finished line whenever the
+// container is measured late or props change). fill-mode "backwards" means the clip is gone
+// once it finishes, so tooltips are never cut off afterwards.
+const CURVE_REVEAL_CSS = `
+@keyframes curveReveal {
+  from { clip-path: inset(-12px 100% -12px -12px); }
+  to   { clip-path: inset(-12px -12px -12px -12px); }
+}
+.curve-reveal { animation: curveReveal ${DRAW_MS}ms cubic-bezier(0.4, 0, 0.2, 1) 120ms backwards; }
+@media (prefers-reduced-motion: reduce) { .curve-reveal { animation: none; } }
+`;
 
 export default function CurveTab(props) {
   const {
@@ -108,38 +120,6 @@ export default function CurveTab(props) {
     const pad = Math.max(10, Math.abs(peakBal - (run - dd)) * 0.1) || 10;
     return [(dataMin) => Math.floor(dataMin - pad), (dataMax) => Math.ceil(dataMax + pad)];
   }, [trades, startingBalance]);
-
-  // Draw-on animation: plays once each time the tab opens, then switches off so later
-  // re-renders (new trades, theme changes, clock ticks) can never restart or cut it short.
-  const hasChart = trades.length > 0;
-  const [chartReady, setChartReady] = useState(false);
-  const [lineDrawn, setLineDrawn] = useState(false);
-  const handleDrawEnd = useCallback(() => setLineDrawn(true), []);
-
-  // Mount the chart only after the layout has settled (two frames), so the draw never
-  // starts against a zero-width container and skips straight to the finished line.
-  useEffect(() => {
-    if (!hasChart) {
-      setChartReady(false);
-      setLineDrawn(false);
-      return undefined;
-    }
-    let raf2 = 0;
-    const raf1 = requestAnimationFrame(() => {
-      raf2 = requestAnimationFrame(() => setChartReady(true));
-    });
-    return () => {
-      cancelAnimationFrame(raf1);
-      if (raf2) cancelAnimationFrame(raf2);
-    };
-  }, [hasChart]);
-
-  // Safety net: if the animation is ever interrupted, force the full line to show.
-  useEffect(() => {
-    if (!chartReady) return undefined;
-    const id = setTimeout(() => setLineDrawn(true), DRAW_MS + 900);
-    return () => clearTimeout(id);
-  }, [chartReady]);
 
   let body = null;
     const startBal = num(startingBalance);
@@ -252,8 +232,8 @@ export default function CurveTab(props) {
             className={isDesktop ? "rounded-2xl p-6 mb-6" : "rounded-2xl p-4 mb-6"}
             style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow, transition: THEME_TRANSITION }}
           >
-            <div style={{ width: "100%", height: isDesktop ? 340 : 180 }}>
-              {chartReady && (
+            <style>{CURVE_REVEAL_CSS}</style>
+            <div className="curve-reveal" style={{ width: "100%", height: isDesktop ? 340 : 180 }}>
               <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                 <LineChart data={chartData} margin={CHART_MARGIN}>
                   <CartesianGrid stroke={palette.border} strokeDasharray="3 3" vertical={false} />
@@ -293,15 +273,10 @@ export default function CurveTab(props) {
                     strokeWidth={2}
                     dot={false}
                     activeDot={ACTIVE_DOT}
-                    isAnimationActive={!lineDrawn}
-                    animationBegin={100}
-                    animationDuration={DRAW_MS}
-                    animationEasing="ease-in-out"
-                    onAnimationEnd={handleDrawEnd}
+                    isAnimationActive={false}
                   />
                 </LineChart>
               </ResponsiveContainer>
-              )}
             </div>
           </div>
         )}
@@ -847,7 +822,7 @@ export default function CurveTab(props) {
 
         {!tradesLoaded ? (
           <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-            Loading saved trades\u2026
+            Loading saved trades…
           </p>
         ) : (
           <>
@@ -1127,7 +1102,7 @@ export default function CurveTab(props) {
                             )}
                             {savingThisTrade && (
                               <span style={{ fontSize: "10px", color: palette.textFaint, fontFamily: mono }}>
-                                saving\u2026
+                                saving…
                               </span>
                             )}
                           </div>
