@@ -6609,78 +6609,74 @@ const hiddenTabIds = settings.hiddenTabs || [];
       </div>
     ) : (
       <div
-        role="tablist"
-        className="relative mb-5"
         style={{
-          display: "grid",
-          gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))`,
-          border: `1px solid ${palette.border}`,
-          borderRadius: 0,
-          background: "transparent",
+          position: "sticky",
+          top: 0,
+          zIndex: 5,
+          background: palette.bg,
+          paddingTop: "8px",
+          paddingBottom: "12px",
         }}
       >
-        <span
-          aria-hidden="true"
-          className="ledger-seg-thumb"
+        <div
+          role="tablist"
+          className="relative"
           style={{
-            position: "absolute",
-            top: 0,
-            bottom: 0,
-            left: 0,
-            width: `${100 / tabs.length}%`,
-            transform: `translateX(${Math.max(0, tabs.findIndex((t) => t.id === activeId)) * 100}%)`,
-            background: palette.text,
+            display: "grid",
+            gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))`,
+            padding: "4px",
+            borderRadius: "14px",
+            background: palette.field,
+            border: `1px solid ${palette.border}`,
           }}
-        />
-        {tabs.map((t, i) => {
-          const active = activeId === t.id;
-          return (
-            <button
-              key={t.id}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              onClick={() => onSelect(t.id)}
-              className={`relative text-left ${TAP}`}
-              style={{
-                zIndex: 1,
-                background: "transparent",
-                border: "none",
-                borderRadius: 0,
-                padding: "9px 12px 10px",
-                minWidth: 0,
-                color: active ? palette.bg : palette.textFaint,
-                transition: "color 0.2s ease",
-              }}
-            >
-              <span
-                className="block"
+        >
+          <span
+            aria-hidden="true"
+            className="ledger-seg-thumb"
+            style={{
+              position: "absolute",
+              top: "4px",
+              bottom: "4px",
+              left: "4px",
+              width: `calc((100% - 8px) / ${tabs.length})`,
+              transform: `translateX(${Math.max(0, tabs.findIndex((t) => t.id === activeId)) * 100}%)`,
+              borderRadius: "10px",
+              background: palette.gold,
+              boxShadow: "0 2px 10px rgba(0,0,0,0.25)",
+            }}
+          />
+          {tabs.map((t) => {
+            const active = activeId === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => onSelect(t.id)}
+                className={`relative ${TAP}`}
                 style={{
-                  fontFamily: mono,
-                  fontSize: "9.5px",
-                  letterSpacing: "0.14em",
-                  opacity: active ? 0.7 : 0.55,
-                  lineHeight: 1,
-                  marginBottom: "5px",
-                }}
-              >
-                {String(i + 1).padStart(2, "0")}
-              </span>
-              <span
-                className="block truncate"
-                style={{
+                  zIndex: 1,
+                  background: "transparent",
+                  border: "none",
+                  padding: "10px 4px",
+                  minWidth: 0,
+                  textAlign: "center",
+                  color: active ? palette.letterbox : palette.textMuted,
                   fontFamily: display,
-                  fontSize: "13.5px",
+                  fontSize: tabs.length > 3 ? "12.5px" : "13.5px",
                   fontWeight: active ? 700 : 500,
-                  letterSpacing: "0.01em",
-                  lineHeight: 1.1,
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  transition: "color 0.2s ease",
                 }}
               >
                 {t.label}
-              </span>
-            </button>
-          );
-        })}
+              </button>
+            );
+          })}
+        </div>
       </div>
     );
 
@@ -6703,7 +6699,7 @@ const hiddenTabIds = settings.hiddenTabs || [];
   }
 
   if (activeTab === "insights") {
-    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><InsightsTab {...{ coachChatId, coachChats, coachChatsMax, coachDeleteConfirmId, coachError, coachHistoryOpen, coachInput, coachLoading, coachMessages, coachRemaining, coachScrollRef, customMoods, customSetups, deleteCoachChat, expandedHeatmapDay, expandedMetric, exportInsightsReport, insightReportMsg, insightsSubTab, isDesktop, journalEntries, journalInsightMonth, journalInsightYear, journalLoaded, newCoachChat, openCoachChat, persistSettings, selectInsightsSubTab, sendCoachMessage, session, setCoachDeleteConfirmId, setCoachHistoryOpen, setCoachInput, setExpandedHeatmapDay, setExpandedMetric, setJournalInsightMonth, setJournalInsightYear, settings, trades }} /></Suspense>;
+    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><InsightsTab {...{ coachChatId, coachChats, coachChatsMax, coachDeleteConfirmId, coachError, coachHistoryOpen, coachInput, coachLoading, coachMessages, coachRemaining, coachScrollRef, customMoods, customSetups, deleteCoachChat, expandedHeatmapDay, expandedMetric, exportInsightsReport, insightReportMsg, insightsSubTab, isDesktop, journalEntries, journalInsightMonth, journalInsightYear, journalLoaded, newCoachChat, openCoachChat, persistSettings, renderSubNav, selectInsightsSubTab, sendCoachMessage, session, setCoachDeleteConfirmId, setCoachHistoryOpen, setCoachInput, setExpandedHeatmapDay, setExpandedMetric, setJournalInsightMonth, setJournalInsightYear, settings, trades }} /></Suspense>;
   }
 
   if (activeTab === "journal") {
