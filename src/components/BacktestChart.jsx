@@ -292,7 +292,7 @@ function hitDrawing(d, x, y, env) {
   return false;
 }
 
-export default function BacktestChart({ candles, sessionKey, lines, markers, colors, precision, height, pickMode, onPickPrice, onApplyPlan }) {
+export default function BacktestChart({ candles, sessionKey, lines, markers, colors, precision, height, compact, pickMode, onPickPrice, onApplyPlan }) {
   const hostRef = useRef(null);
   const canvasRef = useRef(null);
   const chartRef = useRef(null);
@@ -540,8 +540,16 @@ export default function BacktestChart({ candles, sessionKey, lines, markers, col
   // Redraw every frame while there is something to draw (keeps shapes glued during zoom/pan/scale).
   useEffect(() => {
     let raf = 0;
+    let warned = false;
     const loop = () => {
-      paintAll();
+      try {
+        paintAll();
+      } catch (err) {
+        if (!warned) {
+          warned = true;
+          console.error("Drawing layer error:", err);
+        }
+      }
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
@@ -649,6 +657,7 @@ export default function BacktestChart({ candles, sessionKey, lines, markers, col
     color: active ? "#fff" : colors.text,
     cursor: "pointer",
     padding: 0,
+    flexShrink: 0,
   });
   const pill = (id, color) => ({
     height: 32,
@@ -661,6 +670,7 @@ export default function BacktestChart({ candles, sessionKey, lines, markers, col
     fontSize: 12.5,
     fontWeight: 700,
     cursor: "pointer",
+    flexShrink: 0,
   });
   const iconOff = (on) => ({ opacity: on ? 1 : 0.4, cursor: on ? "pointer" : "not-allowed" });
   const pickTool = (id) => {
@@ -671,7 +681,7 @@ export default function BacktestChart({ candles, sessionKey, lines, markers, col
 
   return (
     <div>
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }} role="toolbar" aria-label="Drawing tools">
+      <div style={{ display: "flex", gap: 6, flexWrap: compact ? "nowrap" : "wrap", overflowX: compact ? "auto" : "visible", scrollbarWidth: "none", alignItems: "center", marginBottom: 8, padding: compact ? "0 12px" : 0 }} role="toolbar" aria-label="Drawing tools">
         <button type="button" onClick={() => pickTool("long")} aria-pressed={tool === "long"} title="Long position (entry, stop loss, take profit)" style={pill("long", colors.up)}>Long</button>
         <button type="button" onClick={() => pickTool("short")} aria-pressed={tool === "short"} title="Short position (entry, stop loss, take profit)" style={pill("short", colors.down)}>Short</button>
         {ICON_TOOLS.map(({ id, label, Icon }) => (
@@ -685,7 +695,7 @@ export default function BacktestChart({ candles, sessionKey, lines, markers, col
             type="button"
             title="Copy the stop loss, take profit and side of your latest Long/Short plan into the order form"
             onClick={() => onApplyPlan(plan)}
-            style={{ height: 32, padding: "0 10px", borderRadius: 8, border: `1px solid ${colors.entry}`, background: "transparent", color: colors.entry, fontFamily: colors.font, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}
+            style={{ flexShrink: 0, height: 32, padding: "0 10px", borderRadius: 8, border: `1px solid ${colors.entry}`, background: "transparent", color: colors.entry, fontFamily: colors.font, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}
           >
             Use plan
           </button>
@@ -697,13 +707,13 @@ export default function BacktestChart({ candles, sessionKey, lines, markers, col
           <Trash2 size={16} />
         </button>
       </div>
-      {hint && (
-        <p style={{ margin: "0 0 8px", color: DRAW_COLOR, fontFamily: colors.font, fontSize: 12.5 }}>
-          {hint}. Esc cancels.
-        </p>
-      )}
-      <div style={{ position: "relative", width: "100%", height }}>
+      <div style={{ position: "relative", isolation: "isolate", width: compact ? "calc(100% - 6px)" : "100%", marginLeft: compact ? 6 : 0, height }}>
         <div ref={hostRef} style={{ width: "100%", height: "100%", cursor: pickMode ? "crosshair" : "default" }} aria-label="Price chart" />
+        {hint && (
+          <div style={{ position: "absolute", left: 8, top: 6, zIndex: 6, pointerEvents: "none", background: "rgba(15,15,20,0.82)", color: DRAW_COLOR, fontFamily: colors.font, fontSize: 12, padding: "4px 8px", borderRadius: 6, maxWidth: "80%" }}>
+            {hint}{compact ? "" : ". Esc cancels"}
+          </div>
+        )}
         <canvas
           ref={canvasRef}
           onPointerDown={onDown}
@@ -718,6 +728,7 @@ export default function BacktestChart({ candles, sessionKey, lines, markers, col
             top: 0,
             width: "100%",
             height: "100%",
+            zIndex: 5,
             pointerEvents: tool ? "auto" : "none",
             touchAction: "none",
             cursor: tool === "eraser" ? "pointer" : "crosshair",
