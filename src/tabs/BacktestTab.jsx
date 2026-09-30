@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 const BACKTEST_STORAGE_KEY = "tredzi-backtest-v1";
-const SPEEDS = [1, 2, 5, 10];
+const SPEEDS = [1, 2, 5, 10, 25];
 
 const uid = () => `bt-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 const round = (v, d) => Math.round(v * Math.pow(10, d)) / Math.pow(10, d);
@@ -464,6 +464,13 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
               height={isDesktop ? 480 : 340}
               pickMode={pickMode}
               onPickPrice={onPickPrice}
+              onApplyPlan={(plan) => {
+                if (pos) return;
+                setSide(plan.side);
+                setSlInput(plan.sl.toFixed(precision));
+                setTpInput(plan.tp.toFixed(precision));
+                setOrderError("");
+              }}
             />
             {pickMode && (
               <p style={{ color: palette.gold, fontFamily: mono, fontSize: 12.5, margin: "8px 0 0" }}>
