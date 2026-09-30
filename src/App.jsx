@@ -6608,25 +6608,76 @@ const hiddenTabIds = settings.hiddenTabs || [];
         })}
       </div>
     ) : (
-      <div className="flex gap-2 mb-6">
-        {tabs.map((t) => {
+      <div
+        role="tablist"
+        className="relative mb-5"
+        style={{
+          display: "grid",
+          gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))`,
+          border: `1px solid ${palette.border}`,
+          borderRadius: 0,
+          background: "transparent",
+        }}
+      >
+        <span
+          aria-hidden="true"
+          className="ledger-seg-thumb"
+          style={{
+            position: "absolute",
+            top: 0,
+            bottom: 0,
+            left: 0,
+            width: `${100 / tabs.length}%`,
+            transform: `translateX(${Math.max(0, tabs.findIndex((t) => t.id === activeId)) * 100}%)`,
+            background: palette.text,
+          }}
+        />
+        {tabs.map((t, i) => {
           const active = activeId === t.id;
           return (
             <button
               key={t.id}
               type="button"
+              role="tab"
+              aria-selected={active}
               onClick={() => onSelect(t.id)}
-              className={`flex-1 px-3 py-2 rounded-full transition-colors ${TAP}`}
+              className={`relative text-left ${TAP}`}
               style={{
-                background: active ? palette.gold : palette.field,
-                color: active ? palette.letterbox : palette.textMuted,
-                border: `1px solid ${active ? palette.gold : palette.border}`,
-                fontFamily: mono,
-                fontSize: "13px",
-                fontWeight: 600,
+                zIndex: 1,
+                background: "transparent",
+                border: "none",
+                borderRadius: 0,
+                padding: "9px 12px 10px",
+                minWidth: 0,
+                color: active ? palette.bg : palette.textFaint,
+                transition: "color 0.2s ease",
               }}
             >
-              {t.label}
+              <span
+                className="block"
+                style={{
+                  fontFamily: mono,
+                  fontSize: "9.5px",
+                  letterSpacing: "0.14em",
+                  opacity: active ? 0.7 : 0.55,
+                  lineHeight: 1,
+                  marginBottom: "5px",
+                }}
+              >
+                {String(i + 1).padStart(2, "0")}
+              </span>
+              <span
+                className="block truncate"
+                style={{
+                  fontFamily: display,
+                  fontSize: "13.5px",
+                  fontWeight: active ? 700 : 500,
+                  letterSpacing: "0.01em",
+                  lineHeight: 1.1,
+                }}
+              >
+                {t.label}
+              </span>
             </button>
           );
         })}
@@ -6805,6 +6856,8 @@ if (activeTab === "community") {
 .ledger-dock-scroll::-webkit-scrollbar { display: none; }
 .ledger-dock-item { scroll-snap-align: center; }
 .ledger-dock-item:hover { transform: none; }
+.ledger-seg-thumb { transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1); will-change: transform; }
+@media (prefers-reduced-motion: reduce) { .ledger-seg-thumb { transition: none !important; } }
 
 .ledger-nav-dot {
   animation: navDotIn 0.22s cubic-bezier(0.22, 1, 0.36, 1);
