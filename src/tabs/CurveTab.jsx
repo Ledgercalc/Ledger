@@ -1,4 +1,3 @@
-import CrabMascot from "../components/CrabMascot.jsx";
 import { pokeCrab } from "../lib/mascot.js";
 import { OnboardingTip } from "../components/onboarding.jsx";
 import { Field, Readout, StatChip } from "../components/ui.jsx";
@@ -218,12 +217,6 @@ export default function CurveTab(props) {
   	settings={settings}
   	persistSettings={persistSettings}
        />
-
-        {settings.mascotEnabled !== false && (
-          <div className="flex justify-end" style={{ marginBottom: "4px" }}>
-            <CrabMascot size={isDesktop ? 96 : 78} rest={hitDailyLossLimit || hitMaxTrades ? "worry" : undefined} />
-          </div>
-        )}
 
         <Readout
           icon={TrendingUp}
