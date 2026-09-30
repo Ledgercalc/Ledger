@@ -1,24 +1,26 @@
 // Service worker for the Tredzi app
 // Bump this version string whenever you ship new files to force a cache refresh
 
-const CACHE_VERSION = 'tredzi-v2';
+const CACHE_VERSION = 'tredzi-v3';
 const CACHE_NAME = `tredzi-cache-${CACHE_VERSION}`;
 
-// Core files required for the app shell
-const PRECACHE_ASSETS = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/TredziApp.jsx',
-  '/icons/icon.png'
-];
+// Core files required for the app shell.
+// Paths are resolved against the service worker's own scope, so this works whether the app
+// is hosted at the domain root or under a sub-path (e.g. GitHub Pages /Tredzi/).
+// Every file must exist: a single 404 used to fail the whole install, so each one is
+// added on its own and a missing file is skipped instead of breaking the cache.
+const PRECACHE_ASSETS = ['./', 'index.html', 'manifest.json', 'icon.png'];
+
+const scopeUrl = (path) => new URL(path, self.registration.scope).href;
 
 // Install: pre-cache core app shell
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(PRECACHE_ASSETS);
-    })
+    caches.open(CACHE_NAME).then((cache) =>
+      Promise.allSettled(
+        PRECACHE_ASSETS.map((path) => cache.add(scopeUrl(path)))
+      )
+    )
   );
 
   self.skipWaiting();
@@ -52,6 +54,10 @@ self.addEventListener('fetch', (event) => {
 
   if (request.method !== 'GET') return;
 
+  // Only handle this app's own files. Cross-origin requests (the community worker,
+  // market data for the Backtest tab, fonts) go straight to the network untouched.
+  if (new URL(request.url).origin !== self.location.origin) return;
+
   // Navigation requests
   if (request.mode === 'navigate') {
     event.respondWith(
@@ -65,7 +71,7 @@ self.addEventListener('fetch', (event) => {
 
           return response;
         })
-        .catch(() => caches.match('/index.html'))
+        .catch(() => caches.match(scopeUrl('index.html')))
     );
 
     return;
