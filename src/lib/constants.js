@@ -53,6 +53,8 @@ export const DEFAULT_SETTINGS = {
   mobileNavPinnedTabs: [],
   journalTableLayout: "auto", // "auto" | "cards" | "table"
   showRevengeTag: true,
+  planRiskPerTradePct: "",
+  planMinRR: "",
   tourCompleted: false,
 };
 
