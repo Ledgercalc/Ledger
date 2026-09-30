@@ -1,3 +1,5 @@
+import CrabMascot from "../components/CrabMascot.jsx";
+import { pokeCrab } from "../lib/mascot.js";
 import { OnboardingTip } from "../components/onboarding.jsx";
 import { Field, Readout, StatChip } from "../components/ui.jsx";
 import { computeDisciplineStreak, computeGoalProgress, computeRevengeIds } from "../lib/analytics.js";
@@ -216,6 +218,12 @@ export default function CurveTab(props) {
   	settings={settings}
   	persistSettings={persistSettings}
        />
+
+        {settings.mascotEnabled !== false && (
+          <div className="flex justify-end" style={{ marginBottom: "4px" }}>
+            <CrabMascot size={isDesktop ? 96 : 78} rest={hitDailyLossLimit || hitMaxTrades ? "worry" : undefined} />
+          </div>
+        )}
 
         <Readout
           icon={TrendingUp}
@@ -647,7 +655,10 @@ export default function CurveTab(props) {
               type="text"
               inputMode="decimal"
               value={tradeInput}
-              onChange={(e) => setTradeInput(e.target.value)}
+              onChange={(e) => {
+                setTradeInput(e.target.value);
+                pokeCrab("type");
+              }}
               placeholder="+120 or -60"
               className="w-full bg-transparent py-3 outline-none"
               style={{ color: palette.text, fontFamily: mono, fontSize: "16px" }}
