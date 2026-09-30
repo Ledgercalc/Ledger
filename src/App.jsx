@@ -6642,7 +6642,7 @@ const hiddenTabIds = settings.hiddenTabs || [];
   }
 
   if (activeTab === "curve") {
-    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><CurveTab {...{ backupMsg, calMonth, cancelEditTrade, cancelImport, clearTrades, confirmImport, copyFallbackText, copyMsg, copyWeekSummary, customMoods, customMoodsLoaded, customSetups, customSetupsLoaded, deleteTrade, editingTradeId, expandedTradeId, exportBackup, fileInputRef, findSetupLabel, generateWeeklyShare, goals, handleScreenshotChange, importBackup, isDesktop, logFormRef, openScreenshotPicker, pendingImport, persistGoals, persistSettings, persistStartingBalance, screenshotError, screenshotInputRef, screenshotSaving, screenshotTargetId, selectedDay, setCalMonth, setCopyFallbackText, setExpandedTradeId, setPendingScreenshotDelete, setSelectedDay, setShowDisciplineInfo, setShowStreakInfo, setStatementPeriod, setTradeEmotion, setTradeInput, setTradeNote, setTradePair, setTradeSetup, setViewingScreenshot, settings, shareError, shareImageFile, showDisciplineInfo, showStreakInfo, startEditTrade, startingBalance, submitTrade, tradeEmotion, tradeInput, tradeNote, tradePair, tradeSetup, trades, tradesLoadError, tradesLoaded }} /></Suspense>;
+    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><CurveTab {...{ backupMsg, calMonth, cancelEditTrade, cancelImport, clearTrades, confirmImport, copyFallbackText, copyMsg, copyWeekSummary, customMoods, customMoodsLoaded, customSetups, customSetupsLoaded, deleteTrade, editingTradeId, expandedTradeId, exportBackup, fileInputRef, findSetupLabel, generateWeeklyShare, handleScreenshotChange, importBackup, isDesktop, logFormRef, openScreenshotPicker, pendingImport, persistSettings, persistStartingBalance, screenshotError, screenshotInputRef, screenshotSaving, screenshotTargetId, selectedDay, setCalMonth, setCopyFallbackText, setExpandedTradeId, setPendingScreenshotDelete, setSelectedDay, setShowDisciplineInfo, setShowStreakInfo, setStatementPeriod, setTradeEmotion, setTradeInput, setTradeNote, setTradePair, setTradeSetup, setViewingScreenshot, settings, shareError, shareImageFile, showDisciplineInfo, showStreakInfo, startEditTrade, startingBalance, submitTrade, tradeEmotion, tradeInput, tradeNote, tradePair, tradeSetup, trades, tradesLoadError, tradesLoaded }} /></Suspense>;
   }
 
   if (activeTab === "insights") {
@@ -6650,7 +6650,7 @@ const hiddenTabIds = settings.hiddenTabs || [];
   }
 
   if (activeTab === "journal") {
-    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><JournalTab {...{ addJournalRow, addPlaybookRule, addingSetup, cancelAddSetup, confirmAddSetup, customMoods, customSetups, deleteJournalRow, deletePlaybookCheckin, endJournalResize, exportJournalCSV, handleJournalCellKeyDown, handleJournalPhotoChange, hiddenDefaultSetupIds, importJournalCSV, isDesktop, isNarrowScreen, journalCellRefs, journalColWidths, journalEntries, journalExpandedRows, journalExportMsg, journalImportInputRef, journalImportMsg, journalLoaded, journalMonth, journalPhotoError, journalPhotoInputRef, journalPhotoSaving, journalPhotoTarget, journalSubTab, journalYear, moveJournalResize, newRuleText, newSetupName, openJournalPhotoPicker, persistSettings, playbookCheckins, playbookMsg, playbookRuleError, playbookRules, playbookRulesLoaded, removePlaybookRule, renderSubNav, setJournalMonth, setJournalSubTab, setJournalYear, setNewRuleText, setNewSetupName, setPendingJournalPhotoDelete, setPlaybookRuleError, setSetupError, setViewingJournalPhoto, settings, setupError, startJournalResize, submitCheckin, todayResults, toggleJournalRowExpanded, toggleTodayResult, triggerJournalImport, updateJournalField, updateJournalPnl }} /></Suspense>;
+    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><JournalTab {...{ goals, persistGoals, startingBalance, trades, addJournalRow, addPlaybookRule, addingSetup, cancelAddSetup, confirmAddSetup, customMoods, customSetups, deleteJournalRow, deletePlaybookCheckin, endJournalResize, exportJournalCSV, handleJournalCellKeyDown, handleJournalPhotoChange, hiddenDefaultSetupIds, importJournalCSV, isDesktop, isNarrowScreen, journalCellRefs, journalColWidths, journalEntries, journalExpandedRows, journalExportMsg, journalImportInputRef, journalImportMsg, journalLoaded, journalMonth, journalPhotoError, journalPhotoInputRef, journalPhotoSaving, journalPhotoTarget, journalSubTab, journalYear, moveJournalResize, newRuleText, newSetupName, openJournalPhotoPicker, persistSettings, playbookCheckins, playbookMsg, playbookRuleError, playbookRules, playbookRulesLoaded, removePlaybookRule, renderSubNav, setJournalMonth, setJournalSubTab, setJournalYear, setNewRuleText, setNewSetupName, setPendingJournalPhotoDelete, setPlaybookRuleError, setSetupError, setViewingJournalPhoto, settings, setupError, startJournalResize, submitCheckin, todayResults, toggleJournalRowExpanded, toggleTodayResult, triggerJournalImport, updateJournalField, updateJournalPnl }} /></Suspense>;
   }
 
   if (activeTab === "notepad") {
@@ -6658,7 +6658,7 @@ const hiddenTabIds = settings.hiddenTabs || [];
   }
 
   if (activeTab === "backtest") {
-    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><BacktestTab {...{ activeAccountId, isDesktop }} /></Suspense>;
+    body = <BacktestTab {...{ activeAccountId, isDesktop }} />;
   }
 
   if (activeTab === "sessions") {
@@ -7846,7 +7846,7 @@ if (activeTab === "community") {
 
           <p className="text-xs mt-3" style={{ color: palette.textFaint }}>
             Each account keeps its own starting balance, Challenge calculator inputs, trades, journal entries,
-            and Playbook check-ins. Setup/mood tags, notes, news events, and goals stay shared across every
+            and Trade plan check-ins. Setup/mood tags, notes, news events, and goals stay shared across every
             account. Switching here changes which one is active.
           </p>
         </SettingsSection>
@@ -8461,17 +8461,6 @@ if (activeTab === "community") {
 
         {/* JOURNAL & DATA */}
         <SettingsSection icon={Table2} title="Journal & Data" isDesktop={isDesktop} hidden={!isDesktop && settingsMobileSection !== "journal-data"}>
-          <SettingsSubLabel>Insights Heatmap Range</SettingsSubLabel>
-          <PillGroup
-            options={[13, 26, 52]}
-            suffix="w"
-            value={settings.heatmapWeeksBack}
-            onChange={(v) => persistSettings({ ...settings, heatmapWeeksBack: v })}
-          />
-          <p className="text-xs -mt-2 mb-4" style={{ color: palette.textFaint }}>
-            Weeks of history the Performance Heatmap on the Insights tab shows.
-          </p>
-
           <SettingsSubLabel>Journal Table Layout</SettingsSubLabel>
           <div className="flex gap-2 mb-1">
             {[
@@ -8543,7 +8532,7 @@ if (activeTab === "community") {
             {settings.showOnboardingTips ? "Tips are showing" : "Tips are hidden"}
           </button>
           <p className="text-xs mb-3" style={{ color: palette.textFaint }}>
-            Dismissible callouts pointing out tagging, the Playbook, and other features. Dismissing one hides
+            Dismissible callouts pointing out tagging, the Trade plan, and other features. Dismissing one hides
             only that tip.
           </p>
           <button
@@ -9870,7 +9859,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
                       ["Revenge Trades", `${data.revengeCost.revengeCount} (${fmtSigned(data.revengeCost.revengeTotal)})`],
                       ["Discipline Streak", `${data.discipline.current}d (best ${data.discipline.best}d)`],
                       ["Journal Completeness", `${data.completeness}%`],
-                      ["Playbook Clean Days", data.cleanPct === null ? "N/A" : `${data.cleanPct}% (${data.checkinCount} check-ins)`],
+                      ["Trade Plan Clean Days", data.cleanPct === null ? "N/A" : `${data.cleanPct}% (${data.checkinCount} check-ins)`],
                       ["Most Traded Pair", data.mostTradedPair ? `${data.mostTradedPair.pair} (${data.mostTradedPair.count}x)` : "N/A"],
                     ].map(([l, v]) => (
                       <div key={l} className="flex justify-between" style={{ fontSize: "11px", padding: "3px 0", borderBottom: `1px solid ${S.border}` }}>
