@@ -1,4 +1,3 @@
-import CrabMascot from "../components/CrabMascot.jsx";
 import { pokeCrab } from "../lib/mascot.js";
 import { useEffect, useRef } from "react";
 import { OnboardingTip } from "../components/onboarding.jsx";
@@ -70,6 +69,10 @@ export default function InsightsTab(props) {
     }
     prevCoachLoading.current = !!coachLoading;
   }, [coachLoading, coachError]);
+  useEffect(() => {
+    pokeCrab("rest", { pose: coachLoading ? "think" : "" });
+    return () => pokeCrab("rest", { pose: "" });
+  }, [coachLoading]);
   useEffect(() => {
     crabReady.current = true;
   }, []);
@@ -1787,11 +1790,6 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
           `}</style>
         )}
         {insightsSubNav}
-        {settings.mascotEnabled !== false && (
-          <div className="flex justify-end" style={{ marginBottom: "4px" }}>
-            <CrabMascot size={isDesktop ? 124 : 100} rest={coachLoading ? "think" : undefined} />
-          </div>
-        )}
         {insightsSubTab === "overview" && overviewSection}
         {insightsSubTab === "behavior" && behaviorSection}
         {insightsSubTab === "journal" && journalSection}
