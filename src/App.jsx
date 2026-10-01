@@ -7197,6 +7197,7 @@ if (activeTab === "community") {
                 body
               ) : !isDesktop ? (
                 <div
+                  key={activeTab}
                   className={tourActive ? undefined : tabDirRef.current.dir < 0 ? "ledger-tab-enter-back" : "ledger-tab-enter-fwd"}
                   style={{ paddingTop: "20px" }}
                 >
