@@ -1,5 +1,6 @@
+import CrabMascot from "../components/CrabMascot.jsx";
+import { pokeCrab } from "../lib/mascot.js";
 import { OnboardingTip } from "../components/onboarding.jsx";
-import TradePlan from "../components/TradePlan.jsx";
 import { CONFIDENCE_OPTIONS, EMOTIONS, JOURNAL_COLUMNS, JOURNAL_DETAIL_FIELDS, JOURNAL_TOGGLE_COL_WIDTH, MAX_JOURNAL_PHOTOS_PER_ROW, MAX_PLAYBOOK_RULES, OUTCOME_OPTIONS, SETUPS, TREND_OPTIONS } from "../lib/constants.js";
 import { MONTH_NAMES, MONTH_SHORT, dayKeyFromDate, formatDayLabel, pad2 } from "../lib/format.js";
 import { computePlaybookStats, isCleanCheckin } from "../lib/playbook.js";
@@ -10,25 +11,21 @@ import { Fragment } from "react";
 
 export default function JournalTab(props) {
   const {
-    addJournalRow,
-    addPlaybookRule,
+    addJournalRow: addJournalRowProp,
+    addPlaybookRule: addPlaybookRuleProp,
     addingSetup,
-    goals,
-    persistGoals,
-    startingBalance,
-    trades,
     cancelAddSetup,
-    confirmAddSetup,
+    confirmAddSetup: confirmAddSetupProp,
     customMoods,
     customSetups,
-    deleteJournalRow,
-    deletePlaybookCheckin,
+    deleteJournalRow: deleteJournalRowProp,
+    deletePlaybookCheckin: deletePlaybookCheckinProp,
     endJournalResize,
-    exportJournalCSV,
+    exportJournalCSV: exportJournalCSVProp,
     handleJournalCellKeyDown,
-    handleJournalPhotoChange,
+    handleJournalPhotoChange: handleJournalPhotoChangeProp,
     hiddenDefaultSetupIds,
-    importJournalCSV,
+    importJournalCSV: importJournalCSVProp,
     isDesktop,
     isNarrowScreen,
     journalCellRefs,
@@ -56,10 +53,10 @@ export default function JournalTab(props) {
     playbookRuleError,
     playbookRules,
     playbookRulesLoaded,
-    removePlaybookRule,
+    removePlaybookRule: removePlaybookRuleProp,
     renderSubNav,
     setJournalMonth,
-    setJournalSubTab,
+    setJournalSubTab: setJournalSubTabProp,
     setJournalYear,
     setNewRuleText,
     setNewSetupName,
@@ -70,67 +67,396 @@ export default function JournalTab(props) {
     settings,
     setupError,
     startJournalResize,
-    submitCheckin,
+    submitCheckin: submitCheckinProp,
     todayResults,
     toggleJournalRowExpanded,
-    toggleTodayResult,
+    toggleTodayResult: toggleTodayResultProp,
     triggerJournalImport,
-    updateJournalField,
-    updateJournalPnl
+    updateJournalField: updateJournalFieldProp,
+    updateJournalPnl: updateJournalPnlProp
   } = props;
+  // ── Mascot reactions: wrap the handlers so every action pokes the crab ──
+  const withCrab = (fn, mood, detail) => (...args) => {
+    pokeCrab(mood, detail);
+    return fn(...args);
+  };
+  const addJournalRow = withCrab(addJournalRowProp, "add");
+  const addPlaybookRule = withCrab(addPlaybookRuleProp, "add");
+  const confirmAddSetup = withCrab(confirmAddSetupProp, "add");
+  const deleteJournalRow = withCrab(deleteJournalRowProp, "poof");
+  const deletePlaybookCheckin = withCrab(deletePlaybookCheckinProp, "poof");
+  const removePlaybookRule = withCrab(removePlaybookRuleProp, "poof");
+  const exportJournalCSV = withCrab(exportJournalCSVProp, "save");
+  const importJournalCSV = withCrab(importJournalCSVProp, "add", { say: "Importing" });
+  const handleJournalPhotoChange = withCrab(handleJournalPhotoChangeProp, "check", { say: "Photo added" });
+  const setJournalSubTab = withCrab(setJournalSubTabProp, "look");
+  const updateJournalField = withCrab(updateJournalFieldProp, "type");
+  const updateJournalPnl = withCrab(updateJournalPnlProp, "type");
+  const submitCheckin = (...args) => {
+    const clean = playbookRules.length > 0 && playbookRules.every((r) => todayResults[r.id]);
+    pokeCrab(clean ? "party" : "check", { say: clean ? "Clean day!" : "Checked in" });
+    return submitCheckinProp(...args);
+  };
+  const toggleTodayResult = (id, ...rest) => {
+    pokeCrab(todayResults[id] ? "look" : "check", { say: "" });
+    return toggleTodayResultProp(id, ...rest);
+  };
+  const crabBlock =
+    settings.mascotEnabled !== false ? (
+      <div className="flex justify-end" style={{ marginBottom: "4px" }}>
+        <CrabMascot size={isDesktop ? 124 : 100} />
+      </div>
+    ) : null;
   let body = null;
     const JOURNAL_SUB_TABS = [
       { id: "log", label: "Journal" },
-      { id: "playbook", label: "Trade plan" },
+      { id: "playbook", label: "Playbook" },
     ];
 
     const journalSubNav = renderSubNav(JOURNAL_SUB_TABS, journalSubTab, setJournalSubTab);
 
     if (journalSubTab === "playbook") {
+      const stats = computePlaybookStats(playbookRules, playbookCheckins);
+      const todayKey = dayKeyFromDate(new Date());
+      const alreadyCheckedInToday = playbookCheckins.some((c) => c.date === todayKey);
+      const recentCheckins = [...playbookCheckins]
+        .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
+        .slice(0, 7);
+
       body = (
         <>
           {journalSubNav}
+          {crabBlock}
 
           <OnboardingTip
             id="playbook-intro"
-            text="Set your goals, risk limits, setups and rules in one place, then check in daily to build a discipline streak separate from your P&L."
+            text="Check off which rules you followed each day here to build a discipline streak, separate from your P&L."
             settings={settings}
             persistSettings={persistSettings}
           />
 
-          <TradePlan
-            {...{
-              isDesktop,
-              settings,
-              persistSettings,
-              trades,
-              startingBalance,
-              goals,
-              persistGoals,
-              customSetups,
-              customMoods,
-              hiddenDefaultSetupIds,
-              newSetupName,
-              setNewSetupName,
-              confirmAddSetup,
-              setupError,
-              setSetupError,
-              playbookRules,
-              playbookRulesLoaded,
-              playbookCheckins,
-              playbookMsg,
-              playbookRuleError,
-              newRuleText,
-              setNewRuleText,
-              setPlaybookRuleError,
-              addPlaybookRule,
-              removePlaybookRule,
-              todayResults,
-              toggleTodayResult,
-              submitCheckin,
-              deletePlaybookCheckin,
-            }}
-          />
+          <div className="flex items-center justify-between mb-1.5">
+            <span
+              className="uppercase"
+              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+            >
+              Today's Check-In
+            </span>
+            <span style={{ color: palette.textFaint, fontSize: "11px", fontFamily: mono }}>
+              {formatDayLabel(todayKey)}
+            </span>
+          </div>
+
+          {!playbookRulesLoaded ? (
+            <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
+              Loading playbook\u2026
+            </p>
+          ) : playbookRules.length === 0 ? (
+            <div
+              className="rounded-2xl p-6 mb-6 text-center"
+              style={{ background: palette.surface, border: `1px dashed ${palette.border}` }}
+            >
+              <ClipboardCheck size={22} style={{ color: palette.textFaint, margin: "0 auto 8px" }} />
+              <p className="text-xs" style={{ color: palette.textFaint }}>
+                Add a rule below to start checking in against your playbook.
+              </p>
+            </div>
+          ) : (
+            <div
+              className="rounded-2xl overflow-hidden mb-2"
+              style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow, transition: THEME_TRANSITION }}
+            >
+              {playbookRules.map((r, i) => {
+                const followed = !!todayResults[r.id];
+                return (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => toggleTodayResult(r.id)}
+                    className={`w-full flex items-center gap-3 px-4 py-3 text-left ${TAP}`}
+                    style={{
+                      background: followed ? `${palette.green}12` : "transparent",
+                      borderBottom: i < playbookRules.length - 1 ? `1px solid ${palette.border}` : "none",
+                    }}
+                  >
+                    <span
+                      className="flex items-center justify-center rounded-md flex-shrink-0"
+                      style={{
+                        width: "20px",
+                        height: "20px",
+                        border: `1.5px solid ${followed ? palette.green : palette.textFaint}`,
+                        background: followed ? palette.green : "transparent",
+                        color: palette.letterbox,
+                      }}
+                    >
+                      {followed && <Check size={13} strokeWidth={3} />}
+                    </span>
+                    <span style={{ color: followed ? palette.text : palette.textMuted, fontSize: "13px", flex: 1 }}>
+                      {r.text}
+                    </span>
+                  </button>
+                );
+              })}
+              <div className="p-3" style={{ borderTop: `1px solid ${palette.border}`, background: palette.field }}>
+                <button
+                  type="button"
+                  onClick={submitCheckin}
+                  className={`w-full flex items-center justify-center gap-2 rounded-lg py-2.5 ${TAP}`}
+                  style={{
+                    background: palette.gold,
+                    color: palette.letterbox,
+                    fontFamily: mono,
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    transition: `${THEME_TRANSITION}, transform 0.15s ease`,
+                  }}
+                >
+                  <ClipboardCheck size={16} />
+                  {alreadyCheckedInToday ? "Update Today's Check-In" : "Save Today's Check-In"}
+                </button>
+              </div>
+            </div>
+          )}
+          {playbookMsg && (
+            <p className="text-xs mb-4" style={{ color: palette.gold }}>
+              {playbookMsg}
+            </p>
+          )}
+          {!playbookMsg && <div className="mb-4" />}
+
+          {playbookRulesLoaded && stats.hasData && (
+            <>
+              <span
+                className="block mb-1.5 uppercase"
+                style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+              >
+                Playbook Stats
+              </span>
+              <div className="grid grid-cols-3 gap-3 lg:gap-4 mb-6">
+                <div
+                  className={isDesktop ? "rounded-lg p-5" : "rounded-lg p-3"}
+                  style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow, transition: THEME_TRANSITION }}
+                >
+                  <div
+                    className="flex items-center gap-1 mb-1"
+                    style={{ color: palette.textFaint, fontSize: isDesktop ? "12px" : "10px", letterSpacing: "0.06em" }}
+                  >
+                    <Flame size={isDesktop ? 13 : 11} style={{ color: stats.current > 0 ? palette.gold : palette.textFaint }} />
+                    STREAK
+                  </div>
+                  <div style={{ fontFamily: mono, fontSize: isDesktop ? "1.6rem" : "1.1rem", color: palette.text }}>
+                    {stats.current}
+                    <span style={{ fontSize: "11px", color: palette.textFaint }}>d</span>
+                  </div>
+                </div>
+                <div
+                  className={isDesktop ? "rounded-lg p-5" : "rounded-lg p-3"}
+                  style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow, transition: THEME_TRANSITION }}
+                >
+                  <div
+                    className="flex items-center gap-1 mb-1"
+                    style={{ color: palette.textFaint, fontSize: isDesktop ? "12px" : "10px", letterSpacing: "0.06em" }}
+                  >
+                    <TrendingUp size={isDesktop ? 13 : 11} />
+                    BEST
+                  </div>
+                  <div style={{ fontFamily: mono, fontSize: isDesktop ? "1.6rem" : "1.1rem", color: palette.text }}>
+                    {stats.best}
+                    <span style={{ fontSize: isDesktop ? "13px" : "11px", color: palette.textFaint }}>d</span>
+                  </div>
+                </div>
+                <div
+                  className={isDesktop ? "rounded-lg p-5" : "rounded-lg p-3"}
+                  style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow, transition: THEME_TRANSITION }}
+                >
+                  <div
+                    className="flex items-center gap-1 mb-1"
+                    style={{ color: palette.textFaint, fontSize: isDesktop ? "12px" : "10px", letterSpacing: "0.06em" }}
+                  >
+                    <Target size={isDesktop ? 13 : 11} />
+                    CLEAN
+                  </div>
+                  <div style={{ fontFamily: mono, fontSize: isDesktop ? "1.6rem" : "1.1rem", color: palette.text }}>
+                    {stats.overallPct}
+                    <span style={{ fontSize: isDesktop ? "13px" : "11px", color: palette.textFaint }}>%</span>
+                  </div>
+                </div>
+              </div>
+
+              <span
+                className="block mb-1.5 uppercase"
+                style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+              >
+                Per-Rule Follow Rate
+              </span>
+              <div
+                className="rounded-2xl p-4 mb-6"
+                style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow, transition: THEME_TRANSITION }}
+              >
+                {stats.ruleStats.map((r, i) => (
+                  <div key={r.id} style={{ marginBottom: i < stats.ruleStats.length - 1 ? "14px" : 0 }}>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span style={{ color: palette.text, fontSize: "12px", flex: 1, marginRight: "8px" }}>{r.text}</span>
+                      <span
+                        style={{
+                          fontFamily: mono,
+                          fontSize: "11px",
+                          color: r.pct === null ? palette.textFaint : r.pct >= 80 ? palette.green : r.pct >= 50 ? palette.gold : palette.red,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {r.pct === null ? "\u2014" : `${r.pct}%`}
+                      </span>
+                    </div>
+                    <div style={{ height: "5px", borderRadius: "999px", background: palette.field, overflow: "hidden" }}>
+                      <div
+                        style={{
+                          height: "100%",
+                          width: `${r.pct ?? 0}%`,
+                          background:
+                            r.pct === null ? "transparent" : r.pct >= 80 ? palette.green : r.pct >= 50 ? palette.gold : palette.red,
+                          borderRadius: "999px",
+                          transition: "width 0.3s ease",
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          <span
+            className="block mb-1.5 uppercase"
+            style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+          >
+            Your Rules
+          </span>
+          {playbookRulesLoaded && playbookRules.length > 0 && (
+            <div className="mb-2">
+              {playbookRules.map((r) => (
+                <div
+                  key={r.id}
+                  className="flex items-center justify-between rounded-lg px-3 py-3 mb-2"
+                  style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow, transition: THEME_TRANSITION }}
+                >
+                  <span style={{ color: palette.text, fontSize: "13px", flex: 1, marginRight: "8px" }}>{r.text}</span>
+                  <button
+                    type="button"
+                    onClick={() => removePlaybookRule(r.id)}
+                    className={`flex-shrink-0 ${TAP}`}
+                    style={{ color: palette.textFaint }}
+                    aria-label={`Remove rule: ${r.text}`}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {playbookRulesLoaded && playbookRules.length < MAX_PLAYBOOK_RULES && (
+            <div className="flex items-center gap-2 mb-1">
+              <input
+                type="text"
+                value={newRuleText}
+                onChange={(e) => {
+                  setNewRuleText(e.target.value);
+                  if (playbookRuleError) setPlaybookRuleError("");
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addPlaybookRule();
+                  }
+                }}
+                placeholder="New rule, e.g. Min 1:2 R:R"
+                maxLength={80}
+                className="flex-1 rounded-lg px-3 py-2.5 bg-transparent outline-none"
+                style={{
+                  background: palette.field,
+                  border: `1px solid ${palette.border}`,
+                  color: palette.text,
+                  fontSize: "13px",
+                }}
+              />
+              <button
+                type="button"
+                onClick={addPlaybookRule}
+                className={`flex items-center justify-center rounded-lg flex-shrink-0 ${TAP}`}
+                style={{ width: "42px", height: "42px", background: palette.gold, color: palette.letterbox }}
+                aria-label="Add rule"
+              >
+                <Plus size={18} strokeWidth={2.4} />
+              </button>
+            </div>
+          )}
+          {playbookRuleError && (
+            <p className="text-xs mb-2" style={{ color: palette.red }}>
+              {playbookRuleError}
+            </p>
+          )}
+          <p className="text-xs mt-1 mb-6" style={{ color: palette.textFaint }}>
+            Track up to {MAX_PLAYBOOK_RULES} rules at once. Removing a rule only affects future check-ins,
+            past history keeps whatever was recorded for it.
+          </p>
+
+          {recentCheckins.length > 0 && (
+            <>
+              <span
+                className="block mb-1.5 uppercase"
+                style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+              >
+                Recent Check-Ins
+              </span>
+              <div
+                className="rounded-2xl px-3 mb-4"
+                style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow, transition: THEME_TRANSITION }}
+              >
+                {recentCheckins.map((c, i) => {
+                  const clean = isCleanCheckin(c);
+                  const total = Object.keys(c.results || {}).length;
+                  const followedCount = Object.values(c.results || {}).filter(Boolean).length;
+                  return (
+                    <div
+                      key={c.id}
+                      className="flex items-center justify-between py-2.5"
+                      style={{ borderBottom: i < recentCheckins.length - 1 ? `1px solid ${palette.border}` : "none" }}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span
+                          className="flex items-center justify-center rounded-full flex-shrink-0"
+                          style={{
+                            width: "18px",
+                            height: "18px",
+                            background: clean ? `${palette.green}22` : `${palette.red}18`,
+                            color: clean ? palette.green : palette.red,
+                          }}
+                        >
+                          {clean ? <Check size={11} strokeWidth={3} /> : <X size={11} strokeWidth={3} />}
+                        </span>
+                        <span style={{ color: palette.text, fontSize: "13px" }}>{formatDayLabel(c.date)}</span>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span style={{ fontFamily: mono, fontSize: "11px", color: palette.textMuted }}>
+                          {followedCount}/{total} followed
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => deletePlaybookCheckin(c.id)}
+                          className={TAP}
+                          style={{ color: palette.textFaint }}
+                          aria-label={`Delete check-in for ${formatDayLabel(c.date)}`}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </>
       );
     } else if (journalMonth === null) {
@@ -146,6 +472,7 @@ export default function JournalTab(props) {
       body = (
         <>
           {journalSubNav}
+          {crabBlock}
 
           <div className="flex items-center justify-between mb-6">
             <button
@@ -703,6 +1030,7 @@ export default function JournalTab(props) {
       body = (
         <>
           {journalSubNav}
+          {crabBlock}
 
           <OnboardingTip
             id="journal-table-intro"
