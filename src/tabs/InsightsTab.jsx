@@ -182,40 +182,74 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
       </div>
     ) : (
       <div
-        className="flex gap-2 mb-6"
         style={{
-          overflowX: "auto",
-          WebkitOverflowScrolling: "touch",
           position: "sticky",
           top: 0,
           zIndex: 5,
           background: palette.bg,
           paddingTop: "8px",
-          paddingBottom: "8px",
+          paddingBottom: "12px",
         }}
       >
-        {INSIGHTS_SUB_TABS.map((s) => {
-          const active = insightsSubTab === s.id;
-          return (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => selectInsightsSubTab(s.id)}
-              className={`flex-1 px-3 py-2 rounded-full transition-colors ${TAP}`}
-              style={{
-                background: active ? palette.gold : palette.field,
-                color: active ? palette.letterbox : palette.textMuted,
-                border: `1px solid ${active ? palette.gold : palette.border}`,
-                fontFamily: mono,
-                fontSize: "13px",
-                fontWeight: 600,
-                whiteSpace: "nowrap",
-              }}
-            >
-              {s.label}
-            </button>
-          );
-        })}
+        <div
+          role="tablist"
+          className="relative"
+          style={{
+            display: "grid",
+            gridTemplateColumns: `repeat(${INSIGHTS_SUB_TABS.length}, minmax(0, 1fr))`,
+            padding: "4px",
+            borderRadius: "14px",
+            background: palette.field,
+            border: `1px solid ${palette.border}`,
+          }}
+        >
+          <span
+            aria-hidden="true"
+            className="ledger-seg-thumb"
+            style={{
+              position: "absolute",
+              top: "4px",
+              bottom: "4px",
+              left: "4px",
+              width: `calc((100% - 8px) / ${INSIGHTS_SUB_TABS.length})`,
+              transform: `translateX(${Math.max(0, INSIGHTS_SUB_TABS.findIndex((t) => t.id === insightsSubTab)) * 100}%)`,
+              borderRadius: "10px",
+              background: palette.gold,
+              boxShadow: "0 2px 10px rgba(0,0,0,0.25)",
+            }}
+          />
+          {INSIGHTS_SUB_TABS.map((s) => {
+            const active = insightsSubTab === s.id;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => selectInsightsSubTab(s.id)}
+                className={`relative ${TAP}`}
+                style={{
+                  zIndex: 1,
+                  background: "transparent",
+                  border: "none",
+                  padding: "10px 4px",
+                  minWidth: 0,
+                  textAlign: "center",
+                  color: active ? palette.letterbox : palette.textMuted,
+                  fontFamily: display,
+                  fontSize: INSIGHTS_SUB_TABS.length > 3 ? "12.5px" : "13.5px",
+                  fontWeight: active ? 700 : 500,
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  transition: "color 0.2s ease",
+                }}
+              >
+                {s.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
     );
 
