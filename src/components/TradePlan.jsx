@@ -19,6 +19,8 @@ function Card({ icon: Icon, title, editing, onToggle, isDesktop, children }) {
         boxShadow: palette.shadow,
         padding: isDesktop ? "26px 28px 24px" : "20px 20px 18px",
         transition: THEME_TRANSITION,
+        minWidth: 0,
+        boxSizing: "border-box",
       }}
     >
       <div className="flex items-center gap-3" style={{ marginBottom: 20 }}>
@@ -267,11 +269,11 @@ export default function TradePlan(props) {
   const recent = [...playbookCheckins].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)).slice(0, 5);
   const canAddPsych = playbookRulesLoaded && playbookRules.length < MAX_PLAYBOOK_RULES;
 
-  const grid2 = { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "18px 16px", marginBottom: 22 };
+  const grid2 = { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "18px 16px", marginBottom: 22, alignItems: "end" };
 
   return (
     <div
-      style={{ display: "grid", gridTemplateColumns: isDesktop ? "repeat(2, minmax(0, 1fr))" : "minmax(0, 1fr)", gap: isDesktop ? 20 : 16, alignItems: "start", marginBottom: 24 }}
+      style={{ display: "grid", gridTemplateColumns: isDesktop ? "repeat(2, minmax(0, 1fr))" : "minmax(0, 1fr)", gap: isDesktop ? 20 : 16, alignItems: "stretch", marginBottom: 24 }}
     >
       {/* GOALS */}
       <Card icon={Target} title="My Goal" editing={editing.goals} onToggle={() => toggle("goals")} isDesktop={isDesktop}>
