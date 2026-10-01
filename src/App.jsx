@@ -21,16 +21,36 @@ import { formatCountdown, formatMinSec, nextOccurrenceMs } from "./lib/time.js";
 import { AlertTriangle, ArrowLeftRight, Bell, Building2, Camera, CandlestickChart, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, Flame, Heart, LayoutGrid, Lightbulb, LogOut, MessageCircle, Moon, Newspaper, Palette, Pencil, Plus, RotateCcw, Scale, Search, Send, Settings, Share2, ShieldAlert, Sun, Table2, Tags, Trash2, Upload, Users, X } from "lucide-react";
 import React, { Suspense, lazy, useEffect, useId, useMemo, useRef, useState } from "react";
 
-const RiskTab = lazy(() => import("./tabs/RiskTab.jsx"));
-const PropFirmTab = lazy(() => import("./tabs/PropFirmTab.jsx"));
-const ConvertTab = lazy(() => import("./tabs/ConvertTab.jsx"));
-const CurveTab = lazy(() => import("./tabs/CurveTab.jsx"));
-const InsightsTab = lazy(() => import("./tabs/InsightsTab.jsx"));
-const JournalTab = lazy(() => import("./tabs/JournalTab.jsx"));
-const NotepadTab = lazy(() => import("./tabs/NotepadTab.jsx"));
-const SessionsTab = lazy(() => import("./tabs/SessionsTab.jsx"));
-const CommunityTab = lazy(() => import("./tabs/CommunityTab.jsx"));
-const BacktestTab = lazy(() => import("./tabs/BacktestTab.jsx"));
+// Lazy tab that can be preloaded. Once its chunk is in memory the tab renders
+// synchronously (no Suspense fallback flash), so the enter animation always
+// plays against real content instead of an empty box.
+function lazyTab(loader) {
+  let Loaded = null;
+  const load = () => loader().then((mod) => { Loaded = mod.default; return mod; });
+  const Lazy = lazy(load);
+  function Tab(props) {
+    const [Comp] = useState(() => Loaded || Lazy); // fixed per mount, so state is never remounted
+    return <Comp {...props} />;
+  }
+  Tab.preload = load;
+  return Tab;
+}
+const RiskTab = lazyTab(() => import("./tabs/RiskTab.jsx"));
+const PropFirmTab = lazyTab(() => import("./tabs/PropFirmTab.jsx"));
+const ConvertTab = lazyTab(() => import("./tabs/ConvertTab.jsx"));
+const CurveTab = lazyTab(() => import("./tabs/CurveTab.jsx"));
+const InsightsTab = lazyTab(() => import("./tabs/InsightsTab.jsx"));
+const JournalTab = lazyTab(() => import("./tabs/JournalTab.jsx"));
+const NotepadTab = lazyTab(() => import("./tabs/NotepadTab.jsx"));
+const SessionsTab = lazyTab(() => import("./tabs/SessionsTab.jsx"));
+const CommunityTab = lazyTab(() => import("./tabs/CommunityTab.jsx"));
+const BacktestTab = lazyTab(() => import("./tabs/BacktestTab.jsx"));
+const TAB_PRELOAD = {
+  risk: RiskTab.preload, propfirm: PropFirmTab.preload, fx: ConvertTab.preload,
+  curve: CurveTab.preload, insights: InsightsTab.preload, journal: JournalTab.preload,
+  notepad: NotepadTab.preload, sessions: SessionsTab.preload, community: CommunityTab.preload,
+  backtest: BacktestTab.preload,
+};
 
 // The Backtest tab is added here so constants.js stays untouched. If you later add a
 // "backtest" entry to TABS in constants.js, this line simply uses that one instead.
@@ -847,6 +867,14 @@ const [mobileNavHidden, setMobileNavHidden] = useState(false);
 useEffect(() => { setMobileNavHidden(false); }, [activeTab]);
 const lastNavScrollYRef = useRef(0);
 const dockRef = useRef(null);
+useEffect(() => {
+  // Warm all tab chunks once the app is idle so tab switches never wait on the network.
+  const warm = () => Object.values(TAB_PRELOAD).forEach((p) => { try { p().catch(() => {}); } catch (e) { /* ignore */ } });
+  const idle = window.requestIdleCallback || ((cb) => setTimeout(cb, 1200));
+  const cancel = window.cancelIdleCallback || clearTimeout;
+  const id = idle(warm, { timeout: 4000 });
+  return () => cancel(id);
+}, []);
 useEffect(() => {
   if (isDesktop) return;
   const el = dockRef.current?.querySelector('[data-dock-active="true"]');
@@ -6930,19 +6958,21 @@ if (activeTab === "community") {
 
 /* Mobile tab switch: content slides in from the side you are moving towards */
 @keyframes tabEnterFwd {
-  from { opacity: 0; transform: translate3d(32px, 0, 0) scale(0.985); }
-  to   { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+  from { opacity: 0; transform: translate3d(28px, 0, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
 }
 @keyframes tabEnterBack {
-  from { opacity: 0; transform: translate3d(-32px, 0, 0) scale(0.985); }
-  to   { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+  from { opacity: 0; transform: translate3d(-28px, 0, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
 }
 @keyframes tabFadeOnly {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
-.ledger-tab-enter-fwd  { animation: tabEnterFwd 0.34s cubic-bezier(0.22, 1, 0.36, 1) both; }
-.ledger-tab-enter-back { animation: tabEnterBack 0.34s cubic-bezier(0.22, 1, 0.36, 1) both; }
+/* "backwards" (not "both"): once finished no transform is left on the wrapper,
+   so position:fixed sheets/modals inside tabs are not trapped by it. */
+.ledger-tab-enter-fwd  { animation: tabEnterFwd 0.3s cubic-bezier(0.22, 1, 0.36, 1) backwards }
+.ledger-tab-enter-back { animation: tabEnterBack 0.3s cubic-bezier(0.22, 1, 0.36, 1) backwards }
 
 /* Dock pill: label unfolds and icon pops when a tab becomes active */
 @keyframes dockLabelIn {
@@ -6966,7 +6996,7 @@ if (activeTab === "community") {
 
 @media (prefers-reduced-motion: reduce) {
   .ledger-tab-enter-fwd,
-  .ledger-tab-enter-back { animation: tabFadeOnly 0.2s ease-out both !important; }
+  .ledger-tab-enter-back { animation: tabFadeOnly 0.2s ease-out backwards !important; }
   .ledger-dock-label { animation: none !important; }
   .ledger-dock-item[data-dock-active="true"] svg { animation: none !important; }
 }
@@ -7197,7 +7227,6 @@ if (activeTab === "community") {
                 body
               ) : !isDesktop ? (
                 <div
-                  key={activeTab}
                   className={tourActive ? undefined : tabDirRef.current.dir < 0 ? "ledger-tab-enter-back" : "ledger-tab-enter-fwd"}
                   style={{ paddingTop: "20px" }}
                 >
@@ -7281,6 +7310,7 @@ if (activeTab === "community") {
         type="button"
         data-tour-id={`tab-${tab.id}`}
         data-dock-active={!isDesktop && active ? "true" : undefined}
+        onPointerDown={() => { try { TAB_PRELOAD[tab.id]?.().catch(() => {}); } catch (e) { /* ignore */ } }}
         onClick={() => {
           setActiveTab(tab.id);
           setMoreMenuOpen(false);
