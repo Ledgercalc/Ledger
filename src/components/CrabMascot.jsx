@@ -13,6 +13,7 @@ import { palette } from "../lib/theme.js";
    Props
      size     height in px (default 110)
      rest     pose to hold when nothing is happening: "worry" | "think" | ...
+              (or set it from anywhere: pokeCrab("rest", { pose: "worry" }), pose: "" clears it)
      enabled  false = render nothing
    ────────────────────────────────────────────────────────────────────────── */
 
@@ -366,6 +367,7 @@ export default function CrabMascot({ size = 110, rest, enabled = true }) {
   const [mood, setMood] = useState("");
   const [screen, setScreen] = useState("0.");
   const [bubble, setBubble] = useState("");
+  const [restPose, setRestPose] = useState("");
   const moodTimer = useRef(0);
   const sleepTimer = useRef(0);
   const bubbleTimer = useRef(0);
@@ -407,6 +409,10 @@ export default function CrabMascot({ size = 110, rest, enabled = true }) {
     const onPoke = (e) => {
       const d = (e && e.detail) || {};
       if (!d.mood) return;
+      if (d.mood === "rest") {
+        setRestPose(d.pose || "");
+        return;
+      }
       if (d.mood === "type") {
         const now = Date.now();
         if (now - typeGate.current < 120) return;
@@ -426,8 +432,9 @@ export default function CrabMascot({ size = 110, rest, enabled = true }) {
 
   if (!enabled) return null;
 
-  const effective = mood || rest || "idle";
-  const shownScreen = mood ? screen : rest && REST_SCREEN[rest] !== undefined ? REST_SCREEN[rest] : screen;
+  const holdPose = restPose || rest;
+  const effective = mood || holdPose || "idle";
+  const shownScreen = mood ? screen : holdPose && REST_SCREEN[holdPose] !== undefined ? REST_SCREEN[holdPose] : screen;
   const W = Math.round((size * 240) / 190);
   const gold = palette.gold || "#E3B04B";
   const sad = effective === "loss" || effective === "worry";
