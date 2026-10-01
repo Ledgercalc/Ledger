@@ -1,4 +1,3 @@
-import CrabMascot from "../components/CrabMascot.jsx";
 import { pokeCrab } from "../lib/mascot.js";
 import { useEffect, useRef } from "react";
 import { Field, PillGroup, Readout, RuleRow, StatChip } from "../components/ui.jsx";
@@ -223,18 +222,16 @@ const edgeCurveData = Array.from({ length: EDGE_CURVE_POINTS + 1 }, (_, i) => {
       crabPrev.current = { hit, breach };
     }, [hasTarget, hasBoth, progressPct, overallPass]);
     useEffect(() => {
+      pokeCrab("rest", { pose: overallPass === false ? "worry" : "" });
+      return () => pokeCrab("rest", { pose: "" });
+    }, [overallPass]);
+    useEffect(() => {
       crabReady.current = true;
     }, []);
 
     body = (
       <>
         {renderSubNav(RISK_SUB_TABS, riskSubTab, setRiskSubTab)}
-
-        {settings.mascotEnabled !== false && (
-          <div className="flex justify-end" style={{ marginBottom: "4px" }}>
-            <CrabMascot size={isDesktop ? 124 : 100} rest={overallPass === false ? "worry" : undefined} />
-          </div>
-        )}
 
         {riskSubTab === "challenge" ? (
           <>
