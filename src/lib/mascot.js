@@ -1,6 +1,8 @@
 // Tiny event bus so any file can make the crab react without prop drilling.
 //   pokeCrab("win", { amount: 25 })   pokeCrab("loss", { amount: -40 })
 //   pokeCrab("save") | "poof" | "type" | "tap" | "wave"  (optional { say: "custom text" })
+//   pokeCrab("add") | "check" | "alert" | "look" | "party" | "think"
+//   pokeCrab("rest", { pose: "worry" })  holds a pose until cleared with { pose: "" }
 export const CRAB_EVENT = "tredzi:crab";
 
 export function pokeCrab(mood, detail = {}) {
