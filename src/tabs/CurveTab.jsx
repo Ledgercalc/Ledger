@@ -1,14 +1,13 @@
-import CrabMascot from "../components/CrabMascot.jsx";
 import { pokeCrab } from "../lib/mascot.js";
 import { OnboardingTip } from "../components/onboarding.jsx";
 import { Field, Readout, StatChip } from "../components/ui.jsx";
-import { computeDisciplineStreak, computeGoalProgress, computeRevengeIds } from "../lib/analytics.js";
+import { computeDisciplineStreak, computeRevengeIds } from "../lib/analytics.js";
 import { EMOTIONS, MAX_CUSTOM_SETUPS, NOTE_TAGS, RUNTIME, SETUPS, emotionMeta } from "../lib/constants.js";
 import { MONTH_NAMES, WEEKDAY_LABELS, dayKeyFromDate, dayKeyFromTs, fmt, fmtMoney, formatDayLabel, num, pad2 } from "../lib/format.js";
 import { SCREENSHOT_MAX_PER_TRADE, tradeScreenshots } from "../lib/images.js";
 import { TAP, THEME_TRANSITION, mono, palette } from "../lib/theme.js";
 import { Camera, Check, ChevronLeft, ChevronRight, Copy, Download, FileText, Pencil, Plus, Share2, Trash2, TrendingUp, Upload, X } from "lucide-react";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 // Stable references so recharts never sees new prop identities on re-render.
@@ -51,14 +50,12 @@ export default function CurveTab(props) {
     fileInputRef,
     findSetupLabel,
     generateWeeklyShare,
-    goals: goalsProp,
     handleScreenshotChange,
     importBackup,
     isDesktop,
     logFormRef,
     openScreenshotPicker,
     pendingImport,
-    persistGoals,
     persistSettings,
     persistStartingBalance,
     screenshotError,
@@ -97,8 +94,6 @@ export default function CurveTab(props) {
     tradesLoadError,
     tradesLoaded
   } = props;
-  // Safe fallback so a missing prop can never blank the whole tab.
-  const goals = goalsProp || { weeklyTargetPct: "", monthlyTargetPct: "" };
   const chartData = useMemo(() => {
     const start = num(startingBalance);
     let run = start;
@@ -199,6 +194,10 @@ export default function CurveTab(props) {
     const hitDailyLossLimit = dailyLossLimitNum > 0 && Math.abs(todayLossTotal) >= dailyLossLimitNum;
     const maxTradesNum = num(settings.maxTradesPerDay);
     const hitMaxTrades = maxTradesNum > 0 && todayTradeCount >= maxTradesNum;
+    useEffect(() => {
+      pokeCrab("rest", { pose: hitDailyLossLimit || hitMaxTrades ? "worry" : "" });
+      return () => pokeCrab("rest", { pose: "" });
+    }, [hitDailyLossLimit, hitMaxTrades]);
 
     const goPrevMonth = () => {
       setCalMonth(new Date(viewYear, viewMonthIdx - 1, 1));
@@ -218,12 +217,6 @@ export default function CurveTab(props) {
   	settings={settings}
   	persistSettings={persistSettings}
        />
-
-        {settings.mascotEnabled !== false && (
-          <div className="flex justify-end" style={{ marginBottom: "4px" }}>
-            <CrabMascot size={isDesktop ? 124 : 100} rest={hitDailyLossLimit || hitMaxTrades ? "worry" : undefined} />
-          </div>
-        )}
 
         <Readout
           icon={TrendingUp}
@@ -325,73 +318,6 @@ export default function CurveTab(props) {
             <p className="text-xs mt-2" style={{ color: palette.textFaint }}>
               Consecutive trading days with no revenge trade (opened within {RUNTIME.REVENGE_WINDOW_MINUTES} minutes of a
               loss) tracks behavior, not P&amp;L.
-            </p>
-          )}
-        </div>
-
-        <span
-          className="block mb-1.5 uppercase"
-          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
-        >
-          Goals
-        </span>
-        <div
-          className={isDesktop ? "rounded-2xl p-6 mb-4" : "rounded-2xl p-4 mb-4"}
-          style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow, transition: THEME_TRANSITION }}
-        >
-          {[
-            { key: "weeklyTargetPct", period: "week", label: "This Week" },
-            { key: "monthlyTargetPct", period: "month", label: "This Month" },
-          ].map(({ key, period, label }, idx) => {
-            const targetPct = num(goals[key]);
-            const progress = computeGoalProgress(trades, startBal, period);
-            const hasTarget = goals[key] !== "" && targetPct > 0;
-            const pct = progress ? progress.pct : 0;
-            const progressToward = hasTarget && targetPct > 0 ? Math.max(0, Math.min(100, (pct / targetPct) * 100)) : 0;
-            const met = hasTarget && pct >= targetPct;
-            return (
-              <div key={key} style={{ marginBottom: idx === 0 ? "16px" : 0 }}>
-                <div className="flex items-center justify-between mb-1.5">
-                  <span style={{ color: palette.text, fontSize: "13px", fontWeight: 600 }}>{label}</span>
-                  <span
-                    style={{
-                      fontFamily: mono,
-                      fontSize: "12px",
-                      color: !startBal ? palette.textFaint : met ? palette.green : pct < 0 ? palette.red : palette.textMuted,
-                    }}
-                  >
-                    {startBal ? `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%` : "N/A"}
-                    {hasTarget ? ` / ${targetPct}%` : ""}
-                  </span>
-                </div>
-                {hasTarget && (
-                  <div style={{ height: "6px", borderRadius: "999px", background: palette.field, overflow: "hidden", marginBottom: "6px" }}>
-                    <div
-                      style={{
-                        height: "100%",
-                        width: `${progressToward}%`,
-                        background: met ? palette.green : palette.gold,
-                        borderRadius: "999px",
-                        transition: "width 0.3s ease",
-                      }}
-                    />
-                  </div>
-                )}
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={goals[key]}
-                  onChange={(e) => persistGoals({ ...goals, [key]: e.target.value })}
-                  placeholder="Set a target %"
-                  className="w-full rounded-lg px-3 py-2 bg-transparent outline-none"
-                  style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "13px" }}
-                />
-              </div>
-            );
-          })}
-          {!startBal && (
-            <p className="text-xs mt-3" style={{ color: palette.textFaint }}>
-              Set a starting balance below so goal progress can be calculated as a percentage.
             </p>
           )}
         </div>
