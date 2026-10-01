@@ -1,3 +1,6 @@
+import CrabMascot from "../components/CrabMascot.jsx";
+import { pokeCrab } from "../lib/mascot.js";
+import { useEffect, useRef } from "react";
 import { OnboardingTip } from "../components/onboarding.jsx";
 import { Readout, StatChip } from "../components/ui.jsx";
 import { METRIC_INFO, MIN_TRADES_FOR_TIERS, computeConsistencyScore, computeDisciplineGrade, computeDisciplineStreakTrend, computeHeadlineInsight, computeHeatmapWeeks, computeInsights, computeJournalCompleteness, computeMonthComparison, computeNoteTagAnalysis, computeOverconfidenceCheck, computePerformanceMetrics, computeRevengeCostSplit, filledJournalRows, joinWithAnd, journalConfidenceByDay, journalDailyPnLSeries, journalMistakeFrequency, journalMistakePatterns, journalMonthlyPnLSeries, journalMonthlyVolume, journalPairFrequency, journalPnLByDay, journalPnLByMonth, journalRRDistribution, journalRRSeries, journalSessionByDay, journalSessionFrequency, journalSetupRadar, journalTrendBreakdown, journalWeekdayFrequency, tierColor } from "../lib/analytics.js";
@@ -35,7 +38,6 @@ export default function InsightsTab(props) {
     newCoachChat,
     openCoachChat,
     persistSettings,
-    renderSubNav,
     selectInsightsSubTab,
     sendCoachMessage,
     session,
@@ -49,6 +51,28 @@ export default function InsightsTab(props) {
     settings,
     trades
   } = props;
+  // ── Mascot reactions ───────────────────────────────────────────────
+  const crabReady = useRef(false);
+  const prevCoachLoading = useRef(false);
+  useEffect(() => {
+    if (crabReady.current) pokeCrab("look");
+  }, [insightsSubTab]);
+  useEffect(() => {
+    if (crabReady.current && expandedMetric) pokeCrab("look", { say: "" });
+  }, [expandedMetric]);
+  useEffect(() => {
+    if (crabReady.current && expandedHeatmapDay) pokeCrab("look", { say: "" });
+  }, [expandedHeatmapDay]);
+  useEffect(() => {
+    if (prevCoachLoading.current && !coachLoading && crabReady.current) {
+      if (coachError) pokeCrab("alert", { say: "Coach hit a snag" });
+      else pokeCrab("check", { say: "Coach replied" });
+    }
+    prevCoachLoading.current = !!coachLoading;
+  }, [coachLoading, coachError]);
+  useEffect(() => {
+    crabReady.current = true;
+  }, []);
   let body = null;
     const hasData = trades.length > 0;
     const insights = computeInsights(trades, customSetups, customMoods);
@@ -114,7 +138,83 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
       { id: "coach", label: "Coach" },
     ];
 
-    const insightsSubNav = renderSubNav(INSIGHTS_SUB_TABS, insightsSubTab, selectInsightsSubTab);
+    const insightsSubNav = isDesktop ? (
+      <div
+        className="flex items-center gap-7 mb-8"
+        style={{
+          borderBottom: `1px solid ${palette.border}`,
+          position: "sticky",
+          top: 0,
+          zIndex: 5,
+          background: palette.bg,
+          paddingTop: "6px",
+        }}
+      >
+        {INSIGHTS_SUB_TABS.map((s) => {
+          const active = insightsSubTab === s.id;
+          return (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => selectInsightsSubTab(s.id)}
+              className={TAP}
+              style={{
+                background: "transparent",
+                border: "none",
+                borderBottom: `2.5px solid ${active ? palette.gold : "transparent"}`,
+                color: active ? palette.text : palette.textFaint,
+                fontFamily: display,
+                fontSize: "14.5px",
+                fontWeight: active ? 700 : 500,
+                padding: "0 2px 14px 2px",
+                marginBottom: "-1px",
+                cursor: "pointer",
+                transition: "color 0.15s ease, border-color 0.15s ease",
+              }}
+            >
+              {s.label}
+            </button>
+          );
+        })}
+      </div>
+    ) : (
+      <div
+        className="flex gap-2 mb-6"
+        style={{
+          overflowX: "auto",
+          WebkitOverflowScrolling: "touch",
+          position: "sticky",
+          top: 0,
+          zIndex: 5,
+          background: palette.bg,
+          paddingTop: "8px",
+          paddingBottom: "8px",
+        }}
+      >
+        {INSIGHTS_SUB_TABS.map((s) => {
+          const active = insightsSubTab === s.id;
+          return (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => selectInsightsSubTab(s.id)}
+              className={`flex-1 px-3 py-2 rounded-full transition-colors ${TAP}`}
+              style={{
+                background: active ? palette.gold : palette.field,
+                color: active ? palette.letterbox : palette.textMuted,
+                border: `1px solid ${active ? palette.gold : palette.border}`,
+                fontFamily: mono,
+                fontSize: "13px",
+                fontWeight: 600,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {s.label}
+            </button>
+          );
+        })}
+      </div>
+    );
 
 
     const metricCard = (key, label, valueText, tier) => (
@@ -1601,7 +1701,10 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
           <input
             type="text"
             value={coachInput}
-            onChange={(e) => setCoachInput(e.target.value)}
+            onChange={(e) => {
+              setCoachInput(e.target.value);
+              pokeCrab("type");
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
@@ -1622,7 +1725,10 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
           />
           <button
             type="button"
-            onClick={sendCoachMessage}
+            onClick={(e) => {
+              pokeCrab("tap", { say: "" });
+              sendCoachMessage(e);
+            }}
             disabled={coachLoading || !coachInput.trim()}
             className={`rounded-lg px-4 py-2.5 flex items-center justify-center ${TAP}`}
             style={{
@@ -1681,6 +1787,11 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
           `}</style>
         )}
         {insightsSubNav}
+        {settings.mascotEnabled !== false && (
+          <div className="flex justify-end" style={{ marginBottom: "4px" }}>
+            <CrabMascot size={isDesktop ? 124 : 100} rest={coachLoading ? "think" : undefined} />
+          </div>
+        )}
         {insightsSubTab === "overview" && overviewSection}
         {insightsSubTab === "behavior" && behaviorSection}
         {insightsSubTab === "journal" && journalSection}
@@ -1690,7 +1801,10 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
           <>
             <button
               type="button"
-              onClick={exportInsightsReport}
+              onClick={(e) => {
+                pokeCrab("save");
+                exportInsightsReport(e);
+              }}
               className={`w-full flex items-center justify-center gap-2 rounded-lg py-3 mt-2 mb-2 ${TAP}`}
               style={{
                 background: palette.field,
