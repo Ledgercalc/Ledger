@@ -1,6 +1,6 @@
-import CrabMascot from "../components/CrabMascot.jsx";
 import { pokeCrab } from "../lib/mascot.js";
 import { OnboardingTip } from "../components/onboarding.jsx";
+import TradePlan from "../components/TradePlan.jsx";
 import { CONFIDENCE_OPTIONS, EMOTIONS, JOURNAL_COLUMNS, JOURNAL_DETAIL_FIELDS, JOURNAL_TOGGLE_COL_WIDTH, MAX_JOURNAL_PHOTOS_PER_ROW, MAX_PLAYBOOK_RULES, OUTCOME_OPTIONS, SETUPS, TREND_OPTIONS } from "../lib/constants.js";
 import { MONTH_NAMES, MONTH_SHORT, dayKeyFromDate, formatDayLabel, pad2 } from "../lib/format.js";
 import { computePlaybookStats, isCleanCheckin } from "../lib/playbook.js";
@@ -11,6 +11,10 @@ import { Fragment } from "react";
 
 export default function JournalTab(props) {
   const {
+    goals,
+    persistGoals,
+    startingBalance,
+    trades,
     addJournalRow: addJournalRowProp,
     addPlaybookRule: addPlaybookRuleProp,
     addingSetup,
@@ -101,16 +105,10 @@ export default function JournalTab(props) {
     pokeCrab(todayResults[id] ? "look" : "check", { say: "" });
     return toggleTodayResultProp(id, ...rest);
   };
-  const crabBlock =
-    settings.mascotEnabled !== false ? (
-      <div className="flex justify-end" style={{ marginBottom: "4px" }}>
-        <CrabMascot size={isDesktop ? 124 : 100} />
-      </div>
-    ) : null;
   let body = null;
     const JOURNAL_SUB_TABS = [
       { id: "log", label: "Journal" },
-      { id: "playbook", label: "Playbook" },
+      { id: "playbook", label: "Trade plan" },
     ];
 
     const journalSubNav = renderSubNav(JOURNAL_SUB_TABS, journalSubTab, setJournalSubTab);
@@ -126,11 +124,19 @@ export default function JournalTab(props) {
       body = (
         <>
           {journalSubNav}
-          {crabBlock}
+
+          <TradePlan
+            settings={settings}
+            persistSettings={persistSettings}
+            goals={goals}
+            persistGoals={persistGoals}
+            startingBalance={startingBalance}
+            trades={trades}
+          />
 
           <OnboardingTip
             id="playbook-intro"
-            text="Check off which rules you followed each day here to build a discipline streak, separate from your P&L."
+            text="Write your plan in the cards above, then check off which rules you followed each day below to build a discipline streak, separate from your P&L."
             settings={settings}
             persistSettings={persistSettings}
           />
@@ -149,7 +155,7 @@ export default function JournalTab(props) {
 
           {!playbookRulesLoaded ? (
             <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-              Loading playbook\u2026
+              Loading trade plan…
             </p>
           ) : playbookRules.length === 0 ? (
             <div
@@ -158,7 +164,7 @@ export default function JournalTab(props) {
             >
               <ClipboardCheck size={22} style={{ color: palette.textFaint, margin: "0 auto 8px" }} />
               <p className="text-xs" style={{ color: palette.textFaint }}>
-                Add a rule below to start checking in against your playbook.
+                Add a rule below to start checking in against your trade plan.
               </p>
             </div>
           ) : (
@@ -230,7 +236,7 @@ export default function JournalTab(props) {
                 className="block mb-1.5 uppercase"
                 style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
               >
-                Playbook Stats
+                Check-In Stats
               </span>
               <div className="grid grid-cols-3 gap-3 lg:gap-4 mb-6">
                 <div
@@ -472,7 +478,6 @@ export default function JournalTab(props) {
       body = (
         <>
           {journalSubNav}
-          {crabBlock}
 
           <div className="flex items-center justify-between mb-6">
             <button
@@ -1030,7 +1035,6 @@ export default function JournalTab(props) {
       body = (
         <>
           {journalSubNav}
-          {crabBlock}
 
           <OnboardingTip
             id="journal-table-intro"
