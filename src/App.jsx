@@ -19,7 +19,21 @@ import { drawShareCard } from "./lib/shareCard.js";
 import { DARK_PALETTE, LIGHT_PALETTE, TAP, THEME_TRANSITION, TREDZI_LOGO_SRC, VOID_PALETTE, display, mono, palette, sans } from "./lib/theme.js";
 import { formatCountdown, formatMinSec, nextOccurrenceMs } from "./lib/time.js";
 import { AlertTriangle, ArrowLeftRight, Bell, Building2, Camera, CandlestickChart, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, Flame, Heart, LayoutGrid, Lightbulb, LogOut, MessageCircle, Moon, Newspaper, Palette, Pencil, Plus, RotateCcw, Scale, Search, Send, Settings, Share2, ShieldAlert, Sun, Table2, Tags, Trash2, Upload, Users, X } from "lucide-react";
-import React, { Suspense, lazy, useEffect, useId, useMemo, useRef, useState } from "react";
+import React, { Suspense, lazy, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+
+// Bottom-dock sliding pill helpers (mobile).
+function readDockActive(root) {
+  const el = root && root.querySelector('[data-dock-active="true"]');
+  return el ? { x: el.offsetLeft, y: el.offsetTop, w: el.offsetWidth, h: el.offsetHeight } : null;
+}
+function paintDockPill(pill, r) {
+  if (!pill) return;
+  if (!r) { pill.style.opacity = "0"; return; }
+  pill.style.opacity = "1";
+  pill.style.width = `${r.w}px`;
+  pill.style.height = `${r.h}px`;
+  pill.style.transform = `translate3d(${r.x}px, ${r.y}px, 0)`;
+}
 
 // Lazy tab that can be preloaded. Once its chunk is in memory the tab renders
 // synchronously (no Suspense fallback flash), so the enter animation always
@@ -875,11 +889,77 @@ useEffect(() => {
   const id = idle(warm, { timeout: 4000 });
   return () => cancel(id);
 }, []);
-useEffect(() => {
-  if (isDesktop) return;
-  const el = dockRef.current?.querySelector('[data-dock-active="true"]');
-  el?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+const dockPillRef = useRef(null);
+const dockPaintedRef = useRef(null);
+const dockRafRef = useRef(0);
+// Slide the highlight pill from the old tab to the new one while the labels
+// expand/collapse, then centre the active tab in the scrollable dock.
+useLayoutEffect(() => {
+  if (isDesktop) { dockPaintedRef.current = null; return undefined; }
+  const root = dockRef.current;
+  const pill = dockPillRef.current;
+  if (!root || !pill) return undefined;
+  const reduce = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  const from = dockPaintedRef.current;
+  const center = (r, smooth) => {
+    const left = Math.max(0, Math.min(root.scrollWidth - root.clientWidth, r.x + r.w / 2 - root.clientWidth / 2));
+    if (Math.abs(root.scrollLeft - left) > 2) root.scrollTo({ left, behavior: smooth && !reduce ? "smooth" : "auto" });
+  };
+  cancelAnimationFrame(dockRafRef.current);
+  dockRafRef.current = 0;
+  if (!from || reduce) {
+    const to = readDockActive(root);
+    paintDockPill(pill, to);
+    dockPaintedRef.current = to;
+    if (to) center(to, false);
+    return undefined;
+  }
+  const DUR = 360;
+  const t0 = performance.now();
+  let centered = false;
+  const tick = (now) => {
+    const to = readDockActive(root);
+    if (!to) { paintDockPill(pill, null); dockRafRef.current = 0; return; }
+    const p = Math.min(1, (now - t0) / DUR);
+    const e = 1 - Math.pow(1 - p, 4);
+    const r = {
+      x: from.x + (to.x - from.x) * e,
+      y: from.y + (to.y - from.y) * e,
+      w: from.w + (to.w - from.w) * e,
+      h: from.h + (to.h - from.h) * e,
+    };
+    paintDockPill(pill, r);
+    dockPaintedRef.current = r;
+    if (!centered && p >= 0.5) { centered = true; center(to, true); }
+    if (p < 1) {
+      dockRafRef.current = requestAnimationFrame(tick);
+    } else {
+      paintDockPill(pill, to);
+      dockPaintedRef.current = to;
+      dockRafRef.current = 0;
+      center(to, true);
+    }
+  };
+  tick(t0);
+  return () => { cancelAnimationFrame(dockRafRef.current); dockRafRef.current = 0; };
 }, [activeTab, isDesktop]);
+// Keep the pill aligned when the dock reflows (resize, fonts, pinned tabs changed).
+useEffect(() => {
+  if (isDesktop) return undefined;
+  const root = dockRef.current;
+  if (!root) return undefined;
+  const sync = () => {
+    if (dockRafRef.current) return;
+    const to = readDockActive(root);
+    paintDockPill(dockPillRef.current, to);
+    dockPaintedRef.current = to;
+  };
+  const mo = new MutationObserver(sync);
+  mo.observe(root, { childList: true, subtree: true });
+  window.addEventListener("resize", sync);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(sync).catch(() => {});
+  return () => { mo.disconnect(); window.removeEventListener("resize", sync); };
+}, [isDesktop]);
 const [lightboxPost, setLightboxPost] = useState(null); // global-feed post being viewed full-screen, or null
 const [globalFeedPending, setGlobalFeedPending] = useState([]);
 const [globalFeedNewCount, setGlobalFeedNewCount] = useState(0);
@@ -6943,7 +7023,7 @@ if (activeTab === "community") {
 
 .ledger-dock-scroll {
   overflow-x: auto;
-  scroll-snap-type: x proximity;
+  position: relative;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
@@ -6951,7 +7031,8 @@ if (activeTab === "community") {
   mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%);
 }
 .ledger-dock-scroll::-webkit-scrollbar { display: none; }
-.ledger-dock-item { scroll-snap-align: center; }
+.ledger-dock-item { position: relative; z-index: 1; }
+.ledger-dock-pill { position: absolute; left: 0; top: 0; width: 0; height: 0; border-radius: 999px; pointer-events: none; z-index: 0; opacity: 0; }
 .ledger-dock-item:hover { transform: none; }
 .ledger-seg-thumb { transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1); will-change: transform; }
 @media (prefers-reduced-motion: reduce) { .ledger-seg-thumb { transition: none !important; } }
@@ -6975,21 +7056,21 @@ if (activeTab === "community") {
 .ledger-tab-enter-back { animation: tabEnterBack 0.3s cubic-bezier(0.22, 1, 0.36, 1) backwards }
 
 /* Dock pill: label unfolds and icon pops when a tab becomes active */
-@keyframes dockLabelIn {
-  from { opacity: 0; max-width: 0; }
-  to   { opacity: 1; max-width: 140px; }
-}
 @keyframes dockIconPop {
   0%   { transform: scale(0.7); }
   60%  { transform: scale(1.18); }
   100% { transform: scale(1); }
 }
+/* Label accordion: collapses/expands to its natural width (no hard-coded max-width). */
 .ledger-dock-label {
-  display: inline-block;
-  overflow: hidden;
-  vertical-align: middle;
-  animation: dockLabelIn 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+  display: grid;
+  grid-template-columns: 0fr;
+  opacity: 0;
+  transition: grid-template-columns 0.32s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.22s ease;
 }
+.ledger-dock-label[data-open="true"] { grid-template-columns: 1fr; opacity: 1; }
+.ledger-dock-label-clip { overflow: hidden; min-width: 0; }
+.ledger-dock-label-text { display: block; white-space: nowrap; padding-left: 8px; }
 .ledger-dock-item[data-dock-active="true"] svg {
   animation: dockIconPop 0.38s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
@@ -6997,7 +7078,7 @@ if (activeTab === "community") {
 @media (prefers-reduced-motion: reduce) {
   .ledger-tab-enter-fwd,
   .ledger-tab-enter-back { animation: tabFadeOnly 0.2s ease-out backwards !important; }
-  .ledger-dock-label { animation: none !important; }
+  .ledger-dock-label { transition: none !important; }
   .ledger-dock-item[data-dock-active="true"] svg { animation: none !important; }
 }
 
@@ -7271,6 +7352,9 @@ if (activeTab === "community") {
           }}
         >
           <div ref={dockRef} className={isDesktop ? "flex flex-col px-4 pt-6 gap-1" : "ledger-dock-scroll flex flex-1 items-center gap-1 p-1.5"}>
+          {!isDesktop && (
+            <span ref={dockPillRef} className="ledger-dock-pill" aria-hidden="true" style={{ background: `${palette.gold}16` }} />
+          )}
           {isDesktop && (
             <div
               className="uppercase mb-2 px-2"
@@ -7310,6 +7394,8 @@ if (activeTab === "community") {
         type="button"
         data-tour-id={`tab-${tab.id}`}
         data-dock-active={!isDesktop && active ? "true" : undefined}
+        aria-label={tab.label}
+        aria-current={active ? "page" : undefined}
         onPointerDown={() => { try { TAB_PRELOAD[tab.id]?.().catch(() => {}); } catch (e) { /* ignore */ } }}
         onClick={() => {
           setActiveTab(tab.id);
@@ -7318,11 +7404,11 @@ if (activeTab === "community") {
         className={
           isDesktop
             ? `ledger-nav-item w-full flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl ${TAP}`
-            : `ledger-nav-item ledger-dock-item flex flex-row items-center justify-center gap-2 px-4 py-3 ${TAP}`
+            : `ledger-nav-item ledger-dock-item flex flex-row items-center justify-center px-4 py-3 ${TAP}`
         }
         style={{
           color: active ? palette.goldBright : palette.textMuted,
-          background: active ? `${palette.gold}16` : "transparent",
+          background: isDesktop && active ? `${palette.gold}16` : "transparent",
           borderRadius: isDesktop ? "10px" : "999px",
           border: isDesktop
             ? `1px solid ${active ? `${palette.gold}3A` : "transparent"}`
@@ -7351,16 +7437,17 @@ if (activeTab === "community") {
             />
           </span>
 
-          {(isDesktop || active) && (
-            <span
-              className={isDesktop ? "whitespace-nowrap" : "whitespace-nowrap ledger-dock-label"}
-              style={{
-                fontSize: isDesktop ? "14px" : "12.5px",
-                letterSpacing: "0.02em",
-                fontWeight: 600,
-              }}
-            >
+          {isDesktop ? (
+            <span className="whitespace-nowrap" style={{ fontSize: "14px", letterSpacing: "0.02em", fontWeight: 600 }}>
               {tab.label}
+            </span>
+          ) : (
+            <span className="ledger-dock-label" data-open={active ? "true" : "false"} aria-hidden="true">
+              <span className="ledger-dock-label-clip">
+                <span className="ledger-dock-label-text" style={{ fontSize: "12.5px", letterSpacing: "0.02em", fontWeight: 600 }}>
+                  {tab.label}
+                </span>
+              </span>
             </span>
           )}
         </span>
