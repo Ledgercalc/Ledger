@@ -1,3 +1,6 @@
+import CrabMascot from "../components/CrabMascot.jsx";
+import { pokeCrab } from "../lib/mascot.js";
+import { useEffect, useRef } from "react";
 import { Field, PillGroup, Readout, RuleRow, StatChip } from "../components/ui.jsx";
 import { computeQualifyingTradingDays } from "../lib/analytics.js";
 import { EDGE_PROJECTION_PERIODS, PROFIT_TARGET_OPTIONS } from "../lib/constants.js";
@@ -201,9 +204,37 @@ const edgeCurveData = Array.from({ length: EDGE_CURVE_POINTS + 1 }, (_, i) => {
     const recoveryNeededPct = inDrawdown && currentDrawdownPct < 100 ? (currentDrawdownPct / (100 - currentDrawdownPct)) * 100 : 0;
     const recoveryDollar = inDrawdown ? peakBalance - currentBal : 0;
 
+    // ── Mascot reactions ─────────────────────────────────────────────
+    const crabReady = useRef(false);
+    const crabPrev = useRef({ hit: false, breach: false });
+    useEffect(() => {
+      if (crabReady.current) pokeCrab("look");
+    }, [riskSubTab]);
+    useEffect(() => {
+      if (crabReady.current) pokeCrab("type");
+    }, [cs, edge, ps]);
+    useEffect(() => {
+      const hit = hasTarget && hasBoth && progressPct >= 100;
+      const breach = overallPass === false;
+      if (crabReady.current) {
+        if (hit && !crabPrev.current.hit) pokeCrab("party", { say: "Target hit!" });
+        else if (breach && !crabPrev.current.breach) pokeCrab("alert", { say: "Below the floor!" });
+      }
+      crabPrev.current = { hit, breach };
+    }, [hasTarget, hasBoth, progressPct, overallPass]);
+    useEffect(() => {
+      crabReady.current = true;
+    }, []);
+
     body = (
       <>
         {renderSubNav(RISK_SUB_TABS, riskSubTab, setRiskSubTab)}
+
+        {settings.mascotEnabled !== false && (
+          <div className="flex justify-end" style={{ marginBottom: "4px" }}>
+            <CrabMascot size={isDesktop ? 124 : 100} rest={overallPass === false ? "worry" : undefined} />
+          </div>
+        )}
 
         {riskSubTab === "challenge" ? (
           <>
