@@ -1,3 +1,4 @@
+import { PlanName } from "../components/PlanBadge.jsx";
 import { Avatar } from "../components/ui.jsx";
 import { FEED_REACTIONS, avatarStyleFor, feedTimeAgo } from "../lib/feed.js";
 import { fmt, num } from "../lib/format.js";
@@ -401,7 +402,7 @@ export default function CommunityTab(props) {
               <Bell size={13} style={{ color: palette.gold, marginTop: "2px", flexShrink: 0 }} />
               <div className="flex-1 min-w-0">
                 <div style={{ color: palette.gold, fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                  Pinned · {pinned.author}
+                  Pinned · <PlanName name={pinned.author} />
                 </div>
                 <div className="truncate" style={{ color: palette.text, fontSize: "12.5px" }}>
                   {pinned.type === "signal" ? `${pinned.pair} ${pinned.direction === "sell" ? "Sell" : "Buy"} signal` : pinned.text}
@@ -625,7 +626,7 @@ export default function CommunityTab(props) {
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
                         <Avatar name={p.author} size={26} src={groupAvatarMap[activeGroupId]} />
-                        <button type="button" onClick={() => openCommunityMemberProfile(p.author)} className={TAP} style={{ color: palette.gold, fontSize: "12px", fontWeight: 700, background: "none", border: "none", padding: 0 }}>{p.author}</button>
+                        <button type="button" onClick={() => openCommunityMemberProfile(p.author)} className={TAP} style={{ color: palette.gold, fontSize: "12px", fontWeight: 700, background: "none", border: "none", padding: 0 }}><PlanName name={p.author} /></button>
                         <span style={{ color: palette.textFaint, fontSize: "10.5px", fontFamily: mono }}>
                           {new Date(p.ts).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                         </span>
@@ -728,7 +729,7 @@ export default function CommunityTab(props) {
                         </span>
                         <Avatar name={p.author} size={20} src={avatarForAuthor(p.author)} />
                         <div className="flex flex-col leading-none">
-                          <span style={{ color: palette.text, fontSize: "11px", fontWeight: 700, fontFamily: sans }}>{p.author}</span>
+                          <span style={{ color: palette.text, fontSize: "11px", fontWeight: 700, fontFamily: sans }}><PlanName name={p.author} /></span>
                           <span style={{ color: palette.textFaint, fontSize: "9.5px", fontFamily: mono, marginTop: "2px" }}>
                             {p.count} signal{p.count === 1 ? "" : "s"}{p.rrCount > 0 ? ` · 1:${fmt(p.rrSum / p.rrCount, 1)}` : ""}
                           </span>
@@ -798,7 +799,7 @@ export default function CommunityTab(props) {
                       <button type="button" onClick={() => openCommunityMemberProfile(m.author)} className={TAP} style={{ background: "none", border: "none", padding: 0, lineHeight: 0 }} aria-label={`Open ${m.author}'s profile`}>
                         <Avatar name={m.author} size={14} src={avatarForAuthor(m.author)} online={isAuthorOnline(m.author)} />
                       </button>
-                      <button type="button" onClick={() => openCommunityMemberProfile(m.author)} className={TAP} style={{ color: palette.textMuted, fontSize: "10.5px", fontWeight: 600, fontFamily: sans, background: "none", border: "none", padding: 0 }}>{m.author}</button>
+                      <button type="button" onClick={() => openCommunityMemberProfile(m.author)} className={TAP} style={{ color: palette.textMuted, fontSize: "10.5px", fontWeight: 600, fontFamily: sans, background: "none", border: "none", padding: 0 }}><PlanName name={m.author} /></button>
                       {authorRole && (
                         <span style={{ color: palette.textFaint, fontSize: "9px", fontFamily: mono, border: `1px solid ${palette.border}`, borderRadius: "4px", padding: "0 4px" }}>
                           {authorRole}
@@ -940,7 +941,7 @@ export default function CommunityTab(props) {
                               <Avatar name={rep.author} size={20} src={avatarForAuthor(rep.author)} online={isAuthorOnline(rep.author)} />
                               <div className="flex-1 min-w-0 rounded-lg px-2.5 py-1.5" style={{ background: palette.surface, border: `1px solid ${palette.border}` }}>
                                 <div className="flex items-center gap-1.5">
-                                  <span style={{ color: palette.text, fontSize: "11px", fontWeight: 700 }}>{rep.author}</span>
+                                  <span style={{ color: palette.text, fontSize: "11px", fontWeight: 700 }}><PlanName name={rep.author} /></span>
                                   <span style={{ color: palette.textFaint, fontSize: "9px", fontFamily: mono }}>
                                     {new Date(rep.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                                   </span>
@@ -1148,7 +1149,7 @@ export default function CommunityTab(props) {
                         )}
                       </div>
                       <div className="flex items-center gap-2 mb-2">
-                        <span style={{ color: palette.textFaint, fontSize: "10.5px", fontFamily: mono }}>asked by <button type="button" onClick={() => openCommunityMemberProfile(q.author)} className={TAP} style={{ color: palette.gold, background: "none", border: "none", padding: 0, font: "inherit" }}>{q.author}</button></span>
+                        <span style={{ color: palette.textFaint, fontSize: "10.5px", fontFamily: mono }}>asked by <button type="button" onClick={() => openCommunityMemberProfile(q.author)} className={TAP} style={{ color: palette.gold, background: "none", border: "none", padding: 0, font: "inherit" }}><PlanName name={q.author} /></button></span>
                         <button type="button" onClick={() => setQaOpenId(isOpen ? null : q.id)} className={TAP} style={{ color: palette.gold, fontSize: "10.5px", fontFamily: mono, fontWeight: 700 }}>
                           {q.answers.length} answer{q.answers.length === 1 ? "" : "s"}
                         </button>
@@ -1159,7 +1160,7 @@ export default function CommunityTab(props) {
                             <div key={i} className="flex items-start gap-2 mb-2">
                               <Avatar name={a.author} size={18} src={avatarForAuthor(a.author)} />
                               <div className="min-w-0">
-                                <button type="button" onClick={() => openCommunityMemberProfile(a.author)} className={TAP} style={{ color: palette.textMuted, fontSize: "11px", fontWeight: 700, marginRight: "6px", background: "none", border: "none", padding: 0 }}>{a.author}</button>
+                                <button type="button" onClick={() => openCommunityMemberProfile(a.author)} className={TAP} style={{ color: palette.textMuted, fontSize: "11px", fontWeight: 700, marginRight: "6px", background: "none", border: "none", padding: 0 }}><PlanName name={a.author} /></button>
                                 <span style={{ color: palette.text, fontSize: "12.5px" }}>{a.text}</span>
                               </div>
                             </div>
@@ -1466,7 +1467,7 @@ export default function CommunityTab(props) {
                           <Avatar name={p.author} size={isDesktop ? 38 : 34} src={avatarForAuthor(p.author)} />
                           <div className="min-w-0">
                             <button type="button" onClick={() => openCommunityMemberProfile(p.author)} className={`block ${TAP}`} style={{ color: palette.text, fontSize: "13.5px", fontWeight: 700, background: "none", border: "none", padding: 0, textAlign: "left" }}>
-                              {p.author}
+                              <PlanName name={p.author} />
                             </button>
                             <span style={{ color: palette.textFaint, fontSize: "11px", fontFamily: mono }}>
                               {feedTimeAgo(p.ts)}
@@ -1536,7 +1537,7 @@ export default function CommunityTab(props) {
                                   <Avatar name={c.author} size={22} src={avatarForAuthor(c.author)} />
                                   <div className="flex-1 min-w-0 rounded-xl px-2.5 py-1.5" style={{ background: palette.field, border: `1px solid ${palette.border}` }}>
                                     <div className="flex items-center gap-1.5">
-                                      <span style={{ color: palette.text, fontSize: "11.5px", fontWeight: 700 }}>{c.author}</span>
+                                      <span style={{ color: palette.text, fontSize: "11.5px", fontWeight: 700 }}><PlanName name={c.author} /></span>
                                       <span style={{ color: palette.textFaint, fontSize: "9.5px", fontFamily: mono }}>{feedTimeAgo(c.ts)}</span>
                                     </div>
                                     <p className="text-xs" style={{ color: palette.textMuted, whiteSpace: "pre-wrap" }}>{c.text}</p>
@@ -1632,7 +1633,7 @@ export default function CommunityTab(props) {
                           return (
                             <button key={row.member.username} type="button" onClick={() => openCommunityMemberProfile(row.member.username)} className={`flex flex-col items-center ${TAP}`} style={{ width: `${colW}px`, alignSelf: "flex-end", minWidth: 0 }}>
                               <Avatar name={row.member.username} size={isDesktop ? (rank === 1 ? 58 : 48) : (rank === 1 ? 46 : 38)} src={avatarForAuthor(row.member.username)} ring />
-                              <span className="truncate" style={{ width: "100%", marginTop: "6px", color: palette.text, fontSize: isDesktop ? "11.5px" : "10px", fontWeight: 700, textAlign: "center" }}>{row.member.username}</span>
+                              <span className="truncate" style={{ width: "100%", marginTop: "6px", color: palette.text, fontSize: isDesktop ? "11.5px" : "10px", fontWeight: 700, textAlign: "center" }}><PlanName name={row.member.username} /></span>
                               <span style={{ color: rank === 1 ? palette.green : palette.textMuted, fontSize: isDesktop ? "12px" : "10.5px", fontWeight: 800, marginTop: "2px" }}>{metricText(row.stats)}</span>
                               <div style={{ width: `${colW - 4}px`, height: `${h}px`, marginTop: "6px", background: isMe ? `${palette.blue}12` : palette.surface, border: `1px solid ${rank === 1 ? palette.gold : isMe ? palette.blue : palette.border}`, borderBottom: "none", borderRadius: "10px 10px 0 0", display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ color: rank === 1 ? palette.gold : palette.textMuted, fontFamily: mono, fontSize: isDesktop ? "16px" : "13px", fontWeight: 800 }}>{rank}</span></div>
                             </button>
@@ -1647,7 +1648,7 @@ export default function CommunityTab(props) {
                             <button key={row.member.username} type="button" onClick={() => openCommunityMemberProfile(row.member.username)} className={`w-full flex items-center gap-2 rounded-xl px-2.5 py-2 text-left ${TAP}`} style={{ background: isMe ? `${palette.blue}10` : palette.surface, border: `1px solid ${isMe ? palette.blue + "66" : palette.border}` }}>
                               <span style={{ width: "18px", flexShrink: 0, textAlign: "center", color: palette.textFaint, fontFamily: mono, fontSize: "10.5px" }}>{rank}</span>
                               <Avatar name={row.member.username} size={isDesktop ? 30 : 26} src={avatarForAuthor(row.member.username)} />
-                              <span className="flex-1 min-w-0 truncate" style={{ color: palette.text, fontSize: isDesktop ? "12.5px" : "11.5px", fontWeight: 700 }}>{row.member.username}</span>
+                              <span className="flex-1 min-w-0 truncate" style={{ color: palette.text, fontSize: isDesktop ? "12.5px" : "11.5px", fontWeight: 700 }}><PlanName name={row.member.username} /></span>
                               {isMe && <span style={{ flexShrink: 0, color: palette.blue, background: `${palette.blue}18`, border: `1px solid ${palette.blue}44`, borderRadius: "999px", padding: "3px 6px", fontSize: "8.5px", fontFamily: mono, fontWeight: 700 }}>YOU</span>}
                               <span style={{ flexShrink: 0, color: palette.text, fontSize: isDesktop ? "12.5px" : "11.5px", fontWeight: 800 }}>{metricText(row.stats)}</span>
                             </button>
@@ -1733,7 +1734,7 @@ export default function CommunityTab(props) {
                     )}
                     <div style={{ maxWidth: isDesktop ? "62%" : "78%" }}>
                       {!isMe && !grouped && (
-                        <button type="button" onClick={() => openCommunityMemberProfile(m.author)} className={TAP} style={{ color: palette.gold, fontSize: "11.5px", fontWeight: 700, marginBottom: "3px", marginLeft: "3px", background: "none", border: "none", padding: 0 }}>{m.author}</button>
+                        <button type="button" onClick={() => openCommunityMemberProfile(m.author)} className={TAP} style={{ color: palette.gold, fontSize: "11.5px", fontWeight: 700, marginBottom: "3px", marginLeft: "3px", background: "none", border: "none", padding: 0 }}><PlanName name={m.author} /></button>
                       )}
                       {m.type === "sticker" ? (
                         <div style={{ display: "inline-block" }}>
@@ -2563,7 +2564,7 @@ export default function CommunityTab(props) {
           );
           const nameRow = (
             <div className="flex items-center gap-2 flex-wrap">
-              <span style={{ color: palette.text, fontSize: isDesktop ? "20px" : "18px", fontWeight: 800 }}>{p.username}</span>
+              <span style={{ color: palette.text, fontSize: isDesktop ? "20px" : "18px", fontWeight: 800 }}><PlanName name={p.username} /></span>
               {p.verifiedPnl && <span style={chip}>Verified P&L</span>}
               {!isMe && p.followsMe && <span style={{ color: palette.textMuted, background: palette.field, border: `1px solid ${palette.border}`, borderRadius: "999px", padding: "2px 8px", fontSize: "10.5px", fontWeight: 600 }}>Follows you</span>}
             </div>
@@ -2699,7 +2700,7 @@ export default function CommunityTab(props) {
                   <div style={{ width: "160px", flexShrink: 0 }}>{avatarBlock}</div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-3 flex-wrap">
-                      <span style={{ color: palette.text, fontSize: "22px", fontWeight: 600, marginRight: "6px" }}>{p.username}</span>
+                      <span style={{ color: palette.text, fontSize: "22px", fontWeight: 600, marginRight: "6px" }}><PlanName name={p.username} /></span>
                       {actionButton}
                       {isMe && (
                         <button type="button" onClick={() => setProfileComposerOpen(true)} className={`flex items-center gap-1.5 ${TAP}`} style={pill(true, false)}>
@@ -2786,7 +2787,7 @@ export default function CommunityTab(props) {
                 {/* Title */}
                 <div className="flex items-center justify-between px-4 flex-shrink-0" style={{ height: "52px" }}>
                   <span style={{ width: "30px" }} />
-                  <span className="truncate" style={{ color: palette.text, fontSize: "15px", fontWeight: 700 }}>{fl.username}</span>
+                  <span className="truncate" style={{ color: palette.text, fontSize: "15px", fontWeight: 700 }}><PlanName name={fl.username} /></span>
                   <button type="button" onClick={() => setFollowListOpen(null)} className={`flex items-center justify-center rounded-full ${TAP}`} style={{ width: "30px", height: "30px", background: palette.field, color: palette.textMuted }} aria-label="Close">
                     <X size={15} />
                   </button>
@@ -2853,7 +2854,7 @@ export default function CommunityTab(props) {
                             style={{ background: "none", border: "none", textAlign: "left", padding: 0 }}
                           >
                             <Avatar name={row.username} size={44} src={row.avatar || avatarForAuthor(row.username)} online={isAuthorOnline(row.username)} />
-                            <span className="truncate" style={{ color: palette.text, fontSize: "14px", fontWeight: 700 }}>{row.username}</span>
+                            <span className="truncate" style={{ color: palette.text, fontSize: "14px", fontWeight: 700 }}><PlanName name={row.username} /></span>
                           </button>
                           {!rowIsMe && (
                             <button
@@ -2892,7 +2893,7 @@ export default function CommunityTab(props) {
                 </button>
                 <Avatar name={po.author} size={30} src={po.avatar || avatarForAuthor(po.author)} />
                 <div className="flex-1 min-w-0">
-                  <div style={{ color: "#FFFFFF", fontSize: "13px", fontWeight: 800 }}>{po.author}</div>
+                  <div style={{ color: "#FFFFFF", fontSize: "13px", fontWeight: 800 }}><PlanName name={po.author} /></div>
                   <div style={{ color: "rgba(255,255,255,0.55)", fontSize: "11px" }}>{feedTimeAgo(po.ts)}</div>
                 </div>
               </div>
@@ -2932,7 +2933,7 @@ export default function CommunityTab(props) {
                   </button>
                 )}
                 <Avatar name={po.author} size={isDesktop ? 44 : 34} src={profileData?.avatar || avatarForAuthor(po.author)} />
-                <span className="truncate" style={{ color: palette.text, fontSize: isDesktop ? "15px" : "14px", fontWeight: 700 }}>{po.author}</span>
+                <span className="truncate" style={{ color: palette.text, fontSize: isDesktop ? "15px" : "14px", fontWeight: 700 }}><PlanName name={po.author} /></span>
               </div>
               {canDeletePost && (
                 <>
@@ -2958,7 +2959,7 @@ export default function CommunityTab(props) {
                 <Avatar name={po.author} size={40} src={profileData?.avatar || avatarForAuthor(po.author)} />
                 <div className="min-w-0 flex-1">
                   <p style={{ color: palette.text, fontSize: "14.5px", lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                    <span style={{ fontWeight: 700, marginRight: "6px" }}>{po.author}</span>{po.text}
+                    <span style={{ fontWeight: 700, marginRight: "6px" }}><PlanName name={po.author} /></span>{po.text}
                   </p>
                   <span style={{ color: palette.textFaint, fontSize: "12px" }}>{feedTimeAgo(po.ts)}</span>
                 </div>
@@ -2966,7 +2967,7 @@ export default function CommunityTab(props) {
             ) : (
               <div className="px-4 pb-2">
                 <p style={{ color: palette.text, fontSize: "13.5px", lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                  <span style={{ fontWeight: 700, marginRight: "6px" }}>{po.author}</span>{po.text}
+                  <span style={{ fontWeight: 700, marginRight: "6px" }}><PlanName name={po.author} /></span>{po.text}
                 </p>
               </div>
             )
@@ -2990,7 +2991,7 @@ export default function CommunityTab(props) {
                       </button>
                       <div className="min-w-0 flex-1">
                         <p style={{ color: palette.text, fontSize: split ? "14.5px" : "13.5px", lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                          <span style={{ fontWeight: 700, marginRight: "6px" }}>{c.author}</span>
+                          <span style={{ fontWeight: 700, marginRight: "6px" }}><PlanName name={c.author} /></span>
                           {c.author === po.author && <span style={{ color: palette.gold, background: `${palette.gold}14`, border: `1px solid ${palette.gold}33`, borderRadius: "999px", padding: "0 7px", fontSize: "10px", fontWeight: 700, marginRight: "6px" }}>Author</span>}
                           {c.text}
                         </p>
