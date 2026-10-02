@@ -19,7 +19,7 @@ import { drawShareCard } from "./lib/shareCard.js";
 import { DARK_PALETTE, LIGHT_PALETTE, TAP, THEME_TRANSITION, TREDZI_LOGO_SRC, VOID_PALETTE, display, mono, palette, sans } from "./lib/theme.js";
 import { formatCountdown, formatMinSec, nextOccurrenceMs } from "./lib/time.js";
 import { AlertTriangle, ArrowLeftRight, Bell, Building2, Camera, CandlestickChart, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, Flame, Heart, LayoutGrid, Lightbulb, LogOut, MessageCircle, Moon, Newspaper, Palette, Pencil, Plus, RotateCcw, Scale, Search, Send, Settings, Share2, ShieldAlert, Sun, Table2, Tags, Trash2, Upload, Users, X } from "lucide-react";
-import React, { Suspense, lazy, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { Suspense, lazy, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import "./typography.css";
 
 // Bottom-dock sliding pill helpers (mobile).
@@ -94,6 +94,18 @@ export { RUNTIME, WEEK_MS } from "./lib/constants";
 
 export default function TredziApp() {
   const [activeTab, setActiveTab] = useState("risk");
+  // Bottom bar feels instant: the highlight, header title and icon follow the tap right away (pendingTab),
+  // while the heavy tab content renders in the background (startTabTransition) and slides in when ready.
+  const [pendingTab, setPendingTab] = useState(null);
+  const [, startTabTransition] = useTransition();
+  const dockTab = pendingTab ?? activeTab;
+  const lastBodyRef = useRef(null);
+  useEffect(() => { setPendingTab(null); }, [activeTab]);
+  const goToTab = (id) => {
+    if (id === dockTab) return;
+    setPendingTab(id);
+    startTabTransition(() => setActiveTab(id));
+  };
   const crabPrevTabRef = useRef("risk");
   useEffect(() => {
     if (crabPrevTabRef.current !== activeTab) {
@@ -103,7 +115,7 @@ export default function TredziApp() {
   }, [activeTab]);
   // Remembers the previous tab so the mobile switch animation knows which way to slide.
   const tabDirRef = useRef({ tab: "risk", dir: 1 });
-  const ActiveTabIcon = TABS.find((t) => t.id === activeTab)?.icon || Scale;
+  const ActiveTabIcon = TABS.find((t) => t.id === dockTab)?.icon || Scale;
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsMobileSection, setSettingsMobileSection] = useState(null);
   const [settingsSearchQuery, setSettingsSearchQuery] = useState("");
@@ -890,77 +902,23 @@ useEffect(() => {
   const id = idle(warm, { timeout: 4000 });
   return () => cancel(id);
 }, []);
-const dockPillRef = useRef(null);
-const dockPaintedRef = useRef(null);
-const dockRafRef = useRef(0);
-// Slide the highlight pill from the old tab to the new one while the labels
-// expand/collapse, then centre the active tab in the scrollable dock.
-useLayoutEffect(() => {
-  if (isDesktop) { dockPaintedRef.current = null; return undefined; }
-  const root = dockRef.current;
-  const pill = dockPillRef.current;
-  if (!root || !pill) return undefined;
-  const reduce = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
-  const from = dockPaintedRef.current;
-  const center = (r, smooth) => {
-    const left = Math.max(0, Math.min(root.scrollWidth - root.clientWidth, r.x + r.w / 2 - root.clientWidth / 2));
-    if (Math.abs(root.scrollLeft - left) > 2) root.scrollTo({ left, behavior: smooth && !reduce ? "smooth" : "auto" });
-  };
-  cancelAnimationFrame(dockRafRef.current);
-  dockRafRef.current = 0;
-  if (!from || reduce) {
-    const to = readDockActive(root);
-    paintDockPill(pill, to);
-    dockPaintedRef.current = to;
-    if (to) center(to, false);
-    return undefined;
-  }
-  const DUR = 360;
-  const t0 = performance.now();
-  let centered = false;
-  const tick = (now) => {
-    const to = readDockActive(root);
-    if (!to) { paintDockPill(pill, null); dockRafRef.current = 0; return; }
-    const p = Math.min(1, (now - t0) / DUR);
-    const e = 1 - Math.pow(1 - p, 4);
-    const r = {
-      x: from.x + (to.x - from.x) * e,
-      y: from.y + (to.y - from.y) * e,
-      w: from.w + (to.w - from.w) * e,
-      h: from.h + (to.h - from.h) * e,
-    };
-    paintDockPill(pill, r);
-    dockPaintedRef.current = r;
-    if (!centered && p >= 0.5) { centered = true; center(to, true); }
-    if (p < 1) {
-      dockRafRef.current = requestAnimationFrame(tick);
-    } else {
-      paintDockPill(pill, to);
-      dockPaintedRef.current = to;
-      dockRafRef.current = 0;
-      center(to, true);
-    }
-  };
-  tick(t0);
-  return () => { cancelAnimationFrame(dockRafRef.current); dockRafRef.current = 0; };
-}, [activeTab, isDesktop]);
-// Keep the pill aligned when the dock reflows (resize, fonts, pinned tabs changed).
+// Dock: the active item carries its own highlight (CSS transition), so there is no per-frame measuring.
+// After the label has unfolded, centre the active item in the scrollable dock.
 useEffect(() => {
   if (isDesktop) return undefined;
   const root = dockRef.current;
   if (!root) return undefined;
-  const sync = () => {
-    if (dockRafRef.current) return;
-    const to = readDockActive(root);
-    paintDockPill(dockPillRef.current, to);
-    dockPaintedRef.current = to;
+  const center = () => {
+    const btn = root.querySelector('[data-dock-active="true"]');
+    const item = btn && btn.parentElement;
+    if (!item) return;
+    const left = Math.max(0, Math.min(root.scrollWidth - root.clientWidth, item.offsetLeft + item.offsetWidth / 2 - root.clientWidth / 2));
+    if (Math.abs(root.scrollLeft - left) > 2) root.scrollTo({ left, behavior: "smooth" });
   };
-  const mo = new MutationObserver(sync);
-  mo.observe(root, { childList: true, subtree: true });
-  window.addEventListener("resize", sync);
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(sync).catch(() => {});
-  return () => { mo.disconnect(); window.removeEventListener("resize", sync); };
-}, [isDesktop]);
+  const t1 = setTimeout(center, 80);
+  const t2 = setTimeout(center, 380);
+  return () => { clearTimeout(t1); clearTimeout(t2); };
+}, [dockTab, isDesktop]);
 const [lightboxPost, setLightboxPost] = useState(null); // global-feed post being viewed full-screen, or null
 const [globalFeedPending, setGlobalFeedPending] = useState([]);
 const [globalFeedNewCount, setGlobalFeedNewCount] = useState(0);
@@ -6907,6 +6865,14 @@ if (activeTab === "community") {
   }
   // end community tab
 
+  // While a tab switch is pending, keep showing the exact same screen element (React skips re-rendering it),
+  // so the tap itself stays cheap; the new tab is rendered right after in the background.
+  if (pendingTab !== null && pendingTab !== activeTab && lastBodyRef.current && lastBodyRef.current.tab === activeTab) {
+    body = lastBodyRef.current.el;
+  } else {
+    lastBodyRef.current = { tab: activeTab, el: body };
+  }
+
   return (
     <div
       className="w-full flex justify-center"
@@ -7024,6 +6990,7 @@ if (activeTab === "community") {
 
 .ledger-dock-scroll {
   overflow-x: auto;
+  contain: layout style;
   position: relative;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
@@ -7216,7 +7183,7 @@ if (activeTab === "community") {
     transition: THEME_TRANSITION,
   }}
 >
-  {TABS.find((t) => t.id === activeTab)?.label || "Tredzi"}
+  {TABS.find((t) => t.id === dockTab)?.label || "Tredzi"}
 </h1>
                 </div>
               </div>
@@ -7355,9 +7322,6 @@ if (activeTab === "community") {
           }}
         >
           <div ref={dockRef} className={isDesktop ? "flex flex-col px-4 pt-6 gap-1" : "ledger-dock-scroll flex flex-1 items-center gap-1 p-1.5"}>
-          {!isDesktop && (
-            <span ref={dockPillRef} className="ledger-dock-pill" aria-hidden="true" style={{ background: `${palette.gold}16` }} />
-          )}
           {isDesktop && (
             <div
               className="uppercase mb-2 px-2"
@@ -7370,7 +7334,7 @@ if (activeTab === "community") {
 
 {(isDesktop ? navTabs : [...mobileNavPrimaryTabs, ...mobileNavOverflowTabs]).map((tab) => {
   const Icon = tab.icon;
-  const active = activeTab === tab.id;
+  const active = dockTab === tab.id;
 
   return (
     <div
@@ -7401,7 +7365,7 @@ if (activeTab === "community") {
         aria-current={active ? "page" : undefined}
         onPointerDown={() => { try { TAB_PRELOAD[tab.id]?.().catch(() => {}); } catch (e) { /* ignore */ } }}
         onClick={() => {
-          setActiveTab(tab.id);
+          goToTab(tab.id);
           setMoreMenuOpen(false);
         }}
         className={
@@ -7411,7 +7375,7 @@ if (activeTab === "community") {
         }
         style={{
           color: active ? palette.goldBright : palette.textMuted,
-          background: isDesktop && active ? `${palette.gold}16` : "transparent",
+          background: active ? `${palette.gold}16` : "transparent",
           borderRadius: isDesktop ? "10px" : "999px",
           border: isDesktop
             ? `1px solid ${active ? `${palette.gold}3A` : "transparent"}`
@@ -7419,7 +7383,9 @@ if (activeTab === "community") {
           boxShadow: isDesktop && active
             ? `0 2px 10px ${palette.gold}22`
             : "none",
-          transition: `${THEME_TRANSITION}, transform 0.15s ease, background 0.15s ease`,
+          transition: isDesktop
+            ? `${THEME_TRANSITION}, transform 0.15s ease, background 0.15s ease`
+            : "background-color 0.3s cubic-bezier(0.22, 1, 0.36, 1), color 0.2s ease, transform 0.15s ease",
         }}
       >
         <span className={isDesktop ? "flex items-center gap-3 min-w-0" : "contents"}>
@@ -7588,13 +7554,13 @@ if (activeTab === "community") {
             <div className="grid grid-cols-4 gap-2 px-4 pb-6" style={{ overflowY: "auto" }}>
               {mobileNavOverflowTabs.map((tab) => {
                 const Icon = tab.icon;
-                const active = activeTab === tab.id;
+                const active = dockTab === tab.id;
                 return (
                   <button
                     key={tab.id}
                     type="button"
                     onClick={() => {
-                      setActiveTab(tab.id);
+                      goToTab(tab.id);
                       setMoreMenuOpen(false);
                     }}
                     className={`flex flex-col items-center justify-center gap-1.5 py-3.5 rounded-xl ${TAP}`}
