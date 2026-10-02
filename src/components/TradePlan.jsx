@@ -24,10 +24,10 @@ function Card({ icon: Icon, title, editing, onToggle, isDesktop, children }) {
       }}
     >
       <div className="flex items-center gap-3" style={{ marginBottom: 20 }}>
-        <Icon size={isDesktop ? 32 : 28} strokeWidth={2.2} style={{ color: palette.text, flexShrink: 0 }} />
+        <Icon size={isDesktop ? 28 : 24} strokeWidth={2.2} style={{ color: palette.text, flexShrink: 0 }} />
         <h3
           className="flex-1 min-w-0"
-          style={{ fontFamily: display, fontWeight: 700, fontSize: isDesktop ? "24px" : "21px", color: palette.text, margin: 0, letterSpacing: "-0.01em", lineHeight: 1.15 }}
+          style={{ fontFamily: display, fontWeight: 700, fontSize: isDesktop ? "22px" : "20px", color: palette.text, margin: 0, letterSpacing: "-0.01em", lineHeight: 1.15 }}
         >
           {title}
         </h3>
@@ -54,13 +54,13 @@ function Card({ icon: Icon, title, editing, onToggle, isDesktop, children }) {
 }
 
 function BigValue({ label, value, unit, prefix, editing, onChange, placeholder, inputMode = "decimal", text, isDesktop }) {
-  const size = isDesktop ? "34px" : "30px";
+  const size = isDesktop ? "30px" : "28px";
   return (
     <div className="min-w-0">
       <div style={{ color: palette.textMuted, fontSize: "14px", marginBottom: 4 }}>{label}</div>
       {editing ? (
         <div className="flex items-baseline gap-1.5" style={{ borderBottom: `2px solid ${palette.gold}`, paddingBottom: 2 }}>
-          {prefix && <span style={{ color: palette.textMuted, fontSize: "18px", fontWeight: 600 }}>{prefix}</span>}
+          {prefix && <span style={{ color: palette.textMuted, fontSize: "16px", fontWeight: 600 }}>{prefix}</span>}
           <input
             type="text"
             inputMode={text ? "text" : inputMode}
@@ -71,15 +71,15 @@ function BigValue({ label, value, unit, prefix, editing, onChange, placeholder, 
             className="bg-transparent outline-none w-full min-w-0"
             style={{ color: palette.goldBright, fontFamily: display, fontWeight: 700, fontSize: size, padding: 0 }}
           />
-          {unit && <span style={{ color: palette.textMuted, fontSize: "16px", fontWeight: 600 }}>{unit}</span>}
+          {unit && <span style={{ color: palette.textMuted, fontSize: "15px", fontWeight: 600 }}>{unit}</span>}
         </div>
       ) : (
         <div className="flex items-baseline gap-1.5 min-w-0">
-          {prefix && value !== "" && value != null && <span style={{ color: palette.textMuted, fontSize: "18px", fontWeight: 600 }}>{prefix}</span>}
+          {prefix && value !== "" && value != null && <span style={{ color: palette.textMuted, fontSize: "16px", fontWeight: 600 }}>{prefix}</span>}
           <span className="truncate" style={{ color: value ? palette.goldBright : palette.textFaint, fontFamily: display, fontWeight: 700, fontSize: size, lineHeight: 1.1 }}>
             {value ? value : "\u2014"}
           </span>
-          {unit && value ? <span style={{ color: palette.textMuted, fontSize: "16px", fontWeight: 600 }}>{unit}</span> : null}
+          {unit && value ? <span style={{ color: palette.textMuted, fontSize: "15px", fontWeight: 600 }}>{unit}</span> : null}
         </div>
       )}
     </div>
@@ -91,8 +91,8 @@ function Meter({ label, valueText, ratio }) {
   return (
     <div style={{ marginTop: 16 }}>
       <div className="flex items-center justify-between" style={{ marginBottom: 6 }}>
-        <span style={{ color: palette.textMuted, fontSize: "13px" }}>{label}</span>
-        <span style={{ color, fontFamily: mono, fontSize: "12.5px", fontWeight: 600 }}>{valueText}</span>
+        <span style={{ color: palette.textMuted, fontSize: "14px" }}>{label}</span>
+        <span style={{ color, fontFamily: mono, fontSize: "14px", fontWeight: 600 }}>{valueText}</span>
       </div>
       <div style={{ height: 8, borderRadius: 999, background: palette.field, overflow: "hidden" }}>
         <div style={{ height: "100%", width: `${Math.max(0, Math.min(1, ratio)) * 100}%`, background: color, borderRadius: 999, transition: "width 0.3s ease" }} />
@@ -101,7 +101,7 @@ function Meter({ label, valueText, ratio }) {
   );
 }
 
-const ruleText = { color: palette.text, fontSize: "16px", lineHeight: 1.5 };
+const ruleText = { color: palette.text, fontSize: "15px", lineHeight: 1.5 };
 
 function AddLink({ onAdd, placeholder, disabled, value, onValueChange, maxLength = 140 }) {
   // Uncontrolled by default (text kept here, onAdd(text)); controlled when value/onValueChange are given
@@ -131,7 +131,7 @@ function AddLink({ onAdd, placeholder, disabled, value, onValueChange, maxLength
         type="button"
         onClick={() => setOpen(true)}
         className={TAP}
-        style={{ color: palette.textMuted, fontSize: "16px", fontWeight: 600, marginTop: 14, padding: "4px 0" }}
+        style={{ color: palette.textMuted, fontSize: "15px", fontWeight: 600, marginTop: 14, padding: "4px 0" }}
       >
         + Add a new rule
       </button>
@@ -181,7 +181,7 @@ function RuleLines({ lines, editing, onChange, emptyText, placeholder }) {
   const removeLine = (i) => onChange(lines.filter((_, idx) => idx !== i));
   return (
     <>
-      {lines.length === 0 && !editing && <p style={{ color: palette.textFaint, fontSize: "14px", margin: 0 }}>{emptyText}</p>}
+      {lines.length === 0 && !editing && <p style={{ color: palette.textFaint, fontSize: "15px", margin: 0 }}>{emptyText}</p>}
       <div className="flex flex-col" style={{ gap: editing ? 10 : 16 }}>
         {lines.map((l, i) =>
           editing ? (
@@ -287,7 +287,7 @@ export default function TradePlan(props) {
           </p>
         )}
         {!startBal && (monthTarget > 0 || weekTarget > 0) && (
-          <p style={{ color: palette.textFaint, fontSize: "13px", margin: "0 0 4px" }}>Set a starting balance in the Curve tab to track progress toward these targets.</p>
+          <p style={{ color: palette.textFaint, fontSize: "14px", margin: "0 0 4px" }}>Set a starting balance in the Curve tab to track progress toward these targets.</p>
         )}
         {goalBar("This month", monthTarget, monthProg)}
         {goalBar("This week", weekTarget, weekProg)}
@@ -323,10 +323,10 @@ export default function TradePlan(props) {
       {/* PSYCHOLOGY */}
       <Card icon={Brain} title="Psychology Rules" editing={editing.psych} onToggle={() => toggle("psych")} isDesktop={isDesktop}>
         {!playbookRulesLoaded ? (
-          <p style={{ color: palette.textFaint, fontSize: "14px", margin: 0 }}>Loading rules{"\u2026"}</p>
+          <p style={{ color: palette.textFaint, fontSize: "15px", margin: 0 }}>Loading rules{"\u2026"}</p>
         ) : (
           <>
-            {playbookRules.length === 0 && <p style={{ color: palette.textFaint, fontSize: "14px", margin: 0 }}>Add the habits you want to keep under pressure.</p>}
+            {playbookRules.length === 0 && <p style={{ color: palette.textFaint, fontSize: "15px", margin: 0 }}>Add the habits you want to keep under pressure.</p>}
             <div className="flex flex-col" style={{ gap: 4 }}>
               {playbookRules.map((r) => {
                 const followed = !!todayResults[r.id];
@@ -362,7 +362,7 @@ export default function TradePlan(props) {
               disabled={!canAddPsych}
               placeholder="e.g. No trades within 15 minutes of a loss"
             />
-            {playbookRuleError && <p style={{ color: palette.red, fontSize: "13px", marginTop: 8 }}>{playbookRuleError}</p>}
+            {playbookRuleError && <p style={{ color: palette.red, fontSize: "14px", marginTop: 8 }}>{playbookRuleError}</p>}
 
             {playbookRules.length > 0 && !editing.psych && (
               <button
@@ -375,13 +375,13 @@ export default function TradePlan(props) {
                 {alreadyCheckedInToday ? "Update today's check-in" : "Save today's check-in"}
               </button>
             )}
-            {playbookMsg && <p style={{ color: palette.goldBright, fontSize: "13px", marginTop: 10 }}>{playbookMsg}</p>}
+            {playbookMsg && <p style={{ color: palette.goldBright, fontSize: "14px", marginTop: 10 }}>{playbookMsg}</p>}
 
             {stats.hasData && (
               <div className="grid grid-cols-3 gap-2.5" style={{ marginTop: 18 }}>
                 {[["Streak", `${stats.current}d`], ["Best", `${stats.best}d`], ["Clean days", stats.overallPct === null ? "\u2014" : `${stats.overallPct}%`]].map(([l, v]) => (
                   <div key={l} style={{ background: palette.field, borderRadius: 14, padding: "10px 12px" }}>
-                    <div style={{ color: palette.textFaint, fontSize: "12px" }}>{l}</div>
+                    <div style={{ color: palette.textFaint, fontSize: "13px" }}>{l}</div>
                     <div style={{ color: palette.text, fontFamily: display, fontWeight: 700, fontSize: "19px", marginTop: 2 }}>{v}</div>
                   </div>
                 ))}
@@ -390,7 +390,7 @@ export default function TradePlan(props) {
 
             {recent.length > 0 && (
               <div style={{ marginTop: 18 }}>
-                <div style={{ color: palette.textMuted, fontSize: "13px", fontWeight: 600, marginBottom: 6 }}>Recent check-ins</div>
+                <div style={{ color: palette.textMuted, fontSize: "14px", fontWeight: 600, marginBottom: 6 }}>Recent check-ins</div>
                 {recent.map((c) => {
                   const clean = isCleanCheckin(c);
                   const total = Object.keys(c.results || {}).length;
@@ -401,10 +401,10 @@ export default function TradePlan(props) {
                         <span className="flex items-center justify-center rounded-full flex-shrink-0" style={{ width: 18, height: 18, background: clean ? `${palette.green}26` : `${palette.red}1E`, color: clean ? palette.green : palette.red }}>
                           {clean ? <Check size={11} strokeWidth={3} /> : <X size={11} strokeWidth={3} />}
                         </span>
-                        <span style={{ color: palette.text, fontSize: "14px" }}>{formatDayLabel(c.date)}</span>
+                        <span style={{ color: palette.text, fontSize: "15px" }}>{formatDayLabel(c.date)}</span>
                       </div>
                       <div className="flex items-center gap-2.5">
-                        <span style={{ fontFamily: mono, fontSize: "12px", color: palette.textMuted }}>{done}/{total}</span>
+                        <span style={{ fontFamily: mono, fontSize: "13px", color: palette.textMuted }}>{done}/{total}</span>
                         <button type="button" onClick={() => deletePlaybookCheckin(c.id)} className={TAP} style={{ color: palette.textFaint }} aria-label={`Delete check-in for ${formatDayLabel(c.date)}`}>
                           <Trash2 size={14} />
                         </button>
