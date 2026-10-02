@@ -6738,22 +6738,6 @@ const hiddenTabIds = settings.hiddenTabs || [];
 
   // Shared sub-tab bar for Challenge / Journal / Sessions. Desktop uses the same underline
   // style as the Insights tabs; mobile keeps the original pill buttons.
-  // Soft fade under a sticky sub-tab bar, so scrolled content melts away instead of being cut off hard.
-  const subNavFade = (
-    <div
-      aria-hidden="true"
-      style={{
-        position: "absolute",
-        left: 0,
-        right: 0,
-        top: "100%",
-        height: "14px",
-        pointerEvents: "none",
-        background: `linear-gradient(to bottom, ${palette.bg}, ${palette.bg}00)`,
-      }}
-    />
-  );
-
   const renderSubNav = (tabs, activeId, onSelect) =>
     isDesktop ? (
       <div
@@ -6764,10 +6748,9 @@ const hiddenTabIds = settings.hiddenTabs || [];
           top: 0,
           zIndex: 5,
           background: palette.bg,
-          paddingTop: "6px",
+          paddingTop: "14px",
         }}
       >
-        {subNavFade}
         {tabs.map((t) => {
           const active = activeId === t.id;
           return (
@@ -6802,11 +6785,10 @@ const hiddenTabIds = settings.hiddenTabs || [];
           top: 0,
           zIndex: 5,
           background: palette.bg,
-          paddingTop: "2px",
+          paddingTop: "8px",
           paddingBottom: "8px",
         }}
       >
-        {subNavFade}
         <div
           role="tablist"
           className="relative"
@@ -7299,6 +7281,8 @@ if (activeTab === "community") {
           // Insights > Coach is a fixed screen: the page does not scroll, only the chat's message list does.
           const coachFixed = !tourActive && activeTab === "insights" && insightsSubTab === "coach";
           const coachFillStyle = coachFixed ? { flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column" } : null;
+          // Tabs whose first element is the sticky sub-tab bar start flush at the top, so the bar never slides up on scroll.
+          const startsWithSubNav = ["risk", "journal", "sessions", "insights"].includes(activeTab);
           return (
 <main
   key={activeTab}
@@ -7328,12 +7312,12 @@ if (activeTab === "community") {
               ) : !isDesktop ? (
                 <div
                   className={tourActive ? undefined : tabDirRef.current.dir < 0 ? "ledger-tab-enter-back" : "ledger-tab-enter-fwd"}
-                  style={{ paddingTop: "20px", ...coachFillStyle }}
+                  style={{ paddingTop: startsWithSubNav ? "0px" : "20px", ...coachFillStyle }}
                 >
                   {body}
                 </div>
               ) : (
-                <div style={{ width: "100%", maxWidth: "1400px", margin: "0 auto", paddingTop: "24px", ...coachFillStyle }}>
+                <div style={{ width: "100%", maxWidth: "1400px", margin: "0 auto", paddingTop: startsWithSubNav ? "0px" : "24px", ...coachFillStyle }}>
                   {body}
                 </div>
               )}
