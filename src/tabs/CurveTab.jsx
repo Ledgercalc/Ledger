@@ -243,13 +243,13 @@ export default function CurveTab(props) {
                   <XAxis
                     dataKey="trade"
                     stroke={palette.textFaint}
-                    tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
+                    tick={{ fill: palette.textFaint, fontSize: 11, fontFamily: mono }}
                     tickLine={false}
                     axisLine={{ stroke: palette.border }}
                   />
                   <YAxis
                     stroke={palette.textFaint}
-                    tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
+                    tick={{ fill: palette.textFaint, fontSize: 11, fontFamily: mono }}
                     tickLine={false}
                     axisLine={{ stroke: palette.border }}
                     width={54}
@@ -262,7 +262,7 @@ export default function CurveTab(props) {
                       border: `1px solid ${palette.border}`,
                       borderRadius: "8px",
                       fontFamily: mono,
-                      fontSize: "12px",
+                      fontSize: "13px",
                     }}
                     labelStyle={{ color: palette.textMuted }}
                     itemStyle={{ color: netPnl >= 0 ? palette.green : palette.red }}
@@ -332,7 +332,7 @@ export default function CurveTab(props) {
               border: `1px solid ${palette.gold}`,
               color: palette.letterbox,
               fontFamily: mono,
-              fontSize: "13px",
+              fontSize: "14px",
               fontWeight: 600,
               boxShadow: palette.shadow,
               transition: `${THEME_TRANSITION}, transform 0.15s ease`,
@@ -350,7 +350,7 @@ export default function CurveTab(props) {
               border: `1px solid ${palette.border}`,
               color: palette.text,
               fontFamily: mono,
-              fontSize: "13px",
+              fontSize: "14px",
               fontWeight: 600,
               transition: `${THEME_TRANSITION}, transform 0.15s ease`,
             }}
@@ -379,13 +379,13 @@ export default function CurveTab(props) {
               value={copyFallbackText}
               onFocus={(e) => e.target.select()}
               className="w-full bg-transparent outline-none"
-              style={{ color: palette.text, fontFamily: mono, fontSize: "12px", height: "132px", resize: "none" }}
+              style={{ color: palette.text, fontFamily: mono, fontSize: "13px", height: "132px", resize: "none" }}
             />
             <button
               type="button"
               onClick={() => setCopyFallbackText("")}
               className={`mt-2 ${TAP}`}
-              style={{ color: palette.textFaint, fontSize: "11px", fontFamily: mono }}
+              style={{ color: palette.textFaint, fontSize: "12px", fontFamily: mono }}
             >
               Dismiss
             </button>
@@ -400,7 +400,7 @@ export default function CurveTab(props) {
         >
           <span
             className="block mb-1.5 uppercase"
-            style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+            style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}
           >
             Backup &amp; Restore
           </span>
@@ -418,7 +418,7 @@ export default function CurveTab(props) {
                 border: `1px solid ${palette.border}`,
                 color: palette.text,
                 fontFamily: mono,
-                fontSize: "13px",
+                fontSize: "14px",
                 transition: `${THEME_TRANSITION}, transform 0.15s ease`,
               }}
             >
@@ -434,7 +434,7 @@ export default function CurveTab(props) {
                 border: `1px solid ${palette.border}`,
                 color: palette.text,
                 fontFamily: mono,
-                fontSize: "13px",
+                fontSize: "14px",
                 transition: `${THEME_TRANSITION}, transform 0.15s ease`,
               }}
             >
@@ -470,7 +470,7 @@ export default function CurveTab(props) {
                   type="button"
                   onClick={confirmImport}
                   className={`flex-1 rounded-lg py-2 ${TAP}`}
-                  style={{ background: palette.gold, color: palette.letterbox, fontFamily: mono, fontSize: "13px" }}
+                  style={{ background: palette.gold, color: palette.letterbox, fontFamily: mono, fontSize: "14px" }}
                 >
                   Replace Data
                 </button>
@@ -483,7 +483,7 @@ export default function CurveTab(props) {
                     border: `1px solid ${palette.border}`,
                     color: palette.textMuted,
                     fontFamily: mono,
-                    fontSize: "13px",
+                    fontSize: "14px",
                   }}
                 >
                   Cancel
@@ -506,7 +506,7 @@ export default function CurveTab(props) {
             className="rounded-2xl p-4 mb-4"
             style={{ background: `${palette.red}14`, border: `1px solid ${palette.red}`, boxShadow: palette.shadow }}
           >
-            <div style={{ color: palette.red, fontSize: "13px", fontWeight: 600, marginBottom: "2px" }}>
+            <div style={{ color: palette.red, fontSize: "14px", fontWeight: 600, marginBottom: "2px" }}>
               Daily loss limit reached
             </div>
             <div className="text-xs" style={{ color: palette.textMuted }}>
@@ -520,7 +520,7 @@ export default function CurveTab(props) {
             className="rounded-2xl p-4 mb-4"
             style={{ background: `${palette.gold}14`, border: `1px solid ${palette.gold}`, boxShadow: palette.shadow }}
           >
-            <div style={{ color: palette.gold, fontSize: "13px", fontWeight: 600, marginBottom: "2px" }}>
+            <div style={{ color: palette.gold, fontSize: "14px", fontWeight: 600, marginBottom: "2px" }}>
               Trade limit reached
             </div>
             <div className="text-xs" style={{ color: palette.textMuted }}>
@@ -532,7 +532,7 @@ export default function CurveTab(props) {
         <div ref={logFormRef} className="flex items-center justify-between mb-1.5">
           <span
             className="uppercase"
-            style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+            style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}
           >
             {editingTradeId ? "Edit Trade" : "Log a Trade"}
           </span>
@@ -541,7 +541,7 @@ export default function CurveTab(props) {
               type="button"
               onClick={cancelEditTrade}
               className={TAP}
-              style={{ color: palette.textFaint, fontSize: "11px", fontFamily: mono }}
+              style={{ color: palette.textFaint, fontSize: "12px", fontFamily: mono }}
             >
               Cancel
             </button>
@@ -563,7 +563,7 @@ export default function CurveTab(props) {
             border: `1px solid ${palette.border}`,
             color: palette.text,
             fontFamily: mono,
-            fontSize: "14px",
+            fontSize: "15px",
           }}
         />
         <div className="flex gap-2 mb-2">
@@ -614,7 +614,7 @@ export default function CurveTab(props) {
             background: palette.field,
             border: `1px solid ${palette.border}`,
             color: palette.textMuted,
-            fontSize: "13px",
+            fontSize: "14px",
           }}
         />
 
@@ -631,7 +631,7 @@ export default function CurveTab(props) {
                   background: active ? palette.field : "transparent",
                   color: active ? palette.text : palette.textFaint,
                   border: `1px dashed ${active ? palette.textMuted : palette.border}`,
-                  fontSize: "12px",
+                  fontSize: "13px",
                 }}
               >
                 {tag}
@@ -642,7 +642,7 @@ export default function CurveTab(props) {
 
         <span
           className="block mb-1.5 uppercase"
-          style={{ color: palette.textFaint, letterSpacing: "0.08em", fontSize: "10px" }}
+          style={{ color: palette.textFaint, letterSpacing: "0.08em", fontSize: "12px" }}
         >
           Setup
         </span>
@@ -659,7 +659,7 @@ export default function CurveTab(props) {
                   background: active ? palette.gold : palette.field,
                   color: active ? palette.letterbox : palette.textMuted,
                   border: `1px solid ${active ? palette.gold : palette.border}`,
-                  fontSize: "13px",
+                  fontSize: "14px",
                 }}
               >
                 {s.label}
@@ -680,7 +680,7 @@ export default function CurveTab(props) {
                     background: active ? palette.gold : palette.field,
                     color: active ? palette.letterbox : palette.textMuted,
                     border: `1px dashed ${active ? palette.gold : palette.border}`,
-                    fontSize: "13px",
+                    fontSize: "14px",
                   }}
                 >
                   {s.label}
@@ -691,7 +691,7 @@ export default function CurveTab(props) {
 
         <span
           className="block mb-1.5 uppercase"
-          style={{ color: palette.textFaint, letterSpacing: "0.08em", fontSize: "10px" }}
+          style={{ color: palette.textFaint, letterSpacing: "0.08em", fontSize: "12px" }}
         >
           Mood
         </span>
@@ -708,7 +708,7 @@ export default function CurveTab(props) {
                   background: active ? palette.gold : palette.field,
                   color: active ? palette.letterbox : palette.textMuted,
                   border: `1px solid ${active ? palette.gold : palette.border}`,
-                  fontSize: "13px",
+                  fontSize: "14px",
                 }}
               >
                 <span>{e.emoji}</span>
@@ -730,7 +730,7 @@ export default function CurveTab(props) {
                     background: active ? palette.gold : palette.field,
                     color: active ? palette.letterbox : palette.textMuted,
                     border: `1px dashed ${active ? palette.gold : palette.border}`,
-                    fontSize: "13px",
+                    fontSize: "14px",
                   }}
                 >
                   <span>{m.emoji}</span>
@@ -768,7 +768,7 @@ export default function CurveTab(props) {
             <div className="flex items-center justify-between mb-1.5">
               <span
                 className="uppercase"
-                style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+                style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}
               >
                 Calendar
               </span>
@@ -780,7 +780,7 @@ export default function CurveTab(props) {
                     setSelectedDay(null);
                   }}
                   className={TAP}
-                  style={{ color: palette.textFaint, fontSize: "11px", fontFamily: mono }}
+                  style={{ color: palette.textFaint, fontSize: "12px", fontFamily: mono }}
                 >
                   Clear all
                 </button>
@@ -801,7 +801,7 @@ export default function CurveTab(props) {
                 >
                   <ChevronLeft size={18} />
                 </button>
-                <div style={{ fontFamily: mono, fontSize: "13px", color: palette.text, letterSpacing: "0.04em" }}>
+                <div style={{ fontFamily: mono, fontSize: "14px", color: palette.text, letterSpacing: "0.04em" }}>
                   {MONTH_NAMES[viewMonthIdx]} {viewYear}
                 </div>
                 <button
@@ -820,7 +820,7 @@ export default function CurveTab(props) {
                   <div
                     key={i}
                     className="text-center"
-                    style={{ fontSize: "10px", color: palette.textFaint, fontFamily: mono }}
+                    style={{ fontSize: "12px", color: palette.textFaint, fontFamily: mono }}
                   >
                     {w}
                   </div>
@@ -858,7 +858,7 @@ export default function CurveTab(props) {
                     >
                       <span
                         style={{
-                          fontSize: "11px",
+                          fontSize: "12px",
                           color: hasTrades ? palette.text : palette.textFaint,
                           fontFamily: mono,
                         }}
@@ -868,7 +868,7 @@ export default function CurveTab(props) {
                       {hasTrades && (
                         <span
                           style={{
-                            fontSize: "9px",
+                            fontSize: "12px",
                             color: posDay ? palette.green : palette.red,
                             fontFamily: mono,
                           }}
@@ -915,7 +915,7 @@ export default function CurveTab(props) {
                     border: `1px solid ${palette.border}`,
                     color: disabled ? palette.textFaint : palette.text,
                     fontFamily: mono,
-                    fontSize: "12px",
+                    fontSize: "13px",
                     fontWeight: 600,
                     opacity: disabled ? 0.6 : 1,
                   }}
@@ -931,14 +931,14 @@ export default function CurveTab(props) {
                 <div className="flex items-center justify-between mb-1.5">
                   <span
                     className="uppercase"
-                    style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
+                    style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}
                   >
                     {formatDayLabel(selectedDay)}
                   </span>
                   <span
                     style={{
                       fontFamily: mono,
-                      fontSize: "12px",
+                      fontSize: "13px",
                       color: selectedInfo.total >= 0 ? palette.green : palette.red,
                     }}
                   >
@@ -969,19 +969,19 @@ export default function CurveTab(props) {
                             <span
                               style={{
                                 fontFamily: mono,
-                                fontSize: "14px",
+                                fontSize: "15px",
                                 color: t.pnl >= 0 ? palette.green : palette.red,
                               }}
                             >
                               {t.pnl >= 0 ? "+" : "-"}${fmtMoney(t.pnl)}
                             </span>
                             {t.emotion && emotionMeta(t.emotion) && (
-                              <span style={{ fontSize: "13px" }}>{emotionMeta(t.emotion).emoji}</span>
+                              <span style={{ fontSize: "14px" }}>{emotionMeta(t.emotion).emoji}</span>
                             )}
                             {t.pair && (
                               <span
                                 style={{
-                                  fontSize: "10px",
+                                  fontSize: "12px",
                                   fontFamily: mono,
                                   color: palette.gold,
                                   border: `1px solid ${palette.gold}`,
@@ -995,7 +995,7 @@ export default function CurveTab(props) {
                             {t.setup && (
                               <span
                                 style={{
-                                  fontSize: "10px",
+                                  fontSize: "12px",
                                   fontFamily: mono,
                                   color: palette.textMuted,
                                   border: `1px solid ${palette.border}`,
@@ -1009,7 +1009,7 @@ export default function CurveTab(props) {
                            {settings.showRevengeTag !== false && revengeIds.has(t.id) && (
                               <span
                                 style={{
-                                  fontSize: "10px",
+                                  fontSize: "12px",
                                   fontFamily: mono,
                                   color: palette.red,
                                   border: `1px solid ${palette.red}`,
@@ -1023,7 +1023,7 @@ export default function CurveTab(props) {
                             {isBeingEdited && (
                               <span
                                 style={{
-                                  fontSize: "10px",
+                                  fontSize: "12px",
                                   fontFamily: mono,
                                   color: palette.gold,
                                   border: `1px solid ${palette.gold}`,
@@ -1040,13 +1040,13 @@ export default function CurveTab(props) {
                               </span>
                             )}
                             {savingThisTrade && (
-                              <span style={{ fontSize: "10px", color: palette.textFaint, fontFamily: mono }}>
+                              <span style={{ fontSize: "12px", color: palette.textFaint, fontFamily: mono }}>
                                 saving…
                               </span>
                             )}
                           </div>
                           {t.note && (
-                            <div style={{ color: palette.textMuted, fontSize: "12px" }}>{t.note}</div>
+                            <div style={{ color: palette.textMuted, fontSize: "13px" }}>{t.note}</div>
                           )}
                         </div>
                         <div className="flex items-center flex-shrink-0" style={{ marginLeft: "8px", gap: "10px" }}>
@@ -1145,7 +1145,7 @@ export default function CurveTab(props) {
                               }}
                             >
                               <Camera size={16} />
-                              <span style={{ fontSize: "10px", fontFamily: mono }}>
+                              <span style={{ fontSize: "12px", fontFamily: mono }}>
                                 {savingThisTrade
                                   ? "Saving\u2026"
                                   : shots.length === 0
