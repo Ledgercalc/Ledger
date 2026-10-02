@@ -54,7 +54,7 @@ function Card({ icon: Icon, title, editing, onToggle, isDesktop, children }) {
 }
 
 function BigValue({ label, value, unit, prefix, editing, onChange, placeholder, inputMode = "decimal", text, isDesktop }) {
-  const size = isDesktop ? "30px" : "28px";
+  const size = text ? "19px" : isDesktop ? "30px" : "28px";
   return (
     <div className="min-w-0">
       <div style={{ color: palette.textMuted, fontSize: "14px", marginBottom: 4 }}>{label}</div>
@@ -76,7 +76,7 @@ function BigValue({ label, value, unit, prefix, editing, onChange, placeholder, 
       ) : (
         <div className="flex items-baseline gap-1.5 min-w-0">
           {prefix && value !== "" && value != null && <span style={{ color: palette.textMuted, fontSize: "16px", fontWeight: 600 }}>{prefix}</span>}
-          <span className="truncate" style={{ color: value ? palette.goldBright : palette.textFaint, fontFamily: display, fontWeight: 700, fontSize: size, lineHeight: 1.1 }}>
+          <span className={text ? "break-words" : "truncate"} style={{ color: value ? palette.goldBright : palette.textFaint, fontFamily: display, fontWeight: 700, fontSize: size, lineHeight: text ? 1.3 : 1.1 }}>
             {value ? value : "\u2014"}
           </span>
           {unit && value ? <span style={{ color: palette.textMuted, fontSize: "15px", fontWeight: 600 }}>{unit}</span> : null}
@@ -151,7 +151,7 @@ function AddLink({ onAdd, placeholder, disabled, value, onValueChange, maxLength
         }}
         placeholder={placeholder}
         className="flex-1 min-w-0 outline-none"
-        style={{ background: palette.field, border: `1px solid ${palette.border}`, borderRadius: 12, color: palette.text, fontSize: "15px", padding: "10px 14px" }}
+        style={{ background: palette.field, border: `1px solid ${palette.border}`, borderRadius: 12, color: palette.text, fontSize: "16px", padding: "10px 14px" }}
       />
       <button
         type="button"
@@ -193,7 +193,7 @@ function RuleLines({ lines, editing, onChange, emptyText, placeholder }) {
                 onChange={(e) => setLine(i, e.target.value)}
                 aria-label={`Rule ${i + 1}`}
                 className="flex-1 min-w-0 outline-none"
-                style={{ background: palette.field, border: `1px solid ${palette.border}`, borderRadius: 12, color: palette.text, fontSize: "15px", padding: "10px 14px" }}
+                style={{ background: palette.field, border: `1px solid ${palette.border}`, borderRadius: 12, color: palette.text, fontSize: "16px", padding: "10px 14px" }}
               />
               <button type="button" onClick={() => removeLine(i)} className={`flex-shrink-0 ${TAP}`} style={{ color: palette.red, padding: 6 }} aria-label={`Delete rule ${i + 1}`}>
                 <Trash2 size={18} />
