@@ -6738,6 +6738,22 @@ const hiddenTabIds = settings.hiddenTabs || [];
 
   // Shared sub-tab bar for Challenge / Journal / Sessions. Desktop uses the same underline
   // style as the Insights tabs; mobile keeps the original pill buttons.
+  // Soft fade under a sticky sub-tab bar, so scrolled content melts away instead of being cut off hard.
+  const subNavFade = (
+    <div
+      aria-hidden="true"
+      style={{
+        position: "absolute",
+        left: 0,
+        right: 0,
+        top: "100%",
+        height: "14px",
+        pointerEvents: "none",
+        background: `linear-gradient(to bottom, ${palette.bg}, ${palette.bg}00)`,
+      }}
+    />
+  );
+
   const renderSubNav = (tabs, activeId, onSelect) =>
     isDesktop ? (
       <div
@@ -6751,6 +6767,7 @@ const hiddenTabIds = settings.hiddenTabs || [];
           paddingTop: "6px",
         }}
       >
+        {subNavFade}
         {tabs.map((t) => {
           const active = activeId === t.id;
           return (
@@ -6785,10 +6802,11 @@ const hiddenTabIds = settings.hiddenTabs || [];
           top: 0,
           zIndex: 5,
           background: palette.bg,
-          paddingTop: "8px",
-          paddingBottom: "12px",
+          paddingTop: "2px",
+          paddingBottom: "8px",
         }}
       >
+        {subNavFade}
         <div
           role="tablist"
           className="relative"
@@ -6830,7 +6848,7 @@ const hiddenTabIds = settings.hiddenTabs || [];
                   zIndex: 1,
                   background: "transparent",
                   border: "none",
-                  padding: "10px 4px",
+                  padding: "8px 4px",
                   minWidth: 0,
                   textAlign: "center",
                   color: active ? palette.letterbox : palette.textMuted,
@@ -7156,7 +7174,7 @@ if (activeTab === "community") {
 
         {!(!isDesktop && activeTab === "community" && (!!activeGroupId || communityMobileFeedOpen)) && (
         <header
-          className={isDesktop ? "px-8 flex-shrink-0 flex items-center justify-between" : "px-5 pt-4 pb-3 flex-shrink-0 flex items-center justify-between"}
+          className={isDesktop ? "px-8 flex-shrink-0 flex items-center justify-between" : "px-5 pt-2.5 pb-2 flex-shrink-0 flex items-center justify-between"}
           style={{ height: isDesktop ? "76px" : "auto", borderBottom: isDesktop ? "none" : `1px solid ${palette.border}`, transition: THEME_TRANSITION }}
         >
           <div style={{ marginLeft: isDesktop ? "8px" : 0 }}>
@@ -7208,19 +7226,16 @@ if (activeTab === "community") {
 <h1
   style={{
     fontFamily: display,
-    fontSize: "1.3rem",
+    fontSize: "1.2rem",
     fontWeight: 700,
     color: palette.text,
     letterSpacing: "0.01em",
-    lineHeight: 1.1,
+    lineHeight: 1.15,
     transition: THEME_TRANSITION,
   }}
 >
-  Tredzi
+  {TABS.find((t) => t.id === activeTab)?.label || "Tredzi"}
 </h1>
-                  <div className="uppercase" style={{ color: palette.textFaint, letterSpacing: "0.1em", fontSize: "10px", fontWeight: 600, transition: THEME_TRANSITION }}>
-                    Trade Math Calculator
-                  </div>
                 </div>
               </div>
             )}
@@ -7232,8 +7247,8 @@ if (activeTab === "community") {
               aria-label="Toggle light/dark mode"
               className={`flex items-center justify-center rounded-full flex-shrink-0 ${TAP}`}
               style={{
-                width: "38px",
-                height: "38px",
+                width: isDesktop ? "38px" : "34px",
+                height: isDesktop ? "38px" : "34px",
                 background: palette.field,
                 border: `1px solid ${palette.border}`,
                 color: palette.gold,
@@ -7251,8 +7266,8 @@ if (activeTab === "community") {
               aria-label="Open settings"
               className={`flex items-center justify-center rounded-full flex-shrink-0 ${TAP}`}
               style={{
-                width: "38px",
-                height: "38px",
+                width: isDesktop ? "38px" : "34px",
+                height: isDesktop ? "38px" : "34px",
                 background: palette.field,
                 border: `1px solid ${palette.border}`,
                 color: palette.textMuted,
@@ -7281,6 +7296,9 @@ if (activeTab === "community") {
 
         {(() => {
           const communityFullBleed = activeTab === "community" && (isDesktop || !!activeGroupId);
+          // Insights > Coach is a fixed screen: the page does not scroll, only the chat's message list does.
+          const coachFixed = !tourActive && activeTab === "insights" && insightsSubTab === "coach";
+          const coachFillStyle = coachFixed ? { flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column" } : null;
           return (
 <main
   key={activeTab}
@@ -7293,11 +7311,11 @@ if (activeTab === "community") {
               style={{
                 flex: "1 1 auto",
                 minHeight: 0,
-                overflowY: communityFullBleed ? "hidden" : "auto",
+                overflowY: communityFullBleed || coachFixed ? "hidden" : "auto",
                 overflowX: communityFullBleed ? undefined : "hidden",
                 WebkitOverflowScrolling: "touch",
                 overscrollBehavior: "contain",
-                display: communityFullBleed ? "flex" : "block",
+                display: communityFullBleed || coachFixed ? "flex" : "block",
                 flexDirection: "column",
                 paddingLeft: communityFullBleed && isDesktop ? "12px" : undefined,
                 paddingRight: communityFullBleed && isDesktop ? "12px" : undefined,
@@ -7310,12 +7328,12 @@ if (activeTab === "community") {
               ) : !isDesktop ? (
                 <div
                   className={tourActive ? undefined : tabDirRef.current.dir < 0 ? "ledger-tab-enter-back" : "ledger-tab-enter-fwd"}
-                  style={{ paddingTop: "20px" }}
+                  style={{ paddingTop: "20px", ...coachFillStyle }}
                 >
                   {body}
                 </div>
               ) : (
-                <div style={{ width: "100%", maxWidth: "1400px", margin: "0 auto", paddingTop: "24px" }}>
+                <div style={{ width: "100%", maxWidth: "1400px", margin: "0 auto", paddingTop: "24px", ...coachFillStyle }}>
                   {body}
                 </div>
               )}
