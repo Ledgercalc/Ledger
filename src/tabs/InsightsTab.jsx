@@ -126,7 +126,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
         border: `1px solid ${palette.border}`,
         borderRadius: "8px",
         fontFamily: mono,
-        fontSize: "13px",
+        fontSize: "12px",
       },
       labelStyle: { color: palette.textMuted },
       itemStyle: { color: palette.text },
@@ -167,7 +167,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                 borderBottom: `2.5px solid ${active ? palette.gold : "transparent"}`,
                 color: active ? palette.text : palette.textFaint,
                 fontFamily: display,
-                fontSize: "15px",
+                fontSize: "14.5px",
                 fontWeight: active ? 700 : 500,
                 padding: "0 2px 14px 2px",
                 marginBottom: "-1px",
@@ -268,12 +268,12 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
         }}
       >
         <div className="flex items-center justify-between mb-1">
-          <span className="uppercase" style={{ color: palette.textFaint, letterSpacing: "0.08em", fontSize: "12px" }}>
+          <span className="uppercase" style={{ color: palette.textFaint, letterSpacing: "0.08em", fontSize: "10px" }}>
             {label}
           </span>
           <span
             style={{
-              fontSize: "12px",
+              fontSize: "9px",
               fontFamily: mono,
               color: tierColor(tier),
               border: `1px solid ${tierColor(tier)}`,
@@ -309,7 +309,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
         />
         <span
           className="block mb-1.5 uppercase"
-          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}
+          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
         >
           Performance Heatmap
         </span>
@@ -392,17 +392,17 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
           >
             <div className="flex items-center gap-2 mb-1">
               <Lightbulb size={14} style={{ color: palette.gold }} />
-              <span className="uppercase" style={{ color: palette.gold, letterSpacing: "0.08em", fontSize: "12px" }}>
+              <span className="uppercase" style={{ color: palette.gold, letterSpacing: "0.08em", fontSize: "10px" }}>
                 Headline Insight
               </span>
             </div>
-            <div style={{ color: palette.text, fontSize: "14px" }}>{headline}</div>
+            <div style={{ color: palette.text, fontSize: "13px" }}>{headline}</div>
           </div>
         )}
 
         <span
           className="block mb-1.5 uppercase"
-          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}
+          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
         >
           Performance Overview
         </span>
@@ -424,7 +424,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
         <div>
         <span
           className="block mb-1.5 uppercase"
-          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}
+          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
         >
           This Month vs Last Month
         </span>
@@ -446,10 +446,10 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                 className="flex items-center justify-between"
                 style={{ marginBottom: i < 2 ? "8px" : 0 }}
               >
-                <span style={{ color: palette.textMuted, fontSize: "13px" }}>{row.label}</span>
+                <span style={{ color: palette.textMuted, fontSize: "12px" }}>{row.label}</span>
                 <div className="flex items-center gap-2">
-                  <span style={{ fontFamily: mono, fontSize: "14px", color: palette.text }}>{row.fmt(row.thisV)}</span>
-                  <span style={{ fontSize: "12px", color: flat || monthCmp.lastMonth.count === 0 ? palette.textFaint : up ? palette.green : palette.red }}>
+                  <span style={{ fontFamily: mono, fontSize: "13px", color: palette.text }}>{row.fmt(row.thisV)}</span>
+                  <span style={{ fontSize: "11px", color: flat || monthCmp.lastMonth.count === 0 ? palette.textFaint : up ? palette.green : palette.red }}>
                     {monthCmp.lastMonth.count === 0
                       ? "no trades last month"
                       : `${flat ? "\u2014" : up ? "\u2191" : "\u2193"} vs ${row.fmt(row.lastV)}`}
@@ -464,7 +464,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
         <div>
         <span
           className="block mb-1.5 uppercase"
-          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}
+          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
         >
           Journal Completeness
         </span>
@@ -474,7 +474,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
         >
           <div className="flex items-baseline justify-between mb-2">
             <span style={{ fontFamily: mono, fontSize: "1.3rem", color: palette.text }}>{completeness}%</span>
-            <span style={{ fontSize: "12px", color: palette.textFaint }}>note + setup + screenshot</span>
+            <span style={{ fontSize: "11px", color: palette.textFaint }}>note + setup + screenshot</span>
           </div>
           <div style={{ height: "6px", borderRadius: "999px", background: palette.field, overflow: "hidden" }}>
             <div
@@ -510,7 +510,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
 
         <span
           className="block mb-1.5 uppercase"
-          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}
+          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
         >
           Cost of Revenge Trading
         </span>
@@ -524,7 +524,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
 
         <span
           className="block mb-1.5 uppercase"
-          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}
+          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
         >
           Win-Streak Sizing Check
         </span>
@@ -542,7 +542,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
             </p>
           ) : (
             <>
-              <div style={{ color: palette.text, fontSize: "14px", marginBottom: "4px" }}>
+              <div style={{ color: palette.text, fontSize: "13px", marginBottom: "4px" }}>
                 {overconfidence.detected
                   ? `Trade size runs ${overconfidence.pctChange.toFixed(0)}% bigger after 3+ wins in a row.`
                   : "Trade size stays steady after win streaks \u2014 no overconfidence pattern detected."}
@@ -561,7 +561,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
           <div>
             <span
               className="block mb-1.5 uppercase"
-              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}
+              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
             >
               Discipline Streak Trend
             </span>
@@ -576,7 +576,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                     <XAxis dataKey="day" hide />
                     <YAxis
                       stroke={palette.textFaint}
-                      tick={{ fill: palette.textFaint, fontSize: 11, fontFamily: mono }}
+                      tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
                       tickLine={false}
                       axisLine={{ stroke: palette.border }}
                       width={28}
@@ -588,7 +588,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                         border: `1px solid ${palette.border}`,
                         borderRadius: "8px",
                         fontFamily: mono,
-                        fontSize: "13px",
+                        fontSize: "12px",
                       }}
                       labelStyle={{ color: palette.textMuted }}
                       itemStyle={{ color: palette.goldBright }}
@@ -607,7 +607,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
           <div>
             <span
               className="block mb-1.5 uppercase"
-              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}
+              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
             >
               Note Tag Win Rate
             </span>
@@ -622,13 +622,13 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                     <XAxis
                       dataKey="tag"
                       stroke={palette.textFaint}
-                      tick={{ fill: palette.textFaint, fontSize: 11, fontFamily: mono }}
+                      tick={{ fill: palette.textFaint, fontSize: 9, fontFamily: mono }}
                       tickLine={false}
                       axisLine={{ stroke: palette.border }}
                     />
                     <YAxis
                       stroke={palette.textFaint}
-                      tick={{ fill: palette.textFaint, fontSize: 11, fontFamily: mono }}
+                      tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
                       tickLine={false}
                       axisLine={{ stroke: palette.border }}
                       width={28}
@@ -650,7 +650,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
 
         <span
           className="block mb-1.5 uppercase"
-          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}
+          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
         >
           Consistency
         </span>
@@ -664,7 +664,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
           <>
             <span
               className="block mb-1.5 uppercase"
-              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}
+              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
             >
               Setup Performance
             </span>
@@ -679,13 +679,13 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                     <XAxis
                       dataKey="label"
                       stroke={palette.textFaint}
-                      tick={{ fill: palette.textFaint, fontSize: 11, fontFamily: mono }}
+                      tick={{ fill: palette.textFaint, fontSize: 9, fontFamily: mono }}
                       tickLine={false}
                       axisLine={{ stroke: palette.border }}
                     />
                     <YAxis
                       stroke={palette.textFaint}
-                      tick={{ fill: palette.textFaint, fontSize: 11, fontFamily: mono }}
+                      tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
                       tickLine={false}
                       axisLine={{ stroke: palette.border }}
                       width={28}
@@ -708,12 +708,12 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                 style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
               >
                 <div>
-                  <div style={{ color: palette.text, fontSize: "15px" }}>{r.label}</div>
-                  <div style={{ color: palette.textMuted, fontSize: "13px" }}>
+                  <div style={{ color: palette.text, fontSize: "14px" }}>{r.label}</div>
+                  <div style={{ color: palette.textMuted, fontSize: "12px" }}>
                     {r.count} trade{r.count === 1 ? "" : "s"} {r.winRate.toFixed(0)}% win rate
                   </div>
                 </div>
-                <span style={{ fontFamily: mono, fontSize: "14px", color: r.pnl >= 0 ? palette.green : palette.red }}>
+                <span style={{ fontFamily: mono, fontSize: "13px", color: r.pnl >= 0 ? palette.green : palette.red }}>
                   {fmtSigned(r.pnl)}
                 </span>
               </div>
@@ -731,7 +731,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
           <>
             <span
               className="block mt-4 mb-1.5 uppercase"
-              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}
+              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
             >
               Mood Impact
             </span>
@@ -746,13 +746,13 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                     <XAxis
                       dataKey="label"
                       stroke={palette.textFaint}
-                      tick={{ fill: palette.textFaint, fontSize: 11, fontFamily: mono }}
+                      tick={{ fill: palette.textFaint, fontSize: 9, fontFamily: mono }}
                       tickLine={false}
                       axisLine={{ stroke: palette.border }}
                     />
                     <YAxis
                       stroke={palette.textFaint}
-                      tick={{ fill: palette.textFaint, fontSize: 11, fontFamily: mono }}
+                      tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
                       tickLine={false}
                       axisLine={{ stroke: palette.border }}
                       width={28}
@@ -775,14 +775,14 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                 style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
               >
                 <div>
-                  <div style={{ color: palette.text, fontSize: "15px" }}>
+                  <div style={{ color: palette.text, fontSize: "14px" }}>
                     {r.emoji} {r.label}
                   </div>
-                  <div style={{ color: palette.textMuted, fontSize: "13px" }}>
+                  <div style={{ color: palette.textMuted, fontSize: "12px" }}>
                     {r.count} trade{r.count === 1 ? "" : "s"} {r.winRate.toFixed(0)}% win rate
                   </div>
                 </div>
-                <span style={{ fontFamily: mono, fontSize: "14px", color: r.pnl >= 0 ? palette.green : palette.red }}>
+                <span style={{ fontFamily: mono, fontSize: "13px", color: r.pnl >= 0 ? palette.green : palette.red }}>
                   {fmtSigned(r.pnl)}
                 </span>
               </div>
@@ -814,7 +814,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
         />
 
         {/* Yearly PnL Calendar */}
-        <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}>
+        <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
           Yearly PnL Calendar
         </span>
         <div className="flex items-center justify-between mb-4">
@@ -852,9 +852,9 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                           transition: THEME_TRANSITION,
                         }}
                       >
-              <span style={{ fontFamily: mono, fontSize: "14px", fontWeight: 600, color: hasPnl ? palette.text : palette.textFaint }}>{mLabel}</span>
+              <span style={{ fontFamily: mono, fontSize: "13px", fontWeight: 600, color: hasPnl ? palette.text : palette.textFaint }}>{mLabel}</span>
                         {hasPnl && (
-                          <span style={{ fontFamily: mono, fontSize: "12px", color: monthPnl >= 0 ? palette.green : palette.red }}>
+                          <span style={{ fontFamily: mono, fontSize: "10px", color: monthPnl >= 0 ? palette.green : palette.red }}>
                             {monthPnl >= 0 ? "+" : ""}{fmtMoney(monthPnl)}
                           </span>
                         )}
@@ -864,7 +864,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                 </div>
                 <p className="text-xs mb-4" style={{ color: palette.textFaint }}>Tap a coloured month to see its daily breakdown.</p>
 
-                <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}>
+                <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
                   PnL by Month
                 </span>
                 <div className={isDesktop ? "rounded-2xl p-6 mb-6" : "rounded-2xl p-4 mb-6"} style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}>
@@ -872,12 +872,12 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                     <ResponsiveContainer>
                       <BarChart data={journalMonthlyPnLSeries(pnlByMonth)} margin={{ top: 6, right: 8, bottom: 0, left: 0 }} barCategoryGap="30%">
                         <CartesianGrid stroke={palette.border} strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="label" stroke={palette.textFaint} tick={{ fill: palette.textFaint, fontSize: 11, fontFamily: mono }} tickLine={false} axisLine={{ stroke: palette.border }} />
-                        <YAxis stroke={palette.textFaint} tick={{ fill: palette.textFaint, fontSize: 11, fontFamily: mono }} tickLine={false} axisLine={{ stroke: palette.border }} width={48} />
+                        <XAxis dataKey="label" stroke={palette.textFaint} tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }} tickLine={false} axisLine={{ stroke: palette.border }} />
+                        <YAxis stroke={palette.textFaint} tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }} tickLine={false} axisLine={{ stroke: palette.border }} width={48} />
                         <ReferenceLine y={0} stroke={palette.textFaint} />
                         <Tooltip
                           cursor={false}
-                          contentStyle={{ background: palette.field, border: `1px solid ${palette.border}`, borderRadius: "8px", fontFamily: mono, fontSize: "13px" }}
+                          contentStyle={{ background: palette.field, border: `1px solid ${palette.border}`, borderRadius: "8px", fontFamily: mono, fontSize: "12px" }}
                           labelStyle={{ color: palette.textMuted }}
                           itemStyle={{ color: palette.text }}
                           formatter={(v) => [`${v >= 0 ? "+" : ""}$${fmtMoney(v)}`, "PnL"]}
@@ -898,13 +898,13 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
           const monthTotal = pnlByMonth[journalInsightMonth] || 0;
           return (
             <>
-              <button type="button" onClick={() => setJournalInsightMonth(null)} className={`flex items-center gap-1 mb-3 ${TAP}`} style={{ color: palette.textMuted, fontSize: "13px", fontFamily: mono }}>
+              <button type="button" onClick={() => setJournalInsightMonth(null)} className={`flex items-center gap-1 mb-3 ${TAP}`} style={{ color: palette.textMuted, fontSize: "12px", fontFamily: mono }}>
                 <ChevronLeft size={16} />{journalInsightYear}
               </button>
               <div className="rounded-2xl p-4 mb-6" style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}>
                 <div className="flex items-baseline justify-between mb-3">
-                  <span style={{ fontFamily: mono, fontSize: "14px", fontWeight: 600, color: palette.text }}>{MONTH_NAMES[journalInsightMonth - 1]} {journalInsightYear}</span>
-                  <span style={{ fontFamily: mono, fontSize: "14px", color: monthTotal >= 0 ? palette.green : palette.red }}>
+                  <span style={{ fontFamily: mono, fontSize: "13px", fontWeight: 600, color: palette.text }}>{MONTH_NAMES[journalInsightMonth - 1]} {journalInsightYear}</span>
+                  <span style={{ fontFamily: mono, fontSize: "13px", color: monthTotal >= 0 ? palette.green : palette.red }}>
                     {monthTotal >= 0 ? "+" : ""}{fmtMoney(monthTotal)} total
                   </span>
                 </div>
@@ -913,10 +913,10 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                   if (dayPnl === undefined) return null;
                   return (
                     <div key={day} className="flex items-center justify-between py-2" style={{ borderBottom: `1px solid ${palette.border}` }}>
-                      <span style={{ color: palette.textMuted, fontSize: "13px", fontFamily: mono }}>
+                      <span style={{ color: palette.textMuted, fontSize: "12px", fontFamily: mono }}>
                         {MONTH_SHORT[journalInsightMonth - 1]} {day}
                       </span>
-                      <span style={{ fontFamily: mono, fontSize: "14px", color: dayPnl >= 0 ? palette.green : palette.red }}>
+                      <span style={{ fontFamily: mono, fontSize: "13px", color: dayPnl >= 0 ? palette.green : palette.red }}>
                         {dayPnl >= 0 ? "+" : ""}{fmtMoney(dayPnl)}
                       </span>
                     </div>
@@ -924,7 +924,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                 })}
               </div>
 
-              <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}>
+              <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
                 PnL by Day — {MONTH_NAMES[journalInsightMonth - 1]}
               </span>
               <div className={isDesktop ? "rounded-2xl p-6 mb-6" : "rounded-2xl p-4 mb-6"} style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}>
@@ -935,16 +935,16 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                       <XAxis
                         dataKey="label"
                         stroke={palette.textFaint}
-                        tick={{ fill: palette.textFaint, fontSize: 11, fontFamily: mono }}
+                        tick={{ fill: palette.textFaint, fontSize: 9, fontFamily: mono }}
                         tickLine={false}
                         axisLine={{ stroke: palette.border }}
                         interval={Math.ceil(daysInMonth / 10)}
                       />
-                      <YAxis stroke={palette.textFaint} tick={{ fill: palette.textFaint, fontSize: 11, fontFamily: mono }} tickLine={false} axisLine={{ stroke: palette.border }} width={48} />
+                      <YAxis stroke={palette.textFaint} tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }} tickLine={false} axisLine={{ stroke: palette.border }} width={48} />
                       <ReferenceLine y={0} stroke={palette.textFaint} />
                       <Tooltip
                         cursor={false}
-                        contentStyle={{ background: palette.field, border: `1px solid ${palette.border}`, borderRadius: "8px", fontFamily: mono, fontSize: "13px" }}
+                        contentStyle={{ background: palette.field, border: `1px solid ${palette.border}`, borderRadius: "8px", fontFamily: mono, fontSize: "12px" }}
                         labelStyle={{ color: palette.textMuted }}
                         itemStyle={{ color: palette.text }}
                         formatter={(v) => [`${v >= 0 ? "+" : ""}$${fmtMoney(v)}`, "PnL"]}
@@ -964,7 +964,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
         })()}
         <span
           className="block mb-1.5 uppercase"
-          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}
+          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
         >
           Journaling Activity (6 mo)
         </span>
@@ -979,13 +979,13 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                 <XAxis
                   dataKey="label"
                   stroke={palette.textFaint}
-                  tick={{ fill: palette.textFaint, fontSize: 11, fontFamily: mono }}
+                  tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
                   tickLine={false}
                   axisLine={{ stroke: palette.border }}
                 />
                 <YAxis
                   stroke={palette.textFaint}
-                  tick={{ fill: palette.textFaint, fontSize: 11, fontFamily: mono }}
+                  tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
                   tickLine={false}
                   axisLine={{ stroke: palette.border }}
                   width={28}
@@ -1003,7 +1003,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
           <div>
             <span
               className="block mb-1.5 uppercase"
-              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}
+              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
             >
               Entries by Weekday
             </span>
@@ -1023,7 +1023,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                     <XAxis
                       type="number"
                       stroke={palette.textFaint}
-                      tick={{ fill: palette.textFaint, fontSize: 11, fontFamily: mono }}
+                      tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
                       tickLine={false}
                       axisLine={{ stroke: palette.border }}
                       allowDecimals={false}
@@ -1032,7 +1032,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                       type="category"
                       dataKey="label"
                       stroke={palette.textFaint}
-                      tick={{ fill: palette.textFaint, fontSize: 12, fontFamily: mono }}
+                      tick={{ fill: palette.textFaint, fontSize: 11, fontFamily: mono }}
                       tickLine={false}
                       axisLine={false}
                       width={36}
@@ -1051,7 +1051,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
   const totalEntries = sessionFreq.reduce((sum, s) => sum + s.count, 0);
   return (
     <div>
-      <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}>
+      <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
         Session Breakdown
       </span>
       <div className={isDesktop ? "rounded-2xl p-6 mb-2" : "rounded-2xl p-4 mb-2"} style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}>
@@ -1073,7 +1073,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                 ))}
               </Pie>
               <Tooltip
-                contentStyle={{ background: palette.field, border: `1px solid ${palette.border}`, borderRadius: "8px", fontFamily: mono, fontSize: "13px" }}
+                contentStyle={{ background: palette.field, border: `1px solid ${palette.border}`, borderRadius: "8px", fontFamily: mono, fontSize: "12px" }}
                 labelStyle={{ color: palette.textMuted }}
                 itemStyle={{ color: palette.text }}
                 formatter={(v, n) => [`${v} entr${v === 1 ? "y" : "ies"}`, n]}
@@ -1085,12 +1085,12 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
         {sessionFreq.length > 0 && (
           <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${palette.border}` }}>
             <div className="flex items-center justify-between mb-2">
-              <span className="uppercase" style={{ color: palette.textFaint, fontSize: "12px", letterSpacing: "0.07em" }}>Session</span>
-              <span className="uppercase" style={{ color: palette.textFaint, fontSize: "12px", letterSpacing: "0.07em" }}>Total</span>
+              <span className="uppercase" style={{ color: palette.textFaint, fontSize: "10px", letterSpacing: "0.07em" }}>Session</span>
+              <span className="uppercase" style={{ color: palette.textFaint, fontSize: "10px", letterSpacing: "0.07em" }}>Total</span>
             </div>
             {sessionFreq.map((s) => (
               <div key={s.id} className="flex items-center gap-2 mb-1.5">
-                <span style={{ width: "64px", fontSize: "12px", fontFamily: mono, color: s.color, fontWeight: 600, flexShrink: 0 }}>
+                <span style={{ width: "64px", fontSize: "11px", fontFamily: mono, color: s.color, fontWeight: 600, flexShrink: 0 }}>
                   {s.label}
                 </span>
                 <div className="flex-1" style={{ height: "5px", borderRadius: "999px", background: palette.field, overflow: "hidden" }}>
@@ -1104,7 +1104,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                     }}
                   />
                 </div>
-                <span style={{ fontFamily: mono, fontSize: "12px", color: palette.textMuted, flexShrink: 0, minWidth: "28px", textAlign: "right" }}>
+                <span style={{ fontFamily: mono, fontSize: "11px", color: palette.textMuted, flexShrink: 0, minWidth: "28px", textAlign: "right" }}>
                   {s.count}
                 </span>
               </div>
@@ -1125,7 +1125,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
           <div>
             <span
               className="block mb-1.5 uppercase"
-              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}
+              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
             >
               Confidence by Day
             </span>
@@ -1140,14 +1140,14 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                     <XAxis
                       dataKey="label"
                       stroke={palette.textFaint}
-                      tick={{ fill: palette.textFaint, fontSize: 11, fontFamily: mono }}
+                      tick={{ fill: palette.textFaint, fontSize: 9, fontFamily: mono }}
                       tickLine={false}
                       axisLine={{ stroke: palette.border }}
                       minTickGap={20}
                     />
                     <YAxis
                       stroke={palette.textFaint}
-                      tick={{ fill: palette.textFaint, fontSize: 11, fontFamily: mono }}
+                      tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
                       tickLine={false}
                       axisLine={{ stroke: palette.border }}
                       width={54}
@@ -1161,7 +1161,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                         border: `1px solid ${palette.border}`,
                         borderRadius: "8px",
                         fontFamily: mono,
-                        fontSize: "13px",
+                        fontSize: "12px",
                       }}
                       labelStyle={{ color: palette.textMuted }}
                       itemStyle={{ color: palette.goldBright }}
@@ -1193,7 +1193,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
           <div>
             <span
               className="block mb-1.5 uppercase"
-              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}
+              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
             >
               Trend Breakdown
             </span>
@@ -1224,13 +1224,13 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                         border: `1px solid ${palette.border}`,
                         borderRadius: "8px",
                         fontFamily: mono,
-                        fontSize: "13px",
+                        fontSize: "12px",
                       }}
                       labelStyle={{ color: palette.textMuted }}
                       itemStyle={{ color: palette.text }}
                     />
                     <Legend
-                      wrapperStyle={{ fontFamily: mono, fontSize: "12px", color: palette.textMuted }}
+                      wrapperStyle={{ fontFamily: mono, fontSize: "11px", color: palette.textMuted }}
                       formatter={(v) => <span style={{ color: palette.textMuted }}>{v}</span>}
                     />
                   </PieChart>
@@ -1246,7 +1246,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
           <div>
             <span
               className="block mb-1.5 uppercase"
-              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}
+              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
             >
               R-Multiple Over Time
             </span>
@@ -1261,7 +1261,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                     <XAxis dataKey="label" hide />
                     <YAxis
                       stroke={palette.textFaint}
-                      tick={{ fill: palette.textFaint, fontSize: 11, fontFamily: mono }}
+                      tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
                       tickLine={false}
                       axisLine={{ stroke: palette.border }}
                       width={32}
@@ -1273,7 +1273,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                         border: `1px solid ${palette.border}`,
                         borderRadius: "8px",
                         fontFamily: mono,
-                        fontSize: "13px",
+                        fontSize: "12px",
                       }}
                       labelStyle={{ color: palette.textMuted }}
                       itemStyle={{ color: palette.goldBright }}
@@ -1303,7 +1303,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
           <div>
             <span
               className="block mb-1.5 uppercase"
-              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}
+              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
             >
               R-Multiple Distribution
             </span>
@@ -1318,13 +1318,13 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                     <XAxis
                       dataKey="label"
                       stroke={palette.textFaint}
-                      tick={{ fill: palette.textFaint, fontSize: 11, fontFamily: mono }}
+                      tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
                       tickLine={false}
                       axisLine={{ stroke: palette.border }}
                     />
                     <YAxis
                       stroke={palette.textFaint}
-                      tick={{ fill: palette.textFaint, fontSize: 11, fontFamily: mono }}
+                      tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
                       tickLine={false}
                       axisLine={{ stroke: palette.border }}
                       width={28}
@@ -1348,7 +1348,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
           <>
             <span
               className="block mb-1.5 uppercase"
-              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}
+              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
             >
               Setup Breakdown
             </span>
@@ -1371,7 +1371,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                       dataKey="label"
                       width={92}
                       stroke={palette.textFaint}
-                      tick={{ fill: palette.textMuted, fontSize: 11, fontFamily: mono }}
+                      tick={{ fill: palette.textMuted, fontSize: 10, fontFamily: mono }}
                       tickLine={false}
                       axisLine={{ stroke: palette.border }}
                     />
@@ -1382,7 +1382,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                         border: `1px solid ${palette.border}`,
                         borderRadius: "8px",
                         fontFamily: mono,
-                        fontSize: "13px",
+                        fontSize: "12px",
                       }}
                       labelStyle={{ color: palette.textMuted }}
                       itemStyle={{ color: palette.text }}
@@ -1405,11 +1405,11 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
       >
         <div className="flex items-center gap-2 mb-1">
           <Lightbulb size={14} style={{ color: palette.red }} />
-          <span className="uppercase" style={{ color: palette.red, letterSpacing: "0.08em", fontSize: "12px" }}>
+          <span className="uppercase" style={{ color: palette.red, letterSpacing: "0.08em", fontSize: "10px" }}>
             Pattern Detected
           </span>
         </div>
-        <div style={{ color: palette.text, fontSize: "14px" }}>
+        <div style={{ color: palette.text, fontSize: "13px" }}>
           {mistakePatterns.worstTrends.length > 0 && mistakePatterns.worstTrends[0].mistakeRate >= 30 && (
             <>
               You log a mistake {mistakePatterns.worstTrends[0].mistakeRate}% of the time in{" "}
@@ -1432,11 +1432,11 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
       >
         <div className="flex items-center gap-2 mb-1">
           <Lightbulb size={14} style={{ color: palette.textFaint }} />
-          <span className="uppercase" style={{ color: palette.textFaint, letterSpacing: "0.08em", fontSize: "12px" }}>
+          <span className="uppercase" style={{ color: palette.textFaint, letterSpacing: "0.08em", fontSize: "10px" }}>
             No Strong Pattern Yet
           </span>
         </div>
-        <div style={{ color: palette.textMuted, fontSize: "14px" }}>
+        <div style={{ color: palette.textMuted, fontSize: "13px" }}>
           {closestWeekday
             ? `${closestWeekday.fullLabel} currently has your highest mistake rate at ${closestWeekday.mistakeRate}%${
                 closestWeekday.count < 3
@@ -1450,7 +1450,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
 
             <span
               className="block mb-1.5 uppercase"
-              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}
+              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
             >
               Mistake Rate by Trend & Weekday
             </span>
@@ -1465,7 +1465,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                     <XAxis
                       dataKey="label"
                       stroke={palette.textFaint}
-                      tick={{ fill: palette.textFaint, fontSize: 11, fontFamily: mono }}
+                      tick={{ fill: palette.textFaint, fontSize: 9, fontFamily: mono }}
                       tickLine={false}
                       axisLine={{ stroke: palette.border }}
                       interval={0}
@@ -1475,7 +1475,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                     />
                     <YAxis
                       stroke={palette.textFaint}
-                      tick={{ fill: palette.textFaint, fontSize: 11, fontFamily: mono }}
+                      tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
                       tickLine={false}
                       axisLine={{ stroke: palette.border }}
                       width={30}
@@ -1507,7 +1507,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
           <div>
             <span
               className="block mb-1.5 uppercase"
-              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}
+              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
             >
               Recurring Mistakes
             </span>
@@ -1530,7 +1530,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                       dataKey="label"
                       width={120}
                       stroke={palette.textFaint}
-                      tick={{ fill: palette.textMuted, fontSize: 11, fontFamily: mono }}
+                      tick={{ fill: palette.textMuted, fontSize: 10, fontFamily: mono }}
                       tickLine={false}
                       axisLine={{ stroke: palette.border }}
                     />
@@ -1547,7 +1547,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
           <div>
             <span
               className="block mb-1.5 uppercase"
-              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}
+              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
             >
               Most Journaled Pairs
             </span>
@@ -1593,7 +1593,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
               border: `1px solid ${palette.border}`,
               color: palette.text,
               fontFamily: mono,
-              fontSize: "13px",
+              fontSize: "12.5px",
               maxWidth: "70%",
             }}
             aria-label="Saved chats"
@@ -1612,7 +1612,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
               background: palette.gold,
               color: palette.letterbox,
               fontFamily: mono,
-              fontSize: "13px",
+              fontSize: "12.5px",
               fontWeight: 600,
               opacity: coachChats.length >= coachChatsMax ? 0.6 : 1,
             }}
@@ -1642,12 +1642,12 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                     type="button"
                     onClick={() => openCoachChat(c.id)}
                     className={`flex-1 min-w-0 text-left ${TAP}`}
-                    style={{ color: palette.text, fontFamily: mono, fontSize: "13px" }}
+                    style={{ color: palette.text, fontFamily: mono, fontSize: "12.5px" }}
                   >
                     <span className="block" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {c.title}
                     </span>
-                    <span className="block" style={{ color: palette.textFaint, fontSize: "12px" }}>
+                    <span className="block" style={{ color: palette.textFaint, fontSize: "10.5px" }}>
                       {new Date(c.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
                     </span>
                   </button>
@@ -1656,7 +1656,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                       type="button"
                       onClick={() => deleteCoachChat(c.id)}
                       className={`rounded-md px-2 py-1 ${TAP}`}
-                      style={{ background: palette.red, color: "#FFFFFF", fontFamily: mono, fontSize: "12px", fontWeight: 600 }}
+                      style={{ background: palette.red, color: "#FFFFFF", fontFamily: mono, fontSize: "11px", fontWeight: 600 }}
                     >
                       Delete?
                     </button>
@@ -1709,7 +1709,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                   maxWidth: "85%",
                   background: m.role === "user" ? palette.gold : palette.field,
                   color: m.role === "user" ? palette.letterbox : palette.text,
-                  fontSize: "14px",
+                  fontSize: "13.5px",
                   lineHeight: 1.5,
                   whiteSpace: "pre-wrap",
                 }}
@@ -1721,7 +1721,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
           {coachLoading && (
             <div
               className="rounded-xl px-3 py-2"
-              style={{ alignSelf: "flex-start", background: palette.field, color: palette.textFaint, fontSize: "14px" }}
+              style={{ alignSelf: "flex-start", background: palette.field, color: palette.textFaint, fontSize: "13px" }}
             >
               Thinking...
             </div>
@@ -1756,7 +1756,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
               border: `1px solid ${palette.border}`,
               color: palette.text,
               fontFamily: mono,
-              fontSize: "14px",
+              fontSize: "13.5px",
               outline: "none",
             }}
           />
@@ -1843,7 +1843,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
                 border: `1px solid ${palette.border}`,
                 color: palette.text,
                 fontFamily: mono,
-                fontSize: "14px",
+                fontSize: "13px",
                 fontWeight: 600,
                 transition: `${THEME_TRANSITION}, transform 0.15s ease`,
               }}
