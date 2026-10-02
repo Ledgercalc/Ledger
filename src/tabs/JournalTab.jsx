@@ -218,14 +218,14 @@ export default function JournalTab(props) {
                   >
                     <span
                       className="uppercase"
-                      style={{ fontFamily: mono, fontSize: "13px", fontWeight: 600, color: palette.text, letterSpacing: "0.04em" }}
+                      style={{ fontFamily: mono, fontSize: "14px", fontWeight: 600, color: palette.text, letterSpacing: "0.04em" }}
                     >
                       {MONTH_SHORT[i]}
                     </span>
                     <span
                       style={{
                         fontFamily: mono,
-                        fontSize: "10px",
+                        fontSize: "12px",
                         color: count > 0 ? palette.gold : palette.textFaint,
                         border: count > 0 ? `1px solid ${palette.gold}55` : "none",
                         borderRadius: "999px",
@@ -735,12 +735,12 @@ export default function JournalTab(props) {
               type="button"
               onClick={() => setJournalMonth(null)}
               className={`flex items-center gap-1 ${TAP}`}
-              style={{ color: palette.textMuted, fontSize: "12px", fontFamily: mono }}
+              style={{ color: palette.textMuted, fontSize: "13px", fontFamily: mono }}
             >
               <ChevronLeft size={16} />
               {year}
             </button>
-            <span style={{ fontFamily: mono, fontSize: "13px", color: palette.text, letterSpacing: "0.04em" }}>
+            <span style={{ fontFamily: mono, fontSize: "14px", color: palette.text, letterSpacing: "0.04em" }}>
               {MONTH_NAMES[monthIdx]} {year}
             </span>
             <span style={{ width: "40px" }} />
@@ -799,7 +799,7 @@ export default function JournalTab(props) {
       max={monthMaxDate}
       onChange={(e) => updateJournalField(row.id, "date", e.target.value, row.date)}
       className="bg-transparent outline-none journal-row-date-input"
-      style={{ ...detailFieldStyle, fontSize: "12px", width: "calc(100% + 24px)" }}
+      style={{ ...detailFieldStyle, fontSize: "13px", width: "calc(100% + 24px)" }}
     />
 </div>
                       {!row._placeholder && (
@@ -831,7 +831,7 @@ export default function JournalTab(props) {
                         <div key={col.id}>
                           <span
                             className="block mb-1 uppercase"
-                            style={{ color: palette.textFaint, letterSpacing: "0.06em", fontSize: "10px" }}
+                            style={{ color: palette.textFaint, letterSpacing: "0.06em", fontSize: "12px" }}
                           >
                             {col.label}
                           </span>
@@ -849,7 +849,7 @@ export default function JournalTab(props) {
                             <div key={field.id}>
                               <span
                                 className="block mb-1 uppercase"
-                                style={{ color: palette.textFaint, letterSpacing: "0.06em", fontSize: "10px" }}
+                                style={{ color: palette.textFaint, letterSpacing: "0.06em", fontSize: "12px" }}
                               >
                                 {field.label}
                               </span>
@@ -865,7 +865,7 @@ export default function JournalTab(props) {
                               <div key={fid}>
                                 <span
                                   className="block mb-1 uppercase"
-                                  style={{ color: palette.textFaint, letterSpacing: "0.06em", fontSize: "10px" }}
+                                  style={{ color: palette.textFaint, letterSpacing: "0.06em", fontSize: "12px" }}
                                 >
                                   {field.label}
                                 </span>
@@ -878,7 +878,7 @@ export default function JournalTab(props) {
                         <div className="mb-2">
                           <span
                             className="block mb-1 uppercase"
-                            style={{ color: palette.textFaint, letterSpacing: "0.06em", fontSize: "10px" }}
+                            style={{ color: palette.textFaint, letterSpacing: "0.06em", fontSize: "12px" }}
                           >
                             Mistake
                           </span>
@@ -888,7 +888,7 @@ export default function JournalTab(props) {
                         <div className="mb-3">
                           <span
                             className="block mb-1 uppercase"
-                            style={{ color: palette.textFaint, letterSpacing: "0.06em", fontSize: "10px" }}
+                            style={{ color: palette.textFaint, letterSpacing: "0.06em", fontSize: "12px" }}
                           >
                             Note
                           </span>
@@ -898,7 +898,7 @@ export default function JournalTab(props) {
                         <div>
                           <span
                             className="block mb-1 uppercase"
-                            style={{ color: palette.textFaint, letterSpacing: "0.06em", fontSize: "10px" }}
+                            style={{ color: palette.textFaint, letterSpacing: "0.06em", fontSize: "12px" }}
                           >
                             Trade Photos
                           </span>
@@ -951,7 +951,7 @@ export default function JournalTab(props) {
                                 }}
                               >
                                 <Camera size={14} />
-                                <span style={{ fontSize: "9px", fontFamily: mono }}>
+                                <span style={{ fontSize: "12px", fontFamily: mono }}>
                                   {journalPhotoSaving && journalPhotoTarget === row.id ? "Saving…" : "Add photo"}
                                 </span>
                               </button>
@@ -1015,7 +1015,7 @@ export default function JournalTab(props) {
                           <div className="flex items-center justify-between" style={{ position: "relative" }}>
                             <span
                               className="uppercase"
-                              style={{ fontSize: "10px", color: palette.textMuted, letterSpacing: "0.07em", fontWeight: 600 }}
+                              style={{ fontSize: "12px", color: palette.textMuted, letterSpacing: "0.07em", fontWeight: 600 }}
                             >
                               {col.label}
                             </span>
@@ -1141,7 +1141,7 @@ export default function JournalTab(props) {
                                     <div key={field.id}>
                                       <span
                                         className="block mb-1 uppercase"
-                                        style={{ color: palette.textFaint, letterSpacing: "0.06em", fontSize: "10px" }}
+                                        style={{ color: palette.textFaint, letterSpacing: "0.06em", fontSize: "12px" }}
                                       >
                                         {field.label}
                                       </span>
@@ -1157,7 +1157,7 @@ export default function JournalTab(props) {
                                       <div key={fid}>
                                         <span
                                           className="block mb-1 uppercase"
-                                          style={{ color: palette.textFaint, letterSpacing: "0.06em", fontSize: "10px" }}
+                                          style={{ color: palette.textFaint, letterSpacing: "0.06em", fontSize: "12px" }}
                                         >
                                           {field.label}
                                         </span>
@@ -1174,7 +1174,7 @@ export default function JournalTab(props) {
                                       <div key={fid}>
                                         <span
                                           className="block mb-1 uppercase"
-                                          style={{ color: palette.textFaint, letterSpacing: "0.06em", fontSize: "10px" }}
+                                          style={{ color: palette.textFaint, letterSpacing: "0.06em", fontSize: "12px" }}
                                         >
                                           {field.label}
                                         </span>
@@ -1187,7 +1187,7 @@ export default function JournalTab(props) {
                         <div>
                           <span
                             className="block mb-1 uppercase"
-                            style={{ color: palette.textFaint, letterSpacing: "0.06em", fontSize: "10px" }}
+                            style={{ color: palette.textFaint, letterSpacing: "0.06em", fontSize: "12px" }}
                           >
                             Trade Photos
                           </span>
@@ -1221,7 +1221,7 @@ export default function JournalTab(props) {
                   style={{ width: "80px", height: "80px", background: "transparent", border: `1px dashed ${palette.border}`, color: palette.textFaint }}
                                     >
                                       <Camera size={14} />
-                                      <span style={{ fontSize: "9px", fontFamily: mono }}>
+                                      <span style={{ fontSize: "12px", fontFamily: mono }}>
                                         {journalPhotoSaving && journalPhotoTarget === row.id ? "Saving…" : "Add photo"}
                                       </span>
                                     </button>
@@ -1269,14 +1269,14 @@ export default function JournalTab(props) {
                   border: `1px solid ${palette.border}`,
                   color: palette.text,
                   fontFamily: mono,
-                  fontSize: "13px",
+                  fontSize: "14px",
                 }}
               />
               <button
                 type="button"
                 onClick={confirmAddSetup}
                 className={`rounded-lg px-3 py-2 flex-shrink-0 ${TAP}`}
-                style={{ background: palette.gold, color: palette.letterbox, fontFamily: mono, fontSize: "13px", fontWeight: 600 }}
+                style={{ background: palette.gold, color: palette.letterbox, fontFamily: mono, fontSize: "14px", fontWeight: 600 }}
               >
                 Add
               </button>
@@ -1310,7 +1310,7 @@ export default function JournalTab(props) {
               border: `1px dashed ${palette.gold}88`,
               color: palette.gold,
               fontFamily: mono,
-              fontSize: "13px",
+              fontSize: "14px",
               fontWeight: 600,
               transition: `${THEME_TRANSITION}, transform 0.15s ease`,
             }}
@@ -1328,7 +1328,7 @@ export default function JournalTab(props) {
               border: `1px solid ${palette.border}`,
               color: palette.text,
               fontFamily: mono,
-              fontSize: "13px",
+              fontSize: "14px",
               fontWeight: 600,
               transition: `${THEME_TRANSITION}, transform 0.15s ease`,
             }}
@@ -1351,7 +1351,7 @@ export default function JournalTab(props) {
               border: `1px solid ${palette.border}`,
               color: palette.text,
               fontFamily: mono,
-              fontSize: "13px",
+              fontSize: "14px",
               fontWeight: 600,
               transition: `${THEME_TRANSITION}, transform 0.15s ease`,
             }}
