@@ -20,6 +20,7 @@ import { DARK_PALETTE, LIGHT_PALETTE, TAP, THEME_TRANSITION, TREDZI_LOGO_SRC, VO
 import { formatCountdown, formatMinSec, nextOccurrenceMs } from "./lib/time.js";
 import { AlertTriangle, ArrowLeftRight, Bell, Building2, Camera, CandlestickChart, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, Flame, Heart, LayoutGrid, Lightbulb, LogOut, MessageCircle, Moon, Newspaper, Palette, Pencil, Plus, RotateCcw, Scale, Search, Send, Settings, Share2, ShieldAlert, Sun, Table2, Tags, Trash2, Upload, Users, X } from "lucide-react";
 import React, { Suspense, lazy, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import "./typography.css";
 
 // Bottom-dock sliding pill helpers (mobile).
 function readDockActive(root) {
@@ -1021,12 +1022,12 @@ const renderCommunitySearch = () => {
       <div className="flex items-center gap-2.5">
         <Avatar name={post.author} size={34} src={avatarForAuthor(post.author)} />
         <div className="min-w-0 flex-1">
-          <div className="truncate" style={{ color: palette.text, fontSize: "13px", fontWeight: 800 }}>{post.author}</div>
-          <div style={{ color: palette.textFaint, fontSize: "12px", marginTop: "2px" }}>{feedTimeAgo(post.ts)}</div>
+          <div className="truncate" style={{ color: palette.text, fontSize: "12.5px", fontWeight: 800 }}>{post.author}</div>
+          <div style={{ color: palette.textFaint, fontSize: "9.5px", marginTop: "2px" }}>{feedTimeAgo(post.ts)}</div>
         </div>
-        {post.likeCount > 0 && <span style={{ color: palette.textFaint, fontSize: "12px", fontFamily: mono }}>{post.likeCount} likes</span>}
+        {post.likeCount > 0 && <span style={{ color: palette.textFaint, fontSize: "10px", fontFamily: mono }}>{post.likeCount} likes</span>}
       </div>
-      {post.text && <div className="mt-2" style={{ color: palette.textMuted, fontSize: "13px", lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{post.text}</div>}
+      {post.text && <div className="mt-2" style={{ color: palette.textMuted, fontSize: "12px", lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{post.text}</div>}
       {post.image && <img src={post.image} alt="" className="mt-2 rounded-xl w-full" style={{ maxHeight: "260px", objectFit: "cover" }} />}
     </button>
   );
@@ -1036,27 +1037,27 @@ const renderCommunitySearch = () => {
       <div className="p-4">
         <div className="flex items-center gap-2 mb-4">
           <Search size={15} style={{ color: palette.gold }} />
-          <span style={{ color: palette.text, fontFamily: mono, fontSize: "13px", fontWeight: 800 }}>Search</span>
+          <span style={{ color: palette.text, fontFamily: mono, fontSize: "12px", fontWeight: 800 }}>Search</span>
         </div>
         {communitySearchLoading ? (
-          <div className="rounded-2xl p-5 text-center" style={{ background: palette.surface, border: `1px solid ${palette.border}`, color: palette.textMuted, fontSize: "13px" }}>Searching…</div>
+          <div className="rounded-2xl p-5 text-center" style={{ background: palette.surface, border: `1px solid ${palette.border}`, color: palette.textMuted, fontSize: "12px" }}>Searching…</div>
         ) : result?.error ? (
-          <div className="rounded-2xl p-5" style={{ background: palette.surface, border: `1px solid ${palette.border}`, color: palette.red, fontSize: "13px" }}>{result.error}</div>
+          <div className="rounded-2xl p-5" style={{ background: palette.surface, border: `1px solid ${palette.border}`, color: palette.red, fontSize: "12px" }}>{result.error}</div>
         ) : !result || (!profile && ownPosts.length === 0 && relatedPosts.length === 0) ? (
           <div className="rounded-2xl p-5 text-center" style={{ background: palette.surface, border: `1px solid ${palette.border}` }}>
-            <div style={{ color: palette.text, fontSize: "14px", fontWeight: 700 }}>No results</div>
-            <div style={{ color: palette.textFaint, fontSize: "12px", marginTop: "4px" }}>Try another username or keyword.</div>
+            <div style={{ color: palette.text, fontSize: "13px", fontWeight: 700 }}>No results</div>
+            <div style={{ color: palette.textFaint, fontSize: "11px", marginTop: "4px" }}>Try another username or keyword.</div>
           </div>
         ) : (
           <>
             {profile && (
               <div className="mb-5">
-                <div className="mb-2" style={{ color: palette.textFaint, fontFamily: mono, fontSize: "12px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>Profile</div>
+                <div className="mb-2" style={{ color: palette.textFaint, fontFamily: mono, fontSize: "9.5px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>Profile</div>
                 <button type="button" onClick={() => openCommunityMemberProfile(profile.username)} className={`w-full flex items-center gap-3 rounded-2xl p-4 text-left ${TAP}`} style={{ background: palette.surface, border: `1px solid ${palette.border}` }}>
                   <Avatar name={profile.username} size={46} src={profile.avatar || avatarForAuthor(profile.username)} />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate" style={{ color: palette.text, fontSize: "15px", fontWeight: 800 }}>{profile.username}</div>
-                    {profile.bio && <div className="mt-1" style={{ color: palette.textMuted, fontSize: "12px", lineHeight: 1.4 }}>{profile.bio}</div>}
+                    <div className="truncate" style={{ color: palette.text, fontSize: "14px", fontWeight: 800 }}>{profile.username}</div>
+                    {profile.bio && <div className="mt-1" style={{ color: palette.textMuted, fontSize: "11px", lineHeight: 1.4 }}>{profile.bio}</div>}
                   </div>
                   <ChevronRight size={16} style={{ color: palette.textFaint }} />
                 </button>
@@ -1064,13 +1065,13 @@ const renderCommunitySearch = () => {
             )}
             {ownPosts.length > 0 && (
               <div className="mb-5">
-                <div className="mb-2" style={{ color: palette.textFaint, fontFamily: mono, fontSize: "12px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>{profile ? `${profile.username}'s posts` : "Posts"}</div>
+                <div className="mb-2" style={{ color: palette.textFaint, fontFamily: mono, fontSize: "9.5px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>{profile ? `${profile.username}'s posts` : "Posts"}</div>
                 {ownPosts.map((p, i) => postCard(p, `own-${p.id || i}`))}
               </div>
             )}
             {relatedPosts.length > 0 && (
               <div>
-                <div className="mb-2" style={{ color: palette.textFaint, fontFamily: mono, fontSize: "12px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>Related posts</div>
+                <div className="mb-2" style={{ color: palette.textFaint, fontFamily: mono, fontSize: "9.5px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>Related posts</div>
                 {relatedPosts.map((p, i) => postCard(p, `related-${p.id || i}`))}
               </div>
             )}
@@ -4453,7 +4454,7 @@ if (!isSignal && !communityMsgText.trim()) return;
               type="button"
               onClick={revealPendingGlobalPosts}
               className={`pointer-events-auto flex items-center gap-1.5 px-4 py-2 rounded-full ${TAP}`}
-              style={{ background: palette.gold, color: palette.letterbox, fontSize: "13px", fontWeight: 800, boxShadow: `0 6px 18px ${palette.gold}4D` }}
+              style={{ background: palette.gold, color: palette.letterbox, fontSize: "12.5px", fontWeight: 800, boxShadow: `0 6px 18px ${palette.gold}4D` }}
             >
               <ChevronUp size={14} />{globalFeedNewCount === 1 ? "1 new post" : `${globalFeedNewCount} new posts`}
             </button>
@@ -4464,18 +4465,18 @@ if (!isSignal && !communityMsgText.trim()) return;
             <Avatar name={communityUsername || "?"} size={40} src={communityAvatar || undefined} />
             <div className="flex-1 min-w-0 pt-1.5">
               {!globalFeedComposerOpen ? (
-                <button type="button" onClick={() => setGlobalFeedComposerOpen(true)} className={`w-full text-left ${TAP}`} style={{ background: "none", border: "none", padding: 0, color: palette.textFaint, fontSize: "16px" }}>What's happening in the market?</button>
+                <button type="button" onClick={() => setGlobalFeedComposerOpen(true)} className={`w-full text-left ${TAP}`} style={{ background: "none", border: "none", padding: 0, color: palette.textFaint, fontSize: "15px" }}>What's happening in the market?</button>
               ) : (
                 <>
-                  <textarea autoFocus value={globalPostText} onChange={(e) => setGlobalPostText(e.target.value)} placeholder="What's happening in the market?" rows={3} className="w-full bg-transparent outline-none mb-2" style={{ color: palette.text, fontSize: "16px", resize: "none" }} />
+                  <textarea autoFocus value={globalPostText} onChange={(e) => setGlobalPostText(e.target.value)} placeholder="What's happening in the market?" rows={3} className="w-full bg-transparent outline-none mb-2" style={{ color: palette.text, fontSize: "15px", resize: "none" }} />
                   {globalPostImage && <div className="relative inline-block mb-2.5"><img src={globalPostImage} alt="Post attachment" className="rounded-xl" style={{ width: "120px", height: "120px", objectFit: "cover", border: `1px solid ${palette.border}` }} /><button type="button" onClick={() => setGlobalPostImage(null)} className={`absolute flex items-center justify-center rounded-full ${TAP}`} style={{ top: "-6px", right: "-6px", width: "20px", height: "20px", background: palette.red, color: "#FFFFFF" }}><X size={12} /></button></div>}
                   <div className="flex items-center justify-between gap-2 pt-3 mt-1" style={{ borderTop: `1px solid ${palette.border}` }}>
                     <div className="flex items-center gap-1">
                       <input ref={globalPostImageInputRef} type="file" accept="image/*" onChange={handleGlobalPostImageChange} className="hidden" />
                       <button type="button" onClick={() => globalPostImageInputRef.current && globalPostImageInputRef.current.click()} disabled={globalPostImageUploading} onMouseEnter={(e) => { e.currentTarget.style.background = palette.field; }} onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }} className={`flex items-center justify-center rounded-full ${TAP}`} style={{ width: "34px", height: "34px", color: palette.gold, transition: "background 0.15s ease" }} aria-label="Attach photo"><Camera size={17} /></button>
-                      <button type="button" onClick={() => { setGlobalFeedComposerOpen(false); setGlobalPostText(""); setGlobalPostImage(null); }} className={`px-3 py-1.5 rounded-full ${TAP}`} style={{ background: "transparent", color: palette.textFaint, fontSize: "13px", fontWeight: 700 }}>Cancel</button>
+                      <button type="button" onClick={() => { setGlobalFeedComposerOpen(false); setGlobalPostText(""); setGlobalPostImage(null); }} className={`px-3 py-1.5 rounded-full ${TAP}`} style={{ background: "transparent", color: palette.textFaint, fontSize: "12px", fontWeight: 700 }}>Cancel</button>
                     </div>
-                    <button type="button" onClick={createGlobalFeedPost} disabled={(!globalPostText.trim() && !globalPostImage) || globalPostSubmitting} className={`px-4 py-1.5 rounded-full ${TAP}`} style={{ background: (globalPostText.trim() || globalPostImage) ? palette.gold : palette.border, color: (globalPostText.trim() || globalPostImage) ? palette.letterbox : palette.textFaint, fontSize: "14px", fontWeight: 800, boxShadow: (globalPostText.trim() || globalPostImage) ? `0 3px 10px ${palette.gold}40` : "none", transition: "box-shadow 0.15s ease" }}>{globalPostSubmitting ? "Posting…" : "Post"}</button>
+                    <button type="button" onClick={createGlobalFeedPost} disabled={(!globalPostText.trim() && !globalPostImage) || globalPostSubmitting} className={`px-4 py-1.5 rounded-full ${TAP}`} style={{ background: (globalPostText.trim() || globalPostImage) ? palette.gold : palette.border, color: (globalPostText.trim() || globalPostImage) ? palette.letterbox : palette.textFaint, fontSize: "13px", fontWeight: 800, boxShadow: (globalPostText.trim() || globalPostImage) ? `0 3px 10px ${palette.gold}40` : "none", transition: "box-shadow 0.15s ease" }}>{globalPostSubmitting ? "Posting…" : "Post"}</button>
                   </div>
                 </>
               )}
@@ -4495,8 +4496,8 @@ if (!isSignal && !communityMsgText.trim()) return;
               <div className="rounded-full flex items-center justify-center mb-3.5" style={{ width: "52px", height: "52px", background: `${palette.gold}1A` }}>
                 <Newspaper size={22} style={{ color: palette.gold }} />
               </div>
-              <div style={{ color: palette.text, fontSize: "16px", fontWeight: 800 }}>No posts yet</div>
-              <div style={{ color: palette.textFaint, fontSize: "13px", marginTop: "4px" }}>Be the first trader to share something with the community.</div>
+              <div style={{ color: palette.text, fontSize: "15px", fontWeight: 800 }}>No posts yet</div>
+              <div style={{ color: palette.textFaint, fontSize: "12px", marginTop: "4px" }}>Be the first trader to share something with the community.</div>
             </div>
           ) : (
             <div className="flex flex-col gap-3">
@@ -4507,11 +4508,11 @@ if (!isSignal && !communityMsgText.trim()) return;
                   <button type="button" onClick={() => openCommunityMemberProfile(post.author)} className={`flex-shrink-0 rounded-full ${TAP}`} style={{ background: "none", border: `1px solid ${palette.border}`, padding: 0, lineHeight: 0, overflow: "hidden" }}><Avatar name={post.author} size={40} src={post.avatar || avatarForAuthor(post.author)} /></button>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <button type="button" onClick={() => openCommunityMemberProfile(post.author)} className={TAP} style={{ background: "none", border: "none", padding: 0, color: palette.text, fontSize: "15px", fontWeight: 800 }}>{post.author}</button>
-                      <span style={{ color: palette.textFaint, fontSize: "13px" }}>· {feedTimeAgo(post.ts)}</span>
+                      <button type="button" onClick={() => openCommunityMemberProfile(post.author)} className={TAP} style={{ background: "none", border: "none", padding: 0, color: palette.text, fontSize: "14px", fontWeight: 800 }}>{post.author}</button>
+                      <span style={{ color: palette.textFaint, fontSize: "12.5px" }}>· {feedTimeAgo(post.ts)}</span>
                       {mine && <button type="button" onClick={() => deleteGlobalFeedPost(post.id)} onMouseEnter={(e) => { e.currentTarget.style.background = palette.field; }} onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }} className={`flex items-center justify-center rounded-full ml-auto flex-shrink-0 ${TAP}`} style={{ width: "26px", height: "26px", color: palette.textFaint, transition: "background 0.15s ease" }} aria-label="Delete post"><Trash2 size={13} /></button>}
                     </div>
-                    {post.text && <div className="mt-1" style={{ color: palette.text, fontSize: "15px", lineHeight: 1.55, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{post.text}</div>}
+                    {post.text && <div className="mt-1" style={{ color: palette.text, fontSize: "14.5px", lineHeight: 1.55, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{post.text}</div>}
                     {post.image && (
                       <button type="button" onClick={() => setLightboxPost(post)} className={`block w-full mt-3 ${TAP}`} style={{ background: "none", border: `1px solid ${palette.border}`, padding: 0, borderRadius: "14px", overflow: "hidden" }} aria-label="Open photo">
                         <img src={post.image} alt="Community post" className="w-full" style={{ maxHeight: "440px", objectFit: "cover", display: "block" }} />
@@ -4519,20 +4520,20 @@ if (!isSignal && !communityMsgText.trim()) return;
                     )}
                     <div className="flex items-center gap-2 mt-3 -ml-2">
                       <button type="button" onClick={() => likeGlobalFeedPost(post.id)} onMouseEnter={(e) => { e.currentTarget.style.background = palette.field; }} onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full ${TAP}`} style={{ color: post.liked ? palette.red : palette.textFaint, background: "transparent", transition: "background 0.15s ease" }}>
-                        <Heart size={16} fill={post.liked ? "currentColor" : "none"} /><span style={{ fontSize: "13px", fontWeight: 700 }}>{post.likeCount || 0}</span>
+                        <Heart size={16} fill={post.liked ? "currentColor" : "none"} /><span style={{ fontSize: "12px", fontWeight: 700 }}>{post.likeCount || 0}</span>
                       </button>
                       <button type="button" onClick={() => openGlobalFeedComments(post.id)} onMouseEnter={(e) => { e.currentTarget.style.background = palette.field; }} onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full ${TAP}`} style={{ color: globalFeedCommentsOpenId === post.id ? palette.gold : palette.textFaint, background: "transparent", transition: "background 0.15s ease" }}>
-                        <MessageCircle size={16} /><span style={{ fontSize: "13px", fontWeight: 700 }}>{post.commentCount || 0}</span>
+                        <MessageCircle size={16} /><span style={{ fontSize: "12px", fontWeight: 700 }}>{post.commentCount || 0}</span>
                       </button>
                     </div>
                     {globalFeedCommentsOpenId === post.id && <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${palette.border}` }}>
-                      {globalFeedCommentsLoading[post.id] ? <div className="pb-3 text-xs" style={{ color: palette.textFaint }}>Loading comments…</div> : comments.length > 0 ? <div className="flex flex-col gap-2 pb-3">{comments.map((c) => <div key={c.id} className="rounded-2xl px-3.5 py-2.5" style={{ background: palette.field }}><span style={{ color: palette.gold, fontSize: "12px", fontWeight: 800 }}>{c.author}</span><span style={{ color: palette.textMuted, fontSize: "12px", marginLeft: "7px" }}>{c.text}</span></div>)}</div> : <div className="pb-3 text-xs" style={{ color: palette.textFaint }}>No comments yet — start the conversation.</div>}
-                      <div className="flex items-center gap-2"><input value={globalFeedCommentDrafts[post.id] || ""} onChange={(e) => setGlobalFeedCommentDrafts((cur) => ({ ...cur, [post.id]: e.target.value }))} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); postGlobalFeedComment(post.id); } }} placeholder="Write a comment…" className="flex-1 rounded-full px-3.5 py-2 outline-none" style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontSize: "13px" }} /><button type="button" onClick={() => postGlobalFeedComment(post.id)} disabled={!(globalFeedCommentDrafts[post.id] || "").trim()} className={`flex items-center justify-center rounded-full flex-shrink-0 ${TAP}`} style={{ width: "36px", height: "36px", background: palette.gold, color: palette.letterbox, opacity: (globalFeedCommentDrafts[post.id] || "").trim() ? 1 : 0.5, transition: "opacity 0.15s ease" }}><Send size={14} /></button></div>
+                      {globalFeedCommentsLoading[post.id] ? <div className="pb-3 text-xs" style={{ color: palette.textFaint }}>Loading comments…</div> : comments.length > 0 ? <div className="flex flex-col gap-2 pb-3">{comments.map((c) => <div key={c.id} className="rounded-2xl px-3.5 py-2.5" style={{ background: palette.field }}><span style={{ color: palette.gold, fontSize: "11.5px", fontWeight: 800 }}>{c.author}</span><span style={{ color: palette.textMuted, fontSize: "11.5px", marginLeft: "7px" }}>{c.text}</span></div>)}</div> : <div className="pb-3 text-xs" style={{ color: palette.textFaint }}>No comments yet — start the conversation.</div>}
+                      <div className="flex items-center gap-2"><input value={globalFeedCommentDrafts[post.id] || ""} onChange={(e) => setGlobalFeedCommentDrafts((cur) => ({ ...cur, [post.id]: e.target.value }))} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); postGlobalFeedComment(post.id); } }} placeholder="Write a comment…" className="flex-1 rounded-full px-3.5 py-2 outline-none" style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontSize: "12px" }} /><button type="button" onClick={() => postGlobalFeedComment(post.id)} disabled={!(globalFeedCommentDrafts[post.id] || "").trim()} className={`flex items-center justify-center rounded-full flex-shrink-0 ${TAP}`} style={{ width: "36px", height: "36px", background: palette.gold, color: palette.letterbox, opacity: (globalFeedCommentDrafts[post.id] || "").trim() ? 1 : 0.5, transition: "opacity 0.15s ease" }}><Send size={14} /></button></div>
                     </div>}
                   </div>
                 </article>;
               })}
-              {globalFeedNext && <div className="pt-1"><button type="button" onClick={() => loadGlobalFeed(globalFeedNext)} onMouseEnter={(e) => { e.currentTarget.style.background = palette.field; }} onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }} className={`w-full flex items-center justify-center gap-1.5 rounded-full py-2.5 ${TAP}`} style={{ background: "transparent", border: `1px solid ${palette.border}`, color: palette.gold, fontSize: "13px", fontWeight: 700, transition: "background 0.15s ease" }}>Show more posts<ChevronDown size={14} /></button></div>}
+              {globalFeedNext && <div className="pt-1"><button type="button" onClick={() => loadGlobalFeed(globalFeedNext)} onMouseEnter={(e) => { e.currentTarget.style.background = palette.field; }} onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }} className={`w-full flex items-center justify-center gap-1.5 rounded-full py-2.5 ${TAP}`} style={{ background: "transparent", border: `1px solid ${palette.border}`, color: palette.gold, fontSize: "12.5px", fontWeight: 700, transition: "background 0.15s ease" }}>Show more posts<ChevronDown size={14} /></button></div>}
             </div>
           )}
         </div>
@@ -5132,7 +5133,7 @@ const updateSyncedJournalRow = (trade) => {
                 type="button"
                 onClick={() => setOnboardingIndex(ONBOARDING_SLIDES.length)}
                 className={TAP}
-                style={{ color: palette.textFaint, fontFamily: mono, fontSize: "13px", background: "transparent" }}
+                style={{ color: palette.textFaint, fontFamily: mono, fontSize: "12.5px", background: "transparent" }}
               >
                 Skip
               </button>
@@ -5257,7 +5258,7 @@ const updateSyncedJournalRow = (trade) => {
                     background: palette.gold,
                     color: palette.letterbox,
                     fontFamily: mono,
-                    fontSize: "15px",
+                    fontSize: "14.5px",
                     fontWeight: 700,
                     boxShadow: `0 6px 18px ${palette.gold}44`,
                   }}
@@ -5347,7 +5348,7 @@ const updateSyncedJournalRow = (trade) => {
                   background: palette.gold,
                   color: palette.letterbox,
                   fontFamily: mono,
-                  fontSize: "15px",
+                  fontSize: "14.5px",
                   fontWeight: 700,
                   boxShadow: `0 6px 18px ${palette.gold}44`,
                 }}
@@ -5363,7 +5364,7 @@ const updateSyncedJournalRow = (trade) => {
                   border: `1px solid ${palette.border}`,
                   color: palette.text,
                   fontFamily: mono,
-                  fontSize: "15px",
+                  fontSize: "14.5px",
                   fontWeight: 700,
                 }}
               >
@@ -5379,7 +5380,7 @@ const updateSyncedJournalRow = (trade) => {
                 type="button"
                 onClick={() => { setAuthScreenStep("choice"); setAuthError(""); }}
                 className={`flex items-center gap-1 mb-4 ${TAP}`}
-                style={{ color: palette.textFaint, fontFamily: mono, fontSize: "13px", background: "transparent" }}
+                style={{ color: palette.textFaint, fontFamily: mono, fontSize: "12px", background: "transparent" }}
               >
                 <ChevronLeft size={14} /> Back
               </button>
@@ -5396,7 +5397,7 @@ const updateSyncedJournalRow = (trade) => {
                 {authMode === "signup" ? "Create your account" : "Welcome back"}
               </div>
 
-              <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}>
+              <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
                 Email
               </span>
               <input
@@ -5406,10 +5407,10 @@ const updateSyncedJournalRow = (trade) => {
                 placeholder="you@example.com"
                 autoFocus
                 className="w-full rounded-2xl px-4 py-3.5 mb-3 bg-transparent outline-none"
-                style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "16px" }}
+                style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "15px" }}
               />
 
-              <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}>
+              <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
                 Password
               </span>
               <input
@@ -5419,7 +5420,7 @@ const updateSyncedJournalRow = (trade) => {
                 onKeyDown={(e) => { if (e.key === "Enter") handleAuthSubmit(); }}
                 placeholder="At least 8 characters"
                 className="w-full rounded-2xl px-4 py-3.5 mb-3 bg-transparent outline-none"
-                style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "16px" }}
+                style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "15px" }}
               />
 
               {authError && (
@@ -5435,7 +5436,7 @@ const updateSyncedJournalRow = (trade) => {
                   background: palette.gold,
                   color: palette.letterbox,
                   fontFamily: mono,
-                  fontSize: "15px",
+                  fontSize: "14px",
                   fontWeight: 700,
                   boxShadow: `0 6px 18px ${palette.gold}44`,
                   opacity: authBusy ? 0.6 : 1,
@@ -5448,7 +5449,7 @@ const updateSyncedJournalRow = (trade) => {
                 type="button"
                 onClick={() => { setAuthMode(authMode === "login" ? "signup" : "login"); setAuthError(""); }}
                 className={`w-full mt-3 ${TAP}`}
-                style={{ color: palette.textFaint, fontFamily: mono, fontSize: "13px", textDecoration: "underline", background: "transparent" }}
+                style={{ color: palette.textFaint, fontFamily: mono, fontSize: "12.5px", textDecoration: "underline", background: "transparent" }}
               >
                 {authMode === "login" ? "Need an account? Sign up" : "Already have an account? Log in"}
               </button>
@@ -6764,7 +6765,7 @@ const hiddenTabIds = settings.hiddenTabs || [];
                 borderBottom: `2.5px solid ${active ? palette.gold : "transparent"}`,
                 color: active ? palette.text : palette.textFaint,
                 fontFamily: display,
-                fontSize: "15px",
+                fontSize: "14.5px",
                 fontWeight: active ? 700 : 500,
                 padding: "0 2px 14px 2px",
                 marginBottom: "-1px",
@@ -6918,8 +6919,6 @@ if (activeTab === "community") {
     >
 <style>{`
   @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap');
-
-  html, body { font-family: 'Sora', ui-sans-serif, system-ui, -apple-system, sans-serif; }
 
   html, body, * { font-variant-numeric: normal; font-feature-settings: "zero" 0, "ss01" 0, "ss02" 0, "salt" 0; }
 
@@ -7187,7 +7186,7 @@ if (activeTab === "community") {
 >
   Tredzi
 </div>
-                  <div className="uppercase" style={{ fontFamily: mono, color: palette.textFaint, letterSpacing: "0.09em", fontSize: "12px", fontWeight: 600, lineHeight: 1 }}>
+                  <div className="uppercase" style={{ fontFamily: mono, color: palette.textFaint, letterSpacing: "0.09em", fontSize: "10.5px", fontWeight: 600, lineHeight: 1 }}>
                     Trade Math Calculator
                   </div>
                 </div>
@@ -7219,7 +7218,7 @@ if (activeTab === "community") {
 >
   Tredzi
 </h1>
-                  <div className="uppercase" style={{ color: palette.textFaint, letterSpacing: "0.1em", fontSize: "12px", fontWeight: 600, transition: THEME_TRANSITION }}>
+                  <div className="uppercase" style={{ color: palette.textFaint, letterSpacing: "0.1em", fontSize: "10px", fontWeight: 600, transition: THEME_TRANSITION }}>
                     Trade Math Calculator
                   </div>
                 </div>
@@ -7360,7 +7359,7 @@ if (activeTab === "community") {
           {isDesktop && (
             <div
               className="uppercase mb-2 px-2"
-              style={{ color: palette.textFaint, letterSpacing: "0.14em", fontSize: "12px", fontWeight: 700 }}
+              style={{ color: palette.textFaint, letterSpacing: "0.14em", fontSize: "10px", fontWeight: 700 }}
             >
               Navigate
             </div>
@@ -7440,13 +7439,13 @@ if (activeTab === "community") {
           </span>
 
           {isDesktop ? (
-            <span className="whitespace-nowrap" style={{ fontSize: "15px", letterSpacing: "0.02em", fontWeight: 600 }}>
+            <span className="whitespace-nowrap" style={{ fontSize: "14px", letterSpacing: "0.02em", fontWeight: 600 }}>
               {tab.label}
             </span>
           ) : (
             <span className="ledger-dock-label" data-open={active ? "true" : "false"} aria-hidden="true">
               <span className="ledger-dock-label-clip">
-                <span className="ledger-dock-label-text" style={{ fontSize: "13px", letterSpacing: "0.02em", fontWeight: 600 }}>
+                <span className="ledger-dock-label-text" style={{ fontSize: "12.5px", letterSpacing: "0.02em", fontWeight: 600 }}>
                   {tab.label}
                 </span>
               </span>
@@ -7493,7 +7492,7 @@ if (activeTab === "community") {
               >
                 <div
                   className="flex items-center justify-between mb-2"
-                  style={{ fontFamily: mono, fontSize: "12px", color: palette.gold, letterSpacing: "0.08em", fontWeight: 700 }}
+                  style={{ fontFamily: mono, fontSize: "10px", color: palette.gold, letterSpacing: "0.08em", fontWeight: 700 }}
                 >
                   <span className="flex items-center gap-1.5">
                       <LiveFlame size={30} active={pulseFlameActive} dimColor={palette.textFaint} style={{ margin: "-10px -3px -8px -3px" }} />
@@ -7504,11 +7503,11 @@ if (activeTab === "community") {
                 {pulseHasTrades ? (
                   <>
                     <div className="flex items-center justify-between mb-1.5">
-                      <span style={{ fontSize: "12px", color: palette.textFaint }}>Net today</span>
+                      <span style={{ fontSize: "11px", color: palette.textFaint }}>Net today</span>
                       <span
                         style={{
                           fontFamily: mono,
-                          fontSize: "13px",
+                          fontSize: "12px",
                           fontWeight: 600,
                           color: pulseTodayTrades.length
                             ? pulseTodayNet >= 0
@@ -7521,11 +7520,11 @@ if (activeTab === "community") {
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span style={{ fontSize: "12px", color: palette.textFaint }}>Discipline streak</span>
+                      <span style={{ fontSize: "11px", color: palette.textFaint }}>Discipline streak</span>
                       <span
                         style={{
                           fontFamily: mono,
-                          fontSize: "13px",
+                          fontSize: "12px",
                           fontWeight: 600,
                           color: pulseStreak > 0 ? palette.gold : palette.textFaint,
                         }}
@@ -7535,7 +7534,7 @@ if (activeTab === "community") {
                     </div>
                   </>
                 ) : (
-                  <div style={{ fontSize: "12px", color: palette.textFaint }}>
+                  <div style={{ fontSize: "11px", color: palette.textFaint }}>
                     Log your first trade to start tracking your pulse.
                   </div>
                 )}
@@ -7571,7 +7570,7 @@ if (activeTab === "community") {
               <span style={{ width: "36px", height: "4px", borderRadius: "999px", background: palette.border }} />
             </div>
             <div className="flex items-center justify-between px-5 pt-2 pb-3 flex-shrink-0">
-              <span style={{ fontFamily: display, fontSize: "16px", fontWeight: 700, color: palette.text }}>
+              <span style={{ fontFamily: display, fontSize: "15px", fontWeight: 700, color: palette.text }}>
                 More
               </span>
               <button
@@ -7604,7 +7603,7 @@ if (activeTab === "community") {
                     }}
                   >
                     <Icon size={19} strokeWidth={active ? 2.4 : 1.8} />
-                    <span style={{ fontSize: "12px", fontWeight: active ? 600 : 400 }}>{tab.label}</span>
+                    <span style={{ fontSize: "10.5px", fontWeight: active ? 600 : 400 }}>{tab.label}</span>
                   </button>
                 );
               })}
@@ -7682,7 +7681,7 @@ if (activeTab === "community") {
 </div>
           <div
             className="uppercase"
-            style={{ fontFamily: mono, fontSize: "12px", color: palette.textFaint, letterSpacing: "0.09em" }}
+            style={{ fontFamily: mono, fontSize: "10px", color: palette.textFaint, letterSpacing: "0.09em" }}
           >
             {!isDesktop && activeCategory ? "Settings" : "Customize Tredzi"}
           </div>
@@ -7719,7 +7718,7 @@ if (activeTab === "community") {
                 onChange={(e) => setSettingsSearchQuery(e.target.value)}
                 placeholder="Search settings"
                 className="flex-1 bg-transparent outline-none"
-                style={{ color: palette.text, fontSize: "14px" }}
+                style={{ color: palette.text, fontSize: "13.5px" }}
               />
               {settingsSearchQuery && (
                 <button type="button" onClick={() => setSettingsSearchQuery("")} className={TAP} style={{ color: palette.textFaint }} aria-label="Clear search">
@@ -7741,7 +7740,7 @@ if (activeTab === "community") {
                     className="uppercase mb-2 px-1"
                     style={{
                       fontFamily: mono,
-                      fontSize: "12px",
+                      fontSize: "10.5px",
                       fontWeight: 600,
                       letterSpacing: "0.08em",
                       color: name === "Danger Zone" ? palette.red : palette.textFaint,
@@ -7785,7 +7784,7 @@ if (activeTab === "community") {
                               className="block truncate"
                               style={{
                                 fontFamily: display,
-                                fontSize: "14px",
+                                fontSize: "13.5px",
                                 fontWeight: 600,
                                 color: cat.danger ? palette.red : palette.text,
                               }}
@@ -7793,7 +7792,7 @@ if (activeTab === "community") {
                               {cat.label}
                             </span>
                             {cat.subtitle && (
-                              <span className="block truncate" style={{ fontSize: "12px", color: palette.textFaint, marginTop: "1px" }}>
+                              <span className="block truncate" style={{ fontSize: "11px", color: palette.textFaint, marginTop: "1px" }}>
                                 {cat.subtitle}
                               </span>
                             )}
@@ -7849,7 +7848,7 @@ if (activeTab === "community") {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <div className="truncate" style={{ color: palette.text, fontSize: "15px", fontWeight: 700 }}>
+                  <div className="truncate" style={{ color: palette.text, fontSize: "14px", fontWeight: 700 }}>
                     {communityUsername}
                   </div>
                   <button
@@ -7868,7 +7867,7 @@ if (activeTab === "community") {
                     <Pencil size={10} />
                   </button>
                 </div>
-                <div style={{ color: palette.textFaint, fontSize: "12px", fontFamily: mono }}>
+                <div style={{ color: palette.textFaint, fontSize: "11px", fontFamily: mono }}>
                   {myGroups.length} group{myGroups.length === 1 ? "" : "s"}
                   {communityAvatarUploading ? " · uploading photo…" : ""}
                 </div>
@@ -7880,7 +7879,7 @@ if (activeTab === "community") {
                 <SettingsSubLabel>Email</SettingsSubLabel>
                 <div
                   className="rounded-lg px-3 py-2.5 mb-3"
-                  style={{ background: palette.surface, border: `1px solid ${palette.border}`, color: palette.textMuted, fontFamily: mono, fontSize: "13px" }}
+                  style={{ background: palette.surface, border: `1px solid ${palette.border}`, color: palette.textMuted, fontFamily: mono, fontSize: "12px" }}
                 >
                   {session.email}
                 </div>
@@ -7892,12 +7891,12 @@ if (activeTab === "community") {
               className="flex items-center justify-between gap-2 rounded-lg px-3 py-2.5"
               style={{ background: palette.surface, border: `1px solid ${palette.border}` }}
             >
-              <span style={{ color: palette.text, fontFamily: mono, fontSize: "14px", letterSpacing: "0.1em" }}>••••••••</span>
+              <span style={{ color: palette.text, fontFamily: mono, fontSize: "13px", letterSpacing: "0.1em" }}>••••••••</span>
               <button
                 type="button"
                 onClick={() => { setShowChangePassword((v) => !v); setChangePasswordError(""); setChangePasswordMsg(""); }}
                 className={TAP}
-                style={{ color: palette.gold, fontFamily: mono, fontSize: "12px", fontWeight: 700 }}
+                style={{ color: palette.gold, fontFamily: mono, fontSize: "11px", fontWeight: 700 }}
               >
                 {showChangePassword ? "Cancel" : "Change"}
               </button>
@@ -7914,7 +7913,7 @@ if (activeTab === "community") {
                   onChange={(e) => setCurrentPasswordInput(e.target.value)}
                   placeholder="Current password"
                   className="w-full rounded-lg px-2.5 py-2 mb-1.5 bg-transparent outline-none"
-                  style={{ background: palette.surface, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "13px" }}
+                  style={{ background: palette.surface, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "12.5px" }}
                 />
                 <input
                   type="password"
@@ -7922,7 +7921,7 @@ if (activeTab === "community") {
                   onChange={(e) => setNewPasswordInput(e.target.value)}
                   placeholder="New password (8+ characters)"
                   className="w-full rounded-lg px-2.5 py-2 mb-1.5 bg-transparent outline-none"
-                  style={{ background: palette.surface, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "13px" }}
+                  style={{ background: palette.surface, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "12.5px" }}
                 />
                 {changePasswordError && <p className="text-xs mb-1.5" style={{ color: palette.red }}>{changePasswordError}</p>}
                 {changePasswordMsg && <p className="text-xs mb-1.5" style={{ color: palette.green }}>{changePasswordMsg}</p>}
@@ -7934,7 +7933,7 @@ if (activeTab === "community") {
                   style={{
                     background: currentPasswordInput && newPasswordInput ? palette.gold : palette.border,
                     color: currentPasswordInput && newPasswordInput ? palette.letterbox : palette.textFaint,
-                    fontFamily: mono, fontSize: "13px", fontWeight: 700,
+                    fontFamily: mono, fontSize: "12.5px", fontWeight: 700,
                   }}
                 >
                   {changePasswordBusy ? "Updating…" : "Update Password"}
@@ -7947,7 +7946,7 @@ if (activeTab === "community") {
                 type="button"
                 onClick={() => { logout(); setSettingsOpen(false); }}
                 className={`w-full flex items-center justify-center gap-2 rounded-lg py-2.5 mt-3 ${TAP}`}
-                style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.textMuted, fontFamily: mono, fontSize: "13px", fontWeight: 600 }}
+                style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.textMuted, fontFamily: mono, fontSize: "12.5px", fontWeight: 600 }}
               >
                 <LogOut size={13} />
                 Log Out
@@ -7988,7 +7987,7 @@ if (activeTab === "community") {
                         autoFocus
                         maxLength={40}
                         className="flex-1 rounded-lg px-2.5 py-1.5 bg-transparent outline-none"
-                        style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "12px" }}
+                        style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "11.5px" }}
                       />
                       <button
                         type="button"
@@ -8031,7 +8030,7 @@ if (activeTab === "community") {
                         >
                           {isActive && <Check size={8} strokeWidth={3} style={{ color: palette.letterbox }} />}
                         </span>
-                        <span className="truncate" style={{ color: palette.text, fontSize: "13px", fontWeight: isActive ? 600 : 400 }}>
+                        <span className="truncate" style={{ color: palette.text, fontSize: "12px", fontWeight: isActive ? 600 : 400 }}>
                           {acc.name}
                         </span>
                       </button>
@@ -8078,13 +8077,13 @@ if (activeTab === "community") {
                 autoFocus
                 maxLength={40}
                 className="flex-1 rounded-lg px-3 py-2 bg-transparent outline-none"
-                style={{ background: palette.surface, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "12px" }}
+                style={{ background: palette.surface, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "11.5px" }}
               />
               <button
                 type="button"
                 onClick={confirmAddAccount}
                 className={`rounded-lg px-3 py-2 flex-shrink-0 ${TAP}`}
-                style={{ background: palette.gold, color: palette.letterbox, fontFamily: mono, fontSize: "12px", fontWeight: 600 }}
+                style={{ background: palette.gold, color: palette.letterbox, fontFamily: mono, fontSize: "11.5px", fontWeight: 600 }}
               >
                 Add
               </button>
@@ -8108,7 +8107,7 @@ if (activeTab === "community") {
                 border: `1px dashed ${palette.gold}88`,
                 color: palette.gold,
                 fontFamily: mono,
-                fontSize: "12px",
+                fontSize: "11.5px",
                 fontWeight: 600,
               }}
             >
@@ -8149,7 +8148,7 @@ if (activeTab === "community") {
                     color: active ? palette.letterbox : palette.textMuted,
                     border: `1px solid ${active ? palette.gold : palette.border}`,
                     fontFamily: mono,
-                    fontSize: "13px",
+                    fontSize: "12.5px",
                     fontWeight: 600,
                   }}
                 >
@@ -8177,7 +8176,7 @@ if (activeTab === "community") {
                     color: active ? palette.letterbox : palette.textMuted,
                     border: `1px solid ${active ? palette.gold : palette.border}`,
                     fontFamily: mono,
-                    fontSize: "13px",
+                    fontSize: "12.5px",
                   }}
                 >
                   {t.label}
@@ -8204,7 +8203,7 @@ if (activeTab === "community") {
                     color: hidden ? palette.textFaint : palette.letterbox,
                     border: `1px solid ${hidden ? palette.border : palette.gold}`,
                     fontFamily: mono,
-                    fontSize: "13px",
+                    fontSize: "12.5px",
                     textDecoration: hidden ? "line-through" : "none",
                   }}
                 >
@@ -8237,7 +8236,7 @@ if (activeTab === "community") {
                     color: isPinned ? palette.letterbox : disabled ? palette.textFaint : palette.textMuted,
                     border: `1px solid ${isPinned ? palette.gold : palette.border}`,
                     fontFamily: mono,
-                    fontSize: "13px",
+                    fontSize: "12.5px",
                     opacity: disabled ? 0.5 : 1,
                   }}
                 >
@@ -8252,7 +8251,7 @@ if (activeTab === "community") {
               type="button"
               onClick={() => persistSettings({ ...settings, mobileNavPinnedTabs: [] })}
               className={`mb-2 block ${TAP}`}
-              style={{ color: palette.textFaint, fontSize: "12px", fontFamily: mono, textDecoration: "underline" }}
+              style={{ color: palette.textFaint, fontSize: "11px", fontFamily: mono, textDecoration: "underline" }}
             >
               Reset to default
             </button>
@@ -8282,7 +8281,7 @@ if (activeTab === "community") {
                     color: active ? palette.letterbox : palette.textMuted,
                     border: `1px solid ${active ? palette.gold : palette.border}`,
                     fontFamily: mono,
-                    fontSize: "13px",
+                    fontSize: "12px",
                     fontWeight: 600,
                     minWidth: 0,
                     whiteSpace: "nowrap",
@@ -8320,7 +8319,7 @@ if (activeTab === "community") {
               }}
               placeholder="10000"
               className="w-full bg-transparent py-2.5 outline-none"
-              style={{ color: palette.text, fontFamily: mono, fontSize: "15px" }}
+              style={{ color: palette.text, fontFamily: mono, fontSize: "14px" }}
             />
           </div>
           <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
@@ -8346,7 +8345,7 @@ if (activeTab === "community") {
                     color: active ? palette.letterbox : palette.textMuted,
                     border: `1px solid ${active ? palette.gold : palette.border}`,
                     fontFamily: mono,
-                    fontSize: "13px",
+                    fontSize: "12.5px",
                     fontWeight: 600,
                     minWidth: 0,
                     whiteSpace: "nowrap",
@@ -8378,7 +8377,7 @@ if (activeTab === "community") {
                     color: active ? palette.letterbox : palette.textMuted,
                     border: `1px solid ${active ? palette.gold : palette.border}`,
                     fontFamily: mono,
-                    fontSize: "13px",
+                    fontSize: "12.5px",
                     fontWeight: 600,
                   }}
                 >
@@ -8404,7 +8403,7 @@ if (activeTab === "community") {
               color: settings.revengeLockEnabled ? palette.letterbox : palette.textMuted,
               border: `1px solid ${settings.revengeLockEnabled ? palette.gold : palette.border}`,
               fontFamily: mono,
-              fontSize: "13px",
+              fontSize: "12.5px",
             }}
           >
             <Bell size={14} />
@@ -8434,7 +8433,7 @@ if (activeTab === "community") {
               color: settings.showRevengeTag !== false ? palette.letterbox : palette.textMuted,
               border: `1px solid ${settings.showRevengeTag !== false ? palette.gold : palette.border}`,
               fontFamily: mono,
-              fontSize: "13px",
+              fontSize: "12.5px",
             }}
           >
             <Flame size={14} />
@@ -8454,7 +8453,7 @@ if (activeTab === "community") {
               onChange={(e) => persistSettings({ ...settings, dailyLossLimit: e.target.value })}
               placeholder="200"
               className="w-full bg-transparent py-2.5 outline-none"
-              style={{ color: palette.text, fontFamily: mono, fontSize: "15px" }}
+              style={{ color: palette.text, fontFamily: mono, fontSize: "14px" }}
             />
           </div>
           <p className="text-xs mb-3" style={{ color: palette.textFaint }}>
@@ -8469,7 +8468,7 @@ if (activeTab === "community") {
             onChange={(e) => persistSettings({ ...settings, maxTradesPerDay: e.target.value })}
             placeholder="5"
             className="w-full rounded-lg px-3 py-2.5 bg-transparent outline-none"
-            style={{ background: palette.surface, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "15px" }}
+            style={{ background: palette.surface, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "14px" }}
           />
           <p className="text-xs mt-1" style={{ color: palette.textFaint }}>
             Shows a nudge on the Curve tab once you hit this count. Leave blank to disable.
@@ -8484,7 +8483,7 @@ if (activeTab === "community") {
               <span key={s.id} className="relative inline-flex">
                 <span
                   className="px-3 py-1.5 rounded-full inline-block"
-                  style={{ background: palette.surface, color: palette.textMuted, border: `1px solid ${palette.border}`, fontSize: "13px" }}
+                  style={{ background: palette.surface, color: palette.textMuted, border: `1px solid ${palette.border}`, fontSize: "12.5px" }}
                 >
                   {s.label}
                 </span>
@@ -8504,7 +8503,7 @@ if (activeTab === "community") {
                 <span key={s.id} className="relative inline-flex">
                   <span
                     className="px-3 py-1.5 rounded-full inline-block"
-                    style={{ background: palette.surface, color: palette.textMuted, border: `1px dashed ${palette.border}`, fontSize: "13px" }}
+                    style={{ background: palette.surface, color: palette.textMuted, border: `1px dashed ${palette.border}`, fontSize: "12.5px" }}
                   >
                     {s.label}
                   </span>
@@ -8553,13 +8552,13 @@ if (activeTab === "community") {
                 autoFocus
                 maxLength={20}
                 className="flex-1 rounded-lg px-3 py-2 bg-transparent outline-none"
-                style={{ background: palette.surface, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "13px" }}
+                style={{ background: palette.surface, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "12.5px" }}
               />
               <button
                 type="button"
                 onClick={confirmAddSetup}
                 className={`rounded-lg px-3 py-2 flex-shrink-0 ${TAP}`}
-                style={{ background: palette.gold, color: palette.letterbox, fontFamily: mono, fontSize: "13px", fontWeight: 600 }}
+                style={{ background: palette.gold, color: palette.letterbox, fontFamily: mono, fontSize: "12.5px", fontWeight: 600 }}
               >
                 Add
               </button>
@@ -8582,7 +8581,7 @@ if (activeTab === "community") {
               type="button"
               onClick={restoreDefaultSetups}
               className={`mb-2 block ${TAP}`}
-              style={{ color: palette.textFaint, fontSize: "12px", fontFamily: mono, textDecoration: "underline" }}
+              style={{ color: palette.textFaint, fontSize: "11px", fontFamily: mono, textDecoration: "underline" }}
             >
               Restore default setups
             </button>
@@ -8598,7 +8597,7 @@ if (activeTab === "community") {
                 <span key={m.id} className="relative inline-flex">
                   <span
                     className="px-3 py-1.5 rounded-full inline-flex items-center gap-1.5"
-                    style={{ background: palette.surface, color: palette.textMuted, border: `1px dashed ${palette.border}`, fontSize: "13px" }}
+                    style={{ background: palette.surface, color: palette.textMuted, border: `1px dashed ${palette.border}`, fontSize: "12.5px" }}
                   >
                     <span>{m.emoji}</span>
                     {m.label}
@@ -8655,13 +8654,13 @@ if (activeTab === "community") {
                 autoFocus
                 maxLength={16}
                 className="flex-1 rounded-lg px-3 py-2 bg-transparent outline-none"
-                style={{ background: palette.surface, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "13px" }}
+                style={{ background: palette.surface, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "12.5px" }}
               />
               <button
                 type="button"
                 onClick={confirmAddMood}
                 className={`rounded-lg px-3 py-2 flex-shrink-0 ${TAP}`}
-                style={{ background: palette.gold, color: palette.letterbox, fontFamily: mono, fontSize: "13px", fontWeight: 600 }}
+                style={{ background: palette.gold, color: palette.letterbox, fontFamily: mono, fontSize: "12.5px", fontWeight: 600 }}
               >
                 Add
               </button>
@@ -8710,7 +8709,7 @@ if (activeTab === "community") {
               color: settings.hideDollarInShare ? palette.letterbox : palette.textMuted,
               border: `1px solid ${settings.hideDollarInShare ? palette.gold : palette.border}`,
               fontFamily: mono,
-              fontSize: "13px",
+              fontSize: "12.5px",
             }}
           >
             <Share2 size={14} />
@@ -8728,7 +8727,7 @@ if (activeTab === "community") {
             placeholder="e.g. J. Rahman"
             maxLength={40}
             className="w-full rounded-lg px-3 py-2.5 bg-transparent outline-none"
-            style={{ background: palette.surface, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "15px" }}
+            style={{ background: palette.surface, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "14px" }}
           />
           <p className="text-xs mt-1" style={{ color: palette.textFaint }}>
             Shown on printed Statements and the Weekly Share Card. Leave blank to omit.
@@ -8756,7 +8755,7 @@ if (activeTab === "community") {
                     color: active ? palette.letterbox : palette.textMuted,
                     border: `1px solid ${active ? palette.gold : palette.border}`,
                     fontFamily: mono,
-                    fontSize: "13px",
+                    fontSize: "12.5px",
                     fontWeight: 600,
                   }}
                 >
@@ -8778,7 +8777,7 @@ if (activeTab === "community") {
               color: settings.autoSyncTradesToJournal ? palette.letterbox : palette.textMuted,
               border: `1px solid ${settings.autoSyncTradesToJournal ? palette.gold : palette.border}`,
               fontFamily: mono,
-              fontSize: "13px",
+              fontSize: "12.5px",
             }}
           >
             <ArrowLeftRight size={14} />
@@ -8801,7 +8800,7 @@ if (activeTab === "community") {
               color: settings.showOnboardingTips ? palette.letterbox : palette.textMuted,
               border: `1px solid ${settings.showOnboardingTips ? palette.gold : palette.border}`,
               fontFamily: mono,
-              fontSize: "13px",
+              fontSize: "12.5px",
             }}
           >
             <Lightbulb size={14} />
@@ -8823,7 +8822,7 @@ if (activeTab === "community") {
               border: `1px solid ${palette.border}`,
               color: palette.text,
               fontFamily: mono,
-              fontSize: "13px",
+              fontSize: "12.5px",
               fontWeight: 600,
             }}
           >
@@ -8849,7 +8848,7 @@ if (activeTab === "community") {
                 border: `1px solid ${palette.border}`,
                 color: palette.text,
                 fontFamily: mono,
-                fontSize: "13px",
+                fontSize: "12.5px",
                 fontWeight: 600,
               }}
             >
@@ -8865,7 +8864,7 @@ if (activeTab === "community") {
                 border: `1px solid ${palette.border}`,
                 color: palette.text,
                 fontFamily: mono,
-                fontSize: "13px",
+                fontSize: "12.5px",
                 fontWeight: 600,
               }}
             >
@@ -8900,7 +8899,7 @@ if (activeTab === "community") {
                   type="button"
                   onClick={confirmMasterImport}
                   className={`flex-1 rounded-lg py-2 ${TAP}`}
-                  style={{ background: palette.gold, color: palette.letterbox, fontFamily: mono, fontSize: "14px" }}
+                  style={{ background: palette.gold, color: palette.letterbox, fontFamily: mono, fontSize: "13px" }}
                 >
                   Replace Everything
                 </button>
@@ -8913,7 +8912,7 @@ if (activeTab === "community") {
                     border: `1px solid ${palette.border}`,
                     color: palette.textMuted,
                     fontFamily: mono,
-                    fontSize: "14px",
+                    fontSize: "13px",
                   }}
                 >
                   Cancel
@@ -8929,7 +8928,7 @@ if (activeTab === "community") {
             <SettingsSubLabel>Signed In As</SettingsSubLabel>
             <div
               className="rounded-lg px-3 py-2.5 mb-3"
-              style={{ background: palette.surface, border: `1px solid ${palette.border}`, color: palette.textMuted, fontFamily: mono, fontSize: "13px" }}
+              style={{ background: palette.surface, border: `1px solid ${palette.border}`, color: palette.textMuted, fontFamily: mono, fontSize: "12px" }}
             >
               {session.email}
             </div>
@@ -8937,7 +8936,7 @@ if (activeTab === "community") {
               type="button"
               onClick={() => { logout(); setSettingsOpen(false); }}
               className={`w-full flex items-center justify-center gap-2 rounded-lg py-2.5 ${TAP}`}
-              style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.textMuted, fontFamily: mono, fontSize: "13px", fontWeight: 600 }}
+              style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.textMuted, fontFamily: mono, fontSize: "12.5px", fontWeight: 600 }}
             >
               <LogOut size={13} />
               Log Out
@@ -8952,7 +8951,7 @@ if (activeTab === "community") {
               type="button"
               onClick={() => setPendingSettingsReset(true)}
               className={`w-full flex items-center justify-center gap-2 rounded-lg py-2.5 ${TAP}`}
-              style={{ background: "transparent", border: `1px solid ${palette.red}`, color: palette.red, fontFamily: mono, fontSize: "13px", fontWeight: 600 }}
+              style={{ background: "transparent", border: `1px solid ${palette.red}`, color: palette.red, fontFamily: mono, fontSize: "12.5px", fontWeight: 600 }}
             >
               <RotateCcw size={14} />
               Reset Settings to Defaults
@@ -8971,7 +8970,7 @@ if (activeTab === "community") {
                     setPendingSettingsReset(false);
                   }}
                   className={`flex-1 rounded-lg py-2 ${TAP}`}
-                  style={{ background: palette.red, color: "#FFFFFF", fontFamily: mono, fontSize: "13px", fontWeight: 600 }}
+                  style={{ background: palette.red, color: "#FFFFFF", fontFamily: mono, fontSize: "12.5px", fontWeight: 600 }}
                 >
                   Reset
                 </button>
@@ -8979,7 +8978,7 @@ if (activeTab === "community") {
                   type="button"
                   onClick={() => setPendingSettingsReset(false)}
                   className={`flex-1 rounded-lg py-2 ${TAP}`}
-                  style={{ background: "transparent", border: `1px solid ${palette.border}`, color: palette.textMuted, fontFamily: mono, fontSize: "13px" }}
+                  style={{ background: "transparent", border: `1px solid ${palette.border}`, color: palette.textMuted, fontFamily: mono, fontSize: "12.5px" }}
                 >
                   Cancel
                 </button>
@@ -9007,7 +9006,7 @@ if (activeTab === "community") {
       style={{ maxWidth: "300px", background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
       onClick={(e) => e.stopPropagation()}
     >
-      <div style={{ color: palette.text, fontSize: "15px", fontWeight: 600, marginBottom: "6px" }}>
+      <div style={{ color: palette.text, fontSize: "14px", fontWeight: 600, marginBottom: "6px" }}>
         Delete this account?
       </div>
       <p className="text-xs mb-4" style={{ color: palette.textMuted }}>
@@ -9018,7 +9017,7 @@ if (activeTab === "community") {
           type="button"
           onClick={() => setPendingAccountDelete(null)}
           className={`flex-1 rounded-lg py-2.5 ${TAP}`}
-          style={{ background: "transparent", border: `1px solid ${palette.border}`, color: palette.textMuted, fontFamily: mono, fontSize: "14px" }}
+          style={{ background: "transparent", border: `1px solid ${palette.border}`, color: palette.textMuted, fontFamily: mono, fontSize: "13px" }}
         >
           Cancel
         </button>
@@ -9026,7 +9025,7 @@ if (activeTab === "community") {
           type="button"
           onClick={confirmDeleteAccount}
           className={`flex-1 rounded-lg py-2.5 ${TAP}`}
-          style={{ background: palette.red, color: "#FFFFFF", fontFamily: mono, fontSize: "14px", fontWeight: 600 }}
+          style={{ background: palette.red, color: "#FFFFFF", fontFamily: mono, fontSize: "13px", fontWeight: 600 }}
         >
           Delete
         </button>
@@ -9119,10 +9118,10 @@ if (activeTab === "community") {
       style={{ background: palette.field, border: `1px solid ${palette.border}` }}
     >
       <div style={{ flex: 1, marginRight: "8px" }}>
-        <div style={{ color: palette.text, fontSize: "14px" }}>{label}</div>
-        {sub && <div style={{ color: palette.textFaint, fontSize: "12px", marginTop: "2px" }}>{sub}</div>}
+        <div style={{ color: palette.text, fontSize: "13px" }}>{label}</div>
+        {sub && <div style={{ color: palette.textFaint, fontSize: "11px", marginTop: "2px" }}>{sub}</div>}
       </div>
-      <span style={{ fontFamily: mono, fontSize: "14px", color: valueColor || palette.text, flexShrink: 0 }}>
+      <span style={{ fontFamily: mono, fontSize: "13px", color: valueColor || palette.text, flexShrink: 0 }}>
         {value}
       </span>
     </div>
@@ -9167,7 +9166,7 @@ if (activeTab === "community") {
             </p>
           ) : (
             <>
-              <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}>
+              <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
                 Right Now
               </span>
 
@@ -9214,7 +9213,7 @@ if (activeTab === "community") {
                     : "No journaled session data yet"
                 )}
 
-              <span className="block mt-4 mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}>
+              <span className="block mt-4 mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
                 Compared to Your History
               </span>
 
@@ -9246,7 +9245,7 @@ if (activeTab === "community") {
                     : "Tag a mood on today's trades to see this"
                 )}
 
-              <span className="block mt-4 mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}>
+              <span className="block mt-4 mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
                 Watch For
               </span>
 
@@ -9299,7 +9298,7 @@ if (activeTab === "community") {
       onClick={(e) => e.stopPropagation()}
     >
             <div className="w-full flex items-center justify-between mb-3">
-              <span style={{ color: "#EDEFF3", fontFamily: mono, fontSize: "14px" }}>
+              <span style={{ color: "#EDEFF3", fontFamily: mono, fontSize: "13px" }}>
                 Preview
               </span>
               <button type="button" onClick={closeShare} className={TAP} style={{ color: "#7C8AA0" }} aria-label="Close">
@@ -9323,7 +9322,7 @@ if (activeTab === "community") {
                 background: palette.gold,
                 color: palette.letterbox,
                 fontFamily: mono,
-                fontSize: "15px",
+                fontSize: "14px",
                 fontWeight: 600,
               }}
             >
@@ -9342,7 +9341,7 @@ if (activeTab === "community") {
         >
           <div className="w-full flex flex-col items-center modal-in" style={{ maxWidth: "480px" }} onClick={(e) => e.stopPropagation()}>
             <div className="w-full flex items-center justify-between mb-3">
-              <span style={{ color: "#EDEFF3", fontFamily: mono, fontSize: "14px" }}>Trade Photo</span>
+              <span style={{ color: "#EDEFF3", fontFamily: mono, fontSize: "13px" }}>Trade Photo</span>
               <button type="button" onClick={() => setViewingJournalPhoto(null)} className={TAP} style={{ color: "#7C8AA0" }} aria-label="Close"><X size={20} /></button>
             </div>
             <img src={viewingJournalPhoto.src} alt="Trade photo" className="w-full rounded-2xl mb-3" style={{ border: `1px solid ${palette.border}` }} />
@@ -9350,7 +9349,7 @@ if (activeTab === "community") {
               type="button"
               onClick={() => { setPendingJournalPhotoDelete({ rowId: viewingJournalPhoto.rowId, index: viewingJournalPhoto.index }); setViewingJournalPhoto(null); }}
               className={`w-full flex items-center justify-center gap-2 rounded-lg py-3 ${TAP}`}
-              style={{ background: palette.red, color: "#FFFFFF", fontFamily: mono, fontSize: "15px", fontWeight: 600 }}
+              style={{ background: palette.red, color: "#FFFFFF", fontFamily: mono, fontSize: "14px", fontWeight: 600 }}
             >
               <Trash2 size={16} /> Delete Photo
             </button>
@@ -9365,11 +9364,11 @@ if (activeTab === "community") {
           onClick={() => setPendingJournalPhotoDelete(null)}
         >
           <div className="w-full modal-in rounded-2xl p-5" style={{ maxWidth: "300px", background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ color: palette.text, fontSize: "15px", fontWeight: 600, marginBottom: "6px" }}>Delete this photo?</div>
+            <div style={{ color: palette.text, fontSize: "14px", fontWeight: 600, marginBottom: "6px" }}>Delete this photo?</div>
             <p className="text-xs mb-4" style={{ color: palette.textMuted }}>This can't be undone.</p>
             <div className="flex gap-2">
-              <button type="button" onClick={() => setPendingJournalPhotoDelete(null)} className={`flex-1 rounded-lg py-2.5 ${TAP}`} style={{ background: "transparent", border: `1px solid ${palette.border}`, color: palette.textMuted, fontFamily: mono, fontSize: "14px" }}>Cancel</button>
-              <button type="button" onClick={() => { removeJournalPhoto(pendingJournalPhotoDelete.rowId, pendingJournalPhotoDelete.index); setPendingJournalPhotoDelete(null); }} className={`flex-1 rounded-lg py-2.5 ${TAP}`} style={{ background: palette.red, color: "#FFFFFF", fontFamily: mono, fontSize: "14px", fontWeight: 600 }}>Delete</button>
+              <button type="button" onClick={() => setPendingJournalPhotoDelete(null)} className={`flex-1 rounded-lg py-2.5 ${TAP}`} style={{ background: "transparent", border: `1px solid ${palette.border}`, color: palette.textMuted, fontFamily: mono, fontSize: "13px" }}>Cancel</button>
+              <button type="button" onClick={() => { removeJournalPhoto(pendingJournalPhotoDelete.rowId, pendingJournalPhotoDelete.index); setPendingJournalPhotoDelete(null); }} className={`flex-1 rounded-lg py-2.5 ${TAP}`} style={{ background: palette.red, color: "#FFFFFF", fontFamily: mono, fontSize: "13px", fontWeight: 600 }}>Delete</button>
             </div>
           </div>
         </div>
@@ -9391,11 +9390,11 @@ if (activeTab === "community") {
           >
             <div className="w-full flex items-center justify-between mb-3">
               <div>
-                <span style={{ color: "#EDEFF3", fontFamily: mono, fontSize: "14px" }}>
+                <span style={{ color: "#EDEFF3", fontFamily: mono, fontSize: "13px" }}>
                   Trade Screenshot
                 </span>
                 {viewingScreenshot.trade && (
-                  <div style={{ color: "#7C8AA0", fontSize: "13px", marginTop: "2px" }}>
+                  <div style={{ color: "#7C8AA0", fontSize: "12px", marginTop: "2px" }}>
                     {formatDayLabel(dayKeyFromTs(viewingScreenshot.trade.ts))}
                   </div>
                 )}
@@ -9428,7 +9427,7 @@ if (activeTab === "community") {
                   background: palette.gold,
                   color: palette.letterbox,
                   fontFamily: mono,
-                  fontSize: "15px",
+                  fontSize: "14px",
                   fontWeight: 600,
                 }}
               >
@@ -9476,10 +9475,10 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
         onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between p-4" style={{ borderBottom: `1px solid ${palette.border}` }}>
           <div>
-            <div style={{ fontFamily: display, fontSize: "16px", fontWeight: 700, color: palette.text }}>
+            <div style={{ fontFamily: display, fontSize: "15px", fontWeight: 700, color: palette.text }}>
               {membership?.name || "Group"}
             </div>
-            <div style={{ color: isOwner ? palette.gold : palette.textFaint, fontSize: "12px", fontFamily: mono, textTransform: "uppercase", fontWeight: isOwner ? 700 : 400 }}>
+            <div style={{ color: isOwner ? palette.gold : palette.textFaint, fontSize: "10.5px", fontFamily: mono, textTransform: "uppercase", fontWeight: isOwner ? 700 : 400 }}>
               {isOwner ? "★ You own this group" : "Member"}
             </div>
           </div>
@@ -9498,7 +9497,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
                   background: active ? (t === "danger" ? palette.red : palette.gold) : palette.field,
                   color: active ? (t === "danger" ? "#FFFFFF" : palette.letterbox) : palette.textMuted,
                   border: `1px solid ${active ? (t === "danger" ? palette.red : palette.gold) : palette.border}`,
-                  fontFamily: mono, fontSize: "13px", fontWeight: 700, textTransform: "capitalize",
+                  fontFamily: mono, fontSize: "12px", fontWeight: 700, textTransform: "capitalize",
                 }}>
                 {t}
               </button>
@@ -9524,27 +9523,27 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
 
               <div className="grid grid-cols-2 gap-2 mb-4">
                 <div className="rounded-lg py-2 text-center" style={{ background: palette.field, border: `1px solid ${palette.border}` }}>
-                  <div style={{ color: palette.text, fontSize: "16px", fontWeight: 700, fontFamily: mono }}>{groupInfo?.memberCount ?? groupMembersList.length ?? 0}</div>
-                  <div style={{ color: palette.textFaint, fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Members</div>
+                  <div style={{ color: palette.text, fontSize: "15px", fontWeight: 700, fontFamily: mono }}>{groupInfo?.memberCount ?? groupMembersList.length ?? 0}</div>
+                  <div style={{ color: palette.textFaint, fontSize: "9.5px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Members</div>
                 </div>
                 <div className="rounded-lg py-2 text-center" style={{ background: palette.field, border: `1px solid ${palette.border}` }}>
-                  <div style={{ color: palette.text, fontSize: "16px", fontWeight: 700, fontFamily: mono }}>{groupMessages.length || 0}</div>
-                  <div style={{ color: palette.textFaint, fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Messages</div>
+                  <div style={{ color: palette.text, fontSize: "15px", fontWeight: 700, fontFamily: mono }}>{groupMessages.length || 0}</div>
+                  <div style={{ color: palette.textFaint, fontSize: "9.5px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Messages</div>
                 </div>
               </div>
 
               <div className="rounded-xl p-3.5 mb-2" style={{ background: palette.field, border: `1px solid ${palette.border}` }}>
                 <div className="flex items-center justify-between py-1.5" style={{ borderBottom: `1px solid ${palette.border}` }}>
-                  <span style={{ color: palette.textFaint, fontSize: "12px" }}>Owner</span>
-                  <span style={{ color: palette.text, fontSize: "13px", fontWeight: 600 }}>{groupInfo?.createdBy || "—"}</span>
+                  <span style={{ color: palette.textFaint, fontSize: "11.5px" }}>Owner</span>
+                  <span style={{ color: palette.text, fontSize: "12.5px", fontWeight: 600 }}>{groupInfo?.createdBy || "—"}</span>
                 </div>
                 <div className="flex items-center justify-between py-1.5" style={{ borderBottom: `1px solid ${palette.border}` }}>
-                  <span style={{ color: palette.textFaint, fontSize: "12px" }}>Visibility</span>
-                  <span style={{ color: palette.text, fontSize: "13px", fontWeight: 600 }}>{groupInfo?.isPublic ? "Public" : "Private"}</span>
+                  <span style={{ color: palette.textFaint, fontSize: "11.5px" }}>Visibility</span>
+                  <span style={{ color: palette.text, fontSize: "12.5px", fontWeight: 600 }}>{groupInfo?.isPublic ? "Public" : "Private"}</span>
                 </div>
                 <div className="flex items-center justify-between py-1.5">
-                  <span style={{ color: palette.textFaint, fontSize: "12px" }}>Created</span>
-                  <span style={{ color: palette.text, fontSize: "13px", fontWeight: 600 }}>
+                  <span style={{ color: palette.textFaint, fontSize: "11.5px" }}>Created</span>
+                  <span style={{ color: palette.text, fontSize: "12.5px", fontWeight: 600 }}>
                     {groupInfo?.createdAt ? new Date(groupInfo.createdAt).toLocaleDateString() : "—"}
                   </span>
                 </div>
@@ -9553,7 +9552,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
               {groupInfo?.tags && groupInfo.tags.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mt-2">
                   {groupInfo.tags.map((tag) => (
-                    <span key={tag} style={{ fontSize: "12px", fontFamily: mono, color: palette.textMuted, background: palette.field, border: `1px solid ${palette.border}`, borderRadius: "999px", padding: "3px 9px" }}>
+                    <span key={tag} style={{ fontSize: "10px", fontFamily: mono, color: palette.textMuted, background: palette.field, border: `1px solid ${palette.border}`, borderRadius: "999px", padding: "3px 9px" }}>
                       {tag}
                     </span>
                   ))}
@@ -9584,27 +9583,27 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
       <div className="flex items-center gap-2">
         <Avatar name={mem.username} size={26} src={mem.avatar} online={mem.isOnline} />
         <div>
-          <div style={{ color: palette.text, fontSize: "14px", fontWeight: mem.isOwner || memberIsAdmin ? 600 : 400 }}>
+          <div style={{ color: palette.text, fontSize: "13px", fontWeight: mem.isOwner || memberIsAdmin ? 600 : 400 }}>
             {mem.username}
           </div>
-          <div style={{ color: palette.textFaint, fontSize: "12px", fontFamily: mono }}>
+          <div style={{ color: palette.textFaint, fontSize: "10px", fontFamily: mono }}>
             {mem.isOnline ? <span style={{ color: palette.green }}>Online</span> : `Joined ${new Date(mem.joinedAt).toLocaleDateString()}`}
           </div>
         </div>
       </div>
       <div className="flex items-center gap-2 flex-shrink-0">
         {mem.isOwner && (
-          <span style={{ fontSize: "12px", fontFamily: mono, color: palette.gold, border: `1px solid ${palette.gold}`, borderRadius: "999px", padding: "1px 7px", textTransform: "uppercase" }}>
+          <span style={{ fontSize: "9px", fontFamily: mono, color: palette.gold, border: `1px solid ${palette.gold}`, borderRadius: "999px", padding: "1px 7px", textTransform: "uppercase" }}>
             Owner
           </span>
         )}
         {!mem.isOwner && memberIsAdmin && (
-          <span style={{ fontSize: "12px", fontFamily: mono, color: palette.green, border: `1px solid ${palette.green}`, borderRadius: "999px", padding: "1px 7px", textTransform: "uppercase" }}>
+          <span style={{ fontSize: "9px", fontFamily: mono, color: palette.green, border: `1px solid ${palette.green}`, borderRadius: "999px", padding: "1px 7px", textTransform: "uppercase" }}>
             Admin
           </span>
         )}
         {!mem.isOwner && memberIsSignal && (
-          <span style={{ fontSize: "12px", fontFamily: mono, color: palette.goldBright, border: `1px solid ${palette.goldBright}`, borderRadius: "999px", padding: "1px 7px", textTransform: "uppercase" }}>
+          <span style={{ fontSize: "9px", fontFamily: mono, color: palette.goldBright, border: `1px solid ${palette.goldBright}`, borderRadius: "999px", padding: "1px 7px", textTransform: "uppercase" }}>
             Signal
           </span>
         )}
@@ -9656,7 +9655,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
                   className={`w-full flex items-center justify-between px-3 py-2.5 text-left ${TAP}`}
                   style={{ borderBottom: `1px solid ${palette.border}` }}
                 >
-                  <span style={{ color: palette.text, fontSize: "13px" }}>Admin</span>
+                  <span style={{ color: palette.text, fontSize: "12px" }}>Admin</span>
                   {memberIsAdmin && <Check size={13} style={{ color: palette.green }} />}
                 </button>
                 <button
@@ -9668,7 +9667,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
                   className={`w-full flex items-center justify-between px-3 py-2.5 text-left ${TAP}`}
                   style={{ borderBottom: `1px solid ${palette.border}` }}
                 >
-                  <span style={{ color: palette.text, fontSize: "13px" }}>Signal Provider</span>
+                  <span style={{ color: palette.text, fontSize: "12px" }}>Signal Provider</span>
                   {memberIsSignal && <Check size={13} style={{ color: palette.goldBright }} />}
                 </button>
                 <button
@@ -9680,7 +9679,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
                   className={`w-full flex items-center gap-1.5 px-3 py-2.5 text-left ${TAP}`}
                 >
                   <Trash2 size={12} style={{ color: palette.red }} />
-                  <span style={{ color: palette.red, fontSize: "13px" }}>Remove from Group</span>
+                  <span style={{ color: palette.red, fontSize: "12px" }}>Remove from Group</span>
                 </button>
               </div>
             )}
@@ -9712,13 +9711,13 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
                   <div key={r.username} className="flex items-center justify-between rounded-xl px-3 py-2.5 mb-2" style={{ background: palette.field, border: `1px solid ${palette.border}` }}>
                     <div className="flex items-center gap-2">
                       <Avatar name={r.username} size={26} />
-                      <span style={{ color: palette.text, fontSize: "14px" }}>{r.username}</span>
+                      <span style={{ color: palette.text, fontSize: "13px" }}>{r.username}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <button type="button" onClick={() => approveJoinRequest(r.username)} className={TAP} style={{ color: palette.green, fontSize: "12px", fontFamily: mono, fontWeight: 700 }}>
+                      <button type="button" onClick={() => approveJoinRequest(r.username)} className={TAP} style={{ color: palette.green, fontSize: "11px", fontFamily: mono, fontWeight: 700 }}>
                         Approve
                       </button>
-                      <button type="button" onClick={() => declineJoinRequest(r.username)} className={TAP} style={{ color: palette.red, fontSize: "12px", fontFamily: mono, fontWeight: 700 }}>
+                      <button type="button" onClick={() => declineJoinRequest(r.username)} className={TAP} style={{ color: palette.red, fontSize: "11px", fontFamily: mono, fontWeight: 700 }}>
                         Decline
                       </button>
                     </div>
@@ -9728,7 +9727,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
             </>
           ) : groupManageTab === "settings" ? (
             <>
-              <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}>Group Photo</span>
+              <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "10.5px" }}>Group Photo</span>
               <div className="flex items-center gap-3 mb-4">
                 <Avatar name={membership?.name || "?"} size={56} src={groupAvatarMap[activeGroupId]} />
                 <button
@@ -9736,7 +9735,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
                   onClick={() => groupAvatarInputRef.current && groupAvatarInputRef.current.click()}
                   disabled={groupAvatarUploading}
                   className={`flex items-center gap-1.5 px-3 py-2 rounded-lg ${TAP}`}
-                  style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "13px", fontWeight: 600 }}
+                  style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "12px", fontWeight: 600 }}
                 >
                   <Camera size={13} />
                   {groupAvatarUploading ? "Uploading…" : "Change Photo"}
@@ -9744,33 +9743,33 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
                 <input ref={groupAvatarInputRef} type="file" accept="image/*" onChange={handleGroupAvatarChange} style={{ display: "none" }} />
               </div>
 
-              <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}>Group Name</span>
+              <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "10.5px" }}>Group Name</span>
               <input type="text" value={manageNameDraft} onChange={(e) => setManageNameDraft(e.target.value)} maxLength={40}
                 className="w-full rounded-xl px-3 py-2.5 mb-3 bg-transparent outline-none"
-                style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "14px" }} />
-              <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}>Description</span>
+                style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "13.5px" }} />
+              <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "10.5px" }}>Description</span>
               <input type="text" value={manageDescDraft} onChange={(e) => setManageDescDraft(e.target.value)} maxLength={100}
                 className="w-full rounded-xl px-3 py-2.5 mb-3 bg-transparent outline-none"
-                style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "14px" }} />
+                style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "13px" }} />
               <button type="button" onClick={renameCommunityGroup} className={`w-full rounded-xl py-2.5 mb-4 ${TAP}`}
-                style={{ background: palette.gold, color: palette.letterbox, fontFamily: mono, fontSize: "14px", fontWeight: 700 }}>
+                style={{ background: palette.gold, color: palette.letterbox, fontFamily: mono, fontSize: "13px", fontWeight: 700 }}>
                 Save Changes
               </button>
 
-              <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}>Invite Code</span>
+              <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "10.5px" }}>Invite Code</span>
               <p className="text-xs mb-2" style={{ color: palette.textFaint }}>
                 Regenerating invalidates the old code — anyone who hasn't joined yet will need the new one.
               </p>
               <button type="button" onClick={regenerateGroupCode} disabled={regeneratingCode}
                 className={`w-full flex items-center justify-center gap-2 rounded-xl py-2.5 ${TAP}`}
-                style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "13px", fontWeight: 600 }}>
+                style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "12.5px", fontWeight: 600 }}>
                 <RotateCcw size={13} />
                 {regeneratingCode ? "Generating…" : "Regenerate Invite Code"}
               </button>
               {newInviteCode && (
                 <div className="rounded-xl px-3 py-2.5 mt-2" style={{ background: `${palette.gold}14`, border: `1px solid ${palette.gold}55` }}>
-                  <div style={{ fontSize: "12px", color: palette.gold, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "2px" }}>New Code</div>
-                  <div style={{ fontFamily: mono, fontSize: "15px", fontWeight: 700, color: palette.text }}>{newInviteCode}</div>
+                  <div style={{ fontSize: "9.5px", color: palette.gold, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "2px" }}>New Code</div>
+                  <div style={{ fontFamily: mono, fontSize: "14px", fontWeight: 700, color: palette.text }}>{newInviteCode}</div>
                 </div>
               )}
             </>
@@ -9779,7 +9778,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
               <div className="rounded-xl p-3.5 mb-3" style={{ background: `${palette.red}0E`, border: `1px solid ${palette.red}44` }}>
                 <div className="flex items-center gap-2 mb-1.5">
                   <AlertTriangle size={14} style={{ color: palette.red }} />
-                  <span style={{ color: palette.red, fontSize: "13px", fontWeight: 700 }}>Danger Zone</span>
+                  <span style={{ color: palette.red, fontSize: "12.5px", fontWeight: 700 }}>Danger Zone</span>
                 </div>
                 <p className="text-xs" style={{ color: palette.textMuted }}>
                   Deleting the group removes it for every member permanently. This can't be undone.
@@ -9787,7 +9786,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
               </div>
               <button type="button" onClick={() => setPendingDeleteGroup(true)}
                 className={`w-full flex items-center justify-center gap-2 rounded-xl py-2.5 ${TAP}`}
-                style={{ background: palette.red, color: "#FFFFFF", fontFamily: mono, fontSize: "14px", fontWeight: 700 }}>
+                style={{ background: palette.red, color: "#FFFFFF", fontFamily: mono, fontSize: "13px", fontWeight: 700 }}>
                 <Trash2 size={14} />
                 Delete Group Permanently
               </button>
@@ -9799,7 +9798,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
         <div className="p-4" style={{ borderTop: `1px solid ${palette.border}` }}>
           <button type="button" onClick={() => { setGroupManageOpen(false); leaveCommunityGroup(activeGroupId); }}
             className={`w-full rounded-xl py-2.5 ${TAP}`}
-            style={{ background: "transparent", border: `1px solid ${palette.red}`, color: palette.red, fontFamily: mono, fontSize: "14px", fontWeight: 600 }}>
+            style={{ background: "transparent", border: `1px solid ${palette.red}`, color: palette.red, fontFamily: mono, fontSize: "13px", fontWeight: 600 }}>
             Leave Group
           </button>
         </div>
@@ -9811,11 +9810,11 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
 {pendingDeleteMsg && (
   <div className="fixed inset-0 flex items-center justify-center z-50 p-6" style={{ background: "rgba(5,7,12,0.85)" }} onClick={() => setPendingDeleteMsg(null)}>
     <div className="w-full modal-in rounded-2xl p-5" style={{ maxWidth: "300px", background: palette.surface, border: `1px solid ${palette.border}` }} onClick={(e) => e.stopPropagation()}>
-      <div style={{ color: palette.text, fontSize: "15px", fontWeight: 600, marginBottom: "6px" }}>Delete this message?</div>
+      <div style={{ color: palette.text, fontSize: "14px", fontWeight: 600, marginBottom: "6px" }}>Delete this message?</div>
       <p className="text-xs mb-4" style={{ color: palette.textMuted }}>This can't be undone.</p>
       <div className="flex gap-2">
-        <button type="button" onClick={() => setPendingDeleteMsg(null)} className={`flex-1 rounded-lg py-2.5 ${TAP}`} style={{ background: "transparent", border: `1px solid ${palette.border}`, color: palette.textMuted, fontFamily: mono, fontSize: "14px" }}>Cancel</button>
-        <button type="button" onClick={() => deleteCommunityMessage(pendingDeleteMsg)} className={`flex-1 rounded-lg py-2.5 ${TAP}`} style={{ background: palette.red, color: "#FFFFFF", fontFamily: mono, fontSize: "14px", fontWeight: 600 }}>Delete</button>
+        <button type="button" onClick={() => setPendingDeleteMsg(null)} className={`flex-1 rounded-lg py-2.5 ${TAP}`} style={{ background: "transparent", border: `1px solid ${palette.border}`, color: palette.textMuted, fontFamily: mono, fontSize: "13px" }}>Cancel</button>
+        <button type="button" onClick={() => deleteCommunityMessage(pendingDeleteMsg)} className={`flex-1 rounded-lg py-2.5 ${TAP}`} style={{ background: palette.red, color: "#FFFFFF", fontFamily: mono, fontSize: "13px", fontWeight: 600 }}>Delete</button>
       </div>
     </div>
   </div>
@@ -9824,11 +9823,11 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
 {pendingDeleteGroup && (
   <div className="fixed inset-0 flex items-center justify-center z-50 p-6" style={{ background: "rgba(5,7,12,0.85)" }} onClick={() => setPendingDeleteGroup(false)}>
     <div className="w-full modal-in rounded-2xl p-5" style={{ maxWidth: "320px", background: palette.surface, border: `1px solid ${palette.red}` }} onClick={(e) => e.stopPropagation()}>
-      <div style={{ color: palette.text, fontSize: "15px", fontWeight: 600, marginBottom: "6px" }}>Delete this group permanently?</div>
+      <div style={{ color: palette.text, fontSize: "14px", fontWeight: 600, marginBottom: "6px" }}>Delete this group permanently?</div>
       <p className="text-xs mb-4" style={{ color: palette.textMuted }}>Every member loses access and all messages are lost. This can't be undone.</p>
       <div className="flex gap-2">
-        <button type="button" onClick={() => setPendingDeleteGroup(false)} className={`flex-1 rounded-lg py-2.5 ${TAP}`} style={{ background: "transparent", border: `1px solid ${palette.border}`, color: palette.textMuted, fontFamily: mono, fontSize: "14px" }}>Cancel</button>
-        <button type="button" onClick={deleteCommunityGroupPermanently} className={`flex-1 rounded-lg py-2.5 ${TAP}`} style={{ background: palette.red, color: "#FFFFFF", fontFamily: mono, fontSize: "14px", fontWeight: 700 }}>Delete Forever</button>
+        <button type="button" onClick={() => setPendingDeleteGroup(false)} className={`flex-1 rounded-lg py-2.5 ${TAP}`} style={{ background: "transparent", border: `1px solid ${palette.border}`, color: palette.textMuted, fontFamily: mono, fontSize: "13px" }}>Cancel</button>
+        <button type="button" onClick={deleteCommunityGroupPermanently} className={`flex-1 rounded-lg py-2.5 ${TAP}`} style={{ background: palette.red, color: "#FFFFFF", fontFamily: mono, fontSize: "13px", fontWeight: 700 }}>Delete Forever</button>
       </div>
     </div>
   </div>
@@ -9838,11 +9837,11 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
 {pendingKick && (
   <div className="fixed inset-0 flex items-center justify-center z-50 p-6" style={{ background: "rgba(5,7,12,0.85)" }} onClick={() => setPendingKick(null)}>
     <div className="w-full modal-in rounded-2xl p-5" style={{ maxWidth: "300px", background: palette.surface, border: `1px solid ${palette.border}` }} onClick={(e) => e.stopPropagation()}>
-      <div style={{ color: palette.text, fontSize: "15px", fontWeight: 600, marginBottom: "6px" }}>Remove {pendingKick}?</div>
+      <div style={{ color: palette.text, fontSize: "14px", fontWeight: 600, marginBottom: "6px" }}>Remove {pendingKick}?</div>
       <p className="text-xs mb-4" style={{ color: palette.textMuted }}>They'll lose access to this group.</p>
       <div className="flex gap-2">
-        <button type="button" onClick={() => setPendingKick(null)} className={`flex-1 rounded-lg py-2.5 ${TAP}`} style={{ background: "transparent", border: `1px solid ${palette.border}`, color: palette.textMuted, fontFamily: mono, fontSize: "14px" }}>Cancel</button>
-        <button type="button" onClick={() => kickCommunityMember(pendingKick)} className={`flex-1 rounded-lg py-2.5 ${TAP}`} style={{ background: palette.red, color: "#FFFFFF", fontFamily: mono, fontSize: "14px", fontWeight: 600 }}>Remove</button>
+        <button type="button" onClick={() => setPendingKick(null)} className={`flex-1 rounded-lg py-2.5 ${TAP}`} style={{ background: "transparent", border: `1px solid ${palette.border}`, color: palette.textMuted, fontFamily: mono, fontSize: "13px" }}>Cancel</button>
+        <button type="button" onClick={() => kickCommunityMember(pendingKick)} className={`flex-1 rounded-lg py-2.5 ${TAP}`} style={{ background: palette.red, color: "#FFFFFF", fontFamily: mono, fontSize: "13px", fontWeight: 600 }}>Remove</button>
       </div>
     </div>
   </div>
@@ -9859,7 +9858,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
             style={{ maxWidth: "300px", background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ color: palette.text, fontSize: "15px", fontWeight: 600, marginBottom: "6px", transition: THEME_TRANSITION }}>
+            <div style={{ color: palette.text, fontSize: "14px", fontWeight: 600, marginBottom: "6px", transition: THEME_TRANSITION }}>
               Delete this screenshot?
             </div>
             <p className="text-xs mb-4" style={{ color: palette.textMuted, transition: THEME_TRANSITION }}>
@@ -9875,7 +9874,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
                   border: `1px solid ${palette.border}`,
                   color: palette.textMuted,
                   fontFamily: mono,
-                  fontSize: "14px",
+                  fontSize: "13px",
                   transition: THEME_TRANSITION,
                 }}
               >
@@ -9889,7 +9888,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
                   background: palette.red,
                   color: "#FFFFFF",
                   fontFamily: mono,
-                  fontSize: "14px",
+                  fontSize: "13px",
                   fontWeight: 600,
                 }}
               >
@@ -9911,7 +9910,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
             style={{ maxWidth: "340px", background: palette.surface, border: `1px solid ${palette.red}`, boxShadow: palette.shadow }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ color: palette.text, fontSize: "15px", fontWeight: 600, marginBottom: "6px" }}>
+            <div style={{ color: palette.text, fontSize: "14px", fontWeight: 600, marginBottom: "6px" }}>
               Cooldown active
             </div>
             <p className="text-xs mb-4" style={{ color: palette.textMuted }}>
@@ -9927,7 +9926,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
                   background: palette.gold,
                   color: palette.letterbox,
                   fontFamily: mono,
-                  fontSize: "14px",
+                  fontSize: "13px",
                   fontWeight: 600,
                 }}
               >
@@ -9942,7 +9941,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
                   border: `1px solid ${palette.border}`,
                   color: palette.textMuted,
                   fontFamily: mono,
-                  fontSize: "14px",
+                  fontSize: "13px",
                 }}
               >
                 Log anyway
@@ -9963,7 +9962,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
             style={{ maxWidth: "300px", background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ color: palette.text, fontSize: "15px", fontWeight: 600, marginBottom: "6px", transition: THEME_TRANSITION }}>
+            <div style={{ color: palette.text, fontSize: "14px", fontWeight: 600, marginBottom: "6px", transition: THEME_TRANSITION }}>
               Delete this note?
             </div>
             <p className="text-xs mb-4" style={{ color: palette.textMuted, transition: THEME_TRANSITION }}>
@@ -9979,7 +9978,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
                   border: `1px solid ${palette.border}`,
                   color: palette.textMuted,
                   fontFamily: mono,
-                  fontSize: "14px",
+                  fontSize: "13px",
                   transition: THEME_TRANSITION,
                 }}
               >
@@ -9993,7 +9992,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
                   background: palette.red,
                   color: "#FFFFFF",
                   fontFamily: mono,
-                  fontSize: "14px",
+                  fontSize: "13px",
                   fontWeight: 600,
                 }}
               >
@@ -10022,7 +10021,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-3 statement-no-print">
-                <span style={{ color: "#EDEFF3", fontFamily: mono, fontSize: "15px", fontWeight: 600 }}>
+                <span style={{ color: "#EDEFF3", fontFamily: mono, fontSize: "14px", fontWeight: 600 }}>
                   Statement Preview
                 </span>
                 <div className="flex gap-2">
@@ -10030,7 +10029,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
                     type="button"
                     onClick={() => window.print()}
                     className={`flex items-center gap-2 rounded-lg px-4 py-2 ${TAP}`}
-                    style={{ background: S.gold, color: "#FFFFFF", fontFamily: mono, fontSize: "14px", fontWeight: 600 }}
+                    style={{ background: S.gold, color: "#FFFFFF", fontFamily: mono, fontSize: "13px", fontWeight: 600 }}
                   >
                     <Download size={15} />
                     Print / Save as PDF
@@ -10053,17 +10052,17 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
               >
                 <div className="flex items-start justify-between mb-1" style={{ borderBottom: `2px solid ${S.gold}`, paddingBottom: "12px" }}>
                   <div>
-                    <div style={{ fontFamily: mono, fontSize: "12px", letterSpacing: "0.14em", color: S.gold, textTransform: "uppercase" }}>
+                    <div style={{ fontFamily: mono, fontSize: "10px", letterSpacing: "0.14em", color: S.gold, textTransform: "uppercase" }}>
                       Tredzi — {statementPeriod.type === "month" ? "Monthly" : statementPeriod.type === "quarter" ? "Quarterly" : "Annual"} Statement
                     </div>
                     <div style={{ fontFamily: mono, fontSize: "1.4rem", fontWeight: 700, color: S.text }}>
                       {data.periodLabel}
                     </div>
                     {settings.traderAlias && (
-                      <div style={{ fontSize: "12px", color: S.muted, marginTop: "2px" }}>{settings.traderAlias}</div>
+                      <div style={{ fontSize: "11px", color: S.muted, marginTop: "2px" }}>{settings.traderAlias}</div>
                     )}
                   </div>
-                  <div style={{ textAlign: "right", fontSize: "12px", color: S.faint, fontFamily: mono }}>
+                  <div style={{ textAlign: "right", fontSize: "10px", color: S.faint, fontFamily: mono }}>
                     Generated {new Date().toLocaleDateString()}
                   </div>
                 </div>
@@ -10076,13 +10075,13 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
                     { label: "Win Rate", value: `${data.winRate.toFixed(1)}%`, color: S.text },
                   ].map((c) => (
                     <div key={c.label} style={{ background: S.bgAlt, borderRadius: "8px", padding: "10px", textAlign: "center" }}>
-                      <div style={{ fontSize: "12px", color: S.faint, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: "3px" }}>{c.label}</div>
-                      <div style={{ fontFamily: mono, fontSize: "14px", fontWeight: 700, color: c.color }}>{c.value}</div>
+                      <div style={{ fontSize: "9px", color: S.faint, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: "3px" }}>{c.label}</div>
+                      <div style={{ fontFamily: mono, fontSize: "13px", fontWeight: 700, color: c.color }}>{c.value}</div>
                     </div>
                   ))}
                 </div>
 
-                <div style={{ fontSize: "12px", fontWeight: 700, color: S.text, textTransform: "uppercase", letterSpacing: "0.06em", margin: "16px 0 8px" }}>
+                <div style={{ fontSize: "11px", fontWeight: 700, color: S.text, textTransform: "uppercase", letterSpacing: "0.06em", margin: "16px 0 8px" }}>
                   {statementPeriod.type === "month" ? "Daily P&L" : "Monthly P&L"}
                 </div>
                 <div style={{ background: S.bgAlt, borderRadius: "8px", padding: "12px 10px 4px" }}>
@@ -10100,7 +10099,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
                       />
                     ))}
                   </div>
-                  <div className="flex justify-between" style={{ fontSize: "12px", color: S.faint, fontFamily: mono, marginTop: "4px" }}>
+                  <div className="flex justify-between" style={{ fontSize: "8px", color: S.faint, fontFamily: mono, marginTop: "4px" }}>
                     <span>{data.series[0]?.label}</span>
                     <span>{data.series[data.series.length - 1]?.label}</span>
                   </div>
@@ -10108,7 +10107,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
 
                 <div className="grid grid-cols-2 gap-3 my-4">
                   <div>
-                    <div style={{ fontSize: "12px", fontWeight: 700, color: S.text, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "6px" }}>
+                    <div style={{ fontSize: "11px", fontWeight: 700, color: S.text, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "6px" }}>
                       Performance
                     </div>
                     {[
@@ -10119,14 +10118,14 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
                       ["Largest Loss", fmtSigned(data.perf.largestLoss)],
                       ["Max Drawdown", `$${fmtMoney(data.perf.maxDD)}`],
                     ].map(([l, v]) => (
-                      <div key={l} className="flex justify-between" style={{ fontSize: "12px", padding: "3px 0", borderBottom: `1px solid ${S.border}` }}>
+                      <div key={l} className="flex justify-between" style={{ fontSize: "11px", padding: "3px 0", borderBottom: `1px solid ${S.border}` }}>
                         <span style={{ color: S.muted }}>{l}</span>
                         <span style={{ fontFamily: mono, color: S.text, fontWeight: 600 }}>{v}</span>
                       </div>
                     ))}
                   </div>
                   <div>
-                    <div style={{ fontSize: "12px", fontWeight: 700, color: S.text, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "6px" }}>
+                    <div style={{ fontSize: "11px", fontWeight: 700, color: S.text, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "6px" }}>
                       Process & Discipline
                     </div>
                     {[
@@ -10138,7 +10137,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
                       ["Trade Plan Clean Days", data.cleanPct === null ? "N/A" : `${data.cleanPct}% (${data.checkinCount} check-ins)`],
                       ["Most Traded Pair", data.mostTradedPair ? `${data.mostTradedPair.pair} (${data.mostTradedPair.count}x)` : "N/A"],
                     ].map(([l, v]) => (
-                      <div key={l} className="flex justify-between" style={{ fontSize: "12px", padding: "3px 0", borderBottom: `1px solid ${S.border}` }}>
+                      <div key={l} className="flex justify-between" style={{ fontSize: "11px", padding: "3px 0", borderBottom: `1px solid ${S.border}` }}>
                         <span style={{ color: S.muted }}>{l}</span>
                         <span style={{ fontFamily: mono, color: S.text, fontWeight: 600 }}>{v}</span>
                       </div>
@@ -10150,20 +10149,20 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
                   <div className="flex gap-2 mb-2">
                     {data.bestSetup && (
                       <div style={{ flex: 1, background: `${S.gold}14`, border: `1px solid ${S.gold}55`, borderRadius: "8px", padding: "8px 10px" }}>
-                        <div style={{ fontSize: "12px", color: S.gold, textTransform: "uppercase", letterSpacing: "0.06em" }}>Top Setup</div>
-                        <div style={{ fontSize: "13px", color: S.text, fontWeight: 600 }}>{data.bestSetup.label}</div>
+                        <div style={{ fontSize: "9px", color: S.gold, textTransform: "uppercase", letterSpacing: "0.06em" }}>Top Setup</div>
+                        <div style={{ fontSize: "12px", color: S.text, fontWeight: 600 }}>{data.bestSetup.label}</div>
                       </div>
                     )}
                     {data.bestMood && (
                       <div style={{ flex: 1, background: `${S.green}14`, border: `1px solid ${S.green}55`, borderRadius: "8px", padding: "8px 10px" }}>
-                        <div style={{ fontSize: "12px", color: S.green, textTransform: "uppercase", letterSpacing: "0.06em" }}>Best Mood</div>
-                        <div style={{ fontSize: "13px", color: S.text, fontWeight: 600 }}>{data.bestMood.emoji} {data.bestMood.label}</div>
+                        <div style={{ fontSize: "9px", color: S.green, textTransform: "uppercase", letterSpacing: "0.06em" }}>Best Mood</div>
+                        <div style={{ fontSize: "12px", color: S.text, fontWeight: 600 }}>{data.bestMood.emoji} {data.bestMood.label}</div>
                       </div>
                     )}
                   </div>
                 )}
 
-                <div style={{ marginTop: "16px", paddingTop: "10px", borderTop: `1px solid ${S.border}`, fontSize: "12px", color: S.faint, fontFamily: mono }}>
+                <div style={{ marginTop: "16px", paddingTop: "10px", borderTop: `1px solid ${S.border}`, fontSize: "9px", color: S.faint, fontFamily: mono }}>
                   Generated by Tredzi — not a substitute for broker-issued account statements.
                 </div>
               </div>
@@ -10225,7 +10224,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
         style={{ ...cardStyle, transition: "top 0.2s ease, left 0.2s ease, bottom 0.2s ease", background: palette.surface, border: `1px solid ${palette.gold}55`, boxShadow: palette.shadow, zIndex: 91 }}
       >
         <div className="flex items-center justify-between mb-2">
-          <span style={{ fontFamily: mono, fontSize: "12px", color: palette.gold, letterSpacing: "0.1em" }}>
+          <span style={{ fontFamily: mono, fontSize: "10px", color: palette.gold, letterSpacing: "0.1em" }}>
             STEP {tourStep + 1} OF {TOUR_STEPS.length}
           </span>
           <button type="button" onClick={() => endTour(true)} className={TAP} style={{ color: palette.textFaint }} aria-label="Skip tour">
@@ -10240,18 +10239,18 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
         </p>
         <div className="flex items-center gap-2">
           {tourStep > 0 && (
-            <button type="button" onClick={() => goToTourStep(tourStep - 1)} className={`px-3 py-2 rounded-lg ${TAP}`} style={{ background: "transparent", border: `1px solid ${palette.border}`, color: palette.textMuted, fontFamily: mono, fontSize: "13px" }}>
+            <button type="button" onClick={() => goToTourStep(tourStep - 1)} className={`px-3 py-2 rounded-lg ${TAP}`} style={{ background: "transparent", border: `1px solid ${palette.border}`, color: palette.textMuted, fontFamily: mono, fontSize: "12.5px" }}>
               Back
             </button>
           )}
-          <button type="button" onClick={() => endTour(true)} className={`px-3 py-2 rounded-lg ${TAP}`} style={{ background: "transparent", color: palette.textFaint, fontFamily: mono, fontSize: "13px" }}>
+          <button type="button" onClick={() => endTour(true)} className={`px-3 py-2 rounded-lg ${TAP}`} style={{ background: "transparent", color: palette.textFaint, fontFamily: mono, fontSize: "12.5px" }}>
             Skip
           </button>
           <button
             type="button"
             onClick={() => goToTourStep(tourStep + 1)}
             className={`flex-1 rounded-lg py-2.5 ${TAP}`}
-            style={{ background: palette.gold, color: palette.letterbox, fontFamily: mono, fontSize: "14px", fontWeight: 600 }}
+            style={{ background: palette.gold, color: palette.letterbox, fontFamily: mono, fontSize: "13px", fontWeight: 600 }}
           >
             {tourStep === TOUR_STEPS.length - 1 ? "Finish" : "Next"}
           </button>
@@ -10272,7 +10271,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
             </div>
             <div
               className="uppercase mb-1"
-              style={{ color: "#7C8AA0", letterSpacing: "0.12em", fontSize: "12px" }}
+              style={{ color: "#7C8AA0", letterSpacing: "0.12em", fontSize: "11px" }}
             >
               Alarm
             </div>
@@ -10281,7 +10280,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
             >
               {ringingEvent.name}
             </div>
-            <div style={{ color: "#7C8AA0", fontSize: "14px", marginBottom: "28px" }}>
+            <div style={{ color: "#7C8AA0", fontSize: "13px", marginBottom: "28px" }}>
               Scheduled for {ringingEvent.time} today
             </div>
             <div className="flex gap-2 w-full">
@@ -10294,7 +10293,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
                   border: `1px solid ${palette.border}`,
                   color: "#EDEFF3",
                   fontFamily: mono,
-                  fontSize: "15px",
+                  fontSize: "14px",
                 }}
               >
                 Snooze 5m
@@ -10307,7 +10306,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
                   background: palette.gold,
                   color: palette.letterbox,
                   fontFamily: mono,
-                  fontSize: "15px",
+                  fontSize: "14px",
                   fontWeight: 600,
                 }}
               >
