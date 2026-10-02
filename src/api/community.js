@@ -1,4 +1,5 @@
 // --- Community (real backend — Cloudflare Worker + D1) ---
+import { mergePlans } from "../lib/planStore.js";
 export const COMMUNITY_API_BASE = "https://ledger-community.ledgercalc.workers.dev";
 
 export const COMMUNITY_USERNAME_KEY = "community:username";
@@ -24,6 +25,9 @@ export async function communityApi(path, options = {}) {
     headers: { "Content-Type": "application/json", ...(options.headers || {}) },
   });
   const data = await res.json().catch(() => ({}));
+  // The Worker attaches { plans: { username: "pro" | "creator" } } to responses that mention users,
+  // so plan badges can show next to any name without extra requests.
+  if (data && data.plans) mergePlans(data.plans);
   if (!res.ok) throw new Error(data.error || "Request failed.");
   return data;
 }
