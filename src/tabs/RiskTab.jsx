@@ -299,7 +299,7 @@ rightContent={
         <div>
           <div
             className="uppercase"
-            style={{ color: palette.textFaint, letterSpacing: "0.08em", fontSize: "12px" }}
+            style={{ color: palette.textFaint, letterSpacing: "0.08em", fontSize: "10px" }}
           >
             Your Cut ({cs.profitSplitPct}%)
           </div>
@@ -315,7 +315,7 @@ rightContent={
             ${fmt(splitEarnings)}
           </div>
           {linkedFirm && (
-            <div style={{ color: palette.textFaint, fontSize: "12px", marginTop: "1px" }}>
+            <div style={{ color: palette.textFaint, fontSize: "10px", marginTop: "1px" }}>
               {linkedFirm.firmName} — {linkedFirm.planLabel}
             </div>
           )}
@@ -325,12 +325,12 @@ rightContent={
           <div>
             <div
               className="uppercase"
-              style={{ color: palette.textFaint, letterSpacing: "0.08em", fontSize: "12px" }}
+              style={{ color: palette.textFaint, letterSpacing: "0.08em", fontSize: "10px" }}
             >
               Your Cut ({cs.profitSplitPct}%)
             </div>
             {linkedFirm && (
-              <div style={{ color: palette.textFaint, fontSize: "12px", marginTop: "1px" }}>
+              <div style={{ color: palette.textFaint, fontSize: "10px", marginTop: "1px" }}>
                 {linkedFirm.firmName} — {linkedFirm.planLabel}
               </div>
             )}
@@ -390,7 +390,7 @@ rightContent={
               pass={consistencyPass}
             />
 
-            <span className="block mt-6 mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}>
+            <span className="block mt-6 mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
               Recovery
             </span>
             {!hasBoth ? (
@@ -413,7 +413,7 @@ rightContent={
               </p>
             )}
 
-            <span className="block mt-2 mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}>
+            <span className="block mt-2 mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
               Account
             </span>
             <div className="lg:grid lg:grid-cols-2 lg:gap-4">
@@ -421,7 +421,7 @@ rightContent={
               <Field isDesktop={isDesktop} label="Current Balance" value={cs.currentBal} suffix="$" placeholder="10650" onChange={(e) => setCs({ ...cs, currentBal: e.target.value })} />
             </div>
 
-            <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}>
+            <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
               Profit Target
             </span>
             <div className="flex gap-2 flex-wrap mb-4">
@@ -438,7 +438,7 @@ rightContent={
                       color: active ? palette.letterbox : palette.textMuted,
                       border: `1px solid ${active ? palette.gold : palette.border}`,
                       fontFamily: mono,
-                      fontSize: "14px",
+                      fontSize: "13px",
                     }}
                   >
                     {opt}%
@@ -454,7 +454,7 @@ rightContent={
                   color: !hasTarget ? palette.letterbox : palette.textMuted,
                   border: `1px solid ${!hasTarget ? palette.gold : palette.border}`,
                   fontFamily: mono,
-                  fontSize: "14px",
+                  fontSize: "13px",
                 }}
               >
                 Instant
@@ -466,14 +466,14 @@ rightContent={
               </p>
             )}
 
-            <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}>
+            <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
               Daily Drawdown
             </span>
             <PillGroup options={[2, 3, 4, 5, 6]} value={cs.dailyLossPct} onChange={(v) => setCs({ ...cs, dailyLossPct: v })} />
            <div className="lg:grid lg:grid-cols-2 lg:gap-4">
             <Field isDesktop={isDesktop}  label="Loss Today" value={cs.todayLoss} suffix="$" placeholder="0" onChange={(e) => setCs({ ...cs, todayLoss: e.target.value })} />
            </div>
-            <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}>
+            <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
               Max Drawdown
             </span>
             <PillGroup
@@ -499,7 +499,7 @@ rightContent={
                       color: active ? palette.letterbox : palette.textMuted,
                       border: `1px solid ${active ? palette.gold : palette.border}`,
                       fontFamily: mono,
-                      fontSize: "14px",
+                      fontSize: "13px",
                     }}
                   >
                     {m.label}
@@ -513,7 +513,7 @@ rightContent={
                 : `Fixed at ${maxDrawdownPct}%, trailing off your peak balance (starting or current, whichever is higher).`}
             </p>
 
-            <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}>
+            <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
               Consistency Rule
             </span>
             <PillGroup options={[0, 15, 20, 25, 30, 40]} value={cs.rule} onChange={(v) => setCs({ ...cs, rule: v })} />
@@ -541,10 +541,10 @@ rightContent={
                   style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
                 >
                   <div className="flex items-center justify-between mb-1.5">
-                    <span style={{ color: palette.text, fontSize: "14px", fontWeight: 600 }}>
+                    <span style={{ color: palette.text, fontSize: "13px", fontWeight: 600 }}>
                       Minimum Trading Days Tracker
                     </span>
-                    <span style={{ fontFamily: mono, fontSize: "13px", color: met ? palette.green : palette.textMuted }}>
+                    <span style={{ fontFamily: mono, fontSize: "12px", color: met ? palette.green : palette.textMuted }}>
                       {tracker.qualifyingDays} / {minDaysTarget}
                     </span>
                   </div>
@@ -568,7 +568,7 @@ rightContent={
               );
             })()}
 
-<span className="block mb-1.5 mt-4 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}>
+<span className="block mb-1.5 mt-4 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
   Minimum Trades
 </span>
 <PillGroup
@@ -597,14 +597,14 @@ rightContent={
       }}
     >
       <div className="flex items-center justify-between mb-1.5">
-        <span style={{ color: palette.text, fontSize: "14px", fontWeight: 600 }}>
+        <span style={{ color: palette.text, fontSize: "13px", fontWeight: 600 }}>
           Minimum Trades Tracker
         </span>
 
         <span
           style={{
             fontFamily: mono,
-            fontSize: "13px",
+            fontSize: "12px",
             color: met ? palette.green : palette.textMuted,
           }}
         >
@@ -649,7 +649,7 @@ rightContent={
               least {cs.minDayGainPct || 0}%.
             </p>
 
-<span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}>
+<span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
   Profit Split
 </span>
 <div className="flex gap-2 flex-wrap mb-1">
@@ -672,7 +672,7 @@ rightContent={
           color: isSelected ? palette.letterbox : palette.textMuted,
           border: `1px solid ${isSelected ? palette.gold : palette.border}`,
           fontFamily: mono,
-          fontSize: "14px",
+          fontSize: "13px",
         }}
       >
         {opt}%
@@ -707,7 +707,7 @@ rightContent={
         style={{
           color: palette.gold,
           fontFamily: mono,
-          fontSize: "12px",
+          fontSize: "10px",
           fontWeight: 700,
           letterSpacing: "0.1em",
         }}
@@ -750,7 +750,7 @@ rightContent={
             ? palette.green
             : palette.red,
         fontFamily: mono,
-        fontSize: "12px",
+        fontSize: "10px",
         fontWeight: 700,
       }}
     >
@@ -771,7 +771,7 @@ rightContent={
         <div
           style={{
             color: palette.textFaint,
-            fontSize: "12px",
+            fontSize: "10px",
             textTransform: "uppercase",
             letterSpacing: "0.08em",
           }}
@@ -799,7 +799,7 @@ rightContent={
       </div>
 
       <div className="text-right">
-        <div style={{ color: palette.textFaint, fontSize: "12px" }}>
+        <div style={{ color: palette.textFaint, fontSize: "10px" }}>
           {hasTotalProjection
             ? `Projected over ${fmt(totalTrades, 0)} trades`
             : "Expected value per trade"}
@@ -810,7 +810,7 @@ rightContent={
             style={{
               color: totalProjected >= 0 ? palette.green : palette.red,
               fontFamily: mono,
-              fontSize: "14px",
+              fontSize: "13px",
               fontWeight: 600,
               marginTop: "3px",
             }}
@@ -841,14 +841,14 @@ rightContent={
     }}
   >
     <div className="flex items-center justify-between">
-      <span style={{ color: palette.textMuted, fontSize: "12px" }}>
+      <span style={{ color: palette.textMuted, fontSize: "11px" }}>
         Win rate needed (with buffer)
       </span>
       <span
         style={{
           color: computedWinRate >= targetWinRate ? palette.green : palette.red,
           fontFamily: mono,
-          fontSize: "14px",
+          fontSize: "13px",
           fontWeight: 700,
         }}
       >
@@ -876,7 +876,7 @@ rightContent={
     </div>
     <div
       className="flex justify-between mt-1.5"
-      style={{ color: palette.textFaint, fontSize: "12px", fontFamily: mono }}
+      style={{ color: palette.textFaint, fontSize: "10px", fontFamily: mono }}
     >
       <span>Current: {computedWinRate ? `${computedWinRate.toFixed(1)}%` : "0.0%"}</span>
       <span>1 : {ratio ? ratio.toFixed(2) : "0.00"} R:R</span>
@@ -900,7 +900,7 @@ rightContent={
       style={{
         color: palette.gold,
         fontFamily: mono,
-        fontSize: "12px",
+        fontSize: "10px",
         fontWeight: 700,
         letterSpacing: "0.1em",
       }}
@@ -922,7 +922,7 @@ rightContent={
     <div
       style={{
         color: palette.textFaint,
-        fontSize: "12px",
+        fontSize: "11px",
         marginTop: "2px",
       }}
     >
@@ -1068,7 +1068,7 @@ rightContent={
       style={{
         color: palette.gold,
         fontFamily: mono,
-        fontSize: "12px",
+        fontSize: "10px",
         fontWeight: 700,
         letterSpacing: "0.1em",
       }}
@@ -1078,7 +1078,7 @@ rightContent={
     <div style={{ color: palette.text, fontSize: "17px", fontWeight: 700, marginTop: "3px" }}>
       Projected Curve
     </div>
-    <div style={{ color: palette.textFaint, fontSize: "12px", marginTop: "3px", lineHeight: 1.5 }}>
+    <div style={{ color: palette.textFaint, fontSize: "11px", marginTop: "3px", lineHeight: 1.5 }}>
       Built from your R:R and win rate — Normal uses your actual numbers, Best/Worst shift the win
       rate by your Safety Buffer ({edge.buffer || 5}%) either direction. Pick a horizon below; trade
       count is worked out automatically from Trades / Month.
@@ -1097,7 +1097,7 @@ rightContent={
           color: edgeProjectionPeriodIdx === i ? palette.letterbox : palette.textMuted,
           border: `1px solid ${edgeProjectionPeriodIdx === i ? palette.gold : palette.border}`,
           fontFamily: mono,
-          fontSize: "13px",
+          fontSize: "12.5px",
         }}
       >
         {p.label}
@@ -1122,7 +1122,7 @@ rightContent={
             className="rounded-lg p-3"
             style={{ background: palette.field, border: `1px solid ${s.color}55` }}
           >
-            <div className="uppercase" style={{ color: s.color, fontSize: "12px", fontWeight: 700, letterSpacing: "0.06em" }}>
+            <div className="uppercase" style={{ color: s.color, fontSize: "10px", fontWeight: 700, letterSpacing: "0.06em" }}>
               {s.label}
             </div>
 <div style={{ fontFamily: mono, fontSize: "18px", fontWeight: 700, color: s.color, marginTop: "4px" }}>
@@ -1133,7 +1133,7 @@ rightContent={
     {s.pnl >= 0 ? "+" : "-"}${fmt(Math.abs(s.pnl))}
   </div>
 )}
-            <div style={{ fontSize: "12px", color: palette.textFaint, marginTop: "4px" }}>
+            <div style={{ fontSize: "10px", color: palette.textFaint, marginTop: "4px" }}>
               {s.wr.toFixed(1)}% win rate
             </div>
           </div>
@@ -1155,13 +1155,13 @@ rightContent={
               type="number"
               domain={[0, "dataMax"]}
               stroke={palette.textFaint}
-              tick={{ fill: palette.textFaint, fontSize: 11, fontFamily: mono }}
+              tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
               tickLine={false}
               axisLine={{ stroke: palette.border }}
             />
             <YAxis
               stroke={palette.textFaint}
-              tick={{ fill: palette.textFaint, fontSize: 11, fontFamily: mono }}
+              tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
               tickLine={false}
               axisLine={{ stroke: palette.border }}
               width={48}
@@ -1174,7 +1174,7 @@ rightContent={
                 border: `1px solid ${palette.border}`,
                 borderRadius: "8px",
                 fontFamily: mono,
-                fontSize: "13px",
+                fontSize: "12px",
               }}
               labelStyle={{ color: palette.textMuted }}
               labelFormatter={(l) => `Trade ${l}`}
@@ -1207,7 +1207,7 @@ rightContent={
             >
               <div className="flex items-center justify-between mb-3">
                 <div>
-                  <div className="uppercase" style={{ color: palette.gold, fontFamily: mono, fontSize: "12px", fontWeight: 700, letterSpacing: "0.1em" }}>
+                  <div className="uppercase" style={{ color: palette.gold, fontFamily: mono, fontSize: "10px", fontWeight: 700, letterSpacing: "0.1em" }}>
                     Position Size
                   </div>
                   <div style={{ color: palette.text, fontSize: "17px", fontWeight: 700, marginTop: "3px" }}>
@@ -1221,7 +1221,7 @@ rightContent={
                     border: `1px solid ${riskPctEffective > 2 ? palette.red : riskPctEffective > 0 ? palette.green : palette.border}`,
                     color: riskPctEffective > 2 ? palette.red : riskPctEffective > 0 ? palette.green : palette.textMuted,
                     fontFamily: mono,
-                    fontSize: "12px",
+                    fontSize: "10px",
                     fontWeight: 700,
                   }}
                 >
@@ -1232,16 +1232,16 @@ rightContent={
               <div className="rounded-lg p-3 mb-3" style={{ background: palette.field, border: `1px solid ${palette.border}` }}>
                 <div className="flex items-end justify-between">
                   <div>
-                    <div style={{ color: palette.textFaint, fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                    <div style={{ color: palette.textFaint, fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.08em" }}>
                       Lot Size
                     </div>
                     <div style={{ color: palette.text, fontFamily: mono, fontSize: "28px", fontWeight: 700, marginTop: "4px" }}>
                       {fmt(lots)}
-                      <span style={{ fontSize: "14px", color: palette.textFaint, marginLeft: "4px" }}>lots</span>
+                      <span style={{ fontSize: "13px", color: palette.textFaint, marginLeft: "4px" }}>lots</span>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div style={{ color: palette.textFaint, fontSize: "12px" }}>Risking</div>
+                    <div style={{ color: palette.textFaint, fontSize: "10px" }}>Risking</div>
                     <div style={{ color: palette.green, fontFamily: mono, fontSize: "16px", fontWeight: 700, marginTop: "3px" }}>
                       ${fmt(riskAmt)}
                     </div>
@@ -1251,8 +1251,8 @@ rightContent={
 
               <div className="rounded-lg p-3" style={{ background: palette.field, border: `1px solid ${palette.border}` }}>
                 <div className="flex items-center justify-between mb-1.5">
-                  <span style={{ color: palette.textMuted, fontSize: "12px" }}>Risk relative to account</span>
-                  <span style={{ color: riskPctEffective > 2 ? palette.red : palette.text, fontFamily: mono, fontSize: "14px", fontWeight: 700 }}>
+                  <span style={{ color: palette.textMuted, fontSize: "11px" }}>Risk relative to account</span>
+                  <span style={{ color: riskPctEffective > 2 ? palette.red : palette.text, fontFamily: mono, fontSize: "13px", fontWeight: 700 }}>
                     {fmt(riskPctEffective, 2)}%
                   </span>
                 </div>
@@ -1267,14 +1267,14 @@ rightContent={
                     }}
                   />
                 </div>
-                <div className="flex justify-between mt-1.5" style={{ color: palette.textFaint, fontSize: "12px", fontFamily: mono }}>
+                <div className="flex justify-between mt-1.5" style={{ color: palette.textFaint, fontSize: "10px", fontFamily: mono }}>
                   <span>0%</span>
                   <span>5%+</span>
                 </div>
               </div>
             </div>
 
-            <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "12px" }}>
+            <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
               Instrument
             </span>
             <div className="grid grid-cols-3 gap-2 mb-4">
@@ -1298,7 +1298,7 @@ rightContent={
                     }}
                   >
                     <Icon size={15} />
-                    <span style={{ fontFamily: mono, fontSize: "13px" }}>{p.label}</span>
+                    <span style={{ fontFamily: mono, fontSize: "12px" }}>{p.label}</span>
                   </button>
                 );
               })}
