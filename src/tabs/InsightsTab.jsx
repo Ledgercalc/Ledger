@@ -1,6 +1,9 @@
 import { pokeCrab } from "../lib/mascot.js";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { OnboardingTip } from "../components/onboarding.jsx";
+import { PlanLockCard } from "../components/PlansModal.jsx";
+import { hasFeature } from "../data/plans.js";
+import { useMyPlan } from "../lib/planStore.js";
 import { Readout, StatChip } from "../components/ui.jsx";
 import { METRIC_INFO, MIN_TRADES_FOR_TIERS, computeConsistencyScore, computeDisciplineGrade, computeDisciplineStreakTrend, computeHeadlineInsight, computeHeatmapWeeks, computeInsights, computeJournalCompleteness, computeMonthComparison, computeNoteTagAnalysis, computeOverconfidenceCheck, computePerformanceMetrics, computeRevengeCostSplit, filledJournalRows, joinWithAnd, journalConfidenceByDay, journalDailyPnLSeries, journalMistakeFrequency, journalMistakePatterns, journalMonthlyPnLSeries, journalMonthlyVolume, journalPairFrequency, journalPnLByDay, journalPnLByMonth, journalRRDistribution, journalRRSeries, journalSessionByDay, journalSessionFrequency, journalSetupRadar, journalTrendBreakdown, journalWeekdayFrequency, tierColor } from "../lib/analytics.js";
 import { MONTH_NAMES, MONTH_SHORT, WEEKDAY_LABELS, fmtMoney, formatDayLabel } from "../lib/format.js";
@@ -9,6 +12,8 @@ import { ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, Clock, Download
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 export default function InsightsTab(props) {
+  const myPlan = useMyPlan();
+  const [heatMonthOffset, setHeatMonthOffset] = useState(0); // 0 = latest month, 1 = the month before, ...
   const {
     coachChatId,
     coachChats,
@@ -150,21 +155,9 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
           top: 0,
           zIndex: 5,
           background: palette.bg,
-          paddingTop: "6px",
+          paddingTop: "14px",
         }}
       >
-        <div
-          aria-hidden="true"
-          style={{
-            position: "absolute",
-            left: 0,
-            right: 0,
-            top: "100%",
-            height: "14px",
-            pointerEvents: "none",
-            background: `linear-gradient(to bottom, ${palette.bg}, ${palette.bg}00)`,
-          }}
-        />
         {INSIGHTS_SUB_TABS.map((s) => {
           const active = insightsSubTab === s.id;
           return (
@@ -199,22 +192,10 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
           top: 0,
           zIndex: 5,
           background: palette.bg,
-          paddingTop: "2px",
+          paddingTop: "8px",
           paddingBottom: "8px",
         }}
       >
-        <div
-          aria-hidden="true"
-          style={{
-            position: "absolute",
-            left: 0,
-            right: 0,
-            top: "100%",
-            height: "14px",
-            pointerEvents: "none",
-            background: `linear-gradient(to bottom, ${palette.bg}, ${palette.bg}00)`,
-          }}
-        />
         <div
           role="tablist"
           className="relative"
@@ -347,56 +328,117 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
             WebkitOverflowScrolling: "touch",
           }}
         >
-          <div className="flex" style={{ gap: isDesktop ? "5px" : "3px", justifyContent: isDesktop ? "center" : "normal" }}>
-            <div className="flex flex-col justify-between" style={{ gap: isDesktop ? "5px" : "3px", paddingRight: isDesktop ? "8px" : "4px" }}>
-              {WEEKDAY_LABELS.map((w, i) => (
-                <div
-                  key={i}
-                  style={{
-                    width: isDesktop ? "16px" : "10px",
-                    height: isDesktop ? "16px" : "10px",
-                    fontSize: isDesktop ? "10px" : "7px",
-                    color: palette.textFaint,
-                    lineHeight: isDesktop ? "16px" : "10px",
-                  }}
-                >
-                  {i % 2 === 1 ? w : ""}
+          {(() => {
+            // Month calendar heatmap: big rounded day tiles with the date and that day's P/L.
+            const HEAT_GREEN = "#22b85c";
+            const HEAT_RED = "#e5483f";
+            const keyParts = (day) => {
+              const k = String(day?.key || "");
+              const m = k.match(/^(\d{4})-(\d{2})-(\d{2})/);
+              if (m) return { y: +m[1], m: +m[2] - 1, d: +m[3] };
+              const dt = new Date(day?.key);
+              return Number.isNaN(dt.getTime()) ? null : { y: dt.getFullYear(), m: dt.getMonth(), d: dt.getDate() };
+            };
+            const ymOf = (pt) => pt.y * 12 + pt.m;
+            const heatMoney = (n) => {
+              const a = Math.abs(n);
+              const body = a >= 10000 ? `${Math.round(a / 1000)}k` : a >= 1000 ? `${(a / 1000).toFixed(1)}k` : String(Math.round(a));
+              return `${n > 0 ? "+" : n < 0 ? "-" : ""}$${body}`;
+            };
+            let minYm = Infinity;
+            let maxYm = -Infinity;
+            heatmap.weeks.forEach((w) => w.forEach((d) => {
+              if (d.future) return;
+              const pt = keyParts(d);
+              if (!pt) return;
+              minYm = Math.min(minYm, ymOf(pt));
+              maxYm = Math.max(maxYm, ymOf(pt));
+            }));
+            if (!Number.isFinite(maxYm)) { const now = new Date(); minYm = maxYm = now.getFullYear() * 12 + now.getMonth(); }
+            const offset = Math.min(Math.max(heatMonthOffset, 0), maxYm - minYm);
+            const selYm = maxYm - offset;
+            const monthWeeks = heatmap.weeks.filter((w) => w.some((d) => { const pt = keyParts(d); return pt && ymOf(pt) === selYm; }));
+            const monthLabel = new Date(Math.floor(selYm / 12), selYm % 12, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" });
+            let monthTotal = 0;
+            let monthTradedDays = 0;
+            monthWeeks.forEach((w) => w.forEach((d) => {
+              const pt = keyParts(d);
+              if (pt && ymOf(pt) === selYm && !d.future && d.pnl !== null) { monthTotal += d.pnl; monthTradedDays += 1; }
+            }));
+            const navBtn = (enabled) => ({
+              width: "30px", height: "30px", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center",
+              background: palette.field, border: `1px solid ${palette.border}`, color: enabled ? palette.text : palette.textFaint,
+              opacity: enabled ? 1 : 0.4, cursor: enabled ? "pointer" : "default",
+            });
+            const gap = isDesktop ? "8px" : "5px";
+            return (
+              <div style={{ maxWidth: isDesktop ? "520px" : "100%", margin: "0 auto" }}>
+                <div className="flex items-center justify-between mb-3" style={{ gap: "8px" }}>
+                  <button type="button" aria-label="Previous month" disabled={offset >= maxYm - minYm} onClick={() => setHeatMonthOffset(offset + 1)} style={navBtn(offset < maxYm - minYm)}>
+                    <ChevronLeft size={16} />
+                  </button>
+                  <div className="text-center" style={{ minWidth: 0 }}>
+                    <div style={{ color: palette.text, fontFamily: display, fontSize: isDesktop ? "18px" : "16px", fontWeight: 800 }}>{monthLabel}</div>
+                    <div style={{ color: monthTradedDays ? (monthTotal >= 0 ? palette.green : palette.red) : palette.textFaint, fontFamily: mono, fontSize: "11px", fontWeight: 700 }}>
+                      {monthTradedDays ? `${heatMoney(monthTotal)} · ${monthTradedDays} trading day${monthTradedDays === 1 ? "" : "s"}` : "No trades this month"}
+                    </div>
+                  </div>
+                  <button type="button" aria-label="Next month" disabled={offset <= 0} onClick={() => setHeatMonthOffset(offset - 1)} style={navBtn(offset > 0)}>
+                    <ChevronRight size={16} />
+                  </button>
                 </div>
-              ))}
-            </div>
-            {heatmap.weeks.map((week, wi) => (
-              <div key={wi} className="flex flex-col" style={{ gap: isDesktop ? "5px" : "3px" }}>
-                {week.map((day, di) => {
-                  const intensity = day.pnl !== null && heatmap.maxAbs > 0 ? Math.min(1, Math.abs(day.pnl) / heatmap.maxAbs) : 0;
-                  const alphaHex = Math.round(30 + intensity * 190)
-                    .toString(16)
-                    .padStart(2, "0");
-                  const bg = day.future
-                    ? "transparent"
-                    : day.pnl === null
-                    ? palette.field
-                    : `${day.pnl > 0 ? palette.green : palette.red}${alphaHex}`;
-                  return (
-                    <div
-                      key={di}
-                      onClick={() =>
-                        !day.future &&
-                        day.pnl !== null &&
-                        setExpandedHeatmapDay(expandedHeatmapDay?.key === day.key ? null : day)
-                      }
-                      style={{
-                        width: isDesktop ? "16px" : "10px",
-                        height: isDesktop ? "16px" : "10px",
-                        borderRadius: isDesktop ? "3px" : "2px",
-                        background: bg,
-                        cursor: day.pnl !== null ? "pointer" : "default",
-                      }}
-                    />
-                  );
-                })}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap, marginBottom: gap }}>
+                  {WEEKDAY_LABELS.map((w, i) => (
+                    <div key={i} className="text-center" style={{ color: palette.textFaint, fontSize: "10px", fontWeight: 700, letterSpacing: "0.06em" }}>{w}</div>
+                  ))}
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap }}>
+                  {monthWeeks.map((week) => week.map((day, di) => {
+                    const pt = keyParts(day);
+                    if (!pt) return <div key={`${day.key}-${di}`} style={{ aspectRatio: "1 / 1" }} />;
+                    const inMonth = ymOf(pt) === selYm;
+                    const hasPnl = inMonth && !day.future && day.pnl !== null;
+                    const win = hasPnl && day.pnl > 0;
+                    const loss = hasPnl && day.pnl < 0;
+                    const intensity = hasPnl && heatmap.maxAbs > 0 ? Math.min(1, Math.abs(day.pnl) / heatmap.maxAbs) : 0;
+                    const strong = (win || loss) && intensity >= 0.5;
+                    const bg = win ? (strong ? HEAT_GREEN : `${HEAT_GREEN}59`) : loss ? (strong ? HEAT_RED : `${HEAT_RED}59`) : palette.field;
+                    const numColor = strong ? "#FFFFFF" : inMonth ? palette.text : palette.textFaint;
+                    const pnlColor = strong ? "#FFFFFF" : win ? palette.green : palette.red;
+                    const selected = expandedHeatmapDay?.key === day.key;
+                    return (
+                      <div
+                        key={day.key || `${pt.y}-${pt.m}-${pt.d}`}
+                        role={hasPnl ? "button" : undefined}
+                        onClick={() => hasPnl && setExpandedHeatmapDay(selected ? null : day)}
+                        style={{
+                          aspectRatio: "1 / 1",
+                          borderRadius: isDesktop ? "14px" : "10px",
+                          background: bg,
+                          opacity: inMonth ? (day.future ? 0.55 : 1) : 0.35,
+                          boxShadow: selected ? `0 0 0 2px ${palette.gold}` : "none",
+                          cursor: hasPnl ? "pointer" : "default",
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          lineHeight: 1.15,
+                          minWidth: 0,
+                        }}
+                      >
+                        <span style={{ color: numColor, fontFamily: display, fontSize: isDesktop ? "18px" : "15px", fontWeight: 800 }}>{pt.d}</span>
+                        {hasPnl && day.pnl !== 0 && (
+                          <span style={{ color: pnlColor, fontFamily: mono, fontSize: isDesktop ? "11px" : "9.5px", fontWeight: 700, marginTop: "1px", maxWidth: "100%", whiteSpace: "nowrap" }}>
+                            {heatMoney(day.pnl)}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  }))}
+                </div>
               </div>
-            ))}
-          </div>
+            );
+          })()}
         </div>
         {expandedHeatmapDay ? (
           <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
@@ -405,7 +447,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
           </p>
         ) : (
           <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-            Last {heatmapWeeksBack} weeks – tap a square for that day's total.
+            Tap a day for its total. Use the arrows to browse months.
           </p>
         )}
 
@@ -1711,6 +1753,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
             background: palette.surface,
             border: `1px solid ${palette.border}`,
             minHeight: 0,
+            maxHeight: isDesktop ? undefined : "max(170px, calc(100dvh - 390px - env(safe-area-inset-bottom, 0px)))",
             overflowY: "auto",
             overscrollBehavior: "contain",
             WebkitOverflowScrolling: "touch",
@@ -1855,8 +1898,8 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
         )}
         {insightsSubNav}
         {insightsSubTab === "overview" && overviewSection}
-        {insightsSubTab === "behavior" && behaviorSection}
-        {insightsSubTab === "journal" && journalSection}
+        {insightsSubTab === "behavior" && (hasFeature(myPlan.plan, "behaviorInsights") ? behaviorSection : <PlanLockCard title="Behaviour insights" plan="pro" blurb="See how emotions, setups and habits shape your results." />)}
+        {insightsSubTab === "journal" && (hasFeature(myPlan.plan, "journalInsights") ? journalSection : <PlanLockCard title="Journal insights" plan="pro" blurb="Monthly journal analytics: mistakes, completeness and patterns." />)}
         {insightsSubTab === "coach" && coachSection}
 
         {insightsSubTab !== "journal" && insightsSubTab !== "coach" && hasData && (
