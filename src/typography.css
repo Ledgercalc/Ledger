@@ -1,0 +1,53 @@
+/* typography.css
+ * One file that sets the font and the text-size scale for the whole app.
+ * No build step or terminal needed: import it once (App.jsx already does) and it applies to
+ * every tab, including tabs that set sizes inline.
+ *
+ * FONT   : everything uses Sora.
+ * SIZES  : the many odd sizes (8, 9, 10, 10.5, 11, 11.5, 12.5 ...) snap to a clean scale:
+ *            12 caption | 13 secondary | 14 body | 15 emphasis | 16 large body
+ *          Headlines and big numbers (17px and up) are not touched.
+ * TUNING : to make a size bigger or smaller, change the number after "font-size:" in the rule
+ *          for that size. Add the class "tp-root" to any element you want to leave alone.
+ */
+
+body, body * {
+  font-family: 'Sora', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif,
+    'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji' !important;
+}
+
+/* ---- text sizes written in the app as inline styles ---- */
+[style*="font-size: 8px"]:not(.tp-root *),
+[style*="font-size:8px"]:not(.tp-root *) { font-size: 12px !important; }
+[style*="font-size: 9px"]:not(.tp-root *),
+[style*="font-size:9px"]:not(.tp-root *) { font-size: 12px !important; }
+[style*="font-size: 9.5px"]:not(.tp-root *),
+[style*="font-size:9.5px"]:not(.tp-root *) { font-size: 12px !important; }
+[style*="font-size: 10px"]:not(.tp-root *),
+[style*="font-size:10px"]:not(.tp-root *) { font-size: 12px !important; }
+[style*="font-size: 10.5px"]:not(.tp-root *),
+[style*="font-size:10.5px"]:not(.tp-root *) { font-size: 12px !important; }
+[style*="font-size: 11px"]:not(.tp-root *),
+[style*="font-size:11px"]:not(.tp-root *) { font-size: 12px !important; }
+[style*="font-size: 11.5px"]:not(.tp-root *),
+[style*="font-size:11.5px"]:not(.tp-root *) { font-size: 12px !important; }
+[style*="font-size: 12px"]:not(.tp-root *),
+[style*="font-size:12px"]:not(.tp-root *) { font-size: 13px !important; }
+[style*="font-size: 12.5px"]:not(.tp-root *),
+[style*="font-size:12.5px"]:not(.tp-root *) { font-size: 13px !important; }
+[style*="font-size: 13px"]:not(.tp-root *),
+[style*="font-size:13px"]:not(.tp-root *) { font-size: 14px !important; }
+[style*="font-size: 13.5px"]:not(.tp-root *),
+[style*="font-size:13.5px"]:not(.tp-root *) { font-size: 14px !important; }
+[style*="font-size: 14px"]:not(.tp-root *),
+[style*="font-size:14px"]:not(.tp-root *) { font-size: 15px !important; }
+[style*="font-size: 14.5px"]:not(.tp-root *),
+[style*="font-size:14.5px"]:not(.tp-root *) { font-size: 15px !important; }
+[style*="font-size: 15px"]:not(.tp-root *),
+[style*="font-size:15px"]:not(.tp-root *) { font-size: 16px !important; }
+
+/* ---- chart axis labels (SVG text) ---- */
+svg text[font-size="8"] { font-size: 10px !important; }
+svg text[font-size="9"] { font-size: 11px !important; }
+svg text[font-size="10"] { font-size: 11px !important; }
+svg text[font-size="11"] { font-size: 12px !important; }
