@@ -1,5 +1,8 @@
 import { COMMUNITY_API_BASE, COMMUNITY_AVATAR_KEY, COMMUNITY_JOIN_REQUESTS_KEY, COMMUNITY_MEMBERSHIPS_KEY, COMMUNITY_MESSAGE_POLL_MS, COMMUNITY_ONBOARDING_KEY, COMMUNITY_SESSION_KEY, COMMUNITY_USERNAME_KEY, communityApi } from "./api/community.js";
 import { pokeCrab } from "./lib/mascot.js";
+import { PlanSettingsCard, PlansHost } from "./components/PlansModal.jsx";
+import { PLAN_LIMITS, PLAN_NAMES, hasFeature } from "./data/plans.js";
+import { getMyPlan, openPlans, resetMyPlan, setMyPlan } from "./lib/planStore.js";
 import CrabMascot from "./components/CrabMascot.jsx";
 import { computeGoalProgress } from "./lib/analytics.js";
 import { OnboardingAmbientBG } from "./components/onboarding.jsx";
@@ -18,7 +21,7 @@ import { MARKET_SESSIONS, sessionOpenAtUTCHour } from "./lib/sessions.js";
 import { drawShareCard } from "./lib/shareCard.js";
 import { DARK_PALETTE, LIGHT_PALETTE, TAP, THEME_TRANSITION, TREDZI_LOGO_SRC, VOID_PALETTE, display, mono, palette, sans } from "./lib/theme.js";
 import { formatCountdown, formatMinSec, nextOccurrenceMs } from "./lib/time.js";
-import { AlertTriangle, ArrowLeftRight, Bell, Building2, Camera, CandlestickChart, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, Flame, Heart, LayoutGrid, Lightbulb, LogOut, MessageCircle, Moon, Newspaper, Palette, Pencil, Plus, RotateCcw, Scale, Search, Send, Settings, Share2, ShieldAlert, Sun, Table2, Tags, Trash2, Upload, Users, X } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, Bell, Building2, Camera, CandlestickChart, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, Flame, Heart, LayoutGrid, Lightbulb, LogOut, MessageCircle, Moon, Newspaper, Palette, Pencil, Plus, RotateCcw, Scale, Search, Send, Settings, Share2, ShieldAlert, Sparkles, Sun, Table2, Tags, Trash2, Upload, Users, X } from "lucide-react";
 import React, { Suspense, lazy, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import "./typography.css";
 
@@ -3619,6 +3622,7 @@ useEffect(() => {
       const data = await communityApi("/auth/me", {
         headers: { Authorization: `Bearer ${token}` },
       });
+      setMyPlan(data);
       if (data.username) await persistCommunityUsername(data.username);
       if (data.avatar) {
         setCommunityAvatar(data.avatar);
@@ -3637,6 +3641,7 @@ useEffect(() => {
   }, [session?.token]);
 
   const logout = async () => {
+    resetMyPlan();
     try {
       if (session?.token) {
         await communityApi("/auth/logout", {
@@ -4712,6 +4717,13 @@ const switchAccount = (id) => {
     if (!name) return;
     if (name.length > 40) {
       setAccountNameError("Keep it under 40 characters.");
+      return;
+    }
+    const myPlan = getMyPlan().plan;
+    const accountCap = PLAN_LIMITS[myPlan].accounts;
+    if (accounts.filter((acc) => !acc.archived).length >= accountCap) {
+      setAccountNameError(`Your ${PLAN_NAMES[myPlan]} plan includes ${accountCap} account${accountCap === 1 ? "" : "s"}. Upgrade to add more.`);
+      openPlans("Add more trading accounts with Pro (5) or Creator (10).");
       return;
     }
     const id = `acc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -6180,6 +6192,7 @@ const dataUrl = drawShareCard(shareCanvasRef.current, {
   };
 
   const exportInsightsReport = () => {
+    if (!hasFeature(getMyPlan().plan, "pdfReports")) { openPlans("PDF reports are part of Pro."); return; }
     setInsightReportMsg("");
     if (trades.length === 0) {
       setInsightReportMsg("Log some trades first \u2014 there's nothing to report on yet.");
@@ -7580,10 +7593,13 @@ if (activeTab === "community") {
         </div>
       )}
 
+<PlansHost session={session} />
+
 {settingsOpen && (() => {
   const settingsCategories = [
     communityUsername && { id: "profile", label: "Profile", icon: Users, group: "Account", subtitle: "Avatar, email, password" },
     { id: "accounts", label: "Accounts", icon: Building2, group: "Account", subtitle: "Balances & active account" },
+    { id: "plan", label: "Plan", icon: Sparkles, group: "Account", subtitle: "Free, Pro & Creator" },
     session && !communityUsername && { id: "community", label: "Community", icon: Users, group: "Account", subtitle: "Public profile & handle" },
     { id: "appearance", label: "Appearance", icon: Palette, group: "Preferences", subtitle: "Theme & color palette" },
     { id: "navigation", label: "Navigation", icon: LayoutGrid, group: "Preferences", subtitle: "Tabs & default screens" },
@@ -7922,6 +7938,11 @@ if (activeTab === "community") {
             )}
           </SettingsSection>
         )}
+
+        {/* PLAN */}
+        <SettingsSection icon={Sparkles} title="Plan" isDesktop={isDesktop} hidden={!isDesktop && settingsMobileSection !== "plan"}>
+          <PlanSettingsCard />
+        </SettingsSection>
 
         {/* ACCOUNTS */}
         <SettingsSection icon={Building2} title="Accounts" defaultOpen isDesktop={isDesktop} hidden={!isDesktop && settingsMobileSection !== "accounts"}>
