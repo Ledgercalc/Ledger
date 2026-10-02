@@ -1,9 +1,9 @@
 import { pokeCrab } from "../lib/mascot.js";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { OnboardingTip } from "../components/onboarding.jsx";
 import { Readout, StatChip } from "../components/ui.jsx";
-import { METRIC_INFO, MIN_TRADES_FOR_TIERS, computeConsistencyScore, computeDisciplineGrade, computeDisciplineStreakTrend, computeHeadlineInsight, computeHeatmapWeeks, computeInsights, computeJournalCompleteness, computeMonthComparison, computeNoteTagAnalysis, computeOverconfidenceCheck, computePerformanceMetrics, computeRevengeCostSplit, filledJournalRows, joinWithAnd, journalConfidenceByDay, journalDailyPnLSeries, journalMistakeFrequency, journalMistakePatterns, journalMonthlyPnLSeries, journalMonthlyVolume, journalPairFrequency, journalPnLByDay, journalPnLByMonth, journalRRDistribution, journalRRSeries, journalSessionByDay, journalSessionFrequency, journalSetupRadar, journalTrendBreakdown, journalWeekdayFrequency, tierColor } from "../lib/analytics.js";
-import { MONTH_NAMES, MONTH_SHORT, WEEKDAY_LABELS, fmtMoney, formatDayLabel } from "../lib/format.js";
+import { METRIC_INFO, MIN_TRADES_FOR_TIERS, computeConsistencyScore, computeDisciplineGrade, computeDisciplineStreakTrend, computeHeadlineInsight, computeInsights, computeJournalCompleteness, computeMonthComparison, computeNoteTagAnalysis, computeOverconfidenceCheck, computePerformanceMetrics, computeRevengeCostSplit, filledJournalRows, joinWithAnd, journalConfidenceByDay, journalDailyPnLSeries, journalMistakeFrequency, journalMistakePatterns, journalMonthlyPnLSeries, journalMonthlyVolume, journalPairFrequency, journalPnLByDay, journalPnLByMonth, journalRRDistribution, journalRRSeries, journalSessionByDay, journalSessionFrequency, journalSetupRadar, journalTrendBreakdown, journalWeekdayFrequency, tierColor } from "../lib/analytics.js";
+import { MONTH_NAMES, MONTH_SHORT, dayKeyFromDate, dayKeyFromTs, fmtMoney, formatDayLabel } from "../lib/format.js";
 import { TAP, THEME_TRANSITION, display, mono, palette } from "../lib/theme.js";
 import { ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, Clock, Download, Lightbulb, Plus, Send, ShieldAlert, Sparkles, Trash2 } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -52,6 +52,10 @@ export default function InsightsTab(props) {
   } = props;
   // ── Mascot reactions ───────────────────────────────────────────────
   const crabReady = useRef(false);
+  // Calendar heatmap: month being viewed (year*12+month, null = current month) + swipe tracking
+  const [heatMonth, setHeatMonth] = useState(null);
+  const [heatDir, setHeatDir] = useState(1);
+  const heatSwipe = useRef(null);
   const prevCoachLoading = useRef(false);
   useEffect(() => {
     if (crabReady.current) pokeCrab("look");
@@ -79,8 +83,6 @@ export default function InsightsTab(props) {
   let body = null;
     const hasData = trades.length > 0;
     const insights = computeInsights(trades, customSetups, customMoods);
-    const heatmapWeeksBack = Number(settings.heatmapWeeksBack) || 26;
-    const heatmap = computeHeatmapWeeks(trades, heatmapWeeksBack);
     const headline = computeHeadlineInsight(trades, customSetups, customMoods);
     const perf = computePerformanceMetrics(trades);
     const monthCmp = computeMonthComparison(trades);
@@ -313,77 +315,195 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
         >
           Performance Heatmap
         </span>
-        <div
-          className={isDesktop ? "rounded-2xl p-6 mb-2" : "rounded-2xl p-3 mb-2"}
-          style={{
-            background: palette.surface,
-            border: `1px solid ${palette.border}`,
-            boxShadow: palette.shadow,
-            overflowX: "auto",
-            WebkitOverflowScrolling: "touch",
-          }}
-        >
-          <div className="flex" style={{ gap: isDesktop ? "5px" : "3px", justifyContent: isDesktop ? "center" : "normal" }}>
-            <div className="flex flex-col justify-between" style={{ gap: isDesktop ? "5px" : "3px", paddingRight: isDesktop ? "8px" : "4px" }}>
-              {WEEKDAY_LABELS.map((w, i) => (
+        {(() => {
+          // ── Profitability calendar (one month at a time) ─────────────────────
+          const dayMap = {};
+          trades.forEach((t) => {
+            const k = dayKeyFromTs(t.ts);
+            dayMap[k] = (dayMap[k] || 0) + (Number(t.pnl) || 0);
+          });
+          const now = new Date();
+          const todayKey = dayKeyFromDate(now);
+          const curIdx = now.getFullYear() * 12 + now.getMonth();
+          let minIdx = curIdx;
+          Object.keys(dayMap).forEach((k) => {
+            const parts = k.split("-");
+            const idx = Number(parts[0]) * 12 + (Number(parts[1]) - 1);
+            if (idx < minIdx) minIdx = idx;
+          });
+          const selIdx = Math.min(curIdx, Math.max(minIdx, heatMonth == null ? curIdx : heatMonth));
+          const vy = Math.floor(selIdx / 12);
+          const vm = selIdx % 12;
+          const daysInMonth = new Date(vy, vm + 1, 0).getDate();
+          const startDow = new Date(vy, vm, 1).getDay();
+          const rows = Math.ceil((startDow + daysInMonth) / 7);
+          const cells = [];
+          for (let i = 0; i < rows * 7; i++) {
+            const d = new Date(vy, vm, 1 - startDow + i);
+            const key = dayKeyFromDate(d);
+            const inMonth = d.getMonth() === vm;
+            cells.push({
+              key,
+              date: d.getDate(),
+              inMonth,
+              pnl: inMonth && Object.prototype.hasOwnProperty.call(dayMap, key) ? dayMap[key] : null,
+              future: key > todayKey,
+            });
+          }
+          const monthDays = cells.filter((c) => c.pnl !== null);
+          const monthNet = monthDays.reduce((s, c) => s + c.pnl, 0);
+          const maxAbs = monthDays.reduce((mx, c) => Math.max(mx, Math.abs(c.pnl)), 0);
+          const gap = isDesktop ? 8 : 5;
+          const go = (delta) => {
+            const next = selIdx + delta;
+            if (next < minIdx || next > curIdx) return;
+            setHeatDir(delta);
+            setHeatMonth(next);
+            setExpandedHeatmapDay(null);
+          };
+          const compact = (v) => {
+            const a = Math.abs(v);
+            const sign = v > 0 ? "+" : v < 0 ? "-" : "";
+            if (a >= 10000) return `${sign}$${Math.round(a / 1000)}k`;
+            if (a >= 1000) return `${sign}$${(a / 1000).toFixed(1)}k`;
+            if (a > 0 && a < 1) return `${sign}$${a.toFixed(2)}`;
+            return `${sign}$${Math.round(a)}`;
+          };
+          const navBtn = (disabled) => ({
+            width: "34px",
+            height: "34px",
+            borderRadius: "999px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: palette.field,
+            color: disabled ? palette.textFaint : palette.text,
+            opacity: disabled ? 0.45 : 1,
+            border: "none",
+            cursor: disabled ? "default" : "pointer",
+          });
+          return (
+            <>
+              <div
+                className={isDesktop ? "rounded-2xl p-6 mb-2" : "rounded-2xl p-3 mb-2"}
+                style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
+              >
+                <div className="flex items-center justify-between mb-3" style={{ gap: "8px" }}>
+                  <button type="button" aria-label="Previous month" disabled={selIdx <= minIdx} onClick={() => go(-1)} style={navBtn(selIdx <= minIdx)}>
+                    <ChevronLeft size={18} />
+                  </button>
+                  <div className="text-center min-w-0" style={{ flex: 1 }}>
+                    <div style={{ color: palette.text, fontSize: isDesktop ? "18px" : "16px", fontWeight: 700 }}>
+                      {MONTH_NAMES[vm]} {vy}
+                    </div>
+                    <div style={{ fontSize: "12px", color: palette.textFaint }}>
+                      {monthDays.length === 0 ? (
+                        "No trading days"
+                      ) : (
+                        <>
+                          {monthDays.length} trading {monthDays.length === 1 ? "day" : "days"} ·{" "}
+                          <span style={{ color: monthNet >= 0 ? palette.green : palette.red, fontWeight: 600 }}>
+                            {compact(monthNet)}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <button type="button" aria-label="Next month" disabled={selIdx >= curIdx} onClick={() => go(1)} style={navBtn(selIdx >= curIdx)}>
+                    <ChevronRight size={18} />
+                  </button>
+                </div>
                 <div
-                  key={i}
-                  style={{
-                    width: isDesktop ? "16px" : "10px",
-                    height: isDesktop ? "16px" : "10px",
-                    fontSize: isDesktop ? "10px" : "7px",
-                    color: palette.textFaint,
-                    lineHeight: isDesktop ? "16px" : "10px",
+                  style={{ maxWidth: isDesktop ? "560px" : "none", margin: "0 auto", touchAction: "pan-y" }}
+                  onTouchStart={(e) => {
+                    const t = e.touches[0];
+                    heatSwipe.current = { x: t.clientX, y: t.clientY };
+                  }}
+                  onTouchEnd={(e) => {
+                    const s = heatSwipe.current;
+                    heatSwipe.current = null;
+                    if (!s) return;
+                    const t = e.changedTouches[0];
+                    const dx = t.clientX - s.x;
+                    const dy = t.clientY - s.y;
+                    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) go(dx < 0 ? 1 : -1);
                   }}
                 >
-                  {i % 2 === 1 ? w : ""}
+                  <div className="grid" style={{ gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: `${gap}px`, marginBottom: `${gap}px` }}>
+                    {["S", "M", "T", "W", "T", "F", "S"].map((w, i) => (
+                      <div key={i} className="text-center" style={{ fontSize: "11px", color: palette.textFaint, fontWeight: 600 }}>
+                        {w}
+                      </div>
+                    ))}
+                  </div>
+                  <div
+                    key={selIdx}
+                    className={heatDir < 0 ? "ledger-tab-enter-back" : "ledger-tab-enter-fwd"}
+                    style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: `${gap}px` }}
+                  >
+                    {cells.map((c) => {
+                      const has = c.pnl !== null;
+                      const colored = has && c.pnl !== 0;
+                      const intensity = colored && maxAbs > 0 ? Math.min(1, Math.abs(c.pnl) / maxAbs) : 0;
+                      const alpha = colored ? 0.3 + 0.65 * Math.pow(intensity, 0.8) : 0;
+                      const alphaHex = Math.round(alpha * 255).toString(16).padStart(2, "0");
+                      const bg = colored ? `${c.pnl > 0 ? palette.green : palette.red}${alphaHex}` : palette.field;
+                      const strong = alpha > 0.55;
+                      const selected = expandedHeatmapDay?.key === c.key;
+                      const isToday = c.key === todayKey;
+                      return (
+                        <button
+                          key={c.key}
+                          type="button"
+                          disabled={!has}
+                          aria-label={has ? `${formatDayLabel(c.key)}: ${compact(c.pnl)}` : formatDayLabel(c.key)}
+                          onClick={() => has && setExpandedHeatmapDay(selected ? null : { key: c.key, pnl: c.pnl })}
+                          style={{
+                            aspectRatio: "1 / 1",
+                            minWidth: 0,
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: "1px",
+                            padding: 0,
+                            border: "none",
+                            borderRadius: isDesktop ? "14px" : "10px",
+                            background: bg,
+                            color: strong ? "#fff" : palette.text,
+                            opacity: !c.inMonth ? 0.35 : c.future ? 0.55 : 1,
+                            boxShadow: selected ? `0 0 0 2px ${palette.text}` : isToday ? `0 0 0 2px ${palette.gold}` : "none",
+                            cursor: has ? "pointer" : "default",
+                            transition: "transform 0.12s ease, box-shadow 0.15s ease",
+                          }}
+                        >
+                          <span style={{ fontSize: isDesktop ? "17px" : "15px", fontWeight: 700, lineHeight: 1.1 }}>{c.date}</span>
+                          {has && (
+                            <span style={{ fontSize: isDesktop ? "12px" : "11px", fontWeight: 600, lineHeight: 1.1, whiteSpace: "nowrap", letterSpacing: "-0.01em", opacity: 0.95 }}>
+                              {compact(c.pnl)}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              ))}
-            </div>
-            {heatmap.weeks.map((week, wi) => (
-              <div key={wi} className="flex flex-col" style={{ gap: isDesktop ? "5px" : "3px" }}>
-                {week.map((day, di) => {
-                  const intensity = day.pnl !== null && heatmap.maxAbs > 0 ? Math.min(1, Math.abs(day.pnl) / heatmap.maxAbs) : 0;
-                  const alphaHex = Math.round(30 + intensity * 190)
-                    .toString(16)
-                    .padStart(2, "0");
-                  const bg = day.future
-                    ? "transparent"
-                    : day.pnl === null
-                    ? palette.field
-                    : `${day.pnl > 0 ? palette.green : palette.red}${alphaHex}`;
-                  return (
-                    <div
-                      key={di}
-                      onClick={() =>
-                        !day.future &&
-                        day.pnl !== null &&
-                        setExpandedHeatmapDay(expandedHeatmapDay?.key === day.key ? null : day)
-                      }
-                      style={{
-                        width: isDesktop ? "16px" : "10px",
-                        height: isDesktop ? "16px" : "10px",
-                        borderRadius: isDesktop ? "3px" : "2px",
-                        background: bg,
-                        cursor: day.pnl !== null ? "pointer" : "default",
-                      }}
-                    />
-                  );
-                })}
               </div>
-            ))}
-          </div>
-        </div>
-        {expandedHeatmapDay ? (
-          <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-            {formatDayLabel(expandedHeatmapDay.key)}: {expandedHeatmapDay.pnl >= 0 ? "+" : "-"}$
-            {fmtMoney(expandedHeatmapDay.pnl)}
-          </p>
-        ) : (
-          <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-            Last {heatmapWeeksBack} weeks – tap a square for that day's total.
-          </p>
-        )}
+              {expandedHeatmapDay ? (
+                <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
+                  {formatDayLabel(expandedHeatmapDay.key)}:{" "}
+                  <span style={{ color: expandedHeatmapDay.pnl >= 0 ? palette.green : palette.red, fontWeight: 600 }}>
+                    {expandedHeatmapDay.pnl >= 0 ? "+" : "-"}${fmtMoney(Math.abs(expandedHeatmapDay.pnl))}
+                  </span>
+                </p>
+              ) : (
+                <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
+                  Tap a day for its total{isDesktop ? "." : " · swipe to change month."}
+                </p>
+              )}
+            </>
+          );
+        })()}
 
         {headline && (
           <div
