@@ -273,6 +273,7 @@ export default function TradePlan(props) {
 
   return (
     <div
+      className="tp-root"
       style={{ display: "grid", gridTemplateColumns: isDesktop ? "repeat(2, minmax(0, 1fr))" : "minmax(0, 1fr)", gap: isDesktop ? 20 : 16, alignItems: "stretch", marginBottom: 24 }}
     >
       {/* GOALS */}
