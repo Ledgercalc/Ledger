@@ -155,17 +155,21 @@ export default function CurveTab(props) {
       worstStreak = Math.min(worstStreak, curStreak);
     });
 
-    const revengeIds = computeRevengeIds(trades);
+    // Memoised: these loop over every trade and used to re-run on every render of the tab.
+    const revengeIds = useMemo(() => computeRevengeIds(trades), [trades]);
     const { current: disciplineCurrent, best: disciplineBest, hasData: disciplineHasData } =
-      computeDisciplineStreak(trades);
+      useMemo(() => computeDisciplineStreak(trades), [trades]);
 
-    const tradesByDay = {};
-    trades.forEach((t) => {
-      const k = dayKeyFromTs(t.ts);
-      if (!tradesByDay[k]) tradesByDay[k] = { total: 0, trades: [] };
-      tradesByDay[k].total += t.pnl;
-      tradesByDay[k].trades.push(t);
-    });
+    const tradesByDay = useMemo(() => {
+      const map = {};
+      trades.forEach((t) => {
+        const k = dayKeyFromTs(t.ts);
+        if (!map[k]) map[k] = { total: 0, trades: [] };
+        map[k].total += t.pnl;
+        map[k].trades.push(t);
+      });
+      return map;
+    }, [trades]);
 
     const viewYear = calMonth.getFullYear();
     const viewMonthIdx = calMonth.getMonth();
