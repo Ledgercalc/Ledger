@@ -38,13 +38,15 @@ export const getMyPlan = () => me;
 export const openPlans = (reason = "") => { modal = { open: true, reason }; emit(); };
 export const closePlans = () => { modal = { open: false, reason: "" }; emit(); };
 
-export const usePlanOf = (name) =>
-  useSyncExternalStore(subscribe, () => (name ? byName.get(String(name).toLowerCase()) || "free" : "free"));
+export const usePlanOf = (name) => {
+  const get = () => (name ? byName.get(String(name).toLowerCase()) || "free" : "free");
+  return useSyncExternalStore(subscribe, get, get);
+};
 export const useMyPlan = () => {
-  useSyncExternalStore(subscribe, () => version);
+  useSyncExternalStore(subscribe, () => version, () => version);
   return me;
 };
 export const usePlansModal = () => {
-  useSyncExternalStore(subscribe, () => version);
+  useSyncExternalStore(subscribe, () => version, () => version);
   return modal;
 };
