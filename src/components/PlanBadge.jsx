@@ -20,6 +20,7 @@ const SEAL = (() => {
 })();
 const BOLT = "M13 2 4 14h7l-1 8 9-12h-7z";
 const CROWN = "M3 18h18v2H3zM3 7l4.5 4L12 4l4.5 7L21 7l-2 9H5z";
+const SPARK = "M5 0 6 4 10 5 6 6 5 10 4 6 0 5 4 4z";
 
 const PALETTE = {
   pro: { stops: ["#FFE07A", "#F7B22C", "#DE8200"], glow: "rgba(245,158,11,.5)", glyph: "#4A2B00", glyphShadow: "rgba(255,255,255,.35)" },
@@ -30,6 +31,11 @@ const CSS = `
 .tzs{display:inline-block;flex:none;vertical-align:middle;overflow:visible;user-select:none}
 .tzs--pro{filter:drop-shadow(0 1px 2px ${PALETTE.pro.glow})}
 .tzs--creator{filter:drop-shadow(0 1px 3px ${PALETTE.creator.glow})}
+.tzs__spark{transform-box:fill-box;transform-origin:center;opacity:.95}
+.tzs--anim .tzs__spark{opacity:0;animation:tzsTwinkle 2.8s ease-in-out infinite}
+.tzs--anim .tzs__spark--b{animation-delay:.9s}
+.tzs--anim .tzs__spark--c{animation-delay:1.8s}
+@keyframes tzsTwinkle{0%,100%{opacity:0;transform:scale(.2) rotate(0deg)}45%{opacity:1;transform:scale(1) rotate(40deg)}70%{opacity:0;transform:scale(.4) rotate(70deg)}}
 .tzs__sweep{transform:translateX(-18px)}
 .tzs--anim .tzs__sweep{animation:tzsSweep 5.2s cubic-bezier(.4,0,.2,1) infinite}
 @keyframes tzsSweep{0%,62%{transform:translateX(-18px)}100%{transform:translateX(34px)}}
@@ -44,12 +50,16 @@ const CSS = `
 @keyframes tzpSheen{0%,62%{transform:translateX(-160%) skewX(-20deg)}100%{transform:translateX(360%) skewX(-20deg)}}
 
 .tzn{display:inline-flex;align-items:center;gap:.38em;max-width:100%;vertical-align:middle;font:inherit;color:inherit}
-.tzn__name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tzn__name{position:relative;isolation:isolate;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tzn__name--creator{overflow:visible}
+.tzn__name--creator::after{content:attr(data-name);position:absolute;left:0;top:0;z-index:-1;color:#D946EF;-webkit-text-fill-color:#D946EF;filter:blur(8px);opacity:.4;pointer-events:none;white-space:nowrap}
+.tzn--anim .tzn__name--creator::after{animation:tznGlow 3s ease-in-out infinite}
+@keyframes tznGlow{0%,100%{opacity:.22}50%{opacity:.62}}
 .tzn__name--creator .tzn__txt{color:#B026C8}
 @supports ((-webkit-background-clip:text) or (background-clip:text)){
 .tzn__name--creator .tzn__txt{background:linear-gradient(90deg,#8B5CF6 0%,#C026D3 55%,#F43F7E 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
 }
-@media (prefers-reduced-motion:reduce){.tzs--anim .tzs__sweep,.tzp--anim::after{animation:none!important}.tzp::after{opacity:0}}
+@media (prefers-reduced-motion:reduce){.tzs--anim .tzs__sweep,.tzs--anim .tzs__spark,.tzp--anim::after,.tzn--anim .tzn__name--creator::after{animation:none!important}.tzs--anim .tzs__spark{opacity:.95}.tzp::after{opacity:0}}
 `;
 
 let injected = false;
@@ -100,6 +110,13 @@ function Seal({ plan, size, animate }) {
       <path d={SEAL} fill="none" stroke="rgba(0,0,0,.16)" strokeWidth=".55" />
       <g transform="translate(0 0.5)"><path d={glyph.d} transform={glyph.t} fill={pal.glyphShadow} /></g>
       <path d={glyph.d} transform={glyph.t} fill={pal.glyph} />
+      {plan === "creator" && (
+        <>
+          <g transform="translate(17 -4.5) scale(.62)"><path className="tzs__spark tzs__spark--a" d={SPARK} fill="#E879F9" /></g>
+          <g transform="translate(-4.5 17) scale(.5)"><path className="tzs__spark tzs__spark--b" d={SPARK} fill="#F472B6" /></g>
+          <g transform="translate(21.5 17.5) scale(.34)"><path className="tzs__spark tzs__spark--c" d={SPARK} fill="#C084FC" /></g>
+        </>
+      )}
     </svg>
   );
 }
@@ -127,8 +144,8 @@ export function PlanName({ name, size = "sm", variant, creatorLabel = false }) {
   if (plan === "free") return <>{name}</>;
   const asPill = variant === "pill" || creatorLabel;
   return (
-    <span className="tzn">
-      <span className={`tzn__name${plan === "creator" ? " tzn__name--creator" : ""}`}>
+    <span className="tzn tzn--anim">
+      <span className={`tzn__name${plan === "creator" ? " tzn__name--creator" : ""}`} data-name={name}>
         <span className="tzn__txt">{name}</span>
       </span>
       <PlanBadge plan={plan} size={size} iconOnly={!asPill} />
