@@ -1,6 +1,7 @@
 import { COMMUNITY_API_BASE, COMMUNITY_AVATAR_KEY, COMMUNITY_JOIN_REQUESTS_KEY, COMMUNITY_MEMBERSHIPS_KEY, COMMUNITY_MESSAGE_POLL_MS, COMMUNITY_ONBOARDING_KEY, COMMUNITY_SESSION_KEY, COMMUNITY_USERNAME_KEY, communityApi } from "./api/community.js";
 import { pokeCrab } from "./lib/mascot.js";
 import { PlanSettingsCard, PlansHost } from "./components/PlansModal.jsx";
+import MobileDock from "./components/MobileDock.jsx";
 import { PLAN_LIMITS, PLAN_NAMES, hasFeature } from "./data/plans.js";
 import { getMyPlan, openPlans, resetMyPlan, setMyPlan } from "./lib/planStore.js";
 import { computeGoalProgress } from "./lib/analytics.js";
@@ -107,6 +108,16 @@ export default function TredziApp() {
     if (id === dockTab) return;
     setPendingTab(id);
     startTabTransition(() => setActiveTab(id));
+  };
+  // Used by the mobile dock: it highlights the tap itself, so nothing urgent is needed here.
+  // The tab content (and header title) switch together in one low-priority transition.
+  const goToTabFromDock = (id) => {
+    if (id === activeTab) return;
+    startTabTransition(() => {
+      setPendingTab(id);
+      setActiveTab(id);
+    });
+    setMoreMenuOpen(false);
   };
   const crabPrevTabRef = useRef("risk");
   useEffect(() => {
@@ -896,6 +907,7 @@ const [mobileNavHidden, setMobileNavHidden] = useState(false);
 useEffect(() => { setMobileNavHidden(false); }, [activeTab]);
 const lastNavScrollYRef = useRef(0);
 const dockRef = useRef(null);
+const mobileDockRef = useRef(null);
 useEffect(() => {
   // Warm all tab chunks once the app is idle so tab switches never wait on the network.
   const warm = () => Object.values(TAB_PRELOAD).forEach((p) => { try { p().catch(() => {}); } catch (e) { /* ignore */ } });
@@ -6679,14 +6691,17 @@ const persistNotepadNotes = async (next) => {
     const loss = today.filter((t) => t.pnl < 0).reduce((s, t) => s + t.pnl, 0);
     return (lossLimit > 0 && Math.abs(loss) >= lossLimit) || (maxTrades > 0 && today.length >= maxTrades) ? "worry" : undefined;
   })();
+  // The dock steps aside whenever a sheet, menu or the settings screen is open on top of the app.
+  const dockCovered = !isDesktop && (settingsOpen || pulseOpen || groupManageOpen || moreMenuOpen);
   const handleMobileNavScroll = (e) => {
     if (isDesktop) return;
     const y = e.currentTarget.scrollTop;
     const last = lastNavScrollYRef.current;
     const delta = y - last;
-    if (y < 24) setMobileNavHidden(false);
-    else if (delta > 6) setMobileNavHidden(true);
-    else if (delta < -6) setMobileNavHidden(false);
+    // Straight to the dock's DOM node: scrolling no longer re-renders the whole App.
+    if (y < 24) mobileDockRef.current?.setScrollHidden(false);
+    else if (delta > 6) mobileDockRef.current?.setScrollHidden(true);
+    else if (delta < -6) mobileDockRef.current?.setScrollHidden(false);
     lastNavScrollYRef.current = y;
   };
 
@@ -7357,6 +7372,18 @@ if (activeTab === "community") {
         </div>
 
 
+        {!isDesktop && (
+          <MobileDock
+            ref={mobileDockRef}
+            tabs={[...mobileNavPrimaryTabs, ...mobileNavOverflowTabs]}
+            activeId={activeTab}
+            onSelect={goToTabFromDock}
+            onPreload={(id) => TAB_PRELOAD[id]?.()?.catch?.(() => {})}
+            forceHidden={dockCovered}
+            themeKey={`${palette.surface}${palette.gold}${palette.border}`}
+          />
+        )}
+        {isDesktop && (
         <nav
           className={isDesktop ? "flex flex-col order-first" : "flex items-stretch"}
           style={{
@@ -7573,6 +7600,7 @@ if (activeTab === "community") {
             );
           })()}
         </nav>
+        )}
       </div>
 
       <canvas ref={shareCanvasRef} style={{ display: "none" }} />
@@ -9510,7 +9538,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
       style={{ background: "rgba(5,7,12,0.85)", backdropFilter: "blur(6px)" }}
       onClick={() => setGroupManageOpen(false)}>
       <div className="w-full modal-in rounded-2xl overflow-hidden"
-        style={{ maxWidth: "420px", maxHeight: "80vh", background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow, display: "flex", flexDirection: "column" }}
+        style={{ maxWidth: "420px", maxHeight: "min(80vh, calc(100dvh - 32px))", background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow, display: "flex", flexDirection: "column" }}
         onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between p-4" style={{ borderBottom: `1px solid ${palette.border}` }}>
           <div>
@@ -9526,7 +9554,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
           </button>
         </div>
 
-        <div className="flex gap-2 px-4 pt-3">
+        <div className="flex flex-wrap gap-2 px-4 pt-3" style={{ flexShrink: 0 }}>
           {tabs.map((t) => {
             const active = groupManageTab === t;
             return (
@@ -9544,7 +9572,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
           })}
         </div>
 
-        <div className="p-4" style={{ overflowY: "auto" }}>
+        <div className="p-4" style={{ overflowY: "auto", flex: "1 1 auto", minHeight: 0, WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" }}>
 
 
 
