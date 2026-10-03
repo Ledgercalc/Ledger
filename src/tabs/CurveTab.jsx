@@ -12,6 +12,8 @@ import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Too
 
 // Stable references so recharts never sees new prop identities on re-render.
 const CHART_MARGIN = { top: 6, right: 8, bottom: 0, left: 0 };
+// Phones: the Y-axis label column is narrower and nudged left so the plot lines up with the card padding.
+const CHART_MARGIN_MOBILE = { top: 6, right: 6, bottom: 0, left: -8 };
 const ACTIVE_DOT = { r: 4 };
 const DRAW_MS = 1400;
 
@@ -238,7 +240,7 @@ export default function CurveTab(props) {
             <style>{CURVE_REVEAL_CSS}</style>
             <div key={tradesLoaded ? "loaded" : "loading"} className="curve-reveal" style={{ width: "100%", height: isDesktop ? 340 : 180 }}>
               <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                <LineChart data={chartData} margin={CHART_MARGIN}>
+                <LineChart data={chartData} margin={isDesktop ? CHART_MARGIN : CHART_MARGIN_MOBILE}>
                   <CartesianGrid stroke={palette.border} strokeDasharray="3 3" vertical={false} />
                   <XAxis
                     dataKey="trade"
@@ -252,7 +254,7 @@ export default function CurveTab(props) {
                     tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
                     tickLine={false}
                     axisLine={{ stroke: palette.border }}
-                    width={54}
+                    width={isDesktop ? 54 : 44}
                     domain={yDomain}
                   />
                   <ReferenceLine y={startBal} stroke={palette.textFaint} strokeDasharray="4 4" />
