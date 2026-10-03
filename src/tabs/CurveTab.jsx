@@ -5,7 +5,7 @@ import { computeDisciplineStreak, computeRevengeIds } from "../lib/analytics.js"
 import { EMOTIONS, MAX_CUSTOM_SETUPS, NOTE_TAGS, RUNTIME, SETUPS, emotionMeta } from "../lib/constants.js";
 import { MONTH_NAMES, WEEKDAY_LABELS, dayKeyFromDate, dayKeyFromTs, fmt, fmtMoney, formatDayLabel, num, pad2 } from "../lib/format.js";
 import { SCREENSHOT_MAX_PER_TRADE, tradeScreenshots } from "../lib/images.js";
-import { TAP, THEME_TRANSITION, mono, palette } from "../lib/theme.js";
+import { TAP, THEME_TRANSITION, display, mono, palette } from "../lib/theme.js";
 import { Camera, Check, ChevronLeft, ChevronRight, Copy, Download, FileText, Pencil, Plus, Share2, Trash2, TrendingUp, Upload, X } from "lucide-react";
 import { useEffect, useMemo } from "react";
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -791,96 +791,115 @@ export default function CurveTab(props) {
               className="rounded-2xl p-4 mb-4"
               style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow, transition: THEME_TRANSITION }}
             >
-              <div className="flex items-center justify-between mb-3">
-                <button
-                  type="button"
-                  onClick={goPrevMonth}
-                  aria-label="Previous month"
-                  className={TAP}
-                  style={{ color: palette.textMuted, padding: "2px" }}
-                >
-                  <ChevronLeft size={18} />
-                </button>
-                <div style={{ fontFamily: mono, fontSize: "13px", color: palette.text, letterSpacing: "0.04em" }}>
-                  {MONTH_NAMES[viewMonthIdx]} {viewYear}
-                </div>
-                <button
-                  type="button"
-                  onClick={goNextMonth}
-                  aria-label="Next month"
-                  className={TAP}
-                  style={{ color: palette.textMuted, padding: "2px" }}
-                >
-                  <ChevronRight size={18} />
-                </button>
-              </div>
+              {(() => {
+                // Heatmap-style month calendar: big rounded day tiles, date + P/L, bright/soft green & red.
+                const CAL_GREEN = "#22b85c";
+                const CAL_RED = "#e5483f";
+                const calMoney = (n) => {
+                  const a = Math.abs(n);
+                  const body = a >= 10000 ? `${Math.round(a / 1000)}k` : a >= 1000 ? `${(a / 1000).toFixed(1)}k` : String(Math.round(a));
+                  return `${n > 0 ? "+" : n < 0 ? "-" : ""}$${body}`;
+                };
+                let maxAbsDay = 0;
+                for (let d = 1; d <= totalDaysInMonth; d++) {
+                  const inf = tradesByDay[`${monthPrefix}-${pad2(d)}`];
+                  if (inf) maxAbsDay = Math.max(maxAbsDay, Math.abs(inf.total));
+                }
+                const prevMonthDays = new Date(viewYear, viewMonthIdx, 0).getDate();
+                const trailingStart = firstWeekday + totalDaysInMonth;
+                const navBtn = {
+                  width: "32px", height: "32px", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center",
+                  background: palette.field, border: `1px solid ${palette.border}`, color: palette.textMuted,
+                };
+                return (
+                  <>
+                    <div className="flex items-center justify-between mb-3" style={{ gap: "8px" }}>
+                      <button type="button" onClick={goPrevMonth} aria-label="Previous month" className={TAP} style={navBtn}>
+                        <ChevronLeft size={16} />
+                      </button>
+                      <div className="text-center" style={{ minWidth: 0 }}>
+                        <div style={{ fontFamily: display, fontSize: "17px", fontWeight: 800, color: palette.text }}>
+                          {MONTH_NAMES[viewMonthIdx]} {viewYear}
+                        </div>
+                        <div style={{ fontFamily: mono, fontSize: "11px", fontWeight: 700, color: monthTradeCount ? (monthTotal >= 0 ? palette.green : palette.red) : palette.textFaint }}>
+                          {monthTradeCount ? `${calMoney(monthTotal)} · ${monthTradeCount} trade${monthTradeCount === 1 ? "" : "s"}` : "No trades this month"}
+                        </div>
+                      </div>
+                      <button type="button" onClick={goNextMonth} aria-label="Next month" className={TAP} style={navBtn}>
+                        <ChevronRight size={16} />
+                      </button>
+                    </div>
 
-              <div className="grid grid-cols-7 gap-1 mb-1.5">
-                {WEEKDAY_LABELS.map((w, i) => (
-                  <div
-                    key={i}
-                    className="text-center"
-                    style={{ fontSize: "10px", color: palette.textFaint, fontFamily: mono }}
-                  >
-                    {w}
-                  </div>
-                ))}
-              </div>
+                    <div className="grid grid-cols-7 mb-1.5" style={{ gap: "6px" }}>
+                      {WEEKDAY_LABELS.map((w, i) => (
+                        <div key={i} className="text-center" style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.06em", color: palette.textFaint }}>
+                          {w}
+                        </div>
+                      ))}
+                    </div>
 
-              <div className="grid grid-cols-7 gap-1">
-                {monthCells.map((d, i) => {
-                  if (d === null) return <div key={i} />;
-                  const key = `${monthPrefix}-${pad2(d)}`;
-                  const info = tradesByDay[key];
-                  const hasTrades = !!info;
-                  const isToday = key === todayKey;
-                  const isSelected = key === selectedDay;
-                  const posDay = hasTrades && info.total >= 0;
-                  return (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => hasTrades && setSelectedDay(isSelected ? null : key)}
-                      className={`flex flex-col items-center justify-center rounded-lg ${hasTrades ? TAP : ""}`}
-                      style={{
-                        aspectRatio: "1",
-                        background: hasTrades
-                          ? posDay
-                            ? `${palette.green}26`
-                            : `${palette.red}26`
-                          : "transparent",
-                        border: `1px solid ${
-                          isSelected ? palette.gold : isToday ? palette.textMuted : "transparent"
-                        }`,
-                        cursor: hasTrades ? "pointer" : "default",
-                        transition: THEME_TRANSITION,
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontSize: "11px",
-                          color: hasTrades ? palette.text : palette.textFaint,
-                          fontFamily: mono,
-                        }}
-                      >
-                        {d}
-                      </span>
-                      {hasTrades && (
-                        <span
-                          style={{
-                            fontSize: "9px",
-                            color: posDay ? palette.green : palette.red,
-                            fontFamily: mono,
-                          }}
-                        >
-                          {posDay ? "+" : "-"}
-                          {fmtMoney(info.total)}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
+                    <div className="grid grid-cols-7" style={{ gap: "6px" }}>
+                      {monthCells.map((d, i) => {
+                        const baseTile = {
+                          aspectRatio: "1",
+                          borderRadius: "12px",
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          lineHeight: 1.15,
+                          minWidth: 0,
+                        };
+                        if (d === null) {
+                          // Days from the neighbouring months: dimmed, no P/L.
+                          const n = i < firstWeekday ? prevMonthDays - (firstWeekday - 1 - i) : i - trailingStart + 1;
+                          return (
+                            <div key={i} style={{ ...baseTile, background: palette.field, opacity: 0.35 }}>
+                              <span style={{ fontFamily: display, fontSize: "14px", fontWeight: 800, color: palette.textFaint }}>{n}</span>
+                            </div>
+                          );
+                        }
+                        const key = `${monthPrefix}-${pad2(d)}`;
+                        const info = tradesByDay[key];
+                        const hasTrades = !!info;
+                        const isToday = key === todayKey;
+                        const isSelected = key === selectedDay;
+                        const total = hasTrades ? info.total : 0;
+                        const win = hasTrades && total > 0;
+                        const loss = hasTrades && total < 0;
+                        const intensity = hasTrades && maxAbsDay > 0 ? Math.min(1, Math.abs(total) / maxAbsDay) : 0;
+                        const strong = (win || loss) && intensity >= 0.5;
+                        const bg = win ? (strong ? CAL_GREEN : `${CAL_GREEN}59`) : loss ? (strong ? CAL_RED : `${CAL_RED}59`) : palette.field;
+                        const numColor = strong ? "#FFFFFF" : palette.text;
+                        const pnlColor = strong ? "#FFFFFF" : win ? palette.green : palette.red;
+                        return (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => hasTrades && setSelectedDay(isSelected ? null : key)}
+                            className={hasTrades ? TAP : ""}
+                            style={{
+                              ...baseTile,
+                              background: bg,
+                              border: "none",
+                              boxShadow: isSelected ? `0 0 0 2px ${palette.gold}` : isToday ? `inset 0 0 0 1.5px ${palette.textMuted}` : "none",
+                              cursor: hasTrades ? "pointer" : "default",
+                              transition: THEME_TRANSITION,
+                            }}
+                          >
+                            <span style={{ fontFamily: display, fontSize: "15px", fontWeight: 800, color: numColor }}>{d}</span>
+                            {hasTrades && total !== 0 && (
+                              <span style={{ fontFamily: mono, fontSize: "9.5px", fontWeight: 700, marginTop: "1px", whiteSpace: "nowrap", color: pnlColor }}>
+                                {calMoney(total)}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                );
+              })()}
             </div>
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
