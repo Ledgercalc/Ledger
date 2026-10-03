@@ -3,7 +3,6 @@ import { pokeCrab } from "./lib/mascot.js";
 import { PlanSettingsCard, PlansHost } from "./components/PlansModal.jsx";
 import { PLAN_LIMITS, PLAN_NAMES, hasFeature } from "./data/plans.js";
 import { getMyPlan, openPlans, resetMyPlan, setMyPlan } from "./lib/planStore.js";
-import CrabMascot from "./components/CrabMascot.jsx";
 import { computeGoalProgress } from "./lib/analytics.js";
 import { OnboardingAmbientBG } from "./components/onboarding.jsx";
 import { Avatar, PillGroup, SettingsSection, SettingsSubLabel } from "./components/ui.jsx";
@@ -21,7 +20,7 @@ import { MARKET_SESSIONS, sessionOpenAtUTCHour } from "./lib/sessions.js";
 import { drawShareCard } from "./lib/shareCard.js";
 import { DARK_PALETTE, LIGHT_PALETTE, TAP, THEME_TRANSITION, TREDZI_LOGO_SRC, VOID_PALETTE, display, mono, palette, sans } from "./lib/theme.js";
 import { formatCountdown, formatMinSec, nextOccurrenceMs } from "./lib/time.js";
-import { AlertTriangle, ArrowLeftRight, Bell, Building2, Camera, CandlestickChart, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, Flame, Heart, LayoutGrid, Lightbulb, LogOut, MessageCircle, Moon, Newspaper, Palette, Pencil, Plus, RotateCcw, Scale, Search, Send, Settings, Share2, ShieldAlert, Sparkles, Sun, Table2, Tags, Trash2, Upload, Users, X } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, Bell, Building2, Camera, CandlestickChart, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, Flame, Heart, LayoutGrid, Lightbulb, LogOut, MessageCircle, Moon, Newspaper, Palette, Pencil, Plus, RotateCcw, Scale, Search, Send, Settings, Share2, ShieldAlert, Sparkles, Sun, Table2, Tags, Trash2, Upload, Users, X , Activity, TrendingDown, TrendingUp } from "lucide-react";
 import React, { Suspense, lazy, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import "./typography.css";
 
@@ -7243,19 +7242,6 @@ if (activeTab === "community") {
         </header>
         )}
 
-        {settings.mascotEnabled !== false && !(!isDesktop && activeTab === "community" && (!!activeGroupId || communityMobileFeedOpen)) && (
-          <div
-            style={{
-              position: "fixed",
-              right: isDesktop ? "20px" : "10px",
-              bottom: isDesktop ? "20px" : "calc(92px + env(safe-area-inset-bottom, 0px))",
-              zIndex: 40,
-            }}
-          >
-            <CrabMascot size={isDesktop ? 84 : 62} rest={crabRest} />
-          </div>
-        )}
-
         {(() => {
           const communityFullBleed = activeTab === "community" && (isDesktop || !!activeGroupId);
           // Insights > Coach is a fixed screen: the page does not scroll, only the chat's message list does.
@@ -7294,6 +7280,70 @@ if (activeTab === "community") {
                   className={tourActive ? undefined : tabDirRef.current.dir < 0 ? "ledger-tab-enter-back" : "ledger-tab-enter-fwd"}
                   style={{ paddingTop: startsWithSubNav ? "0px" : "20px", ...coachFillStyle }}
                 >
+                  {activeTab === "curve" && (() => {
+                    // Mobile-only "Session Snapshot": the phone counterpart of the desktop sidebar's Today's Pulse.
+                    // Tapping it opens the same detailed pulse sheet.
+                    const snapKey = dayKeyFromDate(new Date());
+                    const snapTrades = trades.filter((t) => dayKeyFromTs(t.ts) === snapKey);
+                    const snapNet = snapTrades.reduce((s, t) => s + t.pnl, 0);
+                    const { current: snapStreak } = computeDisciplineStreak(trades);
+                    const snapMax = num(settings.maxTradesPerDay);
+                    const hasToday = snapTrades.length > 0;
+                    const tone = !hasToday || snapNet === 0 ? palette.goldBright : snapNet > 0 ? palette.green : palette.red;
+                    const progress = snapMax > 0 ? Math.min(1, snapTrades.length / snapMax) : hasToday ? 1 : 0;
+                    const R = 21;
+                    const C = 2 * Math.PI * R;
+                    const Icon = !hasToday || snapNet === 0 ? Activity : snapNet > 0 ? TrendingUp : TrendingDown;
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => setPulseOpen(true)}
+                        aria-label="Open session snapshot"
+                        className={`w-full text-left ${TAP}`}
+                        style={{
+                          display: "flex", alignItems: "center", gap: "14px", padding: "14px 14px 14px 12px", marginBottom: "16px",
+                          borderRadius: "20px", cursor: "pointer",
+                          background: `linear-gradient(135deg, ${tone}22 0%, ${palette.surface} 62%)`,
+                          border: `1px solid ${tone}38`, boxShadow: palette.shadow,
+                        }}
+                      >
+                        <span style={{ position: "relative", width: "54px", height: "54px", flex: "none", display: "block" }}>
+                          <svg width="54" height="54" viewBox="0 0 54 54" aria-hidden="true" style={{ transform: "rotate(-90deg)", display: "block" }}>
+                            <circle cx="27" cy="27" r={R} fill="none" stroke={palette.border} strokeWidth="5" />
+                            <circle cx="27" cy="27" r={R} fill="none" stroke={tone} strokeWidth="5" strokeLinecap="round"
+                              strokeDasharray={`${C * progress} ${C}`} style={{ transition: "stroke-dasharray .6s ease" }} />
+                          </svg>
+                          <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: tone }}>
+                            <Icon size={20} strokeWidth={2.4} />
+                          </span>
+                        </span>
+                        <span style={{ flex: "1 1 auto", minWidth: 0 }}>
+                          <span style={{ display: "block", fontSize: "10px", fontWeight: 800, letterSpacing: "0.14em", color: palette.textFaint, textTransform: "uppercase" }}>
+                            Session snapshot
+                          </span>
+                          {trades.length > 0 ? (
+                            <>
+                              <span style={{ display: "block", fontFamily: mono, fontSize: "22px", fontWeight: 800, lineHeight: 1.15, color: hasToday ? tone : palette.textFaint, marginTop: "2px" }}>
+                                {hasToday ? `${snapNet >= 0 ? "+" : "-"}$${fmtMoney(snapNet)}` : "$0"}
+                              </span>
+                              <span style={{ display: "block", fontSize: "11.5px", color: palette.textMuted, marginTop: "1px" }}>
+                                {hasToday ? `${snapTrades.length} trade${snapTrades.length === 1 ? "" : "s"} today${snapMax > 0 ? ` of ${snapMax}` : ""}` : "No trades yet today"}
+                              </span>
+                            </>
+                          ) : (
+                            <span style={{ display: "block", fontSize: "12.5px", color: palette.textMuted, marginTop: "3px" }}>
+                              Log your first trade to start your snapshot.
+                            </span>
+                          )}
+                        </span>
+                        <span style={{ flex: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: "2px", padding: "7px 11px", borderRadius: "14px", background: snapStreak > 0 ? `${palette.gold}1C` : palette.field, border: `1px solid ${snapStreak > 0 ? `${palette.gold}40` : palette.border}` }}>
+                          <Flame size={16} strokeWidth={2.3} style={{ color: snapStreak > 0 ? palette.goldBright : palette.textFaint }} />
+                          <span style={{ fontFamily: mono, fontSize: "14px", fontWeight: 800, color: snapStreak > 0 ? palette.goldBright : palette.textFaint, lineHeight: 1 }}>{snapStreak}d</span>
+                          <span style={{ fontSize: "8.5px", fontWeight: 700, letterSpacing: "0.1em", color: palette.textFaint, textTransform: "uppercase" }}>streak</span>
+                        </span>
+                      </button>
+                    );
+                  })()}
                   {body}
                 </div>
               ) : (
@@ -9140,7 +9190,7 @@ if (activeTab === "community") {
 <div className="flex items-center gap-2">
   <LiveFlame size={44} active={(todayTradesPulse.length > 0 && todayNetPulse > 0) || disciplinePulse.current > 0} dimColor={palette.textFaint} style={{ margin: "-10px -2px -10px -2px" }} />
   <span style={{ fontFamily: mono, fontSize: "16px", fontWeight: 700, color: palette.text }}>
-    Today's Pulse
+    {isDesktop ? "Today's Pulse" : "Session Snapshot"}
   </span>
 </div>
           <button type="button" onClick={() => setPulseOpen(false)} className={TAP} style={{ color: palette.textFaint }} aria-label="Close">
