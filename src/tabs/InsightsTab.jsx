@@ -1,5 +1,5 @@
 import { pokeCrab } from "../lib/mascot.js";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { OnboardingTip } from "../components/onboarding.jsx";
 import { PlanLockCard } from "../components/PlansModal.jsx";
 import { hasFeature } from "../data/plans.js";
@@ -83,27 +83,44 @@ export default function InsightsTab(props) {
   }, []);
   let body = null;
     const hasData = trades.length > 0;
-    const insights = computeInsights(trades, customSetups, customMoods);
     const heatmapWeeksBack = Number(settings.heatmapWeeksBack) || 26;
-    const heatmap = computeHeatmapWeeks(trades, heatmapWeeksBack);
-    const headline = computeHeadlineInsight(trades, customSetups, customMoods);
-    const perf = computePerformanceMetrics(trades);
-    const monthCmp = computeMonthComparison(trades);
-    const completeness = computeJournalCompleteness(trades);
-    const grade = computeDisciplineGrade(trades);
-    const revengeCost = computeRevengeCostSplit(trades);
-    const overconfidence = computeOverconfidenceCheck(trades);
-    const disciplineTrend = computeDisciplineStreakTrend(trades);
-    const noteTags = computeNoteTagAnalysis(trades);
-    const consistency = computeConsistencyScore(trades);
-
-    const journalRows = filledJournalRows(journalEntries);
+    // All of these loop over every trade / journal row. They used to re-run on EVERY render (each keystroke in
+    // the coach box, each App update), which is what made opening Insights hang. Now they only re-run when
+    // the underlying data actually changes.
+    const {
+      insights, heatmap, headline, perf, monthCmp, completeness, grade, revengeCost, overconfidence,
+      disciplineTrend, noteTags, consistency, journalRows, trendBreakdown, rrSeries, mistakeFreq,
+      setupRadarData, mistakePatterns, pairFreq, weekdayFreq, rrDist, monthlyVolume, sessionByDay, confidenceByDay,
+    } = useMemo(() => {
+      const journalRows = filledJournalRows(journalEntries);
+      return {
+        insights: computeInsights(trades, customSetups, customMoods),
+        heatmap: computeHeatmapWeeks(trades, heatmapWeeksBack),
+        headline: computeHeadlineInsight(trades, customSetups, customMoods),
+        perf: computePerformanceMetrics(trades),
+        monthCmp: computeMonthComparison(trades),
+        completeness: computeJournalCompleteness(trades),
+        grade: computeDisciplineGrade(trades),
+        revengeCost: computeRevengeCostSplit(trades),
+        overconfidence: computeOverconfidenceCheck(trades),
+        disciplineTrend: computeDisciplineStreakTrend(trades),
+        noteTags: computeNoteTagAnalysis(trades),
+        consistency: computeConsistencyScore(trades),
+        journalRows,
+        trendBreakdown: journalTrendBreakdown(journalRows),
+        rrSeries: journalRRSeries(journalRows),
+        mistakeFreq: journalMistakeFrequency(journalRows),
+        setupRadarData: journalSetupRadar(journalRows, customSetups),
+        mistakePatterns: journalMistakePatterns(journalRows),
+        pairFreq: journalPairFrequency(journalRows),
+        weekdayFreq: journalWeekdayFrequency(journalRows),
+        rrDist: journalRRDistribution(journalRows),
+        monthlyVolume: journalMonthlyVolume(journalRows),
+        sessionByDay: journalSessionByDay(journalRows),
+        confidenceByDay: journalConfidenceByDay(journalRows),
+      };
+    }, [trades, customSetups, customMoods, journalEntries, heatmapWeeksBack]);
     const hasJournalData = journalRows.length > 0;
-    const trendBreakdown = journalTrendBreakdown(journalRows);
-    const rrSeries = journalRRSeries(journalRows);
-    const mistakeFreq = journalMistakeFrequency(journalRows);
-    const setupRadarData = journalSetupRadar(journalRows, customSetups);
-    const mistakePatterns = journalMistakePatterns(journalRows);
     const patternDetected =
   (mistakePatterns.worstTrends[0]?.mistakeRate ?? 0) >= 30 ||
   (mistakePatterns.worstWeekdays[0]?.mistakeRate ?? 0) >= 30;
@@ -114,12 +131,6 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
       ...mistakePatterns.trendRows.map((r) => ({ ...r, group: "Trend" })),
       ...mistakePatterns.weekdayRows.map((r) => ({ ...r, group: "Day" })),
     ];
-    const pairFreq = journalPairFrequency(journalRows);
-    const weekdayFreq = journalWeekdayFrequency(journalRows);
-    const rrDist = journalRRDistribution(journalRows);
-    const monthlyVolume = journalMonthlyVolume(journalRows);
-    const sessionByDay = journalSessionByDay(journalRows);
-    const confidenceByDay = journalConfidenceByDay(journalRows);
 
     const fmtSigned = (n) => `${n >= 0 ? "+" : "-"}$${fmtMoney(n)}`;
     const fmtRatio = (n) => (Number.isFinite(n) ? n.toFixed(2) : "\u221e");
