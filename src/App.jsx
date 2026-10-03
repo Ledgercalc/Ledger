@@ -3,6 +3,7 @@ import { pokeCrab } from "./lib/mascot.js";
 import { PlanSettingsCard, PlansHost } from "./components/PlansModal.jsx";
 import MobileDock from "./components/MobileDock.jsx";
 import SessionSnapshot from "./components/SessionSnapshot.jsx";
+import TabHost from "./components/TabHost.jsx";
 import { PlanName } from "./components/PlanBadge.jsx";
 import { PLAN_LIMITS, PLAN_NAMES, hasFeature } from "./data/plans.js";
 import { getMyPlan, openPlans, resetMyPlan, setMyPlan } from "./lib/planStore.js";
@@ -115,6 +116,7 @@ export default function TredziApp() {
   // The tab content (and header title) switch together in one low-priority transition.
   const goToTabFromDock = (id) => {
     if (id === activeTab) return;
+    tabHostRef.current?.preview(id); // show the target pane right now (cached tabs appear instantly)
     startTabTransition(() => {
       setPendingTab(id);
       setActiveTab(id);
@@ -910,6 +912,7 @@ useEffect(() => { setMobileNavHidden(false); }, [activeTab]);
 const lastNavScrollYRef = useRef(0);
 const dockRef = useRef(null);
 const mobileDockRef = useRef(null);
+const tabHostRef = useRef(null);
 useEffect(() => {
   // Warm all tab chunks once the app is idle so tab switches never wait on the network.
   const warm = () => Object.values(TAB_PRELOAD).forEach((p) => { try { p().catch(() => {}); } catch (e) { /* ignore */ } });
@@ -7267,52 +7270,35 @@ if (activeTab === "community") {
           // Tabs whose first element is the sticky sub-tab bar start flush at the top, so the bar never slides up on scroll.
           const startsWithSubNav = ["risk", "journal", "sessions", "insights"].includes(activeTab);
           return (
-<main
-  key={activeTab}
-  onScroll={communityFullBleed ? undefined : handleMobileNavScroll}
-  className={`${tourActive || (!isDesktop && !communityFullBleed) ? "" : "ledger-page-transition"} ${tourActive || communityFullBleed ? "" : "tz-stagger"} ${
-    communityFullBleed
-      ? (isDesktop ? "" : "px-0")
-      : (isDesktop ? "px-8 pt-0 pb-6" : "px-5 pt-0 pb-5")
-  }`}
-              style={{
-                flex: "1 1 auto",
-                minHeight: 0,
-                overflowY: communityFullBleed || coachFixed ? "hidden" : "auto",
-                overflowX: communityFullBleed ? undefined : "hidden",
-                WebkitOverflowScrolling: "touch",
-                overscrollBehavior: "contain",
-                display: communityFullBleed || coachFixed ? "flex" : "block",
-                flexDirection: "column",
-                paddingLeft: communityFullBleed && isDesktop ? "12px" : undefined,
-                paddingRight: communityFullBleed && isDesktop ? "12px" : undefined,
-                paddingTop: communityFullBleed ? (isDesktop ? "2px" : 0) : undefined,
-                paddingBottom: communityFullBleed ? (isDesktop ? "6px" : MOBILE_NAV_SPACE) : (!isDesktop ? MOBILE_NAV_SPACE : undefined),
-              }}
-            >
-              {communityFullBleed ? (
-                body
-              ) : !isDesktop ? (
-                <div
-                  className={tourActive ? undefined : tabDirRef.current.dir < 0 ? "ledger-tab-enter-back" : "ledger-tab-enter-fwd"}
-                  style={{ paddingTop: startsWithSubNav ? "0px" : "20px", ...coachFillStyle }}
-                >
-                  {activeTab === "curve" && (
-                    <SessionSnapshot
-                      trades={trades}
-                      maxTradesPerDay={settings.maxTradesPerDay}
-                      onOpen={() => setPulseOpen(true)}
-                      themeKey={`${palette.surface}${palette.gold}${palette.green}${palette.red}`}
-                    />
-                  )}
-                  {body}
-                </div>
-              ) : (
-                <div style={{ width: "100%", maxWidth: "1400px", margin: "0 auto", paddingTop: startsWithSubNav ? "0px" : "24px", ...coachFillStyle }}>
-                  {body}
-                </div>
-              )}
-            </main>
+<TabHost
+              ref={tabHostRef}
+              activeId={activeTab}
+              order={[...mobileNavPrimaryTabs, ...mobileNavOverflowTabs].map((t) => t.id)}
+              keepAlive={!tourActive}
+              layout={{ fullBleed: communityFullBleed, fixed: coachFixed, isDesktop, navSpace: MOBILE_NAV_SPACE }}
+              onScroll={communityFullBleed ? undefined : handleMobileNavScroll}
+              element={
+                communityFullBleed ? (
+                  body
+                ) : !isDesktop ? (
+                  <div style={{ paddingTop: startsWithSubNav ? "0px" : "20px", ...coachFillStyle }}>
+                    {activeTab === "curve" && (
+                      <SessionSnapshot
+                        trades={trades}
+                        maxTradesPerDay={settings.maxTradesPerDay}
+                        onOpen={() => setPulseOpen(true)}
+                        themeKey={`${palette.surface}${palette.gold}${palette.green}${palette.red}`}
+                      />
+                    )}
+                    {body}
+                  </div>
+                ) : (
+                  <div style={{ width: "100%", maxWidth: "1400px", margin: "0 auto", paddingTop: startsWithSubNav ? "0px" : "24px", ...coachFillStyle }}>
+                    {body}
+                  </div>
+                )
+              }
+            />
           );
         })()}
         </div>
