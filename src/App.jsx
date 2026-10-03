@@ -2,6 +2,8 @@ import { COMMUNITY_API_BASE, COMMUNITY_AVATAR_KEY, COMMUNITY_JOIN_REQUESTS_KEY, 
 import { pokeCrab } from "./lib/mascot.js";
 import { PlanSettingsCard, PlansHost } from "./components/PlansModal.jsx";
 import MobileDock from "./components/MobileDock.jsx";
+import SessionSnapshot from "./components/SessionSnapshot.jsx";
+import { PlanName } from "./components/PlanBadge.jsx";
 import { PLAN_LIMITS, PLAN_NAMES, hasFeature } from "./data/plans.js";
 import { getMyPlan, openPlans, resetMyPlan, setMyPlan } from "./lib/planStore.js";
 import { computeGoalProgress } from "./lib/analytics.js";
@@ -994,7 +996,7 @@ const renderCommunitySearch = () => {
       <div className="flex items-center gap-2.5">
         <Avatar name={post.author} size={34} src={avatarForAuthor(post.author)} />
         <div className="min-w-0 flex-1">
-          <div className="truncate" style={{ color: palette.text, fontSize: "12.5px", fontWeight: 800 }}>{post.author}</div>
+          <div className="truncate" style={{ color: palette.text, fontSize: "12.5px", fontWeight: 800 }}><PlanName name={post.author} size="sm" /></div>
           <div style={{ color: palette.textFaint, fontSize: "9.5px", marginTop: "2px" }}>{feedTimeAgo(post.ts)}</div>
         </div>
         {post.likeCount > 0 && <span style={{ color: palette.textFaint, fontSize: "10px", fontFamily: mono }}>{post.likeCount} likes</span>}
@@ -1028,7 +1030,7 @@ const renderCommunitySearch = () => {
                 <button type="button" onClick={() => openCommunityMemberProfile(profile.username)} className={`w-full flex items-center gap-3 rounded-2xl p-4 text-left ${TAP}`} style={{ background: palette.surface, border: `1px solid ${palette.border}` }}>
                   <Avatar name={profile.username} size={46} src={profile.avatar || avatarForAuthor(profile.username)} />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate" style={{ color: palette.text, fontSize: "14px", fontWeight: 800 }}>{profile.username}</div>
+                    <div className="truncate" style={{ color: palette.text, fontSize: "14px", fontWeight: 800 }}><PlanName name={profile.username} size="sm" /></div>
                     {profile.bio && <div className="mt-1" style={{ color: palette.textMuted, fontSize: "11px", lineHeight: 1.4 }}>{profile.bio}</div>}
                   </div>
                   <ChevronRight size={16} style={{ color: palette.textFaint }} />
@@ -4482,7 +4484,7 @@ if (!isSignal && !communityMsgText.trim()) return;
                   <button type="button" onClick={() => openCommunityMemberProfile(post.author)} className={`flex-shrink-0 rounded-full ${TAP}`} style={{ background: "none", border: `1px solid ${palette.border}`, padding: 0, lineHeight: 0, overflow: "hidden" }}><Avatar name={post.author} size={40} src={post.avatar || avatarForAuthor(post.author)} /></button>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <button type="button" onClick={() => openCommunityMemberProfile(post.author)} className={TAP} style={{ background: "none", border: "none", padding: 0, color: palette.text, fontSize: "14px", fontWeight: 800 }}>{post.author}</button>
+                      <button type="button" onClick={() => openCommunityMemberProfile(post.author)} className={TAP} style={{ background: "none", border: "none", padding: 0, color: palette.text, fontSize: "14px", fontWeight: 800 }}><PlanName name={post.author} size="sm" /></button>
                       <span style={{ color: palette.textFaint, fontSize: "12.5px" }}>· {feedTimeAgo(post.ts)}</span>
                       {mine && <button type="button" onClick={() => deleteGlobalFeedPost(post.id)} onMouseEnter={(e) => { e.currentTarget.style.background = palette.field; }} onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }} className={`flex items-center justify-center rounded-full ml-auto flex-shrink-0 ${TAP}`} style={{ width: "26px", height: "26px", color: palette.textFaint, transition: "background 0.15s ease" }} aria-label="Delete post"><Trash2 size={13} /></button>}
                     </div>
@@ -4501,7 +4503,7 @@ if (!isSignal && !communityMsgText.trim()) return;
                       </button>
                     </div>
                     {globalFeedCommentsOpenId === post.id && <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${palette.border}` }}>
-                      {globalFeedCommentsLoading[post.id] ? <div className="pb-3 text-xs" style={{ color: palette.textFaint }}>Loading comments…</div> : comments.length > 0 ? <div className="flex flex-col gap-2 pb-3">{comments.map((c) => <div key={c.id} className="rounded-2xl px-3.5 py-2.5" style={{ background: palette.field }}><span style={{ color: palette.gold, fontSize: "11.5px", fontWeight: 800 }}>{c.author}</span><span style={{ color: palette.textMuted, fontSize: "11.5px", marginLeft: "7px" }}>{c.text}</span></div>)}</div> : <div className="pb-3 text-xs" style={{ color: palette.textFaint }}>No comments yet — start the conversation.</div>}
+                      {globalFeedCommentsLoading[post.id] ? <div className="pb-3 text-xs" style={{ color: palette.textFaint }}>Loading comments…</div> : comments.length > 0 ? <div className="flex flex-col gap-2 pb-3">{comments.map((c) => <div key={c.id} className="rounded-2xl px-3.5 py-2.5" style={{ background: palette.field }}><span style={{ color: palette.gold, fontSize: "11.5px", fontWeight: 800 }}><PlanName name={c.author} size="sm" /></span><span style={{ color: palette.textMuted, fontSize: "11.5px", marginLeft: "7px" }}>{c.text}</span></div>)}</div> : <div className="pb-3 text-xs" style={{ color: palette.textFaint }}>No comments yet — start the conversation.</div>}
                       <div className="flex items-center gap-2"><input value={globalFeedCommentDrafts[post.id] || ""} onChange={(e) => setGlobalFeedCommentDrafts((cur) => ({ ...cur, [post.id]: e.target.value }))} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); postGlobalFeedComment(post.id); } }} placeholder="Write a comment…" className="flex-1 rounded-full px-3.5 py-2 outline-none" style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontSize: "12px" }} /><button type="button" onClick={() => postGlobalFeedComment(post.id)} disabled={!(globalFeedCommentDrafts[post.id] || "").trim()} className={`flex items-center justify-center rounded-full flex-shrink-0 ${TAP}`} style={{ width: "36px", height: "36px", background: palette.gold, color: palette.letterbox, opacity: (globalFeedCommentDrafts[post.id] || "").trim() ? 1 : 0.5, transition: "opacity 0.15s ease" }}><Send size={14} /></button></div>
                     </div>}
                   </div>
@@ -7295,70 +7297,14 @@ if (activeTab === "community") {
                   className={tourActive ? undefined : tabDirRef.current.dir < 0 ? "ledger-tab-enter-back" : "ledger-tab-enter-fwd"}
                   style={{ paddingTop: startsWithSubNav ? "0px" : "20px", ...coachFillStyle }}
                 >
-                  {activeTab === "curve" && (() => {
-                    // Mobile-only "Session Snapshot": the phone counterpart of the desktop sidebar's Today's Pulse.
-                    // Tapping it opens the same detailed pulse sheet.
-                    const snapKey = dayKeyFromDate(new Date());
-                    const snapTrades = trades.filter((t) => dayKeyFromTs(t.ts) === snapKey);
-                    const snapNet = snapTrades.reduce((s, t) => s + t.pnl, 0);
-                    const { current: snapStreak } = computeDisciplineStreak(trades);
-                    const snapMax = num(settings.maxTradesPerDay);
-                    const hasToday = snapTrades.length > 0;
-                    const tone = !hasToday || snapNet === 0 ? palette.goldBright : snapNet > 0 ? palette.green : palette.red;
-                    const progress = snapMax > 0 ? Math.min(1, snapTrades.length / snapMax) : hasToday ? 1 : 0;
-                    const R = 21;
-                    const C = 2 * Math.PI * R;
-                    const Icon = !hasToday || snapNet === 0 ? Activity : snapNet > 0 ? TrendingUp : TrendingDown;
-                    return (
-                      <button
-                        type="button"
-                        onClick={() => setPulseOpen(true)}
-                        aria-label="Open session snapshot"
-                        className={`w-full text-left ${TAP}`}
-                        style={{
-                          display: "flex", alignItems: "center", gap: "14px", padding: "14px 14px 14px 12px", marginBottom: "16px",
-                          borderRadius: "20px", cursor: "pointer",
-                          background: `linear-gradient(135deg, ${tone}22 0%, ${palette.surface} 62%)`,
-                          border: `1px solid ${tone}38`, boxShadow: palette.shadow,
-                        }}
-                      >
-                        <span style={{ position: "relative", width: "54px", height: "54px", flex: "none", display: "block" }}>
-                          <svg width="54" height="54" viewBox="0 0 54 54" aria-hidden="true" style={{ transform: "rotate(-90deg)", display: "block" }}>
-                            <circle cx="27" cy="27" r={R} fill="none" stroke={palette.border} strokeWidth="5" />
-                            <circle cx="27" cy="27" r={R} fill="none" stroke={tone} strokeWidth="5" strokeLinecap="round"
-                              strokeDasharray={`${C * progress} ${C}`} style={{ transition: "stroke-dasharray .6s ease" }} />
-                          </svg>
-                          <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: tone }}>
-                            <Icon size={20} strokeWidth={2.4} />
-                          </span>
-                        </span>
-                        <span style={{ flex: "1 1 auto", minWidth: 0 }}>
-                          <span style={{ display: "block", fontSize: "10px", fontWeight: 800, letterSpacing: "0.14em", color: palette.textFaint, textTransform: "uppercase" }}>
-                            Session snapshot
-                          </span>
-                          {trades.length > 0 ? (
-                            <>
-                              <span style={{ display: "block", fontFamily: mono, fontSize: "22px", fontWeight: 800, lineHeight: 1.15, color: hasToday ? tone : palette.textFaint, marginTop: "2px" }}>
-                                {hasToday ? `${snapNet >= 0 ? "+" : "-"}$${fmtMoney(snapNet)}` : "$0"}
-                              </span>
-                              <span style={{ display: "block", fontSize: "11.5px", color: palette.textMuted, marginTop: "1px" }}>
-                                {hasToday ? `${snapTrades.length} trade${snapTrades.length === 1 ? "" : "s"} today${snapMax > 0 ? ` of ${snapMax}` : ""}` : "No trades yet today"}
-                              </span>
-                            </>
-                          ) : (
-                            <span style={{ display: "block", fontSize: "12.5px", color: palette.textMuted, marginTop: "3px" }}>
-                              Log your first trade to start your snapshot.
-                            </span>
-                          )}
-                        </span>
-                        <span style={{ flex: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: "2px", padding: "7px 11px", borderRadius: "14px", background: snapStreak > 0 ? `${palette.gold}1C` : palette.field, border: `1px solid ${snapStreak > 0 ? `${palette.gold}40` : palette.border}` }}>
-                          <Flame size={16} strokeWidth={2.3} style={{ color: snapStreak > 0 ? palette.goldBright : palette.textFaint }} />
-                          <span style={{ fontFamily: mono, fontSize: "14px", fontWeight: 800, color: snapStreak > 0 ? palette.goldBright : palette.textFaint, lineHeight: 1 }}>{snapStreak}d</span>
-                          <span style={{ fontSize: "8.5px", fontWeight: 700, letterSpacing: "0.1em", color: palette.textFaint, textTransform: "uppercase" }}>streak</span>
-                        </span>
-                      </button>
-                    );
-                  })()}
+                  {activeTab === "curve" && (
+                    <SessionSnapshot
+                      trades={trades}
+                      maxTradesPerDay={settings.maxTradesPerDay}
+                      onOpen={() => setPulseOpen(true)}
+                      themeKey={`${palette.surface}${palette.gold}${palette.green}${palette.red}`}
+                    />
+                  )}
                   {body}
                 </div>
               ) : (
@@ -9651,7 +9597,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
         <Avatar name={mem.username} size={26} src={mem.avatar} online={mem.isOnline} />
         <div>
           <div style={{ color: palette.text, fontSize: "13px", fontWeight: mem.isOwner || memberIsAdmin ? 600 : 400 }}>
-            {mem.username}
+            <PlanName name={mem.username} size="sm" />
           </div>
           <div style={{ color: palette.textFaint, fontSize: "10px", fontFamily: mono }}>
             {mem.isOnline ? <span style={{ color: palette.green }}>Online</span> : `Joined ${new Date(mem.joinedAt).toLocaleDateString()}`}
@@ -9778,7 +9724,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
                   <div key={r.username} className="flex items-center justify-between rounded-xl px-3 py-2.5 mb-2" style={{ background: palette.field, border: `1px solid ${palette.border}` }}>
                     <div className="flex items-center gap-2">
                       <Avatar name={r.username} size={26} />
-                      <span style={{ color: palette.text, fontSize: "13px" }}>{r.username}</span>
+                      <span style={{ color: palette.text, fontSize: "13px" }}><PlanName name={r.username} size="sm" /></span>
                     </div>
                     <div className="flex items-center gap-2">
                       <button type="button" onClick={() => approveJoinRequest(r.username)} className={TAP} style={{ color: palette.green, fontSize: "11px", fontFamily: mono, fontWeight: 700 }}>
