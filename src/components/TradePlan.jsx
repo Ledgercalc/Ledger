@@ -322,7 +322,7 @@ export default function TradePlan(props) {
       </Card>
 
       {/* PSYCHOLOGY */}
-      <Card icon={Brain} title="Psychology Rules" editing={editing.psych} onToggle={() => toggle("psych")} isDesktop={isDesktop}>
+      <Card icon={Brain} title="Daily check in" editing={editing.psych} onToggle={() => toggle("psych")} isDesktop={isDesktop}>
         {!playbookRulesLoaded ? (
           <p style={{ color: palette.textFaint, fontSize: "15px", margin: 0 }}>Loading rules{"\u2026"}</p>
         ) : (
