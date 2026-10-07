@@ -1,5 +1,5 @@
 import { MARKET_SESSIONS } from "./sessions.js";
-import { ArrowLeftRight, BookOpen, Building2, Clock, Lightbulb, Link2, Scale, Users } from "lucide-react";
+import { ArrowLeftRight, BookOpen, Building2, Clock, LineChart as CurveIcon, Lightbulb, Link2, Scale, Users } from "lucide-react";
 
 export const EMOTIONS = [
   { id: "calm", label: "Calm", emoji: "\u{1F60C}" },
@@ -53,8 +53,6 @@ export const DEFAULT_SETTINGS = {
   mobileNavPinnedTabs: [],
   journalTableLayout: "auto", // "auto" | "cards" | "table"
   showRevengeTag: true,
-  planRiskPerTradePct: "",
-  planMinRR: "",
   tourCompleted: false,
 };
 
@@ -77,6 +75,7 @@ export const TABS = [
   { id: "risk", label: "Challenge", icon: Scale },
   { id: "propfirm", label: "Prop Firm", icon: Building2 },
   { id: "fx", label: "Convert", icon: ArrowLeftRight },
+  { id: "curve", label: "Curve", icon: CurveIcon },
   { id: "insights", label: "Insights", icon: Lightbulb },
   { id: "journal", label: "Journal", icon: BookOpen },
   { id: "broker", label: "Broker", icon: Link2 },
