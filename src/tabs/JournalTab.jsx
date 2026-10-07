@@ -1,4 +1,3 @@
-import CurveTab from "./CurveTab.jsx";
 import { pokeCrab } from "../lib/mascot.js";
 import { OnboardingTip } from "../components/onboarding.jsx";
 import TradePlan from "../components/TradePlan.jsx";
@@ -8,7 +7,7 @@ import { computePlaybookStats, isCleanCheckin } from "../lib/playbook.js";
 import { MARKET_SESSIONS } from "../lib/sessions.js";
 import { TAP, THEME_TRANSITION, mono, palette } from "../lib/theme.js";
 import { Camera, Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, Download, Flame, Plus, Target, Trash2, TrendingUp, Upload, X } from "lucide-react";
-import { Fragment } from "react";
+import { Fragment, Suspense } from "react";
 
 export default function JournalTab(props) {
   const {
@@ -47,7 +46,10 @@ export default function JournalTab(props) {
     journalPhotoSaving,
     journalPhotoTarget,
     journalSubTab,
+    CurveTab,
     curveProps,
+    NotepadTab,
+    notepadProps,
     journalYear,
     moveJournalResize,
     newRuleText,
@@ -108,24 +110,36 @@ export default function JournalTab(props) {
     return toggleTodayResultProp(id, ...rest);
   };
   let body = null;
+    // The spreadsheet-style journal stays available as the "Sheet" subtab because Insights' journal charts
+    // read from those entries. Set to false to hide it.
+    const SHOW_LEGACY_SHEET = true;
     const JOURNAL_SUB_TABS = [
-      { id: "overview", label: "Overview" },
-      { id: "history", label: "History" },
       { id: "log", label: "Journal" },
+      { id: "history", label: "History" },
+      { id: "notepad", label: "Notepad" },
       { id: "playbook", label: "Trade plan" },
+      ...(SHOW_LEGACY_SHEET ? [{ id: "sheet", label: "Sheet" }] : []),
     ];
 
     const journalSubNav = renderSubNav(JOURNAL_SUB_TABS, journalSubTab, setJournalSubTab);
 
-    if (journalSubTab === "overview" || journalSubTab === "history") {
+    if (journalSubTab === "log" || journalSubTab === "history") {
       body = (
-        <CurveTab
-          {...curveProps}
-          view={journalSubTab}
-          subNav={journalSubNav}
-          onOpenHistory={() => setJournalSubTab("history")}
-          onOpenOverview={() => setJournalSubTab("overview")}
-        />
+        <>
+          {journalSubNav}
+          <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}>
+            <CurveTab {...curveProps} view={journalSubTab === "history" ? "history" : "overview"} />
+          </Suspense>
+        </>
+      );
+    } else if (journalSubTab === "notepad") {
+      body = (
+        <>
+          {journalSubNav}
+          <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}>
+            <NotepadTab {...notepadProps} />
+          </Suspense>
+        </>
       );
     } else if (journalSubTab === "playbook") {
       body = (
@@ -134,7 +148,7 @@ export default function JournalTab(props) {
 
           <OnboardingTip
             id="playbook-intro"
-            text="Write your plan once: goals, risk limits, setups and psychology rules. Tap the pencil on a card to edit it, and check off your rules each day to build a discipline streak."
+            text="Write your plan once: goals, risk limits, setups and your daily check in. Tap the pencil on a card to edit it, and check off your rules each day to build a discipline streak."
             settings={settings}
             persistSettings={persistSettings}
           />
