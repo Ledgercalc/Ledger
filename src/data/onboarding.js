@@ -38,7 +38,7 @@ export const TOUR_STEPS = [
   {
     id: "welcome",
     title: "Welcome to Tredzi",
-    text: "Quick tour of the app \u2014 about 9 steps. Skip anytime with the button below.",
+    text: "Quick tour of the app \u2014 about 10 steps. Skip anytime with the button below.",
   },
   {
     id: "tab-risk",
@@ -62,6 +62,13 @@ export const TOUR_STEPS = [
     text: "Convert between currencies using live daily rates, or override with your broker's exact rate.",
   },
   {
+    id: "tab-curve",
+    tabId: "curve",
+    target: "tab-curve",
+    title: "Equity Curve",
+    text: "Log trades, watch your equity curve build, check the calendar, and share a weekly recap.",
+  },
+  {
     id: "tab-insights",
     tabId: "insights",
     target: "tab-insights",
@@ -73,14 +80,14 @@ export const TOUR_STEPS = [
     tabId: "journal",
     target: "tab-journal",
     title: "Trade Journal",
-    text: "Log trades, watch your equity curve and calendar build, browse your history, keep quick notes, and follow your Trade plan.",
+    text: "A full spreadsheet-style journal, a Notepad for quick notes, and a Trade plan for your goals, risk limits, setups and daily check in.",
   },
   {
     id: "tab-broker",
     tabId: "broker",
     target: "tab-broker",
     title: "Broker",
-    text: "Connect your trading account so your trades are logged to the journal automatically.",
+    text: "Connect your TradeLocker account and closed trades are added to your journal automatically.",
   },
   {
     id: "tab-sessions",
