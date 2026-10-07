@@ -6,8 +6,8 @@ import { EMOTIONS, MAX_CUSTOM_SETUPS, NOTE_TAGS, RUNTIME, SETUPS, emotionMeta } 
 import { MONTH_NAMES, WEEKDAY_LABELS, dayKeyFromDate, dayKeyFromTs, fmt, fmtMoney, formatDayLabel, num, pad2 } from "../lib/format.js";
 import { SCREENSHOT_MAX_PER_TRADE, tradeScreenshots } from "../lib/images.js";
 import { TAP, THEME_TRANSITION, display, mono, palette } from "../lib/theme.js";
-import { Camera, Check, ChevronLeft, ChevronRight, Copy, Download, FileText, Pencil, Plus, Share2, Trash2, TrendingUp, Upload, X } from "lucide-react";
-import { useEffect, useMemo } from "react";
+import { Camera, Check, ChevronLeft, ChevronRight, Copy, Download, FileText, Pencil, Plus, Search, Share2, SlidersHorizontal, Trash2, TrendingUp, Upload, X } from "lucide-react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 // Stable references so recharts never sees new prop identities on re-render.
@@ -94,8 +94,18 @@ export default function CurveTab(props) {
     tradeSetup,
     trades,
     tradesLoadError,
-    tradesLoaded
+    tradesLoaded,
+    view = "overview",
+    subNav = null,
+    onOpenHistory,
+    onOpenOverview
   } = props;
+  const HIST_PAGE = 30;
+  const HIST_DEFAULT_FILTER = { outcome: "all", setup: "", mood: "", pair: "", flag: "all", from: "", to: "", sort: "new" };
+  const [hq, setHq] = useState("");
+  const [hFilter, setHFilter] = useState(HIST_DEFAULT_FILTER);
+  const [hFilterOpen, setHFilterOpen] = useState(false);
+  const [hLimit, setHLimit] = useState(HIST_PAGE);
   const chartData = useMemo(() => {
     const start = num(startingBalance);
     let run = start;
@@ -200,6 +210,44 @@ export default function CurveTab(props) {
     const hitDailyLossLimit = dailyLossLimitNum > 0 && Math.abs(todayLossTotal) >= dailyLossLimitNum;
     const maxTradesNum = num(settings.maxTradesPerDay);
     const hitMaxTrades = maxTradesNum > 0 && todayTradeCount >= maxTradesNum;
+    const histSetups = [...SETUPS, ...(customSetups || [])];
+    const histMoods = [...EMOTIONS, ...(customMoods || [])];
+    const histPairs = useMemo(() => [...new Set(trades.map((t) => t.pair).filter(Boolean))].sort(), [trades]);
+    const histActiveCount =
+      (hFilter.outcome !== "all" ? 1 : 0) + (hFilter.setup ? 1 : 0) + (hFilter.mood ? 1 : 0) + (hFilter.pair ? 1 : 0) +
+      (hFilter.flag !== "all" ? 1 : 0) + (hFilter.from || hFilter.to ? 1 : 0);
+    const hist = useMemo(() => {
+      const q = hq.trim().toLowerCase();
+      const fromTs = hFilter.from ? new Date(`${hFilter.from}T00:00:00`).getTime() : null;
+      const toTs = hFilter.to ? new Date(`${hFilter.to}T23:59:59.999`).getTime() : null;
+      const list = trades.filter((t) => {
+        if (hFilter.outcome === "win" && !(t.pnl > 0)) return false;
+        if (hFilter.outcome === "loss" && !(t.pnl < 0)) return false;
+        if (hFilter.outcome === "be" && t.pnl !== 0) return false;
+        if (hFilter.setup && t.setup !== hFilter.setup) return false;
+        if (hFilter.mood && t.emotion !== hFilter.mood) return false;
+        if (hFilter.pair && t.pair !== hFilter.pair) return false;
+        if (hFilter.flag === "revenge" && !revengeIds.has(t.id)) return false;
+        if (hFilter.flag === "shots" && tradeScreenshots(t).length === 0) return false;
+        if (hFilter.flag === "notes" && !(t.note && String(t.note).trim())) return false;
+        if (fromTs !== null && t.ts < fromTs) return false;
+        if (toTs !== null && t.ts > toTs) return false;
+        if (q) {
+          const hay = [
+            t.pair, t.note, findSetupLabel(t.setup), histMoods.find((m) => m.id === t.emotion)?.label,
+            formatDayLabel(dayKeyFromTs(t.ts)), String(t.pnl), revengeIds.has(t.id) ? "revenge" : "",
+          ].filter(Boolean).join(" ").toLowerCase();
+          return q.split(/\s+/).every((w) => hay.includes(w));
+        }
+        return true;
+      });
+      const by = hFilter.sort;
+      list.sort(by === "old" ? (a, b) => a.ts - b.ts : by === "win" ? (a, b) => b.pnl - a.pnl : by === "loss" ? (a, b) => a.pnl - b.pnl : (a, b) => b.ts - a.ts);
+      const dayTotals = {};
+      list.forEach((t) => { const k = dayKeyFromTs(t.ts); dayTotals[k] = (dayTotals[k] || 0) + t.pnl; });
+      return { list, dayTotals, net: list.reduce((sum, t) => sum + t.pnl, 0) };
+    }, [trades, hq, hFilter, revengeIds, customMoods]);
+
     useEffect(() => {
       pokeCrab("rest", { pose: hitDailyLossLimit || hitMaxTrades ? "worry" : "" });
       return () => pokeCrab("rest", { pose: "" });
@@ -214,8 +262,418 @@ export default function CurveTab(props) {
       setSelectedDay(null);
     };
 
+    const openEdit = (t) => {
+      if (view === "history" && onOpenOverview) {
+        onOpenOverview();
+        setTimeout(() => startEditTrade(t), 80);
+      } else {
+        startEditTrade(t);
+      }
+    };
+
+    const renderTradeCard = (t) => {
+                  const isExpanded = expandedTradeId === t.id;
+                  const isBeingEdited = editingTradeId === t.id;
+                  const shots = tradeScreenshots(t);
+                  const savingThisTrade = screenshotSaving && screenshotTargetId === t.id;
+                  return (
+                    <div
+                      key={t.id}
+                      onClick={() => setExpandedTradeId(isExpanded ? null : t.id)}
+                      className="rounded-lg px-3 py-2.5 mb-2"
+                      style={{
+                        background: palette.surface,
+                        border: `1px solid ${isBeingEdited ? palette.gold : palette.border}`,
+                        boxShadow: palette.shadow,
+                        cursor: "pointer",
+                        transition: THEME_TRANSITION,
+                      }}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span
+                              style={{
+                                fontFamily: mono,
+                                fontSize: "14px",
+                                color: t.pnl >= 0 ? palette.green : palette.red,
+                              }}
+                            >
+                              {t.pnl >= 0 ? "+" : "-"}${fmtMoney(t.pnl)}
+                            </span>
+                            {t.emotion && emotionMeta(t.emotion) && (
+                              <span style={{ fontSize: "13px" }}>{emotionMeta(t.emotion).emoji}</span>
+                            )}
+                            {t.pair && (
+                              <span
+                                style={{
+                                  fontSize: "10px",
+                                  fontFamily: mono,
+                                  color: palette.gold,
+                                  border: `1px solid ${palette.gold}`,
+                                  borderRadius: "999px",
+                                  padding: "1px 6px",
+                                }}
+                              >
+                                {t.pair}
+                              </span>
+                            )}
+                            {t.setup && (
+                              <span
+                                style={{
+                                  fontSize: "10px",
+                                  fontFamily: mono,
+                                  color: palette.textMuted,
+                                  border: `1px solid ${palette.border}`,
+                                  borderRadius: "999px",
+                                  padding: "1px 6px",
+                                }}
+                              >
+                                {findSetupLabel(t.setup)}
+                              </span>
+                            )}
+                           {settings.showRevengeTag !== false && revengeIds.has(t.id) && (
+                              <span
+                                style={{
+                                  fontSize: "10px",
+                                  fontFamily: mono,
+                                  color: palette.red,
+                                  border: `1px solid ${palette.red}`,
+                                  borderRadius: "999px",
+                                  padding: "1px 6px",
+                                }}
+                              >
+                                revenge
+                              </span>
+                            )}
+                            {isBeingEdited && (
+                              <span
+                                style={{
+                                  fontSize: "10px",
+                                  fontFamily: mono,
+                                  color: palette.gold,
+                                  border: `1px solid ${palette.gold}`,
+                                  borderRadius: "999px",
+                                  padding: "1px 6px",
+                                }}
+                              >
+                                editing
+                              </span>
+                            )}
+                            {shots.length > 0 && (
+                              <span className="flex items-center gap-0.5">
+                                <Camera size={11} style={{ color: palette.textFaint }} aria-label="Has screenshot" />
+                              </span>
+                            )}
+                            {savingThisTrade && (
+                              <span style={{ fontSize: "10px", color: palette.textFaint, fontFamily: mono }}>
+                                saving…
+                              </span>
+                            )}
+                          </div>
+                          {t.note && (
+                            <div style={{ color: palette.textMuted, fontSize: "12px" }}>{t.note}</div>
+                          )}
+                        </div>
+                        <div className="flex items-center flex-shrink-0" style={{ marginLeft: "8px", gap: "10px" }}>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openEdit(t);
+                            }}
+                            className={TAP}
+                            style={{ color: palette.textFaint }}
+                            aria-label="Edit trade"
+                          >
+                            <Pencil size={15} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteTrade(t.id);
+                            }}
+                            className={TAP}
+                            style={{ color: palette.textFaint }}
+                            aria-label="Delete trade"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      </div>
+
+                      {isExpanded && (
+                        <div className="mt-2 flex gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
+                          {shots.map((src, idx) => (
+                            <div key={idx} className="relative inline-block">
+                              <img
+                                src={src}
+                                alt={`Trade screenshot ${idx + 1}`}
+                                onClick={() => setViewingScreenshot({ src, trade: t })}
+                                className={`rounded-lg ${TAP}`}
+                                style={{
+                                  width: "96px",
+                                  height: "96px",
+                                  objectFit: "cover",
+                                  border: `1px solid ${palette.border}`,
+                                  cursor: "pointer",
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setPendingScreenshotDelete({ tradeId: t.id, index: idx })}
+                                className={`absolute flex items-center justify-center rounded-full ${TAP}`}
+                                style={{
+                                  top: "-6px",
+                                  right: "-6px",
+                                  width: "18px",
+                                  height: "18px",
+                                  background: palette.red,
+                                  color: "#FFFFFF",
+                                }}
+                                aria-label="Remove screenshot"
+                              >
+                                <X size={11} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => shareImageFile(src, t)}
+                                className={`absolute flex items-center justify-center rounded-full ${TAP}`}
+                                style={{
+                                  bottom: "-6px",
+                                  right: "-6px",
+                                  width: "22px",
+                                  height: "22px",
+                                  background: palette.gold,
+                                  color: palette.letterbox,
+                                  border: `2px solid ${palette.surface}`,
+                                }}
+                                aria-label="Share screenshot"
+                              >
+                                <Share2 size={11} />
+                              </button>
+                            </div>
+                          ))}
+                          {shots.length < SCREENSHOT_MAX_PER_TRADE && (
+                            <button
+                              type="button"
+                              onClick={() => openScreenshotPicker(t.id)}
+                              disabled={savingThisTrade}
+                              className={`flex flex-col items-center justify-center gap-1 rounded-lg ${TAP}`}
+                              style={{
+                                width: "96px",
+                                height: "96px",
+                                background: "transparent",
+                                border: `1px dashed ${palette.border}`,
+                                color: palette.textFaint,
+                                opacity: savingThisTrade ? 0.5 : 1,
+                              }}
+                            >
+                              <Camera size={16} />
+                              <span style={{ fontSize: "10px", fontFamily: mono }}>
+                                {savingThisTrade
+                                  ? "Saving\u2026"
+                                  : shots.length === 0
+                                  ? "Add photo"
+                                  : "Add another"}
+                              </span>
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+    };
+
+    const chipStyle = (active) => ({
+      padding: "6px 12px", borderRadius: "999px", fontSize: "12.5px", fontWeight: 600,
+      background: active ? `${palette.gold}2E` : palette.field,
+      border: `1px solid ${active ? palette.gold : palette.border}`,
+      color: active ? palette.text : palette.textMuted,
+    });
+    const fieldStyle = {
+      width: "100%", height: "40px", borderRadius: "10px", padding: "0 10px", fontSize: "13px", outline: "none",
+      background: palette.field, border: `1px solid ${palette.border}`, color: palette.text,
+    };
+    const filterLabel = { fontSize: "11px", letterSpacing: "0.06em", fontWeight: 700, color: palette.textFaint, marginBottom: "6px", textTransform: "uppercase" };
+    const resetHistory = () => { setHq(""); setHFilter(HIST_DEFAULT_FILTER); setHLimit(HIST_PAGE); };
+    const patchFilter = (patch) => { setHFilter({ ...hFilter, ...patch }); setHLimit(HIST_PAGE); };
+    const histShown = hist.list.slice(0, hLimit);
+    const histGrouped = hFilter.sort === "new" || hFilter.sort === "old";
+    const histGroups = [];
+    if (histGrouped) {
+      histShown.forEach((t) => {
+        const k = dayKeyFromTs(t.ts);
+        const last = histGroups[histGroups.length - 1];
+        if (last && last.key === k) last.items.push(t);
+        else histGroups.push({ key: k, items: [t] });
+      });
+    }
+    const historyView = (
+      <>
+        <div className="flex items-center mb-3" style={{ gap: "8px" }}>
+          <div className="flex items-center flex-1 min-w-0" style={{ height: "44px", borderRadius: "12px", padding: "0 12px", background: palette.field, border: `1px solid ${palette.border}`, gap: "8px" }}>
+            <Search size={16} style={{ color: palette.textFaint, flexShrink: 0 }} />
+            <input
+              type="search"
+              value={hq}
+              onChange={(e) => { setHq(e.target.value); setHLimit(HIST_PAGE); }}
+              placeholder="Search pair, note, setup, mood, amount"
+              aria-label="Search trades"
+              style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", color: palette.text, fontSize: "14px" }}
+            />
+            {hq && (
+              <button type="button" onClick={() => { setHq(""); setHLimit(HIST_PAGE); }} className={TAP} aria-label="Clear search" style={{ color: palette.textFaint, display: "flex" }}>
+                <X size={15} />
+              </button>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setHFilterOpen(!hFilterOpen)}
+            aria-label="Filter trades"
+            aria-expanded={hFilterOpen}
+            className={`flex items-center flex-shrink-0 ${TAP}`}
+            style={{
+              height: "44px", minWidth: "44px", padding: isDesktop ? "0 14px" : "0 12px", borderRadius: "12px", gap: "6px", justifyContent: "center",
+              background: histActiveCount || hFilterOpen ? `${palette.gold}26` : palette.field,
+              border: `1px solid ${histActiveCount ? palette.gold : palette.border}`, color: palette.text, fontSize: "13px", fontWeight: 600,
+            }}
+          >
+            <SlidersHorizontal size={16} />
+            {isDesktop && <span>Filter</span>}
+            {histActiveCount > 0 && (
+              <span style={{ minWidth: "18px", height: "18px", borderRadius: "9px", background: palette.gold, color: palette.letterbox, fontSize: "11px", fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{histActiveCount}</span>
+            )}
+          </button>
+        </div>
+
+        {hFilterOpen && (
+          <div className="rounded-2xl p-4 mb-3" style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow, transition: THEME_TRANSITION }}>
+            <div style={filterLabel}>Outcome</div>
+            <div className="flex flex-wrap mb-4" style={{ gap: "8px" }}>
+              {[["all", "All"], ["win", "Wins"], ["loss", "Losses"], ["be", "Breakeven"]].map(([id, label]) => (
+                <button key={id} type="button" onClick={() => patchFilter({ outcome: id })} className={TAP} style={chipStyle(hFilter.outcome === id)}>{label}</button>
+              ))}
+            </div>
+            <div style={filterLabel}>Show only</div>
+            <div className="flex flex-wrap mb-4" style={{ gap: "8px" }}>
+              {[["all", "Everything"], ["revenge", "Revenge trades"], ["shots", "With screenshot"], ["notes", "With note"]].map(([id, label]) => (
+                <button key={id} type="button" onClick={() => patchFilter({ flag: id })} className={TAP} style={chipStyle(hFilter.flag === id)}>{label}</button>
+              ))}
+            </div>
+            <div className="mb-4" style={{ display: "grid", gridTemplateColumns: isDesktop ? "repeat(3, minmax(0, 1fr))" : "1fr", gap: "12px" }}>
+              <div>
+                <div style={filterLabel}>Setup</div>
+                <select value={hFilter.setup} onChange={(e) => patchFilter({ setup: e.target.value })} style={fieldStyle} aria-label="Filter by setup">
+                  <option value="">Any setup</option>
+                  {histSetups.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <div style={filterLabel}>Mood</div>
+                <select value={hFilter.mood} onChange={(e) => patchFilter({ mood: e.target.value })} style={fieldStyle} aria-label="Filter by mood">
+                  <option value="">Any mood</option>
+                  {histMoods.map((o) => <option key={o.id} value={o.id}>{o.emoji ? `${o.emoji} ` : ""}{o.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <div style={filterLabel}>Pair</div>
+                <select value={hFilter.pair} onChange={(e) => patchFilter({ pair: e.target.value })} style={fieldStyle} aria-label="Filter by pair">
+                  <option value="">Any pair</option>
+                  {histPairs.map((p) => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="mb-4" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "12px" }}>
+              <div>
+                <div style={filterLabel}>From</div>
+                <input type="date" value={hFilter.from} max={hFilter.to || undefined} onChange={(e) => patchFilter({ from: e.target.value })} style={fieldStyle} aria-label="From date" />
+              </div>
+              <div>
+                <div style={filterLabel}>To</div>
+                <input type="date" value={hFilter.to} min={hFilter.from || undefined} onChange={(e) => patchFilter({ to: e.target.value })} style={fieldStyle} aria-label="To date" />
+              </div>
+            </div>
+            <div style={filterLabel}>Sort</div>
+            <div className="flex flex-wrap mb-4" style={{ gap: "8px" }}>
+              {[["new", "Newest"], ["old", "Oldest"], ["win", "Biggest win"], ["loss", "Biggest loss"]].map(([id, label]) => (
+                <button key={id} type="button" onClick={() => patchFilter({ sort: id })} className={TAP} style={chipStyle(hFilter.sort === id)}>{label}</button>
+              ))}
+            </div>
+            <div className="flex items-center justify-between">
+              <button type="button" onClick={resetHistory} className={TAP} style={{ color: palette.textMuted, fontSize: "12.5px", fontWeight: 600 }}>Reset all</button>
+              <button type="button" onClick={() => setHFilterOpen(false)} className={`px-4 py-2 rounded-lg ${TAP}`} style={{ background: palette.gold, color: palette.letterbox, fontFamily: mono, fontSize: "12.5px", fontWeight: 700 }}>
+                Show {hist.list.length} trade{hist.list.length === 1 ? "" : "s"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!tradesLoaded ? (
+          <p className="text-xs mb-4" style={{ color: palette.textFaint }}>Loading saved trades...</p>
+        ) : trades.length === 0 ? (
+          <div className="rounded-2xl p-6 mb-4 text-center" style={{ background: palette.surface, border: `1px dashed ${palette.border}` }}>
+            <p style={{ color: palette.textMuted, fontSize: "13px" }}>No trades logged yet.</p>
+            {onOpenOverview && (
+              <button type="button" onClick={onOpenOverview} className={`mt-3 px-4 py-2 rounded-lg ${TAP}`} style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "12.5px", fontWeight: 600 }}>Log your first trade</button>
+            )}
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-between mb-2" style={{ gap: "8px" }}>
+              <span style={{ color: palette.textFaint, fontSize: "12px" }}>
+                {hist.list.length === trades.length ? `${trades.length} trade${trades.length === 1 ? "" : "s"}` : `${hist.list.length} of ${trades.length} trades`}
+              </span>
+              {hist.list.length > 0 && (
+                <span style={{ fontFamily: mono, fontSize: "12.5px", fontWeight: 700, color: hist.net >= 0 ? palette.green : palette.red }}>
+                  {hist.net >= 0 ? "+" : "-"}${fmtMoney(hist.net)}
+                </span>
+              )}
+            </div>
+            {hist.list.length === 0 ? (
+              <div className="rounded-2xl p-6 mb-4 text-center" style={{ background: palette.surface, border: `1px dashed ${palette.border}` }}>
+                <p style={{ color: palette.textMuted, fontSize: "13px" }}>No trades match your search or filters.</p>
+                <button type="button" onClick={resetHistory} className={`mt-3 px-4 py-2 rounded-lg ${TAP}`} style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "12.5px", fontWeight: 600 }}>Clear search and filters</button>
+              </div>
+            ) : histGrouped ? (
+              histGroups.map((g) => (
+                <div key={g.key} className="mb-3">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>{formatDayLabel(g.key)}</span>
+                    <span style={{ fontFamily: mono, fontSize: "12px", color: hist.dayTotals[g.key] >= 0 ? palette.green : palette.red }}>
+                      {hist.dayTotals[g.key] >= 0 ? "+" : "-"}${fmtMoney(hist.dayTotals[g.key])}
+                    </span>
+                  </div>
+                  {g.items.map(renderTradeCard)}
+                </div>
+              ))
+            ) : (
+              <div className="mb-3">{histShown.map(renderTradeCard)}</div>
+            )}
+            {hist.list.length > hLimit && (
+              <button type="button" onClick={() => setHLimit(hLimit + HIST_PAGE)} className={`w-full rounded-lg py-2.5 mb-4 ${TAP}`} style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "12px", fontWeight: 600 }}>
+                Show {Math.min(HIST_PAGE, hist.list.length - hLimit)} more ({hist.list.length - hLimit} left)
+              </button>
+            )}
+          </>
+        )}
+      </>
+    );
+
+    if (view === "history") {
+      body = (
+        <>
+          {subNav}
+          {historyView}
+          <input ref={screenshotInputRef} type="file" accept="image/*" onChange={handleScreenshotChange} style={{ display: "none" }} />
+        </>
+      );
+    } else
     body = (
       <>
+      {subNav}
 
       <OnboardingTip
   	id="curve-setup-mood"
@@ -817,35 +1275,7 @@ export default function CurveTab(props) {
                   width: "32px", height: "32px", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center",
                   background: palette.field, border: `1px solid ${palette.border}`, color: palette.textMuted,
                 };
-                return (
-                  <>
-                    <div className="flex items-center justify-between mb-3" style={{ gap: "8px" }}>
-                      <button type="button" onClick={goPrevMonth} aria-label="Previous month" className={TAP} style={navBtn}>
-                        <ChevronLeft size={16} />
-                      </button>
-                      <div className="text-center" style={{ minWidth: 0 }}>
-                        <div style={{ fontFamily: display, fontSize: "17px", fontWeight: 800, color: palette.text }}>
-                          {MONTH_NAMES[viewMonthIdx]} {viewYear}
-                        </div>
-                        <div style={{ fontFamily: mono, fontSize: "11px", fontWeight: 700, color: monthTradeCount ? (monthTotal >= 0 ? palette.green : palette.red) : palette.textFaint }}>
-                          {monthTradeCount ? `${calMoney(monthTotal)} · ${monthTradeCount} trade${monthTradeCount === 1 ? "" : "s"}` : "No trades this month"}
-                        </div>
-                      </div>
-                      <button type="button" onClick={goNextMonth} aria-label="Next month" className={TAP} style={navBtn}>
-                        <ChevronRight size={16} />
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-7 mb-1.5" style={{ gap: "6px" }}>
-                      {WEEKDAY_LABELS.map((w, i) => (
-                        <div key={i} className="text-center" style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.06em", color: palette.textFaint }}>
-                          {w}
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="grid grid-cols-7" style={{ gap: "6px" }}>
-                      {monthCells.map((d, i) => {
+                const renderCell = (d, i) => {
                         const baseTile = {
                           aspectRatio: "1",
                           borderRadius: "12px",
@@ -886,6 +1316,7 @@ export default function CurveTab(props) {
                             className={hasTrades ? TAP : ""}
                             style={{
                               ...baseTile,
+                              position: "relative",
                               background: bg,
                               border: "none",
                               boxShadow: isSelected ? `0 0 0 2px ${palette.gold}` : isToday ? `inset 0 0 0 1.5px ${palette.textMuted}` : "none",
@@ -899,9 +1330,83 @@ export default function CurveTab(props) {
                                 {calMoney(total)}
                               </span>
                             )}
+                            {hasTrades && (
+                              <span
+                                aria-hidden="true"
+                                style={{
+                                  position: "absolute", top: "6px", right: "6px", width: "7px", height: "7px", borderRadius: "50%",
+                                  background: info.trades.some((t) => revengeIds.has(t.id)) ? palette.red : palette.green,
+                                  border: "1.5px solid rgba(255,255,255,0.9)",
+                                }}
+                              />
+                            )}
+                            {isDesktop && hasTrades && (
+                              <span style={{ fontFamily: mono, fontSize: "9px", marginTop: "1px", whiteSpace: "nowrap", color: strong ? "rgba(255,255,255,0.88)" : palette.textFaint }}>
+                                {info.trades.length} trade{info.trades.length === 1 ? "" : "s"}
+                              </span>
+                            )}
                           </button>
                         );
+                };
+
+                return (
+                  <>
+                    <div className="flex items-center justify-between mb-3" style={{ gap: "8px" }}>
+                      <button type="button" onClick={goPrevMonth} aria-label="Previous month" className={TAP} style={navBtn}>
+                        <ChevronLeft size={16} />
+                      </button>
+                      <div className="text-center" style={{ minWidth: 0 }}>
+                        <div style={{ fontFamily: display, fontSize: "17px", fontWeight: 800, color: palette.text }}>
+                          {MONTH_NAMES[viewMonthIdx]} {viewYear}
+                        </div>
+                        <div style={{ fontFamily: mono, fontSize: "11px", fontWeight: 700, color: monthTradeCount ? (monthTotal >= 0 ? palette.green : palette.red) : palette.textFaint }}>
+                          {monthTradeCount ? `${calMoney(monthTotal)} · ${monthTradeCount} trade${monthTradeCount === 1 ? "" : "s"}` : "No trades this month"}
+                        </div>
+                      </div>
+                      <button type="button" onClick={goNextMonth} aria-label="Next month" className={TAP} style={navBtn}>
+                        <ChevronRight size={16} />
+                      </button>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "repeat(7, minmax(0, 1fr)) 92px" : "repeat(7, minmax(0, 1fr))", gap: "6px", marginBottom: "6px" }}>
+                      {WEEKDAY_LABELS.map((w, i) => (
+                        <div key={i} className="text-center" style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.06em", color: palette.textFaint }}>
+                          {w}
+                        </div>
+                      ))}
+                      {isDesktop && (
+                        <div className="text-center" style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.06em", color: palette.textFaint }}>WEEK</div>
+                      )}
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "repeat(7, minmax(0, 1fr)) 92px" : "repeat(7, minmax(0, 1fr))", gap: "6px" }}>
+                      {Array.from({ length: monthCells.length / 7 }, (_, w) => {
+                        const weekDays = monthCells.slice(w * 7, w * 7 + 7);
+                        let wTotal = 0;
+                        let wDays = 0;
+                        weekDays.forEach((d) => {
+                          if (d === null) return;
+                          const inf = tradesByDay[`${monthPrefix}-${pad2(d)}`];
+                          if (inf) { wTotal += inf.total; wDays += 1; }
+                        });
+                        return (
+                          <Fragment key={w}>
+                            {weekDays.map((d, ci) => renderCell(d, w * 7 + ci))}
+                            {isDesktop && (
+                              <div style={{ borderRadius: "12px", background: palette.field, border: `1px dashed ${palette.border}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "1px", opacity: wDays ? 1 : 0.45, minWidth: 0 }}>
+                                <span style={{ fontSize: "9.5px", fontWeight: 700, letterSpacing: "0.06em", color: palette.textFaint }}>WK {w + 1}</span>
+                                <span style={{ fontFamily: mono, fontSize: "12px", fontWeight: 700, color: wDays ? (wTotal >= 0 ? palette.green : palette.red) : palette.textFaint }}>{wDays ? calMoney(wTotal) : "-"}</span>
+                                {wDays > 0 && <span style={{ fontSize: "9px", color: palette.textFaint }}>{wDays} day{wDays === 1 ? "" : "s"}</span>}
+                              </div>
+                            )}
+                          </Fragment>
+                        );
                       })}
+                    </div>
+                    <div className="flex items-center flex-wrap" style={{ gap: "6px 14px", marginTop: "12px", fontSize: "10.5px", color: palette.textFaint }}>
+                      <span className="flex items-center" style={{ gap: "6px" }}><span style={{ width: "8px", height: "8px", borderRadius: "50%", background: palette.green }} />Clean day</span>
+                      <span className="flex items-center" style={{ gap: "6px" }}><span style={{ width: "8px", height: "8px", borderRadius: "50%", background: palette.red }} />Revenge trade</span>
+                      <span>Tap a day to see its trades</span>
                     </div>
                   </>
                 );
@@ -915,6 +1420,18 @@ export default function CurveTab(props) {
               />
               <StatChip label={`${MONTH_NAMES[viewMonthIdx]} Trades`} value={String(monthTradeCount)} />
             </div>
+
+            {trades.length > 0 && onOpenHistory && (
+              <button
+                type="button"
+                onClick={() => onOpenHistory()}
+                className={`w-full flex items-center justify-center gap-1.5 rounded-lg py-2.5 mb-3 ${TAP}`}
+                style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "12px", fontWeight: 600 }}
+              >
+                <Search size={14} />
+                Search all {trades.length} trades in History
+              </button>
+            )}
 
             {(() => {
               const periodType = settings.statementPeriodType || "month";
@@ -970,220 +1487,7 @@ export default function CurveTab(props) {
                     {selectedInfo.total >= 0 ? "+" : "-"}${fmtMoney(selectedInfo.total)}
                   </span>
                 </div>
-                {selectedInfo.trades.map((t) => {
-                  const isExpanded = expandedTradeId === t.id;
-                  const isBeingEdited = editingTradeId === t.id;
-                  const shots = tradeScreenshots(t);
-                  const savingThisTrade = screenshotSaving && screenshotTargetId === t.id;
-                  return (
-                    <div
-                      key={t.id}
-                      onClick={() => setExpandedTradeId(isExpanded ? null : t.id)}
-                      className="rounded-lg px-3 py-2.5 mb-2"
-                      style={{
-                        background: palette.surface,
-                        border: `1px solid ${isBeingEdited ? palette.gold : palette.border}`,
-                        boxShadow: palette.shadow,
-                        cursor: "pointer",
-                        transition: THEME_TRANSITION,
-                      }}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span
-                              style={{
-                                fontFamily: mono,
-                                fontSize: "14px",
-                                color: t.pnl >= 0 ? palette.green : palette.red,
-                              }}
-                            >
-                              {t.pnl >= 0 ? "+" : "-"}${fmtMoney(t.pnl)}
-                            </span>
-                            {t.emotion && emotionMeta(t.emotion) && (
-                              <span style={{ fontSize: "13px" }}>{emotionMeta(t.emotion).emoji}</span>
-                            )}
-                            {t.pair && (
-                              <span
-                                style={{
-                                  fontSize: "10px",
-                                  fontFamily: mono,
-                                  color: palette.gold,
-                                  border: `1px solid ${palette.gold}`,
-                                  borderRadius: "999px",
-                                  padding: "1px 6px",
-                                }}
-                              >
-                                {t.pair}
-                              </span>
-                            )}
-                            {t.setup && (
-                              <span
-                                style={{
-                                  fontSize: "10px",
-                                  fontFamily: mono,
-                                  color: palette.textMuted,
-                                  border: `1px solid ${palette.border}`,
-                                  borderRadius: "999px",
-                                  padding: "1px 6px",
-                                }}
-                              >
-                                {findSetupLabel(t.setup)}
-                              </span>
-                            )}
-                           {settings.showRevengeTag !== false && revengeIds.has(t.id) && (
-                              <span
-                                style={{
-                                  fontSize: "10px",
-                                  fontFamily: mono,
-                                  color: palette.red,
-                                  border: `1px solid ${palette.red}`,
-                                  borderRadius: "999px",
-                                  padding: "1px 6px",
-                                }}
-                              >
-                                revenge
-                              </span>
-                            )}
-                            {isBeingEdited && (
-                              <span
-                                style={{
-                                  fontSize: "10px",
-                                  fontFamily: mono,
-                                  color: palette.gold,
-                                  border: `1px solid ${palette.gold}`,
-                                  borderRadius: "999px",
-                                  padding: "1px 6px",
-                                }}
-                              >
-                                editing
-                              </span>
-                            )}
-                            {shots.length > 0 && (
-                              <span className="flex items-center gap-0.5">
-                                <Camera size={11} style={{ color: palette.textFaint }} aria-label="Has screenshot" />
-                              </span>
-                            )}
-                            {savingThisTrade && (
-                              <span style={{ fontSize: "10px", color: palette.textFaint, fontFamily: mono }}>
-                                saving…
-                              </span>
-                            )}
-                          </div>
-                          {t.note && (
-                            <div style={{ color: palette.textMuted, fontSize: "12px" }}>{t.note}</div>
-                          )}
-                        </div>
-                        <div className="flex items-center flex-shrink-0" style={{ marginLeft: "8px", gap: "10px" }}>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              startEditTrade(t);
-                            }}
-                            className={TAP}
-                            style={{ color: palette.textFaint }}
-                            aria-label="Edit trade"
-                          >
-                            <Pencil size={15} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              deleteTrade(t.id);
-                            }}
-                            className={TAP}
-                            style={{ color: palette.textFaint }}
-                            aria-label="Delete trade"
-                          >
-                            <Trash2 size={15} />
-                          </button>
-                        </div>
-                      </div>
-
-                      {isExpanded && (
-                        <div className="mt-2 flex gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
-                          {shots.map((src, idx) => (
-                            <div key={idx} className="relative inline-block">
-                              <img
-                                src={src}
-                                alt={`Trade screenshot ${idx + 1}`}
-                                onClick={() => setViewingScreenshot({ src, trade: t })}
-                                className={`rounded-lg ${TAP}`}
-                                style={{
-                                  width: "96px",
-                                  height: "96px",
-                                  objectFit: "cover",
-                                  border: `1px solid ${palette.border}`,
-                                  cursor: "pointer",
-                                }}
-                              />
-                              <button
-                                type="button"
-                                onClick={() => setPendingScreenshotDelete({ tradeId: t.id, index: idx })}
-                                className={`absolute flex items-center justify-center rounded-full ${TAP}`}
-                                style={{
-                                  top: "-6px",
-                                  right: "-6px",
-                                  width: "18px",
-                                  height: "18px",
-                                  background: palette.red,
-                                  color: "#FFFFFF",
-                                }}
-                                aria-label="Remove screenshot"
-                              >
-                                <X size={11} />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => shareImageFile(src, t)}
-                                className={`absolute flex items-center justify-center rounded-full ${TAP}`}
-                                style={{
-                                  bottom: "-6px",
-                                  right: "-6px",
-                                  width: "22px",
-                                  height: "22px",
-                                  background: palette.gold,
-                                  color: palette.letterbox,
-                                  border: `2px solid ${palette.surface}`,
-                                }}
-                                aria-label="Share screenshot"
-                              >
-                                <Share2 size={11} />
-                              </button>
-                            </div>
-                          ))}
-                          {shots.length < SCREENSHOT_MAX_PER_TRADE && (
-                            <button
-                              type="button"
-                              onClick={() => openScreenshotPicker(t.id)}
-                              disabled={savingThisTrade}
-                              className={`flex flex-col items-center justify-center gap-1 rounded-lg ${TAP}`}
-                              style={{
-                                width: "96px",
-                                height: "96px",
-                                background: "transparent",
-                                border: `1px dashed ${palette.border}`,
-                                color: palette.textFaint,
-                                opacity: savingThisTrade ? 0.5 : 1,
-                              }}
-                            >
-                              <Camera size={16} />
-                              <span style={{ fontSize: "10px", fontFamily: mono }}>
-                                {savingThisTrade
-                                  ? "Saving\u2026"
-                                  : shots.length === 0
-                                  ? "Add photo"
-                                  : "Add another"}
-                              </span>
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                {selectedInfo.trades.map(renderTradeCard)}
               </>
             )}
 
