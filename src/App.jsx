@@ -14,7 +14,7 @@ import { FX_CACHE_MS, FX_LIVE_STORAGE_KEY, fetchLiveFxRates } from "./data/curre
 import { ONBOARDING_SLIDES, TOUR_STEPS } from "./data/onboarding.js";
 import { buildWeekRecap, computeConsistencyScore, computeDisciplineGrade, computeDisciplineStreak, computeDisciplineStreakTrend, computeHeadlineInsight, computeInsights, computeJournalCompleteness, computeMonthComparison, computeNoteTagAnalysis, computeOverconfidenceCheck, computePerformanceMetrics, computeRevengeCostSplit, computeSessionWinRates, computeStatementData, filledJournalRows, generateThreeCurveProjection, journalMistakeFrequency } from "./lib/analytics.js";
 import { FMP_CACHE_MS, FMP_STORAGE_KEY, fetchEconomicCalendar, registerAlarmServiceWorker } from "./lib/calendar.js";
-import { ACCOUNTS_ACTIVE_KEY, ACCOUNTS_LIST_KEY, ALARM_CHECK_INTERVAL_MS, ALARM_STALE_WINDOW_MS, CONFIDENCE_OPTIONS, CS_STORAGE_KEY, CUSTOM_MOODS_STORAGE_KEY, CUSTOM_SETUPS_STORAGE_KEY, DEFAULT_CS_INPUTS, DEFAULT_JOURNAL_COL_WIDTHS, DEFAULT_NOTEPAD_FONT_SIZE, DEFAULT_SETTINGS, EDGE_PROJECTION_PERIODS, EDGE_STORAGE_KEY, EMOTIONS, FX_LAST_PAIR_KEY, GOALS_STORAGE_KEY, HIDDEN_DEFAULT_SETUPS_KEY, JOURNAL_COLS_STORAGE_KEY, JOURNAL_COLUMNS, JOURNAL_COL_MAX, JOURNAL_COL_MIN, JOURNAL_STORAGE_KEY, LINKED_FIRM_KEY, MAX_CUSTOM_MOODS, MAX_CUSTOM_SETUPS, MAX_JOURNAL_PHOTOS_PER_ROW, MAX_PLAYBOOK_RULES, MOBILE_NAV_PRIMARY_COUNT, NEWS_STORAGE_KEY, NOTEPAD_FONT_SIZES, NOTEPAD_STORAGE_KEY, OUTCOME_OPTIONS, PLAYBOOK_CHECKINS_KEY, PLAYBOOK_RULES_KEY, PLAYBOOK_STARTER_RULES, PS_STORAGE_KEY, RUNTIME, SETTINGS_STORAGE_KEY, SETUPS, STORAGE_BAL_KEY, STORAGE_KEY, TABS as BASE_TABS, THEME_STORAGE_KEY, TREND_OPTIONS, WEEK_MS, confidenceLabel, emotionMeta, outcomeLabel, scopedKey, sessionLabelFor, setupMeta } from "./lib/constants.js";
+import { LEGACY_TAB_IDS, ACCOUNTS_ACTIVE_KEY, ACCOUNTS_LIST_KEY, ALARM_CHECK_INTERVAL_MS, ALARM_STALE_WINDOW_MS, CONFIDENCE_OPTIONS, CS_STORAGE_KEY, CUSTOM_MOODS_STORAGE_KEY, CUSTOM_SETUPS_STORAGE_KEY, DEFAULT_CS_INPUTS, DEFAULT_JOURNAL_COL_WIDTHS, DEFAULT_NOTEPAD_FONT_SIZE, DEFAULT_SETTINGS, EDGE_PROJECTION_PERIODS, EDGE_STORAGE_KEY, EMOTIONS, FX_LAST_PAIR_KEY, GOALS_STORAGE_KEY, HIDDEN_DEFAULT_SETUPS_KEY, JOURNAL_COLS_STORAGE_KEY, JOURNAL_COLUMNS, JOURNAL_COL_MAX, JOURNAL_COL_MIN, JOURNAL_STORAGE_KEY, LINKED_FIRM_KEY, MAX_CUSTOM_MOODS, MAX_CUSTOM_SETUPS, MAX_JOURNAL_PHOTOS_PER_ROW, MAX_PLAYBOOK_RULES, MOBILE_NAV_PRIMARY_COUNT, NEWS_STORAGE_KEY, NOTEPAD_FONT_SIZES, NOTEPAD_STORAGE_KEY, OUTCOME_OPTIONS, PLAYBOOK_CHECKINS_KEY, PLAYBOOK_RULES_KEY, PLAYBOOK_STARTER_RULES, PS_STORAGE_KEY, RUNTIME, SETTINGS_STORAGE_KEY, SETUPS, STORAGE_BAL_KEY, STORAGE_KEY, TABS as BASE_TABS, THEME_STORAGE_KEY, TREND_OPTIONS, WEEK_MS, confidenceLabel, emotionMeta, outcomeLabel, scopedKey, sessionLabelFor, setupMeta } from "./lib/constants.js";
 import { STORY_SLIDE_MS, feedTimeAgo, isWithinStoryWindow } from "./lib/feed.js";
 import { dayKeyFromDate, dayKeyFromTs, fmt, fmtMoney, fmtPct, formatDayLabel, num, pad2 } from "./lib/format.js";
 import { SCREENSHOT_MAX_PER_TRADE, dataUrlToFile, readStickerFileRaw, resizeImageFile, resizeStickerFile, tradeScreenshots } from "./lib/images.js";
@@ -59,7 +59,6 @@ function lazyTab(loader) {
 const RiskTab = lazyTab(() => import("./tabs/RiskTab.jsx"));
 const PropFirmTab = lazyTab(() => import("./tabs/PropFirmTab.jsx"));
 const ConvertTab = lazyTab(() => import("./tabs/ConvertTab.jsx"));
-const CurveTab = lazyTab(() => import("./tabs/CurveTab.jsx"));
 const InsightsTab = lazyTab(() => import("./tabs/InsightsTab.jsx"));
 const JournalTab = lazyTab(() => import("./tabs/JournalTab.jsx"));
 const NotepadTab = lazyTab(() => import("./tabs/NotepadTab.jsx"));
@@ -68,7 +67,7 @@ const CommunityTab = lazyTab(() => import("./tabs/CommunityTab.jsx"));
 const BacktestTab = lazyTab(() => import("./tabs/BacktestTab.jsx"));
 const TAB_PRELOAD = {
   risk: RiskTab.preload, propfirm: PropFirmTab.preload, fx: ConvertTab.preload,
-  curve: CurveTab.preload, insights: InsightsTab.preload, journal: JournalTab.preload,
+  insights: InsightsTab.preload, journal: JournalTab.preload,
   notepad: NotepadTab.preload, sessions: SessionsTab.preload, community: CommunityTab.preload,
   backtest: BacktestTab.preload,
 };
@@ -85,7 +84,6 @@ if (typeof window !== "undefined") {
     import("./tabs/RiskTab.jsx");
     import("./tabs/PropFirmTab.jsx");
     import("./tabs/ConvertTab.jsx");
-    import("./tabs/CurveTab.jsx");
     import("./tabs/InsightsTab.jsx");
     import("./tabs/JournalTab.jsx");
     import("./tabs/NotepadTab.jsx");
@@ -334,7 +332,7 @@ const resetPropFirmWizard = () => {
   const [coachDeleteConfirmId, setCoachDeleteConfirmId] = useState(null);
   const coachScrollRef = useRef(null);
 
-  const [journalSubTab, setJournalSubTab] = useState("log");
+  const [journalSubTab, setJournalSubTab] = useState("overview");
   const [journalEntries, setJournalEntries] = useState([]);
   const [journalLoaded, setJournalLoaded] = useState(false);
   const [journalYear, setJournalYear] = useState(() => new Date().getFullYear());
@@ -2964,7 +2962,7 @@ const setThemeMode = (mode) => {
 
 useEffect(() => {
     if (settingsLoaded && settings.defaultLandingTab) {
-      setActiveTab(settings.defaultLandingTab);
+      setActiveTab(LEGACY_TAB_IDS[settings.defaultLandingTab] || settings.defaultLandingTab);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settingsLoaded]);
@@ -5828,7 +5826,8 @@ const updateSyncedJournalRow = (trade) => {
     if (m.tp) parts.push(`TP ${m.tp}`);
     if (m.text) parts.push(`"${m.text}"`);
     setTradeNote(parts.join(" \u00b7 "));
-    setActiveTab("curve");
+    setActiveTab("journal");
+    setJournalSubTab("overview");
     setTimeout(() => {
       if (logFormRef.current) {
         logFormRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -6866,16 +6865,13 @@ const hiddenTabIds = settings.hiddenTabs || [];
     body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><ConvertTab {...{ fx, fxRatesDate, fxRatesStatus, isDesktop, liveFxRates, persistSettings, setFx, settings }} /></Suspense>;
   }
 
-  if (activeTab === "curve") {
-    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><CurveTab {...{ backupMsg, calMonth, cancelEditTrade, cancelImport, clearTrades, confirmImport, copyFallbackText, copyMsg, copyWeekSummary, customMoods, customMoodsLoaded, customSetups, customSetupsLoaded, deleteTrade, editingTradeId, expandedTradeId, exportBackup, fileInputRef, findSetupLabel, generateWeeklyShare, goals, handleScreenshotChange, importBackup, isDesktop, logFormRef, openScreenshotPicker, pendingImport, persistGoals, persistSettings, persistStartingBalance, screenshotError, screenshotInputRef, screenshotSaving, screenshotTargetId, selectedDay, setCalMonth, setCopyFallbackText, setExpandedTradeId, setPendingScreenshotDelete, setSelectedDay, setShowDisciplineInfo, setShowStreakInfo, setStatementPeriod, setTradeEmotion, setTradeInput, setTradeNote, setTradePair, setTradeSetup, setViewingScreenshot, settings, shareError, shareImageFile, showDisciplineInfo, showStreakInfo, startEditTrade, startingBalance, submitTrade, tradeEmotion, tradeInput, tradeNote, tradePair, tradeSetup, trades, tradesLoadError, tradesLoaded }} /></Suspense>;
-  }
 
   if (activeTab === "insights") {
     body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><InsightsTab {...{ coachChatId, coachChats, coachChatsMax, coachDeleteConfirmId, coachError, coachHistoryOpen, coachInput, coachLoading, coachMessages, coachRemaining, coachScrollRef, customMoods, customSetups, deleteCoachChat, expandedHeatmapDay, expandedMetric, exportInsightsReport, insightReportMsg, insightsSubTab, isDesktop, journalEntries, journalInsightMonth, journalInsightYear, journalLoaded, newCoachChat, openCoachChat, persistSettings, renderSubNav, selectInsightsSubTab, sendCoachMessage, session, setCoachDeleteConfirmId, setCoachHistoryOpen, setCoachInput, setExpandedHeatmapDay, setExpandedMetric, setJournalInsightMonth, setJournalInsightYear, settings, trades }} /></Suspense>;
   }
 
   if (activeTab === "journal") {
-    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><JournalTab {...{ goals, persistGoals, startingBalance, trades, addJournalRow, addPlaybookRule, addingSetup, cancelAddSetup, confirmAddSetup, customMoods, customSetups, deleteJournalRow, deletePlaybookCheckin, endJournalResize, exportJournalCSV, handleJournalCellKeyDown, handleJournalPhotoChange, hiddenDefaultSetupIds, importJournalCSV, isDesktop, isNarrowScreen, journalCellRefs, journalColWidths, journalEntries, journalExpandedRows, journalExportMsg, journalImportInputRef, journalImportMsg, journalLoaded, journalMonth, journalPhotoError, journalPhotoInputRef, journalPhotoSaving, journalPhotoTarget, journalSubTab, journalYear, moveJournalResize, newRuleText, newSetupName, openJournalPhotoPicker, persistSettings, playbookCheckins, playbookMsg, playbookRuleError, playbookRules, playbookRulesLoaded, removePlaybookRule, renderSubNav, setJournalMonth, setJournalSubTab, setJournalYear, setNewRuleText, setNewSetupName, setPendingJournalPhotoDelete, setPlaybookRuleError, setSetupError, setViewingJournalPhoto, settings, setupError, startJournalResize, submitCheckin, todayResults, toggleJournalRowExpanded, toggleTodayResult, triggerJournalImport, updateJournalField, updateJournalPnl }} /></Suspense>;
+    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><JournalTab {...{ goals, persistGoals, startingBalance, trades, addJournalRow, addPlaybookRule, addingSetup, cancelAddSetup, confirmAddSetup, customMoods, customSetups, deleteJournalRow, deletePlaybookCheckin, endJournalResize, exportJournalCSV, handleJournalCellKeyDown, handleJournalPhotoChange, hiddenDefaultSetupIds, importJournalCSV, isDesktop, isNarrowScreen, journalCellRefs, journalColWidths, journalEntries, journalExpandedRows, journalExportMsg, journalImportInputRef, journalImportMsg, journalLoaded, journalMonth, journalPhotoError, journalPhotoInputRef, journalPhotoSaving, journalPhotoTarget, journalSubTab, journalYear, moveJournalResize, newRuleText, newSetupName, openJournalPhotoPicker, persistSettings, playbookCheckins, playbookMsg, playbookRuleError, playbookRules, playbookRulesLoaded, removePlaybookRule, renderSubNav, setJournalMonth, setJournalSubTab, setJournalYear, setNewRuleText, setNewSetupName, setPendingJournalPhotoDelete, setPlaybookRuleError, setSetupError, setViewingJournalPhoto, settings, setupError, startJournalResize, submitCheckin, todayResults, toggleJournalRowExpanded, toggleTodayResult, triggerJournalImport, updateJournalField, updateJournalPnl, curveProps: { backupMsg, calMonth, cancelEditTrade, cancelImport, clearTrades, confirmImport, copyFallbackText, copyMsg, copyWeekSummary, customMoods, customMoodsLoaded, customSetups, customSetupsLoaded, deleteTrade, editingTradeId, expandedTradeId, exportBackup, fileInputRef, findSetupLabel, generateWeeklyShare, goals, handleScreenshotChange, importBackup, isDesktop, logFormRef, openScreenshotPicker, pendingImport, persistGoals, persistSettings, persistStartingBalance, screenshotError, screenshotInputRef, screenshotSaving, screenshotTargetId, selectedDay, setCalMonth, setCopyFallbackText, setExpandedTradeId, setPendingScreenshotDelete, setSelectedDay, setShowDisciplineInfo, setShowStreakInfo, setStatementPeriod, setTradeEmotion, setTradeInput, setTradeNote, setTradePair, setTradeSetup, setViewingScreenshot, settings, shareError, shareImageFile, showDisciplineInfo, showStreakInfo, startEditTrade, startingBalance, submitTrade, tradeEmotion, tradeInput, tradeNote, tradePair, tradeSetup, trades, tradesLoadError, tradesLoaded }}} /></Suspense>;
   }
 
   if (activeTab === "notepad") {
@@ -7282,7 +7278,7 @@ if (activeTab === "community") {
                   body
                 ) : !isDesktop ? (
                   <div style={{ paddingTop: startsWithSubNav ? "0px" : "20px", ...coachFillStyle }}>
-                    {activeTab === "curve" && (
+                    {activeTab === "journal" && journalSubTab === "overview" && (
                       <SessionSnapshot
                         trades={trades}
                         maxTradesPerDay={settings.maxTradesPerDay}
@@ -8470,7 +8466,7 @@ if (activeTab === "community") {
             style={{ background: palette.surface, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "14px" }}
           />
           <p className="text-xs mt-1" style={{ color: palette.textFaint }}>
-            Shows a nudge on the Curve tab once you hit this count. Leave blank to disable.
+            Shows a nudge on the Journal tab once you hit this count. Leave blank to disable.
           </p>
         </SettingsSection>
 
@@ -8586,7 +8582,7 @@ if (activeTab === "community") {
             </button>
           )}
           <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-            Up to {MAX_CUSTOM_SETUPS}. Shows up on the Curve tab's trade log and the Journal tab's Setup field.
+            Up to {MAX_CUSTOM_SETUPS}. Shows up on the Journal tab's trade log and Setup field.
           </p>
 
           <SettingsSubLabel>Mood Tags</SettingsSubLabel>
@@ -8678,7 +8674,7 @@ if (activeTab === "community") {
             <p className="text-xs mb-2" style={{ color: palette.red }}>{moodError}</p>
           )}
           <p className="text-xs" style={{ color: palette.textFaint }}>
-            Up to {MAX_CUSTOM_MOODS}. Shows up on the Curve tab's trade log and the Journal tab's Mood field.
+            Up to {MAX_CUSTOM_MOODS}. Shows up on the Journal tab's trade log and Mood field.
           </p>
         </SettingsSection>
 
@@ -8834,7 +8830,7 @@ if (activeTab === "community") {
         <SettingsSection icon={Download} title="Full Backup (Everything)" isDesktop={isDesktop} hidden={!isDesktop && settingsMobileSection !== "backup"}>
           <p className="text-xs mb-3" style={{ color: palette.textFaint }}>
             Exports absolutely everything — trades, journal, playbook, notes, settings, goals, and calculator
-            inputs — in one file. This is separate from the Curve tab's "Backup &amp; Restore," which only
+            inputs — in one file. This is separate from the Journal tab's "Backup &amp; Restore," which only
             covers the core data.
           </p>
           <div className="flex gap-2">
