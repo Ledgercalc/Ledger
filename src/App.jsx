@@ -1,12 +1,8 @@
 import { COMMUNITY_API_BASE, COMMUNITY_AVATAR_KEY, COMMUNITY_JOIN_REQUESTS_KEY, COMMUNITY_MEMBERSHIPS_KEY, COMMUNITY_MESSAGE_POLL_MS, COMMUNITY_ONBOARDING_KEY, COMMUNITY_SESSION_KEY, COMMUNITY_USERNAME_KEY, communityApi } from "./api/community.js";
 import { pokeCrab } from "./lib/mascot.js";
-import { PlanSettingsCard, PlansHost } from "./components/PlansModal.jsx";
-import MobileDock from "./components/MobileDock.jsx";
-import SessionSnapshot from "./components/SessionSnapshot.jsx";
-import TabHost from "./components/TabHost.jsx";
-import { PlanName } from "./components/PlanBadge.jsx";
-import { PLAN_LIMITS, PLAN_NAMES, hasFeature } from "./data/plans.js";
-import { getMyPlan, openPlans, resetMyPlan, setMyPlan } from "./lib/planStore.js";
+import CrabMascot from "./components/CrabMascot.jsx";
+import GroupCampfire from "./components/GroupCampfire.jsx";
+import BrokerSyncRunner from "./components/BrokerSyncRunner.jsx";
 import { computeGoalProgress } from "./lib/analytics.js";
 import { OnboardingAmbientBG } from "./components/onboarding.jsx";
 import { Avatar, PillGroup, SettingsSection, SettingsSubLabel } from "./components/ui.jsx";
@@ -24,7 +20,7 @@ import { MARKET_SESSIONS, sessionOpenAtUTCHour } from "./lib/sessions.js";
 import { drawShareCard } from "./lib/shareCard.js";
 import { DARK_PALETTE, LIGHT_PALETTE, TAP, THEME_TRANSITION, TREDZI_LOGO_SRC, VOID_PALETTE, display, mono, palette, sans } from "./lib/theme.js";
 import { formatCountdown, formatMinSec, nextOccurrenceMs } from "./lib/time.js";
-import { AlertTriangle, ArrowLeftRight, Bell, Building2, Camera, CandlestickChart, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, Flame, Heart, LayoutGrid, Lightbulb, LogOut, MessageCircle, Moon, Newspaper, Palette, Pencil, Plus, RotateCcw, Scale, Search, Send, Settings, Share2, ShieldAlert, Sparkles, Sun, Table2, Tags, Trash2, Upload, Users, X , Activity, TrendingDown, TrendingUp } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, Bell, Building2, Camera, CandlestickChart, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, Flame, Heart, LayoutGrid, Lightbulb, LogOut, MessageCircle, Moon, Newspaper, Palette, Pencil, Plus, RotateCcw, Scale, Search, Send, Settings, Share2, ShieldAlert, Sun, Table2, Tags, Trash2, Upload, Users, X } from "lucide-react";
 import React, { Suspense, lazy, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import "./typography.css";
 
@@ -70,9 +66,8 @@ const BrokerTab = lazyTab(() => import("./tabs/BrokerTab.jsx"));
 const TAB_PRELOAD = {
   risk: RiskTab.preload, propfirm: PropFirmTab.preload, fx: ConvertTab.preload,
   curve: CurveTab.preload, insights: InsightsTab.preload, journal: JournalTab.preload,
-  notepad: NotepadTab.preload, sessions: SessionsTab.preload, community: CommunityTab.preload,
+  sessions: SessionsTab.preload, community: CommunityTab.preload, broker: BrokerTab.preload,
   backtest: BacktestTab.preload,
-  broker: BrokerTab.preload,
 };
 
 // The Backtest tab is added here so constants.js stays untouched. If you later add a
@@ -94,7 +89,6 @@ if (typeof window !== "undefined") {
     import("./tabs/SessionsTab.jsx");
     import("./tabs/CommunityTab.jsx");
     import("./tabs/BacktestTab.jsx");
-    import("./tabs/BrokerTab.jsx");
   };
   (window.requestIdleCallback || ((fn) => setTimeout(fn, 1500)))(warm);
 }
@@ -114,17 +108,6 @@ export default function TredziApp() {
     if (id === dockTab) return;
     setPendingTab(id);
     startTabTransition(() => setActiveTab(id));
-  };
-  // Used by the mobile dock: it highlights the tap itself, so nothing urgent is needed here.
-  // The tab content (and header title) switch together in one low-priority transition.
-  const goToTabFromDock = (id) => {
-    if (id === activeTab) return;
-    tabHostRef.current?.preview(id); // show the target pane right now (cached tabs appear instantly)
-    startTabTransition(() => {
-      setPendingTab(id);
-      setActiveTab(id);
-    });
-    setMoreMenuOpen(false);
   };
   const crabPrevTabRef = useRef("risk");
   useEffect(() => {
@@ -308,6 +291,8 @@ const resetPropFirmWizard = () => {
   const [fxRatesStatus, setFxRatesStatus] = useState("idle");
 
   const [trades, setTrades] = useState([]);
+  const tradesRef = useRef([]);
+  tradesRef.current = trades;
   const [tradesLoaded, setTradesLoaded] = useState(false);
   const [tradeInput, setTradeInput] = useState("");
   const [tradePair, setTradePair] = useState("");
@@ -338,18 +323,6 @@ const resetPropFirmWizard = () => {
   const coachScrollRef = useRef(null);
 
   const [journalSubTab, setJournalSubTab] = useState("log");
-  const [logSheetOpen, setLogSheetOpen] = useState(false);
-  // The Curve and Notepad tabs now live inside Journal. Anything that still points at the old ids
-  // (saved landing tab, onboarding tour, shared links) is redirected here.
-  useEffect(() => {
-    if (activeTab === "curve") {
-      setActiveTab("journal");
-      setJournalSubTab("log");
-    } else if (activeTab === "notepad") {
-      setActiveTab("journal");
-      setJournalSubTab("notepad");
-    }
-  }, [activeTab]);
   const [journalEntries, setJournalEntries] = useState([]);
   const [journalLoaded, setJournalLoaded] = useState(false);
   const [journalYear, setJournalYear] = useState(() => new Date().getFullYear());
@@ -726,6 +699,17 @@ RUNTIME.ALARM_LEAD_MS = RUNTIME.ALARM_LEAD_MINUTES * 60 * 1000;
   const [authError, setAuthError] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
   const [authScreenStep, setAuthScreenStep] = useState("choice"); // "choice" | "form"
+  // Forgot-password flow: null (normal form) -> "request" (enter email) -> "reset" (enter code + new password)
+  const [authForgotStep, setAuthForgotStep] = useState(null);
+  const [authResetCode, setAuthResetCode] = useState("");
+  const [authNewPassword, setAuthNewPassword] = useState("");
+  const [authInfo, setAuthInfo] = useState("");
+  const [authResendIn, setAuthResendIn] = useState(0);
+  useEffect(() => {
+    if (authResendIn <= 0) return undefined;
+    const t = setTimeout(() => setAuthResendIn((n) => n - 1), 1000);
+    return () => clearTimeout(t);
+  }, [authResendIn]);
 
   // --- Change password (Profile settings) ---
   const [showChangePassword, setShowChangePassword] = useState(false);
@@ -926,8 +910,6 @@ const [mobileNavHidden, setMobileNavHidden] = useState(false);
 useEffect(() => { setMobileNavHidden(false); }, [activeTab]);
 const lastNavScrollYRef = useRef(0);
 const dockRef = useRef(null);
-const mobileDockRef = useRef(null);
-const tabHostRef = useRef(null);
 useEffect(() => {
   // Warm all tab chunks once the app is idle so tab switches never wait on the network.
   const warm = () => Object.values(TAB_PRELOAD).forEach((p) => { try { p().catch(() => {}); } catch (e) { /* ignore */ } });
@@ -1014,7 +996,7 @@ const renderCommunitySearch = () => {
       <div className="flex items-center gap-2.5">
         <Avatar name={post.author} size={34} src={avatarForAuthor(post.author)} />
         <div className="min-w-0 flex-1">
-          <div className="truncate" style={{ color: palette.text, fontSize: "12.5px", fontWeight: 800 }}><PlanName name={post.author} size="sm" /></div>
+          <div className="truncate" style={{ color: palette.text, fontSize: "12.5px", fontWeight: 800 }}>{post.author}</div>
           <div style={{ color: palette.textFaint, fontSize: "9.5px", marginTop: "2px" }}>{feedTimeAgo(post.ts)}</div>
         </div>
         {post.likeCount > 0 && <span style={{ color: palette.textFaint, fontSize: "10px", fontFamily: mono }}>{post.likeCount} likes</span>}
@@ -1048,7 +1030,7 @@ const renderCommunitySearch = () => {
                 <button type="button" onClick={() => openCommunityMemberProfile(profile.username)} className={`w-full flex items-center gap-3 rounded-2xl p-4 text-left ${TAP}`} style={{ background: palette.surface, border: `1px solid ${palette.border}` }}>
                   <Avatar name={profile.username} size={46} src={profile.avatar || avatarForAuthor(profile.username)} />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate" style={{ color: palette.text, fontSize: "14px", fontWeight: 800 }}><PlanName name={profile.username} size="sm" /></div>
+                    <div className="truncate" style={{ color: palette.text, fontSize: "14px", fontWeight: 800 }}>{profile.username}</div>
                     {profile.bio && <div className="mt-1" style={{ color: palette.textMuted, fontSize: "11px", lineHeight: 1.4 }}>{profile.bio}</div>}
                   </div>
                   <ChevronRight size={16} style={{ color: palette.textFaint }} />
@@ -2978,7 +2960,8 @@ const setThemeMode = (mode) => {
   }, [settings.themeMode]);
 
 useEffect(() => {
-    if (settingsLoaded && settings.defaultLandingTab) {
+    // Ignore a saved landing tab that no longer exists (Notepad now lives inside the Journal tab).
+    if (settingsLoaded && settings.defaultLandingTab && TABS.some((t) => t.id === settings.defaultLandingTab)) {
       setActiveTab(settings.defaultLandingTab);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -3643,6 +3626,69 @@ useEffect(() => {
     }
   };
 
+  const resetForgotFlow = () => {
+    setAuthForgotStep(null);
+    setAuthResetCode("");
+    setAuthNewPassword("");
+    setAuthResendIn(0);
+  };
+
+  // Step 1: ask the server to email a 6-digit code. The server answers the same way whether or not the
+  // address has an account, so this screen never reveals who is registered.
+  const handleForgotRequest = async () => {
+    setAuthError("");
+    setAuthInfo("");
+    const email = authEmail.trim().toLowerCase();
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
+      setAuthError("Enter the email you signed up with.");
+      return;
+    }
+    setAuthBusy(true);
+    try {
+      await communityApi("/auth/forgot-password", {
+        method: "POST",
+        body: JSON.stringify({ email }),
+      });
+      setAuthForgotStep("reset");
+      setAuthResendIn(30);
+      setAuthInfo("If an account exists for that email, a 6-digit code is on its way. It expires in 15 minutes.");
+    } catch (err) {
+      setAuthError(err.message);
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
+  // Step 2: send the code + new password; on success go back to Log In.
+  const handleResetSubmit = async () => {
+    setAuthError("");
+    const email = authEmail.trim().toLowerCase();
+    const code = authResetCode.replace(/\D/g, "");
+    if (code.length !== 6) {
+      setAuthError("Enter the 6-digit code from your email.");
+      return;
+    }
+    if (authNewPassword.length < 8) {
+      setAuthError("Your new password needs at least 8 characters.");
+      return;
+    }
+    setAuthBusy(true);
+    try {
+      await communityApi("/auth/reset-password", {
+        method: "POST",
+        body: JSON.stringify({ email, code, password: authNewPassword }),
+      });
+      resetForgotFlow();
+      setAuthMode("login");
+      setAuthPassword("");
+      setAuthInfo("Password updated. Log in with your new password.");
+    } catch (err) {
+      setAuthError(err.message);
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
   // Refresh email / username / avatar / password from the server — the source
   // of truth for the Profile screen, since none of that (besides email) lives
   // in the locally-cached session.
@@ -3653,7 +3699,6 @@ useEffect(() => {
       const data = await communityApi("/auth/me", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setMyPlan(data);
       if (data.username) await persistCommunityUsername(data.username);
       if (data.avatar) {
         setCommunityAvatar(data.avatar);
@@ -3672,7 +3717,6 @@ useEffect(() => {
   }, [session?.token]);
 
   const logout = async () => {
-    resetMyPlan();
     try {
       if (session?.token) {
         await communityApi("/auth/logout", {
@@ -4502,7 +4546,7 @@ if (!isSignal && !communityMsgText.trim()) return;
                   <button type="button" onClick={() => openCommunityMemberProfile(post.author)} className={`flex-shrink-0 rounded-full ${TAP}`} style={{ background: "none", border: `1px solid ${palette.border}`, padding: 0, lineHeight: 0, overflow: "hidden" }}><Avatar name={post.author} size={40} src={post.avatar || avatarForAuthor(post.author)} /></button>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <button type="button" onClick={() => openCommunityMemberProfile(post.author)} className={TAP} style={{ background: "none", border: "none", padding: 0, color: palette.text, fontSize: "14px", fontWeight: 800 }}><PlanName name={post.author} size="sm" /></button>
+                      <button type="button" onClick={() => openCommunityMemberProfile(post.author)} className={TAP} style={{ background: "none", border: "none", padding: 0, color: palette.text, fontSize: "14px", fontWeight: 800 }}>{post.author}</button>
                       <span style={{ color: palette.textFaint, fontSize: "12.5px" }}>· {feedTimeAgo(post.ts)}</span>
                       {mine && <button type="button" onClick={() => deleteGlobalFeedPost(post.id)} onMouseEnter={(e) => { e.currentTarget.style.background = palette.field; }} onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }} className={`flex items-center justify-center rounded-full ml-auto flex-shrink-0 ${TAP}`} style={{ width: "26px", height: "26px", color: palette.textFaint, transition: "background 0.15s ease" }} aria-label="Delete post"><Trash2 size={13} /></button>}
                     </div>
@@ -4521,7 +4565,7 @@ if (!isSignal && !communityMsgText.trim()) return;
                       </button>
                     </div>
                     {globalFeedCommentsOpenId === post.id && <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${palette.border}` }}>
-                      {globalFeedCommentsLoading[post.id] ? <div className="pb-3 text-xs" style={{ color: palette.textFaint }}>Loading comments…</div> : comments.length > 0 ? <div className="flex flex-col gap-2 pb-3">{comments.map((c) => <div key={c.id} className="rounded-2xl px-3.5 py-2.5" style={{ background: palette.field }}><span style={{ color: palette.gold, fontSize: "11.5px", fontWeight: 800 }}><PlanName name={c.author} size="sm" /></span><span style={{ color: palette.textMuted, fontSize: "11.5px", marginLeft: "7px" }}>{c.text}</span></div>)}</div> : <div className="pb-3 text-xs" style={{ color: palette.textFaint }}>No comments yet — start the conversation.</div>}
+                      {globalFeedCommentsLoading[post.id] ? <div className="pb-3 text-xs" style={{ color: palette.textFaint }}>Loading comments…</div> : comments.length > 0 ? <div className="flex flex-col gap-2 pb-3">{comments.map((c) => <div key={c.id} className="rounded-2xl px-3.5 py-2.5" style={{ background: palette.field }}><span style={{ color: palette.gold, fontSize: "11.5px", fontWeight: 800 }}>{c.author}</span><span style={{ color: palette.textMuted, fontSize: "11.5px", marginLeft: "7px" }}>{c.text}</span></div>)}</div> : <div className="pb-3 text-xs" style={{ color: palette.textFaint }}>No comments yet — start the conversation.</div>}
                       <div className="flex items-center gap-2"><input value={globalFeedCommentDrafts[post.id] || ""} onChange={(e) => setGlobalFeedCommentDrafts((cur) => ({ ...cur, [post.id]: e.target.value }))} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); postGlobalFeedComment(post.id); } }} placeholder="Write a comment…" className="flex-1 rounded-full px-3.5 py-2 outline-none" style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontSize: "12px" }} /><button type="button" onClick={() => postGlobalFeedComment(post.id)} disabled={!(globalFeedCommentDrafts[post.id] || "").trim()} className={`flex items-center justify-center rounded-full flex-shrink-0 ${TAP}`} style={{ width: "36px", height: "36px", background: palette.gold, color: palette.letterbox, opacity: (globalFeedCommentDrafts[post.id] || "").trim() ? 1 : 0.5, transition: "opacity 0.15s ease" }}><Send size={14} /></button></div>
                     </div>}
                   </div>
@@ -4748,13 +4792,6 @@ const switchAccount = (id) => {
     if (!name) return;
     if (name.length > 40) {
       setAccountNameError("Keep it under 40 characters.");
-      return;
-    }
-    const myPlan = getMyPlan().plan;
-    const accountCap = PLAN_LIMITS[myPlan].accounts;
-    if (accounts.filter((acc) => !acc.archived).length >= accountCap) {
-      setAccountNameError(`Your ${PLAN_NAMES[myPlan]} plan includes ${accountCap} account${accountCap === 1 ? "" : "s"}. Upgrade to add more.`);
-      openPlans("Add more trading accounts with Pro (5) or Creator (10).");
       return;
     }
     const id = `acc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -5379,13 +5416,128 @@ const updateSyncedJournalRow = (trade) => {
             <>
               <button
                 type="button"
-                onClick={() => { setAuthScreenStep("choice"); setAuthError(""); }}
+                onClick={() => {
+                  if (authForgotStep === "reset") setAuthForgotStep("request");
+                  else if (authForgotStep === "request") resetForgotFlow();
+                  else setAuthScreenStep("choice");
+                  setAuthError("");
+                  setAuthInfo("");
+                }}
                 className={`flex items-center gap-1 mb-4 ${TAP}`}
                 style={{ color: palette.textFaint, fontFamily: mono, fontSize: "12px", background: "transparent" }}
               >
                 <ChevronLeft size={14} /> Back
               </button>
 
+              {authForgotStep ? (
+                <>
+                  <div style={{ fontFamily: display, fontSize: "17px", fontWeight: 700, color: palette.text, marginBottom: "6px" }}>
+                    {authForgotStep === "request" ? "Reset your password" : "Check your email"}
+                  </div>
+                  <p className="text-xs mb-4" style={{ color: palette.textMuted, lineHeight: 1.5 }}>
+                    {authForgotStep === "request"
+                      ? "Enter the email you signed up with and we will send you a 6-digit code."
+                      : `Enter the 6-digit code sent to ${authEmail.trim().toLowerCase()} and choose a new password.`}
+                  </p>
+
+                  {authForgotStep === "request" ? (
+                    <>
+                      <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
+                        Email
+                      </span>
+                      <input
+                        type="email"
+                        value={authEmail}
+                        onChange={(e) => setAuthEmail(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") handleForgotRequest(); }}
+                        placeholder="you@example.com"
+                        autoComplete="email"
+                        autoFocus
+                        className="w-full rounded-2xl px-4 py-3.5 mb-3 bg-transparent outline-none"
+                        style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "15px" }}
+                      />
+                      {authError && <p className="text-xs mb-3" style={{ color: palette.red }}>{authError}</p>}
+                      <button
+                        type="button"
+                        onClick={handleForgotRequest}
+                        disabled={authBusy || !authEmail.trim()}
+                        className={`w-full rounded-2xl py-3.5 ${TAP}`}
+                        style={{
+                      background: palette.gold,
+                      color: palette.letterbox,
+                      fontFamily: mono,
+                      fontSize: "14px",
+                      fontWeight: 700,
+                      boxShadow: `0 6px 18px ${palette.gold}44`,
+                      opacity: authBusy ? 0.6 : 1,
+                    }}
+                      >
+                        {authBusy ? "Sending…" : "Send code"}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      {authInfo && <p className="text-xs mb-3" style={{ color: palette.green, lineHeight: 1.5 }}>{authInfo}</p>}
+                      <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
+                        6-digit code
+                      </span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        maxLength={6}
+                        value={authResetCode}
+                        onChange={(e) => setAuthResetCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                        placeholder="123456"
+                        autoFocus
+                        className="w-full rounded-2xl px-4 py-3.5 mb-3 bg-transparent outline-none text-center"
+                        style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "20px", letterSpacing: "0.4em", fontWeight: 700 }}
+                      />
+                      <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
+                        New password
+                      </span>
+                      <input
+                        type="password"
+                        autoComplete="new-password"
+                        value={authNewPassword}
+                        onChange={(e) => setAuthNewPassword(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") handleResetSubmit(); }}
+                        placeholder="At least 8 characters"
+                        className="w-full rounded-2xl px-4 py-3.5 mb-3 bg-transparent outline-none"
+                        style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "15px" }}
+                      />
+                      {authError && <p className="text-xs mb-3" style={{ color: palette.red }}>{authError}</p>}
+                      <button
+                        type="button"
+                        onClick={handleResetSubmit}
+                        disabled={authBusy || authResetCode.length !== 6 || !authNewPassword}
+                        className={`w-full rounded-2xl py-3.5 ${TAP}`}
+                        style={{
+                      background: palette.gold,
+                      color: palette.letterbox,
+                      fontFamily: mono,
+                      fontSize: "14px",
+                      fontWeight: 700,
+                      boxShadow: `0 6px 18px ${palette.gold}44`,
+                      opacity: authBusy ? 0.6 : 1,
+                    }}
+                      >
+                        {authBusy ? "Please wait…" : "Reset password"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleForgotRequest}
+                        disabled={authBusy || authResendIn > 0}
+                        className={`w-full mt-3 ${TAP}`}
+                        style={{ color: palette.textFaint, fontFamily: mono, fontSize: "12.5px", textDecoration: "underline", background: "transparent", opacity: authResendIn > 0 ? 0.6 : 1 }}
+                      >
+                        {authResendIn > 0 ? `Resend code in ${authResendIn}s` : "Resend code"}
+                      </button>
+                    </>
+                  )}
+                </>
+              ) : (
+              <>
               <div
                 style={{
                   fontFamily: display,
@@ -5397,6 +5549,7 @@ const updateSyncedJournalRow = (trade) => {
               >
                 {authMode === "signup" ? "Create your account" : "Welcome back"}
               </div>
+              {authInfo && <p className="text-xs mb-3" style={{ color: palette.green, lineHeight: 1.5 }}>{authInfo}</p>}
 
               <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
                 Email
@@ -5420,9 +5573,23 @@ const updateSyncedJournalRow = (trade) => {
                 onChange={(e) => setAuthPassword(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") handleAuthSubmit(); }}
                 placeholder="At least 8 characters"
+                autoComplete={authMode === "signup" ? "new-password" : "current-password"}
                 className="w-full rounded-2xl px-4 py-3.5 mb-3 bg-transparent outline-none"
                 style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "15px" }}
               />
+
+              {authMode === "login" && (
+                <div className="flex justify-end mb-3" style={{ marginTop: "-4px" }}>
+                  <button
+                    type="button"
+                    onClick={() => { setAuthForgotStep("request"); setAuthError(""); setAuthInfo(""); }}
+                    className={TAP}
+                    style={{ color: palette.goldBright, fontFamily: mono, fontSize: "12.5px", fontWeight: 600, background: "transparent" }}
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+              )}
 
               {authError && (
                 <p className="text-xs mb-3" style={{ color: palette.red }}>{authError}</p>
@@ -5448,12 +5615,14 @@ const updateSyncedJournalRow = (trade) => {
 
               <button
                 type="button"
-                onClick={() => { setAuthMode(authMode === "login" ? "signup" : "login"); setAuthError(""); }}
+                onClick={() => { setAuthMode(authMode === "login" ? "signup" : "login"); setAuthError(""); setAuthInfo(""); }}
                 className={`w-full mt-3 ${TAP}`}
                 style={{ color: palette.textFaint, fontFamily: mono, fontSize: "12.5px", textDecoration: "underline", background: "transparent" }}
               >
                 {authMode === "login" ? "Need an account? Sign up" : "Already have an account? Log in"}
               </button>
+              </>
+              )}
             </>
           )}
         </div>
@@ -5814,7 +5983,6 @@ const updateSyncedJournalRow = (trade) => {
     setTradeEmotion(null);
     setTradeSetup(null);
     setEditingTradeId(null);
-    setLogSheetOpen(false);
   };
 
   const startEditTrade = (t) => {
@@ -5825,7 +5993,9 @@ const updateSyncedJournalRow = (trade) => {
     setTradeSetup(t.setup || null);
     setEditingTradeId(t.id);
     setExpandedTradeId((cur) => (cur === t.id ? null : cur));
-    setLogSheetOpen(true);
+    if (logFormRef.current) {
+      logFormRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   };
 
   // Pulls a community signal into the trade log form, pre-filled, so a
@@ -5842,9 +6012,12 @@ const updateSyncedJournalRow = (trade) => {
     if (m.tp) parts.push(`TP ${m.tp}`);
     if (m.text) parts.push(`"${m.text}"`);
     setTradeNote(parts.join(" \u00b7 "));
-    setActiveTab("journal");
-    setJournalSubTab("log");
-    setLogSheetOpen(true);
+    setActiveTab("curve");
+    setTimeout(() => {
+      if (logFormRef.current) {
+        logFormRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }, 60);
   };
 
   const cancelEditTrade = () => {
@@ -5924,6 +6097,52 @@ const updateSyncedJournalRow = (trade) => {
       ensureJournalRowForDate(dayKeyFromDate(new Date()), tradeSetup);
     }
     resetTradeForm();
+  };
+
+  // Trades that arrive from a connected broker. Each carries an extId, so a trade is only ever added once.
+  const importBrokerTrades = (incoming) => {
+    const cur = tradesRef.current;
+    const have = new Set(cur.map((t) => t.extId).filter(Boolean));
+    const fresh = (incoming || [])
+      .filter((t) => t && t.extId && !have.has(t.extId) && Number.isFinite(t.pnl) && t.ts > 0)
+      .map((t) => ({
+        id: `${t.ts}-${Math.random().toString(36).slice(2, 7)}`,
+        pnl: t.pnl,
+        pair: t.pair || "",
+        note: t.note || "",
+        emotion: "",
+        setup: "",
+        ts: t.ts,
+        source: t.source || "broker",
+        extId: t.extId,
+      }));
+    if (!fresh.length) return 0;
+    const next = [...cur, ...fresh];
+    tradesRef.current = next;
+    persistTrades(next);
+    if (settings.autoSyncTradesToJournal) {
+      const done = new Set(journalEntries.map((r) => r.sourceTradeId));
+      const rows = fresh
+        .filter((t) => !done.has(t.id))
+        .map((t) => ({
+          id: `j-sync-${t.id}`,
+          date: dayKeyFromTs(t.ts),
+          pair: t.pair,
+          trend: "",
+          rr: "",
+          pnl: String(t.pnl),
+          setup: "",
+          outcome: outcomeFromPnl(t.pnl),
+          session: "",
+          mood: "",
+          confidence: "",
+          mistake: "",
+          note: t.note,
+          sourceTradeId: t.id,
+        }));
+      if (rows.length) persistJournalEntries([...journalEntries, ...rows]);
+    }
+    return fresh.length;
   };
 
   const submitTrade = () => {
@@ -6219,7 +6438,6 @@ const dataUrl = drawShareCard(shareCanvasRef.current, {
   };
 
   const exportInsightsReport = () => {
-    if (!hasFeature(getMyPlan().plan, "pdfReports")) { openPlans("PDF reports are part of Pro."); return; }
     setInsightReportMsg("");
     if (trades.length === 0) {
       setInsightReportMsg("Log some trades first \u2014 there's nothing to report on yet.");
@@ -6707,17 +6925,14 @@ const persistNotepadNotes = async (next) => {
     const loss = today.filter((t) => t.pnl < 0).reduce((s, t) => s + t.pnl, 0);
     return (lossLimit > 0 && Math.abs(loss) >= lossLimit) || (maxTrades > 0 && today.length >= maxTrades) ? "worry" : undefined;
   })();
-  // The dock steps aside whenever a sheet, menu or the settings screen is open on top of the app.
-  const dockCovered = !isDesktop && (settingsOpen || pulseOpen || groupManageOpen || moreMenuOpen);
   const handleMobileNavScroll = (e) => {
     if (isDesktop) return;
     const y = e.currentTarget.scrollTop;
     const last = lastNavScrollYRef.current;
     const delta = y - last;
-    // Straight to the dock's DOM node: scrolling no longer re-renders the whole App.
-    if (y < 24) mobileDockRef.current?.setScrollHidden(false);
-    else if (delta > 6) mobileDockRef.current?.setScrollHidden(true);
-    else if (delta < -6) mobileDockRef.current?.setScrollHidden(false);
+    if (y < 24) setMobileNavHidden(false);
+    else if (delta > 6) setMobileNavHidden(true);
+    else if (delta < -6) setMobileNavHidden(false);
     lastNavScrollYRef.current = y;
   };
 
@@ -6877,20 +7092,24 @@ const hiddenTabIds = settings.hiddenTabs || [];
     body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><ConvertTab {...{ fx, fxRatesDate, fxRatesStatus, isDesktop, liveFxRates, persistSettings, setFx, settings }} /></Suspense>;
   }
 
+  if (activeTab === "curve") {
+    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><CurveTab {...{ backupMsg, calMonth, cancelEditTrade, cancelImport, clearTrades, confirmImport, copyFallbackText, copyMsg, copyWeekSummary, customMoods, customMoodsLoaded, customSetups, customSetupsLoaded, deleteTrade, editingTradeId, expandedTradeId, exportBackup, fileInputRef, findSetupLabel, generateWeeklyShare, goals, handleScreenshotChange, importBackup, isDesktop, logFormRef, openScreenshotPicker, pendingImport, persistGoals, persistSettings, persistStartingBalance, screenshotError, screenshotInputRef, screenshotSaving, screenshotTargetId, selectedDay, setCalMonth, setCopyFallbackText, setExpandedTradeId, setPendingScreenshotDelete, setSelectedDay, setShowDisciplineInfo, setShowStreakInfo, setStatementPeriod, setTradeEmotion, setTradeInput, setTradeNote, setTradePair, setTradeSetup, setViewingScreenshot, settings, shareError, shareImageFile, showDisciplineInfo, showStreakInfo, startEditTrade, startingBalance, submitTrade, tradeEmotion, tradeInput, tradeNote, tradePair, tradeSetup, trades, tradesLoadError, tradesLoaded }} /></Suspense>;
+  }
+
   if (activeTab === "insights") {
     body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><InsightsTab {...{ coachChatId, coachChats, coachChatsMax, coachDeleteConfirmId, coachError, coachHistoryOpen, coachInput, coachLoading, coachMessages, coachRemaining, coachScrollRef, customMoods, customSetups, deleteCoachChat, expandedHeatmapDay, expandedMetric, exportInsightsReport, insightReportMsg, insightsSubTab, isDesktop, journalEntries, journalInsightMonth, journalInsightYear, journalLoaded, newCoachChat, openCoachChat, persistSettings, renderSubNav, selectInsightsSubTab, sendCoachMessage, session, setCoachDeleteConfirmId, setCoachHistoryOpen, setCoachInput, setExpandedHeatmapDay, setExpandedMetric, setJournalInsightMonth, setJournalInsightYear, settings, trades }} /></Suspense>;
   }
 
   if (activeTab === "journal") {
-    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><JournalTab {...{ CurveTab, NotepadTab, curveProps: { backupMsg, calMonth, cancelEditTrade, cancelImport, clearTrades, confirmImport, copyFallbackText, copyMsg, copyWeekSummary, customMoods, customMoodsLoaded, customSetups, customSetupsLoaded, deleteTrade, editingTradeId, expandedTradeId, exportBackup, fileInputRef, findSetupLabel, generateWeeklyShare, goals, handleScreenshotChange, importBackup, isDesktop, logFormRef, openScreenshotPicker, pendingImport, persistGoals, persistSettings, persistStartingBalance, screenshotError, screenshotInputRef, screenshotSaving, screenshotTargetId, selectedDay, setCalMonth, setCopyFallbackText, setExpandedTradeId, setPendingScreenshotDelete, setSelectedDay, setShowDisciplineInfo, setShowStreakInfo, setStatementPeriod, setTradeEmotion, setTradeInput, setTradeNote, setTradePair, setTradeSetup, setViewingScreenshot, settings, shareError, shareImageFile, showDisciplineInfo, showStreakInfo, startEditTrade, startingBalance, submitTrade, tradeEmotion, tradeInput, tradeNote, tradePair, tradeSetup, trades, tradesLoadError, tradesLoaded, logSheetOpen, setLogSheetOpen }, notepadProps: { activeNoteId, adjustNoteFontSize, closeNote, createNote, downloadNoteText, getNotepadBlockRef, insertDateTimeIntoNote, isDesktop, notepadFindOpen, notepadFindText, notepadLoaded, notepadMsg, notepadNotes, notepadReplaceText, notepadSearch, openNote, persistSettings, replaceAllInNote, requestDeleteNote, setNotepadFindOpen, setNotepadFindText, setNotepadMsg, setNotepadReplaceText, setNotepadSearch, settings, toggleNoteWordWrap, trackNotepadCursor, updateNote }, goals, persistGoals, startingBalance, trades, addJournalRow, addPlaybookRule, addingSetup, cancelAddSetup, confirmAddSetup, customMoods, customSetups, deleteJournalRow, deletePlaybookCheckin, endJournalResize, exportJournalCSV, handleJournalCellKeyDown, handleJournalPhotoChange, hiddenDefaultSetupIds, importJournalCSV, isDesktop, isNarrowScreen, journalCellRefs, journalColWidths, journalEntries, journalExpandedRows, journalExportMsg, journalImportInputRef, journalImportMsg, journalLoaded, journalMonth, journalPhotoError, journalPhotoInputRef, journalPhotoSaving, journalPhotoTarget, journalSubTab, journalYear, moveJournalResize, newRuleText, newSetupName, openJournalPhotoPicker, persistSettings, playbookCheckins, playbookMsg, playbookRuleError, playbookRules, playbookRulesLoaded, removePlaybookRule, renderSubNav, setJournalMonth, setJournalSubTab, setJournalYear, setNewRuleText, setNewSetupName, setPendingJournalPhotoDelete, setPlaybookRuleError, setSetupError, setViewingJournalPhoto, settings, setupError, startJournalResize, submitCheckin, todayResults, toggleJournalRowExpanded, toggleTodayResult, triggerJournalImport, updateJournalField, updateJournalPnl }} /></Suspense>;
-  }
-
-  if (activeTab === "broker") {
-    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><BrokerTab {...{ isDesktop }} /></Suspense>;
+    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><JournalTab {...{ NotepadTab, notepadProps: { activeNoteId, adjustNoteFontSize, closeNote, createNote, downloadNoteText, getNotepadBlockRef, insertDateTimeIntoNote, isDesktop, notepadFindOpen, notepadFindText, notepadLoaded, notepadMsg, notepadNotes, notepadReplaceText, notepadSearch, openNote, persistSettings, replaceAllInNote, requestDeleteNote, setNotepadFindOpen, setNotepadFindText, setNotepadMsg, setNotepadReplaceText, setNotepadSearch, settings, toggleNoteWordWrap, trackNotepadCursor, updateNote }, goals, persistGoals, startingBalance, trades, addJournalRow, addPlaybookRule, addingSetup, cancelAddSetup, confirmAddSetup, customMoods, customSetups, deleteJournalRow, deletePlaybookCheckin, endJournalResize, exportJournalCSV, handleJournalCellKeyDown, handleJournalPhotoChange, hiddenDefaultSetupIds, importJournalCSV, isDesktop, isNarrowScreen, journalCellRefs, journalColWidths, journalEntries, journalExpandedRows, journalExportMsg, journalImportInputRef, journalImportMsg, journalLoaded, journalMonth, journalPhotoError, journalPhotoInputRef, journalPhotoSaving, journalPhotoTarget, journalSubTab, journalYear, moveJournalResize, newRuleText, newSetupName, openJournalPhotoPicker, persistSettings, playbookCheckins, playbookMsg, playbookRuleError, playbookRules, playbookRulesLoaded, removePlaybookRule, renderSubNav, setJournalMonth, setJournalSubTab, setJournalYear, setNewRuleText, setNewSetupName, setPendingJournalPhotoDelete, setPlaybookRuleError, setSetupError, setViewingJournalPhoto, settings, setupError, startJournalResize, submitCheckin, todayResults, toggleJournalRowExpanded, toggleTodayResult, triggerJournalImport, updateJournalField, updateJournalPnl }} /></Suspense>;
   }
 
   if (activeTab === "backtest") {
     body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><BacktestTab {...{ activeAccountId, isDesktop }} /></Suspense>;
+  }
+
+  if (activeTab === "broker") {
+    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><BrokerTab {...{ isDesktop }} /></Suspense>;
   }
 
   if (activeTab === "sessions") {
@@ -6922,6 +7141,7 @@ if (activeTab === "community") {
         transition: `opacity 0.15s ease-out, ${THEME_TRANSITION}`,
       }}
     >
+      <BrokerSyncRunner accountId={activeAccountId} importTrades={importBrokerTrades} />
 <style>{`
   @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap');
 
@@ -7269,6 +7489,19 @@ if (activeTab === "community") {
         </header>
         )}
 
+        {settings.mascotEnabled !== false && !(!isDesktop && activeTab === "community" && (!!activeGroupId || communityMobileFeedOpen)) && (
+          <div
+            style={{
+              position: "fixed",
+              right: isDesktop ? "20px" : "10px",
+              bottom: isDesktop ? "20px" : "calc(92px + env(safe-area-inset-bottom, 0px))",
+              zIndex: 40,
+            }}
+          >
+            <CrabMascot size={isDesktop ? 84 : 62} rest={crabRest} />
+          </div>
+        )}
+
         {(() => {
           const communityFullBleed = activeTab === "community" && (isDesktop || !!activeGroupId);
           // Insights > Coach is a fixed screen: the page does not scroll, only the chat's message list does.
@@ -7277,52 +7510,49 @@ if (activeTab === "community") {
           // Tabs whose first element is the sticky sub-tab bar start flush at the top, so the bar never slides up on scroll.
           const startsWithSubNav = ["risk", "journal", "sessions", "insights"].includes(activeTab);
           return (
-<TabHost
-              ref={tabHostRef}
-              activeId={activeTab}
-              order={[...mobileNavPrimaryTabs, ...mobileNavOverflowTabs].map((t) => t.id)}
-              keepAlive={!tourActive}
-              layout={{ fullBleed: communityFullBleed, fixed: coachFixed, isDesktop, navSpace: MOBILE_NAV_SPACE }}
-              onScroll={communityFullBleed ? undefined : handleMobileNavScroll}
-              element={
-                communityFullBleed ? (
-                  body
-                ) : !isDesktop ? (
-                  <div style={{ paddingTop: startsWithSubNav ? "0px" : "20px", ...coachFillStyle }}>
-                    {activeTab === "journal" && journalSubTab === "log" && (
-                      <SessionSnapshot
-                        trades={trades}
-                        maxTradesPerDay={settings.maxTradesPerDay}
-                        onOpen={() => setPulseOpen(true)}
-                        themeKey={`${palette.surface}${palette.gold}${palette.green}${palette.red}`}
-                      />
-                    )}
-                    {body}
-                  </div>
-                ) : (
-                  <div style={{ width: "100%", maxWidth: "1400px", margin: "0 auto", paddingTop: startsWithSubNav ? "0px" : "24px", ...coachFillStyle }}>
-                    {body}
-                  </div>
-                )
-              }
-            />
+<main
+  key={activeTab}
+  onScroll={communityFullBleed ? undefined : handleMobileNavScroll}
+  className={`${tourActive || (!isDesktop && !communityFullBleed) ? "" : "ledger-page-transition"} ${tourActive || communityFullBleed ? "" : "tz-stagger"} ${
+    communityFullBleed
+      ? (isDesktop ? "" : "px-0")
+      : (isDesktop ? "px-8 pt-0 pb-6" : "px-5 pt-0 pb-5")
+  }`}
+              style={{
+                flex: "1 1 auto",
+                minHeight: 0,
+                overflowY: communityFullBleed || coachFixed ? "hidden" : "auto",
+                overflowX: communityFullBleed ? undefined : "hidden",
+                WebkitOverflowScrolling: "touch",
+                overscrollBehavior: "contain",
+                display: communityFullBleed || coachFixed ? "flex" : "block",
+                flexDirection: "column",
+                paddingLeft: communityFullBleed && isDesktop ? "12px" : undefined,
+                paddingRight: communityFullBleed && isDesktop ? "12px" : undefined,
+                paddingTop: communityFullBleed ? (isDesktop ? "2px" : 0) : undefined,
+                paddingBottom: communityFullBleed ? (isDesktop ? "6px" : MOBILE_NAV_SPACE) : (!isDesktop ? MOBILE_NAV_SPACE : undefined),
+              }}
+            >
+              {communityFullBleed ? (
+                body
+              ) : !isDesktop ? (
+                <div
+                  className={tourActive ? undefined : tabDirRef.current.dir < 0 ? "ledger-tab-enter-back" : "ledger-tab-enter-fwd"}
+                  style={{ paddingTop: startsWithSubNav ? "0px" : "20px", ...coachFillStyle }}
+                >
+                  {body}
+                </div>
+              ) : (
+                <div style={{ width: "100%", maxWidth: "1400px", margin: "0 auto", paddingTop: startsWithSubNav ? "0px" : "24px", ...coachFillStyle }}>
+                  {body}
+                </div>
+              )}
+            </main>
           );
         })()}
         </div>
 
 
-        {!isDesktop && (
-          <MobileDock
-            ref={mobileDockRef}
-            tabs={[...mobileNavPrimaryTabs, ...mobileNavOverflowTabs]}
-            activeId={activeTab}
-            onSelect={goToTabFromDock}
-            onPreload={(id) => TAB_PRELOAD[id]?.()?.catch?.(() => {})}
-            forceHidden={dockCovered}
-            themeKey={`${palette.surface}${palette.gold}${palette.border}`}
-          />
-        )}
-        {isDesktop && (
         <nav
           className={isDesktop ? "flex flex-col order-first" : "flex items-stretch"}
           style={{
@@ -7539,7 +7769,6 @@ if (activeTab === "community") {
             );
           })()}
         </nav>
-        )}
       </div>
 
       <canvas ref={shareCanvasRef} style={{ display: "none" }} />
@@ -7610,13 +7839,10 @@ if (activeTab === "community") {
         </div>
       )}
 
-<PlansHost session={session} />
-
 {settingsOpen && (() => {
   const settingsCategories = [
     communityUsername && { id: "profile", label: "Profile", icon: Users, group: "Account", subtitle: "Avatar, email, password" },
     { id: "accounts", label: "Accounts", icon: Building2, group: "Account", subtitle: "Balances & active account" },
-    { id: "plan", label: "Plan", icon: Sparkles, group: "Account", subtitle: "Free, Pro & Creator" },
     session && !communityUsername && { id: "community", label: "Community", icon: Users, group: "Account", subtitle: "Public profile & handle" },
     { id: "appearance", label: "Appearance", icon: Palette, group: "Preferences", subtitle: "Theme & color palette" },
     { id: "navigation", label: "Navigation", icon: LayoutGrid, group: "Preferences", subtitle: "Tabs & default screens" },
@@ -7955,11 +8181,6 @@ if (activeTab === "community") {
             )}
           </SettingsSection>
         )}
-
-        {/* PLAN */}
-        <SettingsSection icon={Sparkles} title="Plan" isDesktop={isDesktop} hidden={!isDesktop && settingsMobileSection !== "plan"}>
-          <PlanSettingsCard />
-        </SettingsSection>
 
         {/* ACCOUNTS */}
         <SettingsSection icon={Building2} title="Accounts" defaultOpen isDesktop={isDesktop} hidden={!isDesktop && settingsMobileSection !== "accounts"}>
@@ -9157,7 +9378,7 @@ if (activeTab === "community") {
 <div className="flex items-center gap-2">
   <LiveFlame size={44} active={(todayTradesPulse.length > 0 && todayNetPulse > 0) || disciplinePulse.current > 0} dimColor={palette.textFaint} style={{ margin: "-10px -2px -10px -2px" }} />
   <span style={{ fontFamily: mono, fontSize: "16px", fontWeight: 700, color: palette.text }}>
-    {isDesktop ? "Today's Pulse" : "Session Snapshot"}
+    Today's Pulse
   </span>
 </div>
           <button type="button" onClick={() => setPulseOpen(false)} className={TAP} style={{ color: palette.textFaint }} aria-label="Close">
@@ -9477,7 +9698,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
       style={{ background: "rgba(5,7,12,0.85)", backdropFilter: "blur(6px)" }}
       onClick={() => setGroupManageOpen(false)}>
       <div className="w-full modal-in rounded-2xl overflow-hidden"
-        style={{ maxWidth: "420px", maxHeight: "min(80vh, calc(100dvh - 32px))", background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow, display: "flex", flexDirection: "column" }}
+        style={{ maxWidth: "420px", maxHeight: "80vh", background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow, display: "flex", flexDirection: "column" }}
         onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between p-4" style={{ borderBottom: `1px solid ${palette.border}` }}>
           <div>
@@ -9493,7 +9714,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
           </button>
         </div>
 
-        <div className="flex flex-wrap gap-2 px-4 pt-3" style={{ flexShrink: 0 }}>
+        <div className="flex gap-2 px-4 pt-3">
           {tabs.map((t) => {
             const active = groupManageTab === t;
             return (
@@ -9511,7 +9732,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
           })}
         </div>
 
-        <div className="p-4" style={{ overflowY: "auto", flex: "1 1 auto", minHeight: 0, WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" }}>
+        <div className="p-4" style={{ overflowY: "auto" }}>
 
 
 
@@ -9525,6 +9746,15 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
                 {groupInfo?.description && (
                   <p className="text-xs mt-1" style={{ color: palette.textMuted, maxWidth: "300px" }}>{groupInfo.description}</p>
                 )}
+              </div>
+
+              <div className="mb-4">
+                <GroupCampfire
+                  members={groupMembersList}
+                  messages={groupMessages.filter((m) => !m.group_id || m.group_id === activeGroupId)}
+                  memberCount={groupInfo?.memberCount}
+                  me={communityUsername}
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-2 mb-4">
@@ -9590,7 +9820,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
         <Avatar name={mem.username} size={26} src={mem.avatar} online={mem.isOnline} />
         <div>
           <div style={{ color: palette.text, fontSize: "13px", fontWeight: mem.isOwner || memberIsAdmin ? 600 : 400 }}>
-            <PlanName name={mem.username} size="sm" />
+            {mem.username}
           </div>
           <div style={{ color: palette.textFaint, fontSize: "10px", fontFamily: mono }}>
             {mem.isOnline ? <span style={{ color: palette.green }}>Online</span> : `Joined ${new Date(mem.joinedAt).toLocaleDateString()}`}
@@ -9717,7 +9947,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
                   <div key={r.username} className="flex items-center justify-between rounded-xl px-3 py-2.5 mb-2" style={{ background: palette.field, border: `1px solid ${palette.border}` }}>
                     <div className="flex items-center gap-2">
                       <Avatar name={r.username} size={26} />
-                      <span style={{ color: palette.text, fontSize: "13px" }}><PlanName name={r.username} size="sm" /></span>
+                      <span style={{ color: palette.text, fontSize: "13px" }}>{r.username}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <button type="button" onClick={() => approveJoinRequest(r.username)} className={TAP} style={{ color: palette.green, fontSize: "11px", fontFamily: mono, fontWeight: 700 }}>
