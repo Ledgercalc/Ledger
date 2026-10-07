@@ -1,3 +1,4 @@
+import CurveTab from "./CurveTab.jsx";
 import { pokeCrab } from "../lib/mascot.js";
 import { OnboardingTip } from "../components/onboarding.jsx";
 import TradePlan from "../components/TradePlan.jsx";
@@ -46,6 +47,7 @@ export default function JournalTab(props) {
     journalPhotoSaving,
     journalPhotoTarget,
     journalSubTab,
+    curveProps,
     journalYear,
     moveJournalResize,
     newRuleText,
@@ -107,13 +109,25 @@ export default function JournalTab(props) {
   };
   let body = null;
     const JOURNAL_SUB_TABS = [
+      { id: "overview", label: "Overview" },
+      { id: "history", label: "History" },
       { id: "log", label: "Journal" },
       { id: "playbook", label: "Trade plan" },
     ];
 
     const journalSubNav = renderSubNav(JOURNAL_SUB_TABS, journalSubTab, setJournalSubTab);
 
-    if (journalSubTab === "playbook") {
+    if (journalSubTab === "overview" || journalSubTab === "history") {
+      body = (
+        <CurveTab
+          {...curveProps}
+          view={journalSubTab}
+          subNav={journalSubNav}
+          onOpenHistory={() => setJournalSubTab("history")}
+          onOpenOverview={() => setJournalSubTab("overview")}
+        />
+      );
+    } else if (journalSubTab === "playbook") {
       body = (
         <>
           {journalSubNav}
