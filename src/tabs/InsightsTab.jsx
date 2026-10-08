@@ -5,11 +5,104 @@ import { PlanLockCard } from "../components/PlansModal.jsx";
 import { hasFeature } from "../data/plans.js";
 import { useMyPlan } from "../lib/planStore.js";
 import { Readout, StatChip } from "../components/ui.jsx";
-import { METRIC_INFO, MIN_TRADES_FOR_TIERS, computeConsistencyScore, computeDisciplineGrade, computeDisciplineStreakTrend, computeHeadlineInsight, computeHeatmapWeeks, computeInsights, computeJournalCompleteness, computeMonthComparison, computeNoteTagAnalysis, computeOverconfidenceCheck, computePerformanceMetrics, computeRevengeCostSplit, filledJournalRows, joinWithAnd, journalConfidenceByDay, journalDailyPnLSeries, journalMistakeFrequency, journalMistakePatterns, journalMonthlyPnLSeries, journalMonthlyVolume, journalPairFrequency, journalPnLByDay, journalPnLByMonth, journalRRDistribution, journalRRSeries, journalSessionByDay, journalSessionFrequency, journalSetupRadar, journalTrendBreakdown, journalWeekdayFrequency, tierColor } from "../lib/analytics.js";
-import { MONTH_NAMES, MONTH_SHORT, WEEKDAY_LABELS, fmtMoney, formatDayLabel } from "../lib/format.js";
+import { METRIC_INFO, MIN_TRADES_FOR_TIERS, computeConsistencyScore, computeDisciplineGrade, computeDisciplineStreakTrend, computeHeadlineInsight, computeHeatmapWeeks, computeInsights, computeJournalCompleteness, computeMonthComparison, computeNoteTagAnalysis, computeOverconfidenceCheck, computePerformanceMetrics, computeRevengeCostSplit, tierColor } from "../lib/analytics.js";
+import { EMOTIONS, SETUPS } from "../lib/constants.js";
+import { MARKET_SESSIONS } from "../lib/sessions.js";
+import { CONFIDENCE_MAX, bySession, bySetup, byConfidence, byMood, byPair, byWeekday, dailySeries, findPatterns, tagCoverage } from "../lib/tradeInsights.js";
+import { WEEKDAY_LABELS, fmtMoney, formatDayLabel } from "../lib/format.js";
 import { TAP, THEME_TRANSITION, display, mono, palette } from "../lib/theme.js";
 import { ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, Clock, Download, Lightbulb, Plus, Send, ShieldAlert, Sparkles, Trash2 } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+
+
+// ───────────────────────── Patterns tab building blocks ─────────────────────────
+// Everything on the Patterns tab is computed from logged trades. Nothing here needs the Journal sheet.
+
+const FEW_TRADES = 3; // groups smaller than this are shown, but flagged as too thin to trust
+
+function PatternHeading({ children, hint }) {
+  return (
+    <div className="mt-8 mb-3">
+      <h3 style={{ color: palette.text, fontFamily: display, fontSize: "15px", fontWeight: 700, margin: 0 }}>{children}</h3>
+      {hint && (
+        <p className="text-xs" style={{ color: palette.textFaint, marginTop: "2px" }}>
+          {hint}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// One row per group: label, net P&L, a bar that grows left-to-right with the size of the result, then the vital stats.
+function EdgeRows({ rows, signed, emptyText }) {
+  if (!rows.length) {
+    return (
+      <p className="text-xs" style={{ color: palette.textFaint }}>
+        {emptyText}
+      </p>
+    );
+  }
+  const maxAbs = Math.max(1, ...rows.map((r) => Math.abs(r.pnl)));
+  return (
+    <div>
+      {rows.map((r, i) => {
+        const win = r.pnl >= 0;
+        const color = win ? palette.green : palette.red;
+        return (
+          <div key={r.id} style={{ marginBottom: i === rows.length - 1 ? 0 : "14px" }}>
+            <div className="flex items-baseline justify-between" style={{ gap: "8px" }}>
+              <span style={{ color: palette.text, fontSize: "14px", minWidth: 0 }} className="truncate">
+                {r.emoji ? `${r.emoji} ` : ""}
+                {r.label}
+              </span>
+              <span style={{ fontFamily: mono, fontSize: "13px", fontWeight: 700, color, flexShrink: 0 }}>{signed(r.pnl)}</span>
+            </div>
+            <div style={{ height: "6px", borderRadius: "999px", background: palette.field, margin: "6px 0 4px", overflow: "hidden" }}>
+              <div
+                style={{
+                  height: "100%",
+                  width: `${Math.max(3, (Math.abs(r.pnl) / maxAbs) * 100)}%`,
+                  background: color,
+                  borderRadius: "999px",
+                }}
+              />
+            </div>
+            <div style={{ color: palette.textFaint, fontSize: "12px" }}>
+              {r.count} trade{r.count === 1 ? "" : "s"}, {r.winRate.toFixed(0)}% win rate, {signed(r.avg)} per trade
+              {r.count < FEW_TRADES && <span style={{ color: palette.textMuted }}> (too few to judge)</span>}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function PatternCard({ children, className = "" }) {
+  return (
+    <div
+      className={`rounded-2xl p-4 ${className}`}
+      style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
+    >
+      {children}
+    </div>
+  );
+}
+
+// How much of the log carries each tag. Low coverage means the charts below are guessing.
+function CoverageMeter({ label, pct }) {
+  return (
+    <div>
+      <div className="flex items-baseline justify-between" style={{ marginBottom: "5px" }}>
+        <span style={{ color: palette.textMuted, fontSize: "12px" }}>{label}</span>
+        <span style={{ fontFamily: mono, fontSize: "12px", color: pct >= 70 ? palette.green : pct >= 30 ? palette.text : palette.textFaint }}>{pct}%</span>
+      </div>
+      <div style={{ height: "6px", borderRadius: "999px", background: palette.field, overflow: "hidden" }}>
+        <div style={{ height: "100%", width: `${pct}%`, background: palette.gold, borderRadius: "999px", transition: "width 0.3s ease" }} />
+      </div>
+    </div>
+  );
+}
 
 export default function InsightsTab(props) {
   const myPlan = useMyPlan();
@@ -33,12 +126,8 @@ export default function InsightsTab(props) {
     expandedMetric,
     exportInsightsReport,
     insightReportMsg,
-    insightsSubTab,
+    insightsSubTab: insightsSubTabProp,
     isDesktop,
-    journalEntries,
-    journalInsightMonth,
-    journalInsightYear,
-    journalLoaded,
     newCoachChat,
     openCoachChat,
     persistSettings,
@@ -50,11 +139,11 @@ export default function InsightsTab(props) {
     setCoachInput,
     setExpandedHeatmapDay,
     setExpandedMetric,
-    setJournalInsightMonth,
-    setJournalInsightYear,
     settings,
     trades
   } = props;
+  // "journal" was this tab's old name. People who saved it as their default land on Patterns.
+  const insightsSubTab = insightsSubTabProp === "journal" ? "patterns" : insightsSubTabProp;
   // ── Mascot reactions ───────────────────────────────────────────────
   const crabReady = useRef(false);
   const prevCoachLoading = useRef(false);
@@ -89,10 +178,17 @@ export default function InsightsTab(props) {
     // the underlying data actually changes.
     const {
       insights, heatmap, headline, perf, monthCmp, completeness, grade, revengeCost, overconfidence,
-      disciplineTrend, noteTags, consistency, journalRows, trendBreakdown, rrSeries, mistakeFreq,
-      setupRadarData, mistakePatterns, pairFreq, weekdayFreq, rrDist, monthlyVolume, sessionByDay, confidenceByDay,
+      disciplineTrend, noteTags, consistency, patterns,
     } = useMemo(() => {
-      const journalRows = filledJournalRows(journalEntries);
+      const setupLabel = (id) => [...SETUPS, ...(customSetups || [])].find((x) => x.id === id)?.label;
+      const sessionLabel = (id) => MARKET_SESSIONS.find((x) => x.id === id)?.label;
+      const moodMeta = (id) => [...EMOTIONS, ...(customMoods || [])].find((x) => x.id === id);
+      const setupRows = bySetup(trades, setupLabel);
+      const sessionRows = bySession(trades, sessionLabel);
+      const moodRows = byMood(trades, moodMeta);
+      const pairRows = byPair(trades);
+      const dayRows = byWeekday(trades);
+      const confRows = byConfidence(trades);
       return {
         insights: computeInsights(trades, customSetups, customMoods),
         heatmap: computeHeatmapWeeks(trades, heatmapWeeksBack),
@@ -106,32 +202,15 @@ export default function InsightsTab(props) {
         disciplineTrend: computeDisciplineStreakTrend(trades),
         noteTags: computeNoteTagAnalysis(trades),
         consistency: computeConsistencyScore(trades),
-        journalRows,
-        trendBreakdown: journalTrendBreakdown(journalRows),
-        rrSeries: journalRRSeries(journalRows),
-        mistakeFreq: journalMistakeFrequency(journalRows),
-        setupRadarData: journalSetupRadar(journalRows, customSetups),
-        mistakePatterns: journalMistakePatterns(journalRows),
-        pairFreq: journalPairFrequency(journalRows),
-        weekdayFreq: journalWeekdayFrequency(journalRows),
-        rrDist: journalRRDistribution(journalRows),
-        monthlyVolume: journalMonthlyVolume(journalRows),
-        sessionByDay: journalSessionByDay(journalRows),
-        confidenceByDay: journalConfidenceByDay(journalRows),
+        patterns: {
+          setupRows, sessionRows, moodRows, confRows, dayRows,
+          pairRows: pairRows.slice(0, 6),
+          coverage: tagCoverage(trades),
+          daily: dailySeries(trades, 30),
+          findings: findPatterns(trades, { setupRows, sessionRows, moodRows, pairRows, dayRows, confRows }, fmtMoney),
+        },
       };
-    }, [trades, customSetups, customMoods, journalEntries, heatmapWeeksBack]);
-    const hasJournalData = journalRows.length > 0;
-    const patternDetected =
-  (mistakePatterns.worstTrends[0]?.mistakeRate ?? 0) >= 30 ||
-  (mistakePatterns.worstWeekdays[0]?.mistakeRate ?? 0) >= 30;
-const closestWeekday = [...mistakePatterns.weekdayRows].sort(
-  (a, b) => b.mistakeRate - a.mistakeRate
-)[0];
-    const combinedMistakeRows = [
-      ...mistakePatterns.trendRows.map((r) => ({ ...r, group: "Trend" })),
-      ...mistakePatterns.weekdayRows.map((r) => ({ ...r, group: "Day" })),
-    ];
-
+    }, [trades, customSetups, customMoods, heatmapWeeksBack]);
     const fmtSigned = (n) => `${n >= 0 ? "+" : "-"}$${fmtMoney(n)}`;
     const fmtRatio = (n) => (Number.isFinite(n) ? n.toFixed(2) : "\u221e");
 
@@ -153,7 +232,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
     const INSIGHTS_SUB_TABS = [
       { id: "overview", label: "Overview" },
       { id: "behavior", label: "Behavior" },
-      { id: "journal", label: "Journal" },
+      { id: "patterns", label: "Patterns" },
       { id: "coach", label: "Coach" },
     ];
 
@@ -313,7 +392,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
 
     const overviewSection = !hasData ? (
       <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-        No trades yet, insights will appear once you start logging on the Curve tab.
+        No trades yet. Insights appear once you start logging trades in the Journal tab.
       </p>
     ) : (
       <>
@@ -572,7 +651,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
 
     const behaviorSection = !hasData ? (
       <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-        No trades yet, behavior stats will appear once you start logging on the Curve tab.
+        No trades yet. Behavior stats appear once you start logging trades in the Journal tab.
       </p>
     ) : (
       <>
@@ -798,7 +877,7 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
           </>
         ) : (
           <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-            Tag trades with a Setup on the Curve tab to see setup performance here.
+            Pick a Setup when you log a trade to see setup performance here.
           </p>
         )}
         </div>
@@ -871,776 +950,125 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
       </>
     );
 
-    const journalSection = !journalLoaded ? (
+    const patternsSection = !hasData ? (
       <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-        Loading journal data\u2026
-      </p>
-    ) : !hasJournalData ? (
-      <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-        No journal entries yet. Fill in some rows on the Journal tab (pair, trend, R:R, setup, mistakes) to see
-        analytics here.
+        No trades yet. Log a trade with its setup, session and confidence and your patterns show up here.
       </p>
     ) : (
       <>
-        <Readout
-          icon={ClipboardCheck}
-          eyebrow="Journal Entries"
-          value={String(journalRows.length)}
-          unit={journalRows.length === 1 ? "row" : "rows"}
-          sub="Sourced from the Journal tab's spreadsheet, not your logged trades"
+        <OnboardingTip
+          id="insights-patterns-intro"
+          text="Patterns are built from the trades you log. Tag a trade with its setup, session, confidence and mood and this tab shows where you win and where you leak."
+          settings={settings}
+          persistSettings={persistSettings}
         />
 
-        {/* Yearly PnL Calendar */}
-        <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
-          Yearly PnL Calendar
-        </span>
-        <div className="flex items-center justify-between mb-4">
-          <button type="button" onClick={() => { setJournalInsightYear((y) => y - 1); setJournalInsightMonth(null); }} className={TAP} style={{ color: palette.textMuted, padding: "4px" }} aria-label="Previous year"><ChevronLeft size={20} /></button>
-          <span style={{ fontFamily: mono, fontSize: "1.1rem", color: palette.text, letterSpacing: "0.04em" }}>{journalInsightYear}</span>
-          <button type="button" onClick={() => { setJournalInsightYear((y) => y + 1); setJournalInsightMonth(null); }} className={TAP} style={{ color: palette.textMuted, padding: "4px" }} aria-label="Next year"><ChevronRight size={20} /></button>
-        </div>
-        {(() => {
-          const pnlByMonth = journalPnLByMonth(journalRows, journalInsightYear);
-          const pnlByDay = journalInsightMonth ? journalPnLByDay(journalRows, journalInsightYear, journalInsightMonth) : {};
-          const yearHasData = Object.keys(pnlByMonth).length > 0;
-          if (journalInsightMonth === null) {
-            return (
-              <>
-                {!yearHasData && (
-                  <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-                    No PnL data for {journalInsightYear}. Fill in the PnL column in your journal rows to see this calendar.
-                  </p>
-                )}
-                <div className="grid grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
-                  {MONTH_SHORT.map((mLabel, mIdx) => {
-                    const monthPnl = pnlByMonth[mIdx + 1];
-                    const hasPnl = monthPnl !== undefined;
-                    return (
-                      <button
-                        key={mIdx}
-                        type="button"
-                        onClick={() => hasPnl && setJournalInsightMonth(mIdx + 1)}
-                        className={`flex flex-col items-center justify-center gap-1 rounded-2xl ${hasPnl ? TAP : ""}`}
-                        style={{
-                          aspectRatio: "1",
-                          background: hasPnl ? (monthPnl >= 0 ? `${palette.green}1A` : `${palette.red}1A`) : palette.surface,
-                          border: `1px solid ${hasPnl ? (monthPnl >= 0 ? palette.green : palette.red) + "55" : palette.border}`,
-                          cursor: hasPnl ? "pointer" : "default",
-                          transition: THEME_TRANSITION,
-                        }}
-                      >
-              <span style={{ fontFamily: mono, fontSize: "13px", fontWeight: 600, color: hasPnl ? palette.text : palette.textFaint }}>{mLabel}</span>
-                        {hasPnl && (
-                          <span style={{ fontFamily: mono, fontSize: "10px", color: monthPnl >= 0 ? palette.green : palette.red }}>
-                            {monthPnl >= 0 ? "+" : ""}{fmtMoney(monthPnl)}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-                <p className="text-xs mb-4" style={{ color: palette.textFaint }}>Tap a coloured month to see its daily breakdown.</p>
-
-                <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
-                  PnL by Month
-                </span>
-                <div className={isDesktop ? "rounded-2xl p-6 mb-6" : "rounded-2xl p-4 mb-6"} style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}>
-                  <div style={{ width: "100%", height: isDesktop ? 280 : 180 }}>
-                    <ResponsiveContainer>
-                      <BarChart data={journalMonthlyPnLSeries(pnlByMonth)} margin={{ top: 6, right: 8, bottom: 0, left: 0 }} barCategoryGap="30%">
-                        <CartesianGrid stroke={palette.border} strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="label" stroke={palette.textFaint} tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }} tickLine={false} axisLine={{ stroke: palette.border }} />
-                        <YAxis stroke={palette.textFaint} tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }} tickLine={false} axisLine={{ stroke: palette.border }} width={48} />
-                        <ReferenceLine y={0} stroke={palette.textFaint} />
-                        <Tooltip
-                          cursor={false}
-                          contentStyle={{ background: palette.field, border: `1px solid ${palette.border}`, borderRadius: "8px", fontFamily: mono, fontSize: "12px" }}
-                          labelStyle={{ color: palette.textMuted }}
-                          itemStyle={{ color: palette.text }}
-                          formatter={(v) => [`${v >= 0 ? "+" : ""}$${fmtMoney(v)}`, "PnL"]}
-                        />
-                        <Bar dataKey="pnl" radius={[5, 5, 5, 5]} barSize={16} activeBar={false}>
-                          {journalMonthlyPnLSeries(pnlByMonth).map((d, i) => (
-                            <Cell key={i} fill={d.pnl >= 0 ? palette.green : palette.red} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-              </>
-            );
-          }
-          const daysInMonth = new Date(journalInsightYear, journalInsightMonth, 0).getDate();
-          const monthTotal = pnlByMonth[journalInsightMonth] || 0;
-          return (
-            <>
-              <button type="button" onClick={() => setJournalInsightMonth(null)} className={`flex items-center gap-1 mb-3 ${TAP}`} style={{ color: palette.textMuted, fontSize: "12px", fontFamily: mono }}>
-                <ChevronLeft size={16} />{journalInsightYear}
-              </button>
-              <div className="rounded-2xl p-4 mb-6" style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}>
-                <div className="flex items-baseline justify-between mb-3">
-                  <span style={{ fontFamily: mono, fontSize: "13px", fontWeight: 600, color: palette.text }}>{MONTH_NAMES[journalInsightMonth - 1]} {journalInsightYear}</span>
-                  <span style={{ fontFamily: mono, fontSize: "13px", color: monthTotal >= 0 ? palette.green : palette.red }}>
-                    {monthTotal >= 0 ? "+" : ""}{fmtMoney(monthTotal)} total
-                  </span>
-                </div>
-                {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => {
-                  const dayPnl = pnlByDay[day];
-                  if (dayPnl === undefined) return null;
-                  return (
-                    <div key={day} className="flex items-center justify-between py-2" style={{ borderBottom: `1px solid ${palette.border}` }}>
-                      <span style={{ color: palette.textMuted, fontSize: "12px", fontFamily: mono }}>
-                        {MONTH_SHORT[journalInsightMonth - 1]} {day}
-                      </span>
-                      <span style={{ fontFamily: mono, fontSize: "13px", color: dayPnl >= 0 ? palette.green : palette.red }}>
-                        {dayPnl >= 0 ? "+" : ""}{fmtMoney(dayPnl)}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
-                PnL by Day — {MONTH_NAMES[journalInsightMonth - 1]}
-              </span>
-              <div className={isDesktop ? "rounded-2xl p-6 mb-6" : "rounded-2xl p-4 mb-6"} style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}>
-                <div style={{ width: "100%", height: isDesktop ? 280 : 180 }}>
-                  <ResponsiveContainer>
-                    <BarChart data={journalDailyPnLSeries(pnlByDay, daysInMonth)} margin={{ top: 6, right: 8, bottom: 0, left: 0 }} barCategoryGap="25%">
-                      <CartesianGrid stroke={palette.border} strokeDasharray="3 3" vertical={false} />
-                      <XAxis
-                        dataKey="label"
-                        stroke={palette.textFaint}
-                        tick={{ fill: palette.textFaint, fontSize: 9, fontFamily: mono }}
-                        tickLine={false}
-                        axisLine={{ stroke: palette.border }}
-                        interval={Math.ceil(daysInMonth / 10)}
-                      />
-                      <YAxis stroke={palette.textFaint} tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }} tickLine={false} axisLine={{ stroke: palette.border }} width={48} />
-                      <ReferenceLine y={0} stroke={palette.textFaint} />
-                      <Tooltip
-                        cursor={false}
-                        contentStyle={{ background: palette.field, border: `1px solid ${palette.border}`, borderRadius: "8px", fontFamily: mono, fontSize: "12px" }}
-                        labelStyle={{ color: palette.textMuted }}
-                        itemStyle={{ color: palette.text }}
-                        formatter={(v) => [`${v >= 0 ? "+" : ""}$${fmtMoney(v)}`, "PnL"]}
-                        labelFormatter={(l) => `${MONTH_SHORT[journalInsightMonth - 1]} ${l}`}
-                      />
-                      <Bar dataKey="pnl" radius={[3, 3, 3, 3]} barSize={8} activeBar={false}>
-                        {journalDailyPnLSeries(pnlByDay, daysInMonth).map((d, i) => (
-                          <Cell key={i} fill={d.pnl >= 0 ? palette.green : palette.red} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </>
-          );
-        })()}
-        <span
-          className="block mb-1.5 uppercase"
-          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
-        >
-          Journaling Activity (6 mo)
-        </span>
-        <div
-          className={isDesktop ? "rounded-2xl p-6 mb-6" : "rounded-2xl p-4 mb-6"}
-          style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
-        >
-          <div style={{ width: "100%", height: isDesktop ? 240 : 140 }}>
-            <ResponsiveContainer>
-              <BarChart data={monthlyVolume} margin={{ top: 6, right: 8, bottom: 0, left: 0 }} barCategoryGap="35%">
-                <CartesianGrid stroke={palette.border} strokeDasharray="3 3" vertical={false} />
-                <XAxis
-                  dataKey="label"
-                  stroke={palette.textFaint}
-                  tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
-                  tickLine={false}
-                  axisLine={{ stroke: palette.border }}
-                />
-                <YAxis
-                  stroke={palette.textFaint}
-                  tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
-                  tickLine={false}
-                  axisLine={{ stroke: palette.border }}
-                  width={28}
-                  allowDecimals={false}
-                />
-                <Tooltip {...barTooltipProps} formatter={(v) => [`${v}`, "Entries"]} />
-                <Bar dataKey="count" radius={[4, 4, 0, 0]} barSize={THIN_BAR_SIZE} fill={palette.gold} activeBar={false} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className={isDesktop ? "grid grid-cols-2 gap-5 items-start" : "contents"}>
-        {weekdayFreq.some((d) => d.count > 0) && (
-          <div>
-            <span
-              className="block mb-1.5 uppercase"
-              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
-            >
-              Entries by Weekday
-            </span>
-            <div
-              className={isDesktop ? "rounded-2xl p-6 mb-6" : "rounded-2xl p-4 mb-6"}
-              style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
-            >
-              <div style={{ width: "100%", height: isDesktop ? 240 : 140 }}>
-                <ResponsiveContainer>
-                  <BarChart
-                    data={[...weekdayFreq].sort((a, b) => b.count - a.count)}
-                    layout="vertical"
-                    margin={{ top: 6, right: 16, bottom: 0, left: 0 }}
-                    barCategoryGap="26%"
-                  >
-                    <CartesianGrid stroke={palette.border} strokeDasharray="3 3" horizontal={false} />
-                    <XAxis
-                      type="number"
-                      stroke={palette.textFaint}
-                      tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
-                      tickLine={false}
-                      axisLine={{ stroke: palette.border }}
-                      allowDecimals={false}
-                    />
-                    <YAxis
-                      type="category"
-                      dataKey="label"
-                      stroke={palette.textFaint}
-                      tick={{ fill: palette.textFaint, fontSize: 11, fontFamily: mono }}
-                      tickLine={false}
-                      axisLine={false}
-                      width={36}
-                    />
-                    <Tooltip {...barTooltipProps} formatter={(v) => [`${v}`, "Entries"]} />
-                    <Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={isDesktop ? 16 : 12} fill={palette.goldBright} activeBar={false} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </div>
-        )}
-
-{sessionByDay.length > 0 && (() => {
-  const sessionFreq = journalSessionFrequency(journalRows);
-  const totalEntries = sessionFreq.reduce((sum, s) => sum + s.count, 0);
-  return (
-    <div>
-      <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
-        Session Breakdown
-      </span>
-      <div className={isDesktop ? "rounded-2xl p-6 mb-2" : "rounded-2xl p-4 mb-2"} style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}>
-        <div style={{ width: "100%", height: isDesktop ? 240 : 140 }}>
-          <ResponsiveContainer>
-            <PieChart>
-              <Pie
-                data={sessionFreq}
-                dataKey="count"
-                nameKey="label"
-                cx="50%"
-                cy="50%"
-                innerRadius={isDesktop ? 52 : 34}
-                outerRadius={isDesktop ? 86 : 56}
-                paddingAngle={2}
+        <PatternHeading hint="The clearest things your own trades are telling you right now.">What your trades say</PatternHeading>
+        {patterns.findings.length > 0 ? (
+          <div className="grid gap-3" style={{ gridTemplateColumns: isDesktop ? "repeat(2, minmax(0, 1fr))" : "1fr" }}>
+            {patterns.findings.map((f, i) => (
+              <div
+                key={i}
+                className="rounded-2xl p-4"
+                style={{
+                  background: palette.surface,
+                  border: `1px solid ${palette.border}`,
+                  borderLeft: `4px solid ${f.tone === "good" ? palette.green : palette.red}`,
+                  boxShadow: palette.shadow,
+                }}
               >
-                {sessionFreq.map((s) => (
-                  <Cell key={s.id} fill={s.color} />
-                ))}
-              </Pie>
-              <Tooltip
-                contentStyle={{ background: palette.field, border: `1px solid ${palette.border}`, borderRadius: "8px", fontFamily: mono, fontSize: "12px" }}
-                labelStyle={{ color: palette.textMuted }}
-                itemStyle={{ color: palette.text }}
-                formatter={(v, n) => [`${v} entr${v === 1 ? "y" : "ies"}`, n]}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-
-        {sessionFreq.length > 0 && (
-          <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${palette.border}` }}>
-            <div className="flex items-center justify-between mb-2">
-              <span className="uppercase" style={{ color: palette.textFaint, fontSize: "10px", letterSpacing: "0.07em" }}>Session</span>
-              <span className="uppercase" style={{ color: palette.textFaint, fontSize: "10px", letterSpacing: "0.07em" }}>Total</span>
-            </div>
-            {sessionFreq.map((s) => (
-              <div key={s.id} className="flex items-center gap-2 mb-1.5">
-                <span style={{ width: "64px", fontSize: "11px", fontFamily: mono, color: s.color, fontWeight: 600, flexShrink: 0 }}>
-                  {s.label}
-                </span>
-                <div className="flex-1" style={{ height: "5px", borderRadius: "999px", background: palette.field, overflow: "hidden" }}>
-                  <div
-                    style={{
-                      height: "100%",
-                      width: `${totalEntries ? (s.count / totalEntries) * 100 : 0}%`,
-                      background: s.color,
-                      borderRadius: "999px",
-                      transition: "width 0.4s ease",
-                    }}
-                  />
-                </div>
-                <span style={{ fontFamily: mono, fontSize: "11px", color: palette.textMuted, flexShrink: 0, minWidth: "28px", textAlign: "right" }}>
-                  {s.count}
-                </span>
+                <div style={{ color: palette.text, fontSize: "14px", fontWeight: 700, marginBottom: "3px" }}>{f.title}</div>
+                <div style={{ color: palette.textMuted, fontSize: "13px" }}>{f.detail}</div>
               </div>
             ))}
           </div>
+        ) : (
+          <PatternCard>
+            <p className="text-xs" style={{ color: palette.textFaint }}>
+              Nothing stands out yet. Findings need at least {FEW_TRADES} trades in a group and two groups to compare, so keep tagging setup, session and mood on each trade.
+            </p>
+          </PatternCard>
         )}
-      </div>
-      <p className="text-xs mb-6" style={{ color: palette.textFaint }}>
-        Share of all logged entries by session — hover a slice for the count, progress strips below break down the same totals.
-      </p>
-    </div>
-  );
-})()}
+
+        <PatternHeading hint="Tags are optional, but charts only see the trades that carry them.">How much of your log is tagged</PatternHeading>
+        <PatternCard>
+          <div className="grid gap-4" style={{ gridTemplateColumns: isDesktop ? "repeat(4, minmax(0, 1fr))" : "repeat(2, minmax(0, 1fr))" }}>
+            <CoverageMeter label="Setup" pct={patterns.coverage.setup} />
+            <CoverageMeter label="Session" pct={patterns.coverage.session} />
+            <CoverageMeter label="Confidence" pct={patterns.coverage.confidence} />
+            <CoverageMeter label="Mood" pct={patterns.coverage.mood} />
+          </div>
+        </PatternCard>
+
+        <div className={isDesktop ? "grid grid-cols-2 gap-5 items-start" : ""}>
+          <div>
+            <PatternHeading hint="Net result for each kind of trade you take.">Setups</PatternHeading>
+            <PatternCard>
+              <EdgeRows rows={patterns.setupRows} signed={fmtSigned} emptyText="Pick a setup when you log a trade to compare them here." />
+            </PatternCard>
+          </div>
+          <div>
+            <PatternHeading hint="Which part of the market day pays you.">Sessions</PatternHeading>
+            <PatternCard>
+              <EdgeRows rows={patterns.sessionRows} signed={fmtSigned} emptyText="Pick a session when you log a trade to compare them here." />
+            </PatternCard>
+          </div>
         </div>
 
-        <div className={isDesktop ? "grid grid-cols-2 gap-5 items-start" : "contents"}>
-        {confidenceByDay.length > 1 && (
-          <div>
-            <span
-              className="block mb-1.5 uppercase"
-              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
-            >
-              Confidence by Day
-            </span>
-            <div
-              className={isDesktop ? "rounded-2xl p-6 mb-6" : "rounded-2xl p-4 mb-6"}
-              style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
-            >
-              <div style={{ width: "100%", height: isDesktop ? 260 : 160 }}>
-                <ResponsiveContainer>
-                  <LineChart data={confidenceByDay} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
-                    <CartesianGrid stroke={palette.border} strokeDasharray="3 3" vertical={false} />
-                    <XAxis
-                      dataKey="label"
-                      stroke={palette.textFaint}
-                      tick={{ fill: palette.textFaint, fontSize: 9, fontFamily: mono }}
-                      tickLine={false}
-                      axisLine={{ stroke: palette.border }}
-                      minTickGap={20}
-                    />
-                    <YAxis
-                      stroke={palette.textFaint}
-                      tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
-                      tickLine={false}
-                      axisLine={{ stroke: palette.border }}
-                      width={54}
-                      domain={[1, 3]}
-                      ticks={[1, 2, 3]}
-                      tickFormatter={(v) => (v === 1 ? "Low" : v === 2 ? "Medium" : "High")}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        background: palette.field,
-                        border: `1px solid ${palette.border}`,
-                        borderRadius: "8px",
-                        fontFamily: mono,
-                        fontSize: "12px",
-                      }}
-                      labelStyle={{ color: palette.textMuted }}
-                      itemStyle={{ color: palette.goldBright }}
-                      formatter={(v) => [
-                        v === 1 ? "Low" : v === 2 ? "Medium" : v === 3 ? "High" : v.toFixed(2),
-                        "Confidence",
-                      ]}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="avgConfidence"
-                      stroke={palette.gold}
-                      strokeWidth={2}
-                      dot={{ r: 3 }}
-                      activeDot={{ r: 5 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-            <p className="text-xs mb-6" style={{ color: palette.textFaint }}>
-              Average confidence level logged per day (Low / Medium / High) \u2014 a dip here alongside a losing
-              streak can be worth a closer look.
-            </p>
-          </div>
-        )}
+        <PatternHeading hint={`Rate each trade from 1 to ${CONFIDENCE_MAX} before you take it, then see if feeling sure ever matched being right.`}>
+          Confidence against results
+        </PatternHeading>
+        <PatternCard>
+          <EdgeRows rows={patterns.confRows} signed={fmtSigned} emptyText="Set the confidence meter when you log a trade to see this." />
+        </PatternCard>
 
-        {trendBreakdown.length > 0 && (
+        <div className={isDesktop ? "grid grid-cols-2 gap-5 items-start" : ""}>
           <div>
-            <span
-              className="block mb-1.5 uppercase"
-              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
-            >
-              Trend Breakdown
-            </span>
-            <div
-              className={isDesktop ? "rounded-2xl p-6 mb-6" : "rounded-2xl p-4 mb-6"}
-              style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
-            >
-              <div style={{ width: "100%", height: isDesktop ? 260 : 160 }}>
-                <ResponsiveContainer>
-                  <PieChart>
-                    <Pie
-                      data={trendBreakdown}
-                      dataKey="value"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={40}
-                      outerRadius={72}
-                      paddingAngle={2}
-                    >
-                      {trendBreakdown.map((d, i) => (
-                        <Cell key={d.id} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        background: palette.field,
-                        border: `1px solid ${palette.border}`,
-                        borderRadius: "8px",
-                        fontFamily: mono,
-                        fontSize: "12px",
-                      }}
-                      labelStyle={{ color: palette.textMuted }}
-                      itemStyle={{ color: palette.text }}
-                    />
-                    <Legend
-                      wrapperStyle={{ fontFamily: mono, fontSize: "11px", color: palette.textMuted }}
-                      formatter={(v) => <span style={{ color: palette.textMuted }}>{v}</span>}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
+            <PatternHeading>Mood</PatternHeading>
+            <PatternCard>
+              <EdgeRows rows={patterns.moodRows} signed={fmtSigned} emptyText="Tag how you felt on a trade to see its effect here." />
+            </PatternCard>
           </div>
-        )}
+          <div>
+            <PatternHeading>Day of the week</PatternHeading>
+            <PatternCard>
+              <EdgeRows rows={patterns.dayRows} signed={fmtSigned} emptyText="Log a few trades to see your weekdays." />
+            </PatternCard>
+          </div>
         </div>
 
-        <div className={isDesktop ? "grid grid-cols-2 gap-5 items-start" : "contents"}>
-        {rrSeries.length > 0 && (
-          <div>
-            <span
-              className="block mb-1.5 uppercase"
-              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
-            >
-              R-Multiple Over Time
-            </span>
-            <div
-              className={isDesktop ? "rounded-2xl p-6 mb-6" : "rounded-2xl p-4 mb-6"}
-              style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
-            >
-              <div style={{ width: "100%", height: isDesktop ? 240 : 140 }}>
-                <ResponsiveContainer>
-                  <LineChart data={rrSeries} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
-                    <CartesianGrid stroke={palette.border} strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="label" hide />
-                    <YAxis
-                      stroke={palette.textFaint}
-                      tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
-                      tickLine={false}
-                      axisLine={{ stroke: palette.border }}
-                      width={32}
-                    />
-                    <ReferenceLine y={0} stroke={palette.textFaint} />
-                    <Tooltip
-                      contentStyle={{
-                        background: palette.field,
-                        border: `1px solid ${palette.border}`,
-                        borderRadius: "8px",
-                        fontFamily: mono,
-                        fontSize: "12px",
-                      }}
-                      labelStyle={{ color: palette.textMuted }}
-                      itemStyle={{ color: palette.goldBright }}
-                      formatter={(v) => [`${v.toFixed(2)}R`, "R-Multiple"]}
-                      labelFormatter={() => ""}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="rr"
-                      stroke={palette.gold}
-                      strokeWidth={2}
-                      dot={{ r: 3 }}
-                      activeDot={{ r: 5 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-            <p className="text-xs mb-6" style={{ color: palette.textFaint }}>
-              Each logged trade's R-multiple, in order \u2014 climbing above the zero line more often than not
-              is what a positive edge looks like over time.
-            </p>
-          </div>
-        )}
-
-        {rrDist.length > 0 && (
-          <div>
-            <span
-              className="block mb-1.5 uppercase"
-              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
-            >
-              R-Multiple Distribution
-            </span>
-            <div
-              className={isDesktop ? "rounded-2xl p-6 mb-6" : "rounded-2xl p-4 mb-6"}
-              style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
-            >
-              <div style={{ width: "100%", height: isDesktop ? 240 : 140 }}>
-                <ResponsiveContainer>
-                  <BarChart data={rrDist} margin={{ top: 6, right: 8, bottom: 0, left: 0 }} barCategoryGap="30%">
-                    <CartesianGrid stroke={palette.border} strokeDasharray="3 3" vertical={false} />
-                    <XAxis
-                      dataKey="label"
-                      stroke={palette.textFaint}
-                      tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
-                      tickLine={false}
-                      axisLine={{ stroke: palette.border }}
-                    />
-                    <YAxis
-                      stroke={palette.textFaint}
-                      tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
-                      tickLine={false}
-                      axisLine={{ stroke: palette.border }}
-                      width={28}
-                      allowDecimals={false}
-                    />
-                    <Tooltip {...barTooltipProps} formatter={(v) => [`${v}`, "Trades"]} />
-                    <Bar dataKey="count" radius={[4, 4, 0, 0]} barSize={THIN_BAR_SIZE} fill={palette.goldBright} activeBar={false} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-            <p className="text-xs mb-6" style={{ color: palette.textFaint }}>
-              How many trades landed in each R-multiple range \u2014 a healthy edge usually skews toward the
-              right side of this chart.
-            </p>
-          </div>
-        )}
-        </div>
-
-        {setupRadarData.rows.length > 0 && (
+        {patterns.pairRows.length > 0 && (
           <>
-            <span
-              className="block mb-1.5 uppercase"
-              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
-            >
-              Setup Breakdown
-            </span>
-            <div
-              className={isDesktop ? "rounded-2xl p-6 mb-6" : "rounded-2xl p-4 mb-6"}
-              style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
-            >
-              <div style={{ width: "100%", height: Math.max(isDesktop ? 220 : 140, setupRadarData.rows.length * (isDesktop ? 44 : 34)) }}>
-                <ResponsiveContainer>
-                  <BarChart
-                    data={[...setupRadarData.rows].sort((a, b) => b.count - a.count)}
-                    layout="vertical"
-                    margin={{ top: 4, right: 16, bottom: 4, left: 4 }}
-                    barCategoryGap="30%"
-                  >
-                    <CartesianGrid stroke={palette.border} strokeDasharray="3 3" horizontal={false} />
-                    <XAxis type="number" hide allowDecimals={false} />
-                    <YAxis
-                      type="category"
-                      dataKey="label"
-                      width={92}
-                      stroke={palette.textFaint}
-                      tick={{ fill: palette.textMuted, fontSize: 10, fontFamily: mono }}
-                      tickLine={false}
-                      axisLine={{ stroke: palette.border }}
-                    />
-                    <Tooltip
-                      cursor={false}
-                      contentStyle={{
-                        background: palette.field,
-                        border: `1px solid ${palette.border}`,
-                        borderRadius: "8px",
-                        fontFamily: mono,
-                        fontSize: "12px",
-                      }}
-                      labelStyle={{ color: palette.textMuted }}
-                      itemStyle={{ color: palette.text }}
-                      formatter={(v) => [`${v}`, "Entries"]}
-                    />
-                    <Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={16} fill={palette.gold} activeBar={false} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
+            <PatternHeading hint="Your six biggest movers by net result.">Pairs</PatternHeading>
+            <PatternCard>
+              <EdgeRows rows={patterns.pairRows} signed={fmtSigned} emptyText="" />
+            </PatternCard>
           </>
         )}
 
-{combinedMistakeRows.length > 0 && (
-  <>
-    {patternDetected ? (
-      <div
-        className="rounded-2xl p-4 mb-6"
-        style={{ background: palette.surface, border: `1px solid ${palette.red}`, boxShadow: palette.shadow }}
-      >
-        <div className="flex items-center gap-2 mb-1">
-          <Lightbulb size={14} style={{ color: palette.red }} />
-          <span className="uppercase" style={{ color: palette.red, letterSpacing: "0.08em", fontSize: "10px" }}>
-            Pattern Detected
-          </span>
-        </div>
-        <div style={{ color: palette.text, fontSize: "13px" }}>
-          {mistakePatterns.worstTrends.length > 0 && mistakePatterns.worstTrends[0].mistakeRate >= 30 && (
-            <>
-              You log a mistake {mistakePatterns.worstTrends[0].mistakeRate}% of the time in{" "}
-              {joinWithAnd(mistakePatterns.worstTrends.map((t) => t.label.toLowerCase()))} conditions.{" "}
-            </>
-          )}
-          {mistakePatterns.worstWeekdays.length > 0 && mistakePatterns.worstWeekdays[0].mistakeRate >= 30 && (
-            <>
-              {joinWithAnd(mistakePatterns.worstWeekdays.map((w) => `${w.fullLabel}s`))}{" "}
-              {mistakePatterns.worstWeekdays.length > 1 ? "are" : "is"} your worst day
-              {mistakePatterns.worstWeekdays.length > 1 ? "s" : ""}.
-            </>
-          )}
-        </div>
-      </div>
-    ) : (
-      <div
-        className="rounded-2xl p-4 mb-6"
-        style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
-      >
-        <div className="flex items-center gap-2 mb-1">
-          <Lightbulb size={14} style={{ color: palette.textFaint }} />
-          <span className="uppercase" style={{ color: palette.textFaint, letterSpacing: "0.08em", fontSize: "10px" }}>
-            No Strong Pattern Yet
-          </span>
-        </div>
-        <div style={{ color: palette.textMuted, fontSize: "13px" }}>
-          {closestWeekday
-            ? `${closestWeekday.fullLabel} currently has your highest mistake rate at ${closestWeekday.mistakeRate}%${
-                closestWeekday.count < 3
-                  ? `, but it only has ${closestWeekday.count} entr${closestWeekday.count === 1 ? "y" : "ies"} so far — a weekday needs at least 3 journaled entries before a pattern counts`
-                  : ", which is under the 30% threshold that flags a real pattern"
-              }.`
-            : "Fill in the Mistake field on a few more journal rows — once a weekday or market condition has at least 3 entries, patterns will start surfacing here."}
-        </div>
-      </div>
-    )}
-
-            <span
-              className="block mb-1.5 uppercase"
-              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
-            >
-              Mistake Rate by Trend & Weekday
-            </span>
-            <div
-              className={isDesktop ? "rounded-2xl p-6 mb-6" : "rounded-2xl p-4 mb-6"}
-              style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
-            >
-              <div style={{ width: "100%", height: isDesktop ? 280 : 180 }}>
+        {patterns.daily.length > 1 && (
+          <>
+            <PatternHeading hint="Net result per trading day, most recent 30 days you traded.">Daily results</PatternHeading>
+            <PatternCard>
+              <div style={{ width: "100%", height: isDesktop ? 220 : 150 }}>
                 <ResponsiveContainer>
-                  <BarChart data={combinedMistakeRows} margin={{ top: 6, right: 8, bottom: 8, left: 0 }} barCategoryGap="25%">
+                  <BarChart data={patterns.daily} margin={{ top: 6, right: 8, bottom: 0, left: 0 }} barCategoryGap="30%">
                     <CartesianGrid stroke={palette.border} strokeDasharray="3 3" vertical={false} />
-                    <XAxis
-                      dataKey="label"
-                      stroke={palette.textFaint}
-                      tick={{ fill: palette.textFaint, fontSize: 9, fontFamily: mono }}
-                      tickLine={false}
-                      axisLine={{ stroke: palette.border }}
-                      interval={0}
-                      angle={-35}
-                      textAnchor="end"
-                      height={46}
-                    />
-                    <YAxis
-                      stroke={palette.textFaint}
-                      tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
-                      tickLine={false}
-                      axisLine={{ stroke: palette.border }}
-                      width={30}
-                      unit="%"
-                    />
-                    <Tooltip
-                      {...barTooltipProps}
-                      formatter={(v, name, props) => [`${v}%`, props.payload.group]}
-                    />
-                    <Bar dataKey="mistakeRate" radius={[4, 4, 0, 0]} barSize={THIN_BAR_SIZE} activeBar={false}>
-                      {combinedMistakeRows.map((r, i) => (
-                        <Cell key={i} fill={r.mistakeRate >= 50 ? palette.red : r.mistakeRate >= 25 ? palette.gold : palette.green} />
+                    <XAxis dataKey="day" stroke={palette.textFaint} tick={{ fill: palette.textFaint, fontSize: 9, fontFamily: mono }} tickLine={false} axisLine={{ stroke: palette.border }} interval="preserveStartEnd" />
+                    <YAxis stroke={palette.textFaint} tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }} tickLine={false} axisLine={{ stroke: palette.border }} width={36} />
+                    <ReferenceLine y={0} stroke={palette.border} />
+                    <Tooltip {...barTooltipProps} formatter={(v) => [fmtSigned(v), "Net"]} />
+                    <Bar dataKey="pnl" radius={[3, 3, 0, 0]} activeBar={false}>
+                      {patterns.daily.map((d, i) => (
+                        <Cell key={i} fill={d.pnl >= 0 ? palette.green : palette.red} />
                       ))}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-            </div>
-
-            <p className="text-xs mb-6" style={{ color: palette.textFaint }}>
-              Percent of entries with a mistake logged, grouped by market condition and by day of week – this is
-              where to look for a habit to fix, not just a setup to favor.
-            </p>
+            </PatternCard>
           </>
         )}
-
-        <div className={isDesktop ? "grid grid-cols-2 gap-5 items-start" : "contents"}>
-        {mistakeFreq.length > 0 && (
-          <div>
-            <span
-              className="block mb-1.5 uppercase"
-              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
-            >
-              Recurring Mistakes
-            </span>
-            <div
-              className={isDesktop ? "rounded-2xl p-6 mb-6" : "rounded-2xl p-4 mb-6"}
-              style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
-            >
-              <div style={{ width: "100%", height: Math.max(isDesktop ? 220 : 140, mistakeFreq.length * (isDesktop ? 44 : 34)) }}>
-                <ResponsiveContainer>
-                  <BarChart
-                    data={mistakeFreq}
-                    layout="vertical"
-                    margin={{ top: 4, right: 16, bottom: 4, left: 4 }}
-                    barCategoryGap="30%"
-                  >
-                    <CartesianGrid stroke={palette.border} strokeDasharray="3 3" horizontal={false} />
-                    <XAxis type="number" hide allowDecimals={false} />
-                    <YAxis
-                      type="category"
-                      dataKey="label"
-                      width={120}
-                      stroke={palette.textFaint}
-                      tick={{ fill: palette.textMuted, fontSize: 10, fontFamily: mono }}
-                      tickLine={false}
-                      axisLine={{ stroke: palette.border }}
-                    />
-                    <Tooltip {...barTooltipProps} formatter={(v) => [`${v}`, "Count"]} />
-                    <Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={16} fill={palette.red} activeBar={false} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {pairFreq.length > 0 && (
-          <div>
-            <span
-              className="block mb-1.5 uppercase"
-              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
-            >
-              Most Journaled Pairs
-            </span>
-            <div className="grid grid-cols-2 gap-3 mb-2">
-              {pairFreq.map((p) => (
-                <StatChip key={p.pair} label={p.pair} value={`${p.count} entr${p.count === 1 ? "y" : "ies"}`} />
-              ))}
-            </div>
-          </div>
-        )}
-        </div>
-
-        <p className="text-xs mt-4" style={{ color: palette.textFaint }}>
-          These charts read straight from your Journal tab rows, add or fill in more rows there to sharpen the
-          picture here.
-        </p>
       </>
     );
 
@@ -1910,10 +1338,10 @@ const closestWeekday = [...mistakePatterns.weekdayRows].sort(
         {insightsSubNav}
         {insightsSubTab === "overview" && overviewSection}
         {insightsSubTab === "behavior" && (hasFeature(myPlan.plan, "behaviorInsights") ? behaviorSection : <PlanLockCard title="Behaviour insights" plan="pro" blurb="See how emotions, setups and habits shape your results." />)}
-        {insightsSubTab === "journal" && (hasFeature(myPlan.plan, "journalInsights") ? journalSection : <PlanLockCard title="Journal insights" plan="pro" blurb="Monthly journal analytics: mistakes, completeness and patterns." />)}
+        {insightsSubTab === "patterns" && (hasFeature(myPlan.plan, "journalInsights") ? patternsSection : <PlanLockCard title="Pattern insights" plan="pro" blurb="See which setups, sessions and confidence levels make or lose you money." />)}
         {insightsSubTab === "coach" && coachSection}
 
-        {insightsSubTab !== "journal" && insightsSubTab !== "coach" && hasData && (
+        {insightsSubTab !== "coach" && hasData && (
           <>
             <button
               type="button"
