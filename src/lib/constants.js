@@ -1,5 +1,5 @@
 import { MARKET_SESSIONS } from "./sessions.js";
-import { ArrowLeftRight, BookOpen, Building2, Clock, FileText, Lightbulb, Scale, Users } from "lucide-react";
+import { ArrowLeftRight, BookOpen, Building2, Clock, Lightbulb, Link2, Scale, Users } from "lucide-react";
 
 export const EMOTIONS = [
   { id: "calm", label: "Calm", emoji: "\u{1F60C}" },
@@ -79,13 +79,10 @@ export const TABS = [
   { id: "fx", label: "Convert", icon: ArrowLeftRight },
   { id: "insights", label: "Insights", icon: Lightbulb },
   { id: "journal", label: "Journal", icon: BookOpen },
-  { id: "notepad", label: "Notepad", icon: FileText },
+  { id: "broker", label: "Broker", icon: Link2 },
   { id: "sessions", label: "Sessions", icon: Clock },
   { id: "community", label: "Community", icon: Users },
 ];
-
-// Tabs that were merged into another one. Saved settings that still point at them are redirected.
-export const LEGACY_TAB_IDS = { curve: "journal" };
 
 export const MOBILE_NAV_PRIMARY_COUNT = 4;
 
