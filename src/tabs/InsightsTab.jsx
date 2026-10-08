@@ -5,14 +5,14 @@ import { PlanLockCard } from "../components/PlansModal.jsx";
 import { hasFeature } from "../data/plans.js";
 import { useMyPlan } from "../lib/planStore.js";
 import { Readout, StatChip } from "../components/ui.jsx";
-import { METRIC_INFO, MIN_TRADES_FOR_TIERS, computeConsistencyScore, computeDisciplineGrade, computeDisciplineStreakTrend, computeHeadlineInsight, computeHeatmapWeeks, computeInsights, computeJournalCompleteness, computeMonthComparison, computeNoteTagAnalysis, computeOverconfidenceCheck, computePerformanceMetrics, computeRevengeCostSplit, tierColor } from "../lib/analytics.js";
+import { METRIC_INFO, MIN_TRADES_FOR_TIERS, computeConsistencyScore, computeDisciplineGrade, computeDisciplineStreakTrend, computeHeadlineInsight, computeInsights, computeJournalCompleteness, computeMonthComparison, computeNoteTagAnalysis, computeOverconfidenceCheck, computePerformanceMetrics, computeRevengeCostSplit, tierColor } from "../lib/analytics.js";
 import { EMOTIONS, SETUPS } from "../lib/constants.js";
 import { MARKET_SESSIONS } from "../lib/sessions.js";
-import { CONFIDENCE_MAX, bySession, bySetup, byConfidence, byMood, byPair, byWeekday, dailySeries, findPatterns, tagCoverage } from "../lib/tradeInsights.js";
-import { WEEKDAY_LABELS, fmtMoney, formatDayLabel } from "../lib/format.js";
+import { CONFIDENCE_MAX, bySession, bySetup, byConfidence, byDirection, byMood, byPair, byWeekday, findPatterns, tagCoverage } from "../lib/tradeInsights.js";
+import { fmtMoney } from "../lib/format.js";
 import { TAP, THEME_TRANSITION, display, mono, palette } from "../lib/theme.js";
-import { ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, Clock, Download, Lightbulb, Plus, Send, ShieldAlert, Sparkles, Trash2 } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { ChevronDown, Clock, Download, Lightbulb, Plus, Send, ShieldAlert, Sparkles, Trash2 } from "lucide-react";
+import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 
 // ───────────────────────── Patterns tab building blocks ─────────────────────────
@@ -106,7 +106,6 @@ function CoverageMeter({ label, pct }) {
 
 export default function InsightsTab(props) {
   const myPlan = useMyPlan();
-  const [heatMonthOffset, setHeatMonthOffset] = useState(0); // 0 = latest month, 1 = the month before, ...
   const {
     coachChatId,
     coachChats,
@@ -142,8 +141,8 @@ export default function InsightsTab(props) {
     settings,
     trades
   } = props;
-  // "journal" was this tab's old name. People who saved it as their default land on Patterns.
-  const insightsSubTab = insightsSubTabProp === "journal" ? "patterns" : insightsSubTabProp;
+  // "journal" and "patterns" were separate tabs. They are part of Overview now, so saved defaults land there.
+  const insightsSubTab = insightsSubTabProp === "journal" || insightsSubTabProp === "patterns" ? "overview" : insightsSubTabProp;
   // ── Mascot reactions ───────────────────────────────────────────────
   const crabReady = useRef(false);
   const prevCoachLoading = useRef(false);
@@ -172,12 +171,11 @@ export default function InsightsTab(props) {
   }, []);
   let body = null;
     const hasData = trades.length > 0;
-    const heatmapWeeksBack = Number(settings.heatmapWeeksBack) || 26;
     // All of these loop over every trade / journal row. They used to re-run on EVERY render (each keystroke in
     // the coach box, each App update), which is what made opening Insights hang. Now they only re-run when
     // the underlying data actually changes.
     const {
-      insights, heatmap, headline, perf, monthCmp, completeness, grade, revengeCost, overconfidence,
+      insights, headline, perf, monthCmp, completeness, grade, revengeCost, overconfidence,
       disciplineTrend, noteTags, consistency, patterns,
     } = useMemo(() => {
       const setupLabel = (id) => [...SETUPS, ...(customSetups || [])].find((x) => x.id === id)?.label;
@@ -188,10 +186,10 @@ export default function InsightsTab(props) {
       const moodRows = byMood(trades, moodMeta);
       const pairRows = byPair(trades);
       const dayRows = byWeekday(trades);
+      const directionRows = byDirection(trades);
       const confRows = byConfidence(trades);
       return {
         insights: computeInsights(trades, customSetups, customMoods),
-        heatmap: computeHeatmapWeeks(trades, heatmapWeeksBack),
         headline: computeHeadlineInsight(trades, customSetups, customMoods),
         perf: computePerformanceMetrics(trades),
         monthCmp: computeMonthComparison(trades),
@@ -203,14 +201,13 @@ export default function InsightsTab(props) {
         noteTags: computeNoteTagAnalysis(trades),
         consistency: computeConsistencyScore(trades),
         patterns: {
-          setupRows, sessionRows, moodRows, confRows, dayRows,
+          setupRows, sessionRows, moodRows, confRows, dayRows, directionRows,
           pairRows: pairRows.slice(0, 6),
           coverage: tagCoverage(trades),
-          daily: dailySeries(trades, 30),
-          findings: findPatterns(trades, { setupRows, sessionRows, moodRows, pairRows, dayRows, confRows }, fmtMoney),
+          findings: findPatterns(trades, { setupRows, sessionRows, moodRows, pairRows, dayRows, confRows, directionRows }, fmtMoney),
         },
       };
-    }, [trades, customSetups, customMoods, heatmapWeeksBack]);
+    }, [trades, customSetups, customMoods]);
     const fmtSigned = (n) => `${n >= 0 ? "+" : "-"}$${fmtMoney(n)}`;
     const fmtRatio = (n) => (Number.isFinite(n) ? n.toFixed(2) : "\u221e");
 
@@ -227,12 +224,10 @@ export default function InsightsTab(props) {
       itemStyle: { color: palette.text },
     };
     const THIN_BAR_SIZE = 14;
-    const PIE_COLORS = [palette.gold, palette.green, palette.red, palette.textMuted, palette.goldBright];
 
     const INSIGHTS_SUB_TABS = [
       { id: "overview", label: "Overview" },
       { id: "behavior", label: "Behavior" },
-      { id: "patterns", label: "Patterns" },
       { id: "coach", label: "Coach" },
     ];
 
@@ -390,6 +385,104 @@ export default function InsightsTab(props) {
       </div>
     );
 
+    const patternsBlock = (
+      <>
+        <PatternHeading hint="The clearest things your own trades are telling you right now.">What your trades say</PatternHeading>
+        {patterns.findings.length > 0 ? (
+          <div className="grid gap-3" style={{ gridTemplateColumns: isDesktop ? "repeat(2, minmax(0, 1fr))" : "1fr" }}>
+            {patterns.findings.map((f, i) => (
+              <div
+                key={i}
+                className="rounded-2xl p-4"
+                style={{
+                  background: palette.surface,
+                  border: `1px solid ${palette.border}`,
+                  borderLeft: `4px solid ${f.tone === "good" ? palette.green : palette.red}`,
+                  boxShadow: palette.shadow,
+                }}
+              >
+                <div style={{ color: palette.text, fontSize: "14px", fontWeight: 700, marginBottom: "3px" }}>{f.title}</div>
+                <div style={{ color: palette.textMuted, fontSize: "13px" }}>{f.detail}</div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <PatternCard>
+            <p className="text-xs" style={{ color: palette.textFaint }}>
+              Nothing stands out yet. Findings need at least {FEW_TRADES} trades in a group and two groups to compare, so keep tagging setup, session and mood on each trade.
+            </p>
+          </PatternCard>
+        )}
+
+        <PatternHeading hint="Tags are optional, but charts only see the trades that carry them.">How much of your log is tagged</PatternHeading>
+        <PatternCard>
+          <div className="grid gap-4" style={{ gridTemplateColumns: isDesktop ? "repeat(5, minmax(0, 1fr))" : "repeat(2, minmax(0, 1fr))" }}>
+            <CoverageMeter label="Direction" pct={patterns.coverage.direction} />
+            <CoverageMeter label="Setup" pct={patterns.coverage.setup} />
+            <CoverageMeter label="Session" pct={patterns.coverage.session} />
+            <CoverageMeter label="Confidence" pct={patterns.coverage.confidence} />
+            <CoverageMeter label="Mood" pct={patterns.coverage.mood} />
+          </div>
+        </PatternCard>
+
+        <div className={isDesktop ? "grid grid-cols-2 gap-5 items-start" : ""}>
+          <div>
+            <PatternHeading hint="Net result for each kind of trade you take.">Setups</PatternHeading>
+            <PatternCard>
+              <EdgeRows rows={patterns.setupRows} signed={fmtSigned} emptyText="Pick a setup when you log a trade to compare them here." />
+            </PatternCard>
+          </div>
+          <div>
+            <PatternHeading hint="Which part of the market day pays you.">Sessions</PatternHeading>
+            <PatternCard>
+              <EdgeRows rows={patterns.sessionRows} signed={fmtSigned} emptyText="Pick a session when you log a trade to compare them here." />
+            </PatternCard>
+          </div>
+        </div>
+
+        <div className={isDesktop ? "grid grid-cols-2 gap-5 items-start" : ""}>
+          <div>
+            <PatternHeading hint="Do you do better buying or selling?">Up against down</PatternHeading>
+            <PatternCard>
+              <EdgeRows rows={patterns.directionRows} signed={fmtSigned} emptyText="Pick Up or Down when you log a trade to compare them here." />
+            </PatternCard>
+          </div>
+          <div>
+            <PatternHeading hint={`Rate each trade from 1 to ${CONFIDENCE_MAX} before you take it.`}>Confidence against results</PatternHeading>
+            <PatternCard>
+              <EdgeRows rows={patterns.confRows} signed={fmtSigned} emptyText="Set the confidence meter when you log a trade to see this." />
+            </PatternCard>
+          </div>
+        </div>
+
+        <div className={isDesktop ? "grid grid-cols-2 gap-5 items-start" : ""}>
+          <div>
+            <PatternHeading>Mood</PatternHeading>
+            <PatternCard>
+              <EdgeRows rows={patterns.moodRows} signed={fmtSigned} emptyText="Tag how you felt on a trade to see its effect here." />
+            </PatternCard>
+          </div>
+          <div>
+            <PatternHeading>Day of the week</PatternHeading>
+            <PatternCard>
+              <EdgeRows rows={patterns.dayRows} signed={fmtSigned} emptyText="Log a few trades to see your weekdays." />
+            </PatternCard>
+          </div>
+        </div>
+
+        {patterns.pairRows.length > 0 && (
+          <>
+            <PatternHeading hint="Your six biggest movers by net result.">Pairs</PatternHeading>
+            <PatternCard>
+              <EdgeRows rows={patterns.pairRows} signed={fmtSigned} emptyText="" />
+            </PatternCard>
+          </>
+        )}
+      </>
+    );
+
+    // Overview is the one-page read of your trading. Totals that the Journal tab already shows
+    // (win rate, net P&L, profit factor, drawdown, streaks, calendar) are deliberately not repeated here.
     const overviewSection = !hasData ? (
       <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
         No trades yet. Insights appear once you start logging trades in the Journal tab.
@@ -398,149 +491,10 @@ export default function InsightsTab(props) {
       <>
         <OnboardingTip
           id="insights-overview-intro"
-          text="This heatmap and the metrics below update automatically from your logged trades — nothing to fill in here."
+          text="Overview is built from the trades you log. Tag each trade with direction, setup, session, confidence and mood, and it shows where you win and where you leak. Totals and the calendar live in the Journal tab."
           settings={settings}
           persistSettings={persistSettings}
         />
-        <span
-          className="block mb-1.5 uppercase"
-          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
-        >
-          Performance Heatmap
-        </span>
-        <div
-          className={isDesktop ? "rounded-2xl p-6 mb-2" : "rounded-2xl p-3 mb-2"}
-          style={{
-            background: palette.surface,
-            border: `1px solid ${palette.border}`,
-            boxShadow: palette.shadow,
-            overflowX: "auto",
-            WebkitOverflowScrolling: "touch",
-          }}
-        >
-          {(() => {
-            // Month calendar heatmap: big rounded day tiles with the date and that day's P/L.
-            const HEAT_GREEN = "#22b85c";
-            const HEAT_RED = "#e5483f";
-            const keyParts = (day) => {
-              const k = String(day?.key || "");
-              const m = k.match(/^(\d{4})-(\d{2})-(\d{2})/);
-              if (m) return { y: +m[1], m: +m[2] - 1, d: +m[3] };
-              const dt = new Date(day?.key);
-              return Number.isNaN(dt.getTime()) ? null : { y: dt.getFullYear(), m: dt.getMonth(), d: dt.getDate() };
-            };
-            const ymOf = (pt) => pt.y * 12 + pt.m;
-            const heatMoney = (n) => {
-              const a = Math.abs(n);
-              const body = a >= 10000 ? `${Math.round(a / 1000)}k` : a >= 1000 ? `${(a / 1000).toFixed(1)}k` : String(Math.round(a));
-              return `${n > 0 ? "+" : n < 0 ? "-" : ""}$${body}`;
-            };
-            let minYm = Infinity;
-            let maxYm = -Infinity;
-            heatmap.weeks.forEach((w) => w.forEach((d) => {
-              if (d.future) return;
-              const pt = keyParts(d);
-              if (!pt) return;
-              minYm = Math.min(minYm, ymOf(pt));
-              maxYm = Math.max(maxYm, ymOf(pt));
-            }));
-            if (!Number.isFinite(maxYm)) { const now = new Date(); minYm = maxYm = now.getFullYear() * 12 + now.getMonth(); }
-            const offset = Math.min(Math.max(heatMonthOffset, 0), maxYm - minYm);
-            const selYm = maxYm - offset;
-            const monthWeeks = heatmap.weeks.filter((w) => w.some((d) => { const pt = keyParts(d); return pt && ymOf(pt) === selYm; }));
-            const monthLabel = new Date(Math.floor(selYm / 12), selYm % 12, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" });
-            let monthTotal = 0;
-            let monthTradedDays = 0;
-            monthWeeks.forEach((w) => w.forEach((d) => {
-              const pt = keyParts(d);
-              if (pt && ymOf(pt) === selYm && !d.future && d.pnl !== null) { monthTotal += d.pnl; monthTradedDays += 1; }
-            }));
-            const navBtn = (enabled) => ({
-              width: "30px", height: "30px", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center",
-              background: palette.field, border: `1px solid ${palette.border}`, color: enabled ? palette.text : palette.textFaint,
-              opacity: enabled ? 1 : 0.4, cursor: enabled ? "pointer" : "default",
-            });
-            const gap = isDesktop ? "8px" : "5px";
-            return (
-              <div style={{ maxWidth: isDesktop ? "520px" : "100%", margin: "0 auto" }}>
-                <div className="flex items-center justify-between mb-3" style={{ gap: "8px" }}>
-                  <button type="button" aria-label="Previous month" disabled={offset >= maxYm - minYm} onClick={() => setHeatMonthOffset(offset + 1)} style={navBtn(offset < maxYm - minYm)}>
-                    <ChevronLeft size={16} />
-                  </button>
-                  <div className="text-center" style={{ minWidth: 0 }}>
-                    <div style={{ color: palette.text, fontFamily: display, fontSize: isDesktop ? "18px" : "16px", fontWeight: 800 }}>{monthLabel}</div>
-                    <div style={{ color: monthTradedDays ? (monthTotal >= 0 ? palette.green : palette.red) : palette.textFaint, fontFamily: mono, fontSize: "11px", fontWeight: 700 }}>
-                      {monthTradedDays ? `${heatMoney(monthTotal)} · ${monthTradedDays} trading day${monthTradedDays === 1 ? "" : "s"}` : "No trades this month"}
-                    </div>
-                  </div>
-                  <button type="button" aria-label="Next month" disabled={offset <= 0} onClick={() => setHeatMonthOffset(offset - 1)} style={navBtn(offset > 0)}>
-                    <ChevronRight size={16} />
-                  </button>
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap, marginBottom: gap }}>
-                  {WEEKDAY_LABELS.map((w, i) => (
-                    <div key={i} className="text-center" style={{ color: palette.textFaint, fontSize: "10px", fontWeight: 700, letterSpacing: "0.06em" }}>{w}</div>
-                  ))}
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap }}>
-                  {monthWeeks.map((week) => week.map((day, di) => {
-                    const pt = keyParts(day);
-                    if (!pt) return <div key={`${day.key}-${di}`} style={{ aspectRatio: "1 / 1" }} />;
-                    const inMonth = ymOf(pt) === selYm;
-                    const hasPnl = inMonth && !day.future && day.pnl !== null;
-                    const win = hasPnl && day.pnl > 0;
-                    const loss = hasPnl && day.pnl < 0;
-                    const intensity = hasPnl && heatmap.maxAbs > 0 ? Math.min(1, Math.abs(day.pnl) / heatmap.maxAbs) : 0;
-                    const strong = (win || loss) && intensity >= 0.5;
-                    const bg = win ? (strong ? HEAT_GREEN : `${HEAT_GREEN}59`) : loss ? (strong ? HEAT_RED : `${HEAT_RED}59`) : palette.field;
-                    const numColor = strong ? "#FFFFFF" : inMonth ? palette.text : palette.textFaint;
-                    const pnlColor = strong ? "#FFFFFF" : win ? palette.green : palette.red;
-                    const selected = expandedHeatmapDay?.key === day.key;
-                    return (
-                      <div
-                        key={day.key || `${pt.y}-${pt.m}-${pt.d}`}
-                        role={hasPnl ? "button" : undefined}
-                        onClick={() => hasPnl && setExpandedHeatmapDay(selected ? null : day)}
-                        style={{
-                          aspectRatio: "1 / 1",
-                          borderRadius: isDesktop ? "14px" : "10px",
-                          background: bg,
-                          opacity: inMonth ? (day.future ? 0.55 : 1) : 0.35,
-                          boxShadow: selected ? `0 0 0 2px ${palette.gold}` : "none",
-                          cursor: hasPnl ? "pointer" : "default",
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          lineHeight: 1.15,
-                          minWidth: 0,
-                        }}
-                      >
-                        <span style={{ color: numColor, fontFamily: display, fontSize: isDesktop ? "18px" : "15px", fontWeight: 800 }}>{pt.d}</span>
-                        {hasPnl && day.pnl !== 0 && (
-                          <span style={{ color: pnlColor, fontFamily: mono, fontSize: isDesktop ? "11px" : "9.5px", fontWeight: 700, marginTop: "1px", maxWidth: "100%", whiteSpace: "nowrap" }}>
-                            {heatMoney(day.pnl)}
-                          </span>
-                        )}
-                      </div>
-                    );
-                  }))}
-                </div>
-              </div>
-            );
-          })()}
-        </div>
-        {expandedHeatmapDay ? (
-          <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-            {formatDayLabel(expandedHeatmapDay.key)}: {expandedHeatmapDay.pnl >= 0 ? "+" : "-"}$
-            {fmtMoney(expandedHeatmapDay.pnl)}
-          </p>
-        ) : (
-          <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-            Tap a day for its total. Use the arrows to browse months.
-          </p>
-        )}
-
         {headline && (
           <div
             className="rounded-2xl p-4 mb-6"
@@ -556,36 +510,20 @@ export default function InsightsTab(props) {
           </div>
         )}
 
-        <span
-          className="block mb-1.5 uppercase"
-          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
-        >
-          Performance Overview
-        </span>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-          <StatChip label="Win Rate" value={`${(perf.winRate * 100).toFixed(0)}%`} />
-          {metricCard("pf", "Profit Factor", fmtRatio(perf.profitFactor), perf.tiers.profitFactor)}
+
+        <PatternHeading hint="Measures the Journal tab does not show.">Trade quality</PatternHeading>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {metricCard("rf", "Recovery Factor", fmtRatio(perf.recoveryFactor), perf.tiers.recoveryFactor)}
           {metricCard("wl", "Win/Loss Ratio", fmtRatio(perf.winLossRatio), perf.tiers.winLossRatio)}
-          {metricCard("exp", "Expectancy", fmtSigned(perf.expectancy), perf.tiers.expectancy)}
-          <StatChip label="Net Profit" value={fmtSigned(perf.netProfit)} />
-          <StatChip label="Max Drawdown" value={`-$${fmtMoney(perf.maxDD)}`} />
-          <StatChip label="Avg Win" value={fmtSigned(perf.avgWin)} />
-          <StatChip label="Avg Loss" value={fmtSigned(-perf.avgLoss)} />
           <StatChip label="Largest Win" value={fmtSigned(perf.largestWin)} />
           <StatChip label="Largest Loss" value={fmtSigned(perf.largestLoss)} />
         </div>
 
-        <div className={isDesktop ? "grid grid-cols-2 gap-5 items-start" : "contents"}>
+        <div className={isDesktop ? "grid grid-cols-2 gap-5 items-start" : ""}>
         <div>
-        <span
-          className="block mb-1.5 uppercase"
-          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
-        >
-          This Month vs Last Month
-        </span>
+        <PatternHeading>This month vs last month</PatternHeading>
         <div
-          className="rounded-2xl p-4 mb-6"
+          className="rounded-2xl p-4"
           style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
         >
           {[
@@ -618,14 +556,9 @@ export default function InsightsTab(props) {
         </div>
 
         <div>
-        <span
-          className="block mb-1.5 uppercase"
-          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
-        >
-          Journal Completeness
-        </span>
+        <PatternHeading>How complete your log is</PatternHeading>
         <div
-          className="rounded-2xl p-4 mb-2"
+          className="rounded-2xl p-4"
           style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
         >
           <div className="flex items-baseline justify-between mb-2">
@@ -646,6 +579,14 @@ export default function InsightsTab(props) {
         </div>
         </div>
         </div>
+
+        {hasFeature(myPlan.plan, "journalInsights") ? (
+          patternsBlock
+        ) : (
+          <div className="mt-8">
+            <PlanLockCard title="Pattern insights" plan="pro" blurb="See which setups, sessions, directions and confidence levels make or lose you money." />
+          </div>
+        )}
       </>
     );
 
@@ -950,128 +891,6 @@ export default function InsightsTab(props) {
       </>
     );
 
-    const patternsSection = !hasData ? (
-      <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-        No trades yet. Log a trade with its setup, session and confidence and your patterns show up here.
-      </p>
-    ) : (
-      <>
-        <OnboardingTip
-          id="insights-patterns-intro"
-          text="Patterns are built from the trades you log. Tag a trade with its setup, session, confidence and mood and this tab shows where you win and where you leak."
-          settings={settings}
-          persistSettings={persistSettings}
-        />
-
-        <PatternHeading hint="The clearest things your own trades are telling you right now.">What your trades say</PatternHeading>
-        {patterns.findings.length > 0 ? (
-          <div className="grid gap-3" style={{ gridTemplateColumns: isDesktop ? "repeat(2, minmax(0, 1fr))" : "1fr" }}>
-            {patterns.findings.map((f, i) => (
-              <div
-                key={i}
-                className="rounded-2xl p-4"
-                style={{
-                  background: palette.surface,
-                  border: `1px solid ${palette.border}`,
-                  borderLeft: `4px solid ${f.tone === "good" ? palette.green : palette.red}`,
-                  boxShadow: palette.shadow,
-                }}
-              >
-                <div style={{ color: palette.text, fontSize: "14px", fontWeight: 700, marginBottom: "3px" }}>{f.title}</div>
-                <div style={{ color: palette.textMuted, fontSize: "13px" }}>{f.detail}</div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <PatternCard>
-            <p className="text-xs" style={{ color: palette.textFaint }}>
-              Nothing stands out yet. Findings need at least {FEW_TRADES} trades in a group and two groups to compare, so keep tagging setup, session and mood on each trade.
-            </p>
-          </PatternCard>
-        )}
-
-        <PatternHeading hint="Tags are optional, but charts only see the trades that carry them.">How much of your log is tagged</PatternHeading>
-        <PatternCard>
-          <div className="grid gap-4" style={{ gridTemplateColumns: isDesktop ? "repeat(4, minmax(0, 1fr))" : "repeat(2, minmax(0, 1fr))" }}>
-            <CoverageMeter label="Setup" pct={patterns.coverage.setup} />
-            <CoverageMeter label="Session" pct={patterns.coverage.session} />
-            <CoverageMeter label="Confidence" pct={patterns.coverage.confidence} />
-            <CoverageMeter label="Mood" pct={patterns.coverage.mood} />
-          </div>
-        </PatternCard>
-
-        <div className={isDesktop ? "grid grid-cols-2 gap-5 items-start" : ""}>
-          <div>
-            <PatternHeading hint="Net result for each kind of trade you take.">Setups</PatternHeading>
-            <PatternCard>
-              <EdgeRows rows={patterns.setupRows} signed={fmtSigned} emptyText="Pick a setup when you log a trade to compare them here." />
-            </PatternCard>
-          </div>
-          <div>
-            <PatternHeading hint="Which part of the market day pays you.">Sessions</PatternHeading>
-            <PatternCard>
-              <EdgeRows rows={patterns.sessionRows} signed={fmtSigned} emptyText="Pick a session when you log a trade to compare them here." />
-            </PatternCard>
-          </div>
-        </div>
-
-        <PatternHeading hint={`Rate each trade from 1 to ${CONFIDENCE_MAX} before you take it, then see if feeling sure ever matched being right.`}>
-          Confidence against results
-        </PatternHeading>
-        <PatternCard>
-          <EdgeRows rows={patterns.confRows} signed={fmtSigned} emptyText="Set the confidence meter when you log a trade to see this." />
-        </PatternCard>
-
-        <div className={isDesktop ? "grid grid-cols-2 gap-5 items-start" : ""}>
-          <div>
-            <PatternHeading>Mood</PatternHeading>
-            <PatternCard>
-              <EdgeRows rows={patterns.moodRows} signed={fmtSigned} emptyText="Tag how you felt on a trade to see its effect here." />
-            </PatternCard>
-          </div>
-          <div>
-            <PatternHeading>Day of the week</PatternHeading>
-            <PatternCard>
-              <EdgeRows rows={patterns.dayRows} signed={fmtSigned} emptyText="Log a few trades to see your weekdays." />
-            </PatternCard>
-          </div>
-        </div>
-
-        {patterns.pairRows.length > 0 && (
-          <>
-            <PatternHeading hint="Your six biggest movers by net result.">Pairs</PatternHeading>
-            <PatternCard>
-              <EdgeRows rows={patterns.pairRows} signed={fmtSigned} emptyText="" />
-            </PatternCard>
-          </>
-        )}
-
-        {patterns.daily.length > 1 && (
-          <>
-            <PatternHeading hint="Net result per trading day, most recent 30 days you traded.">Daily results</PatternHeading>
-            <PatternCard>
-              <div style={{ width: "100%", height: isDesktop ? 220 : 150 }}>
-                <ResponsiveContainer>
-                  <BarChart data={patterns.daily} margin={{ top: 6, right: 8, bottom: 0, left: 0 }} barCategoryGap="30%">
-                    <CartesianGrid stroke={palette.border} strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="day" stroke={palette.textFaint} tick={{ fill: palette.textFaint, fontSize: 9, fontFamily: mono }} tickLine={false} axisLine={{ stroke: palette.border }} interval="preserveStartEnd" />
-                    <YAxis stroke={palette.textFaint} tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }} tickLine={false} axisLine={{ stroke: palette.border }} width={36} />
-                    <ReferenceLine y={0} stroke={palette.border} />
-                    <Tooltip {...barTooltipProps} formatter={(v) => [fmtSigned(v), "Net"]} />
-                    <Bar dataKey="pnl" radius={[3, 3, 0, 0]} activeBar={false}>
-                      {patterns.daily.map((d, i) => (
-                        <Cell key={i} fill={d.pnl >= 0 ? palette.green : palette.red} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </PatternCard>
-          </>
-        )}
-      </>
-    );
-
     const coachSection = !session?.token ? (
       <div
         className="rounded-2xl p-6 text-center"
@@ -1338,7 +1157,6 @@ export default function InsightsTab(props) {
         {insightsSubNav}
         {insightsSubTab === "overview" && overviewSection}
         {insightsSubTab === "behavior" && (hasFeature(myPlan.plan, "behaviorInsights") ? behaviorSection : <PlanLockCard title="Behaviour insights" plan="pro" blurb="See how emotions, setups and habits shape your results." />)}
-        {insightsSubTab === "patterns" && (hasFeature(myPlan.plan, "journalInsights") ? patternsSection : <PlanLockCard title="Pattern insights" plan="pro" blurb="See which setups, sessions and confidence levels make or lose you money." />)}
         {insightsSubTab === "coach" && coachSection}
 
         {insightsSubTab !== "coach" && hasData && (
