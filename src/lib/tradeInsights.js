@@ -76,6 +76,14 @@ export const byMood = (trades, metaOf) =>
     (k) => ({ emoji: metaOf(k)?.emoji || "" })
   );
 
+export const DIRECTIONS = [
+  { id: "up", label: "Up (buy)" },
+  { id: "down", label: "Down (sell)" },
+];
+
+export const byDirection = (trades) =>
+  groupTrades(trades, (t) => t.direction, (k) => DIRECTIONS.find((d) => d.id === k)?.label || k);
+
 export const byPair = (trades) => groupTrades(trades, (t) => (t.pair || "").trim().toUpperCase());
 
 export const byWeekday = (trades) => {
@@ -119,6 +127,7 @@ export function tagCoverage(trades) {
     session: pct((t) => !!t.session),
     confidence: pct((t) => Number(t.confidence) > 0),
     mood: pct((t) => !!t.emotion),
+    direction: pct((t) => !!t.direction),
     pair: pct((t) => !!(t.pair || "").trim()),
   };
 }
@@ -126,7 +135,7 @@ export function tagCoverage(trades) {
 const MIN_GROUP = 3; // don't call anything an "edge" or a "leak" off 1-2 trades.
 
 // Plain-language findings, strongest first. Each: { tone: "good" | "bad", title, detail }.
-export function findPatterns(trades, { setupRows, sessionRows, moodRows, pairRows, dayRows, confRows }, money) {
+export function findPatterns(trades, { setupRows, sessionRows, moodRows, pairRows, dayRows, confRows, directionRows = [] }, money) {
   const out = [];
   const pick = (rows) => rows.filter((r) => r.count >= MIN_GROUP);
   const best = (rows) => [...pick(rows)].sort((a, b) => b.avg - a.avg)[0];
@@ -139,6 +148,7 @@ export function findPatterns(trades, { setupRows, sessionRows, moodRows, pairRow
     ["mood", moodRows, "mood"],
     ["pair", pairRows, "pair"],
     ["day", dayRows, "day"],
+    ["direction", directionRows, "direction"],
   ];
   groups.forEach(([, rows, noun]) => {
     if (pick(rows).length < 2) return; // one group alone has nothing to be compared against
