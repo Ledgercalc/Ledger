@@ -24,7 +24,7 @@ import { MARKET_SESSIONS, sessionOpenAtUTCHour } from "./lib/sessions.js";
 import { drawShareCard } from "./lib/shareCard.js";
 import { DARK_PALETTE, LIGHT_PALETTE, TAP, THEME_TRANSITION, TREDZI_LOGO_SRC, VOID_PALETTE, display, mono, palette, sans } from "./lib/theme.js";
 import { formatCountdown, formatMinSec, nextOccurrenceMs } from "./lib/time.js";
-import { AlertTriangle, ArrowLeftRight, Bell, Building2, Camera, CandlestickChart, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, Flame, Heart, LayoutGrid, Lightbulb, LogOut, MessageCircle, Moon, Newspaper, Palette, Pencil, Plus, RotateCcw, Scale, Search, Send, Settings, Share2, ShieldAlert, Sparkles, Sun, Table2, Tags, Trash2, Upload, Users, X , Activity, TrendingDown, TrendingUp } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, Link2, Bell, Building2, Camera, CandlestickChart, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, Flame, Heart, LayoutGrid, Lightbulb, LogOut, MessageCircle, Moon, Newspaper, Palette, Pencil, Plus, RotateCcw, Scale, Search, Send, Settings, Share2, ShieldAlert, Sparkles, Sun, Table2, Tags, Trash2, Upload, Users, X , Activity, TrendingDown, TrendingUp } from "lucide-react";
 import React, { Suspense, lazy, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import "./typography.css";
 
@@ -62,7 +62,6 @@ const ConvertTab = lazyTab(() => import("./tabs/ConvertTab.jsx"));
 const CurveTab = lazyTab(() => import("./tabs/CurveTab.jsx"));
 const InsightsTab = lazyTab(() => import("./tabs/InsightsTab.jsx"));
 const JournalTab = lazyTab(() => import("./tabs/JournalTab.jsx"));
-const NotepadTab = lazyTab(() => import("./tabs/NotepadTab.jsx"));
 const SessionsTab = lazyTab(() => import("./tabs/SessionsTab.jsx"));
 const CommunityTab = lazyTab(() => import("./tabs/CommunityTab.jsx"));
 const BacktestTab = lazyTab(() => import("./tabs/BacktestTab.jsx"));
@@ -70,16 +69,24 @@ const BrokerTab = lazyTab(() => import("./tabs/BrokerTab.jsx"));
 const TAB_PRELOAD = {
   risk: RiskTab.preload, propfirm: PropFirmTab.preload, fx: ConvertTab.preload,
   curve: CurveTab.preload, insights: InsightsTab.preload, journal: JournalTab.preload,
-  notepad: NotepadTab.preload, sessions: SessionsTab.preload, community: CommunityTab.preload,
+  sessions: SessionsTab.preload, community: CommunityTab.preload,
   backtest: BacktestTab.preload,
   broker: BrokerTab.preload,
 };
 
-// The Backtest tab is added here so constants.js stays untouched. If you later add a
-// "backtest" entry to TABS in constants.js, this line simply uses that one instead.
-const TABS = BASE_TABS.some((t) => t.id === "backtest")
-  ? BASE_TABS
-  : [...BASE_TABS, { id: "backtest", label: "Backtest", icon: CandlestickChart }];
+// The tab list is finished here so it always matches this file, even if constants.js is out of date:
+// Curve now lives inside Journal and Notepad is removed, Broker goes right after Journal, Backtest goes last.
+const TABS = (() => {
+  const tabs = BASE_TABS.filter((t) => t.id !== "curve" && t.id !== "notepad");
+  if (!tabs.some((t) => t.id === "broker")) {
+    const at = tabs.findIndex((t) => t.id === "journal");
+    tabs.splice(at === -1 ? tabs.length : at + 1, 0, { id: "broker", label: "Broker", icon: Link2 });
+  }
+  if (!tabs.some((t) => t.id === "backtest")) {
+    tabs.push({ id: "backtest", label: "Backtest", icon: CandlestickChart });
+  }
+  return tabs;
+})();
 
 // Warm the tab chunks in the background so switching tabs feels instant.
 if (typeof window !== "undefined") {
@@ -90,7 +97,6 @@ if (typeof window !== "undefined") {
     import("./tabs/CurveTab.jsx");
     import("./tabs/InsightsTab.jsx");
     import("./tabs/JournalTab.jsx");
-    import("./tabs/NotepadTab.jsx");
     import("./tabs/SessionsTab.jsx");
     import("./tabs/CommunityTab.jsx");
     import("./tabs/BacktestTab.jsx");
@@ -339,15 +345,14 @@ const resetPropFirmWizard = () => {
 
   const [journalSubTab, setJournalSubTab] = useState("log");
   const [logSheetOpen, setLogSheetOpen] = useState(false);
-  // The Curve and Notepad tabs now live inside Journal. Anything that still points at the old ids
-  // (saved landing tab, onboarding tour, shared links) is redirected here.
+  // The Curve tab now lives inside Journal and Notepad has been removed. Anything that still points at the
+  // old ids (saved landing tab, shared links) is redirected to Journal here.
   useEffect(() => {
     if (activeTab === "curve") {
       setActiveTab("journal");
       setJournalSubTab("log");
     } else if (activeTab === "notepad") {
       setActiveTab("journal");
-      setJournalSubTab("notepad");
     }
   }, [activeTab]);
   const [journalEntries, setJournalEntries] = useState([]);
@@ -6882,7 +6887,7 @@ const hiddenTabIds = settings.hiddenTabs || [];
   }
 
   if (activeTab === "journal") {
-    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><JournalTab {...{ CurveTab, NotepadTab, curveProps: { backupMsg, calMonth, cancelEditTrade, cancelImport, clearTrades, confirmImport, copyFallbackText, copyMsg, copyWeekSummary, customMoods, customMoodsLoaded, customSetups, customSetupsLoaded, deleteTrade, editingTradeId, expandedTradeId, exportBackup, fileInputRef, findSetupLabel, generateWeeklyShare, goals, handleScreenshotChange, importBackup, isDesktop, logFormRef, openScreenshotPicker, pendingImport, persistGoals, persistSettings, persistStartingBalance, screenshotError, screenshotInputRef, screenshotSaving, screenshotTargetId, selectedDay, setCalMonth, setCopyFallbackText, setExpandedTradeId, setPendingScreenshotDelete, setSelectedDay, setShowDisciplineInfo, setShowStreakInfo, setStatementPeriod, setTradeEmotion, setTradeInput, setTradeNote, setTradePair, setTradeSetup, setViewingScreenshot, settings, shareError, shareImageFile, showDisciplineInfo, showStreakInfo, startEditTrade, startingBalance, submitTrade, tradeEmotion, tradeInput, tradeNote, tradePair, tradeSetup, trades, tradesLoadError, tradesLoaded, logSheetOpen, setLogSheetOpen }, notepadProps: { activeNoteId, adjustNoteFontSize, closeNote, createNote, downloadNoteText, getNotepadBlockRef, insertDateTimeIntoNote, isDesktop, notepadFindOpen, notepadFindText, notepadLoaded, notepadMsg, notepadNotes, notepadReplaceText, notepadSearch, openNote, persistSettings, replaceAllInNote, requestDeleteNote, setNotepadFindOpen, setNotepadFindText, setNotepadMsg, setNotepadReplaceText, setNotepadSearch, settings, toggleNoteWordWrap, trackNotepadCursor, updateNote }, goals, persistGoals, startingBalance, trades, addJournalRow, addPlaybookRule, addingSetup, cancelAddSetup, confirmAddSetup, customMoods, customSetups, deleteJournalRow, deletePlaybookCheckin, endJournalResize, exportJournalCSV, handleJournalCellKeyDown, handleJournalPhotoChange, hiddenDefaultSetupIds, importJournalCSV, isDesktop, isNarrowScreen, journalCellRefs, journalColWidths, journalEntries, journalExpandedRows, journalExportMsg, journalImportInputRef, journalImportMsg, journalLoaded, journalMonth, journalPhotoError, journalPhotoInputRef, journalPhotoSaving, journalPhotoTarget, journalSubTab, journalYear, moveJournalResize, newRuleText, newSetupName, openJournalPhotoPicker, persistSettings, playbookCheckins, playbookMsg, playbookRuleError, playbookRules, playbookRulesLoaded, removePlaybookRule, renderSubNav, setJournalMonth, setJournalSubTab, setJournalYear, setNewRuleText, setNewSetupName, setPendingJournalPhotoDelete, setPlaybookRuleError, setSetupError, setViewingJournalPhoto, settings, setupError, startJournalResize, submitCheckin, todayResults, toggleJournalRowExpanded, toggleTodayResult, triggerJournalImport, updateJournalField, updateJournalPnl }} /></Suspense>;
+    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><JournalTab {...{ CurveTab, curveProps: { backupMsg, calMonth, cancelEditTrade, cancelImport, clearTrades, confirmImport, copyFallbackText, copyMsg, copyWeekSummary, customMoods, customMoodsLoaded, customSetups, customSetupsLoaded, deleteTrade, editingTradeId, expandedTradeId, exportBackup, fileInputRef, findSetupLabel, generateWeeklyShare, goals, handleScreenshotChange, importBackup, isDesktop, logFormRef, openScreenshotPicker, pendingImport, persistGoals, persistSettings, persistStartingBalance, screenshotError, screenshotInputRef, screenshotSaving, screenshotTargetId, selectedDay, setCalMonth, setCopyFallbackText, setExpandedTradeId, setPendingScreenshotDelete, setSelectedDay, setShowDisciplineInfo, setShowStreakInfo, setStatementPeriod, setTradeEmotion, setTradeInput, setTradeNote, setTradePair, setTradeSetup, setViewingScreenshot, settings, shareError, shareImageFile, showDisciplineInfo, showStreakInfo, startEditTrade, startingBalance, submitTrade, tradeEmotion, tradeInput, tradeNote, tradePair, tradeSetup, trades, tradesLoadError, tradesLoaded, logSheetOpen, setLogSheetOpen }, goals, persistGoals, startingBalance, trades, addJournalRow, addPlaybookRule, addingSetup, cancelAddSetup, confirmAddSetup, customMoods, customSetups, deleteJournalRow, deletePlaybookCheckin, endJournalResize, exportJournalCSV, handleJournalCellKeyDown, handleJournalPhotoChange, hiddenDefaultSetupIds, importJournalCSV, isDesktop, isNarrowScreen, journalCellRefs, journalColWidths, journalEntries, journalExpandedRows, journalExportMsg, journalImportInputRef, journalImportMsg, journalLoaded, journalMonth, journalPhotoError, journalPhotoInputRef, journalPhotoSaving, journalPhotoTarget, journalSubTab, journalYear, moveJournalResize, newRuleText, newSetupName, openJournalPhotoPicker, persistSettings, playbookCheckins, playbookMsg, playbookRuleError, playbookRules, playbookRulesLoaded, removePlaybookRule, renderSubNav, setJournalMonth, setJournalSubTab, setJournalYear, setNewRuleText, setNewSetupName, setPendingJournalPhotoDelete, setPlaybookRuleError, setSetupError, setViewingJournalPhoto, settings, setupError, startJournalResize, submitCheckin, todayResults, toggleJournalRowExpanded, toggleTodayResult, triggerJournalImport, updateJournalField, updateJournalPnl }} /></Suspense>;
   }
 
   if (activeTab === "broker") {
