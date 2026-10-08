@@ -21,6 +21,7 @@ import { SCREENSHOT_MAX_PER_TRADE, dataUrlToFile, readStickerFileRaw, resizeImag
 import { autoGrowBlock, blocksToExportText, countOccurrencesInBlocks, makeBlockId, migrateNoteShape, replaceAllInBlocks } from "./lib/notes.js";
 import { isCleanCheckin } from "./lib/playbook.js";
 import { MARKET_SESSIONS, sessionOpenAtUTCHour } from "./lib/sessions.js";
+import { bySession, byConfidence, tradesAsJournalRows } from "./lib/tradeInsights.js";
 import { drawShareCard } from "./lib/shareCard.js";
 import { DARK_PALETTE, LIGHT_PALETTE, TAP, THEME_TRANSITION, TREDZI_LOGO_SRC, VOID_PALETTE, display, mono, palette, sans } from "./lib/theme.js";
 import { formatCountdown, formatMinSec, nextOccurrenceMs } from "./lib/time.js";
@@ -320,6 +321,8 @@ const resetPropFirmWizard = () => {
   const [tradeNote, setTradeNote] = useState("");
   const [tradeEmotion, setTradeEmotion] = useState(null);
   const [tradeSetup, setTradeSetup] = useState(null);
+  const [tradeSession, setTradeSession] = useState(null);
+  const [tradeConfidence, setTradeConfidence] = useState(null);
   const [startingBalance, setStartingBalance] = useState("");
   const [tradesLoadError, setTradesLoadError] = useState("");
   const [calMonth, setCalMonth] = useState(() => new Date());
@@ -373,8 +376,6 @@ const resetPropFirmWizard = () => {
   const [journalPhotoError, setJournalPhotoError] = useState("");
   const [viewingJournalPhoto, setViewingJournalPhoto] = useState(null);
   const [pendingJournalPhotoDelete, setPendingJournalPhotoDelete] = useState(null);
-  const [journalInsightYear, setJournalInsightYear] = useState(() => new Date().getFullYear());
-  const [journalInsightMonth, setJournalInsightMonth] = useState(null);
 
   const [playbookRules, setPlaybookRules] = useState([]);
   const [playbookRulesLoaded, setPlaybookRulesLoaded] = useState(false);
@@ -3467,28 +3468,20 @@ useEffect(() => {
     }
     if (headline) lines.push(`Headline insight: ${headline}`);
 
-    // --- Journal tab \u2014 separate structured entries (session, R:R, mistakes) ---
-    const filledRows = filledJournalRows(journalEntries);
-    if (filledRows.length) {
-      lines.push(`Journal entries logged: ${filledRows.length}`);
-      const mistakes = journalMistakeFrequency(filledRows, 3);
-      if (mistakes.length) {
-        lines.push("Most frequent mistakes: " + mistakes.map((m) => `${m.label} (${m.count}x)`).join(", "));
-      }
-      const rrValues = filledRows.map((r) => parseFloat(r.rr)).filter((v) => Number.isFinite(v));
-      if (rrValues.length) {
-        const avgRR = rrValues.reduce((s, v) => s + v, 0) / rrValues.length;
-        lines.push(`Average R:R across journal entries: ${avgRR.toFixed(2)}`);
-      }
-      const sessionRows = computeSessionWinRates(filledRows).filter((s) => s.total > 0);
-      if (sessionRows.length) {
-        lines.push(
-          "By session: " +
-            sessionRows
-              .map((s) => `${s.label} \u2014 ${s.total} trades, ${s.winRate !== null ? s.winRate.toFixed(0) + "% win rate" : "no outcome logged"}`)
-              .join("; ")
-        );
-      }
+    // --- Session and confidence, read straight from the trade log ---
+    const sessionStats = bySession(trades, (id) => MARKET_SESSIONS.find((x) => x.id === id)?.label);
+    if (sessionStats.length) {
+      lines.push(
+        "By session: " +
+          sessionStats.map((r) => `${r.label} \u2014 ${r.count} trades, ${r.winRate.toFixed(0)}% win rate, ${money(r.pnl)}`).join("; ")
+      );
+    }
+    const confStats = byConfidence(trades);
+    if (confStats.length) {
+      lines.push(
+        "By confidence (1-10 meter): " +
+          confStats.map((r) => `${r.label} \u2014 ${r.count} trades, ${r.winRate.toFixed(0)}% win rate, avg ${money(r.avg)}`).join("; ")
+      );
     }
 
     // --- App guide, so the coach can also answer "what does X tab do" questions ---
@@ -4891,57 +4884,6 @@ const selectInsightsSubTab = (id) => {
       // non-critical, fail silently
     }
   };
-const ensureJournalRowForDate = (dateKey, setupId) => {
-    const exists = journalEntries.some((r) => r.date === dateKey);
-    if (exists) return; // never overwrite a day you've already journaled
-    const id = `j-auto-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    persistJournalEntries([
-      ...journalEntries,
-     { id, date: dateKey, pair: "", trend: "", rr: "", pnl: "", setup: setupId || "", outcome: "", mistake: "", note: "" },
-    ]);
-  };
-
-const outcomeFromPnl = (pnl) => (pnl > 0 ? "win" : pnl < 0 ? "loss" : "breakeven");
-
-const syncTradeToJournal = (trade) => {
-  const alreadySynced = journalEntries.some((r) => r.sourceTradeId === trade.id);
-  if (alreadySynced) return;
-  const newRow = {
-    id: `j-sync-${trade.id}`,
-    date: dayKeyFromTs(trade.ts),
-    pair: trade.pair || "",
-    trend: "",
-    rr: "",
-    pnl: String(trade.pnl),
-    setup: trade.setup || "",
-    outcome: outcomeFromPnl(trade.pnl),
-    session: "",
-    mood: trade.emotion || "",
-    confidence: "",
-    mistake: "",
-    note: trade.note || "",
-    sourceTradeId: trade.id,
-  };
-  persistJournalEntries([...journalEntries, newRow]);
-};
-
-const updateSyncedJournalRow = (trade) => {
-  persistJournalEntries(
-    journalEntries.map((r) =>
-      r.sourceTradeId === trade.id
-        ? {
-            ...r,
-            pair: trade.pair || "",
-            pnl: String(trade.pnl),
-            setup: trade.setup || "",
-            outcome: outcomeFromPnl(trade.pnl),
-            mood: trade.emotion || "",
-            note: trade.note || "",
-          }
-        : r
-    )
-  );
-};
 
   const persistJournalColWidths = async (next) => {
     try {
@@ -5724,6 +5666,19 @@ const updateSyncedJournalRow = (trade) => {
     setSetupError("");
   };
 
+  // Used by the Setup dropdown in the trade log. Returns { id } on success or { error } so the form can show it.
+  const addCustomSetup = (rawName) => {
+    const name = String(rawName || "").trim();
+    if (!name) return { error: "Type a name first." };
+    if (name.length > 20) return { error: "Keep it under 20 characters." };
+    const allLabels = [...SETUPS, ...customSetups].map((s) => s.label.toLowerCase());
+    if (allLabels.includes(name.toLowerCase())) return { error: "That setup already exists." };
+    if (customSetups.length >= MAX_CUSTOM_SETUPS) return { error: `You can add up to ${MAX_CUSTOM_SETUPS} custom setups.` };
+    const id = `custom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    persistCustomSetups([...customSetups, { id, label: name }]);
+    return { id };
+  };
+
   const removeCustomSetup = (id) => {
     persistCustomSetups(customSetups.filter((s) => s.id !== id));
     if (tradeSetup === id) setTradeSetup(null);
@@ -5818,6 +5773,8 @@ const updateSyncedJournalRow = (trade) => {
     setTradeNote("");
     setTradeEmotion(null);
     setTradeSetup(null);
+    setTradeSession(null);
+    setTradeConfidence(null);
     setEditingTradeId(null);
     setLogSheetOpen(false);
   };
@@ -5828,6 +5785,8 @@ const updateSyncedJournalRow = (trade) => {
     setTradeNote(t.note || "");
     setTradeEmotion(t.emotion || null);
     setTradeSetup(t.setup || null);
+    setTradeSession(t.session || null);
+    setTradeConfidence(Number(t.confidence) > 0 ? Number(t.confidence) : null);
     setEditingTradeId(t.id);
     setExpandedTradeId((cur) => (cur === t.id ? null : cur));
     setLogSheetOpen(true);
@@ -5898,15 +5857,20 @@ const updateSyncedJournalRow = (trade) => {
     if (editingTradeId) {
       const next = trades.map((t) =>
         t.id === editingTradeId
-          ? { ...t, pnl, pair: tradePair.trim(), note: tradeNote.trim(), emotion: tradeEmotion, setup: tradeSetup }
+          ? {
+              ...t,
+              pnl,
+              pair: tradePair.trim(),
+              note: tradeNote.trim(),
+              emotion: tradeEmotion,
+              setup: tradeSetup,
+              session: tradeSession,
+              confidence: tradeConfidence,
+            }
           : t
       );
       persistTrades(next);
       pokeCrab("edit");
-      if (settings.autoSyncTradesToJournal) {
-        const updated = next.find((t) => t.id === editingTradeId);
-        if (updated) updateSyncedJournalRow(updated);
-      }
       resetTradeForm();
       return;
     }
@@ -5918,16 +5882,13 @@ const updateSyncedJournalRow = (trade) => {
       note: tradeNote.trim(),
       emotion: tradeEmotion,
       setup: tradeSetup,
+      session: tradeSession,
+      confidence: tradeConfidence,
       ts: Date.now(),
     };
     const next = [...trades, newTrade];
     persistTrades(next);
     crabReactToTrade(pnl, next, { revenge: opts.revenge === true });
-    if (settings.autoSyncTradesToJournal) {
-      syncTradeToJournal(newTrade);
-    } else {
-      ensureJournalRowForDate(dayKeyFromDate(new Date()), tradeSetup);
-    }
     resetTradeForm();
   };
 
@@ -6883,11 +6844,11 @@ const hiddenTabIds = settings.hiddenTabs || [];
   }
 
   if (activeTab === "insights") {
-    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><InsightsTab {...{ coachChatId, coachChats, coachChatsMax, coachDeleteConfirmId, coachError, coachHistoryOpen, coachInput, coachLoading, coachMessages, coachRemaining, coachScrollRef, customMoods, customSetups, deleteCoachChat, expandedHeatmapDay, expandedMetric, exportInsightsReport, insightReportMsg, insightsSubTab, isDesktop, journalEntries, journalInsightMonth, journalInsightYear, journalLoaded, newCoachChat, openCoachChat, persistSettings, renderSubNav, selectInsightsSubTab, sendCoachMessage, session, setCoachDeleteConfirmId, setCoachHistoryOpen, setCoachInput, setExpandedHeatmapDay, setExpandedMetric, setJournalInsightMonth, setJournalInsightYear, settings, trades }} /></Suspense>;
+    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><InsightsTab {...{ coachChatId, coachChats, coachChatsMax, coachDeleteConfirmId, coachError, coachHistoryOpen, coachInput, coachLoading, coachMessages, coachRemaining, coachScrollRef, customMoods, customSetups, deleteCoachChat, expandedHeatmapDay, expandedMetric, exportInsightsReport, insightReportMsg, insightsSubTab, isDesktop, newCoachChat, openCoachChat, persistSettings, renderSubNav, selectInsightsSubTab, sendCoachMessage, session, setCoachDeleteConfirmId, setCoachHistoryOpen, setCoachInput, setExpandedHeatmapDay, setExpandedMetric, settings, trades }} /></Suspense>;
   }
 
   if (activeTab === "journal") {
-    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><JournalTab {...{ CurveTab, curveProps: { backupMsg, calMonth, cancelEditTrade, cancelImport, clearTrades, confirmImport, copyFallbackText, copyMsg, copyWeekSummary, customMoods, customMoodsLoaded, customSetups, customSetupsLoaded, deleteTrade, editingTradeId, expandedTradeId, exportBackup, fileInputRef, findSetupLabel, generateWeeklyShare, goals, handleScreenshotChange, importBackup, isDesktop, logFormRef, openScreenshotPicker, pendingImport, persistGoals, persistSettings, persistStartingBalance, screenshotError, screenshotInputRef, screenshotSaving, screenshotTargetId, selectedDay, setCalMonth, setCopyFallbackText, setExpandedTradeId, setPendingScreenshotDelete, setSelectedDay, setShowDisciplineInfo, setShowStreakInfo, setStatementPeriod, setTradeEmotion, setTradeInput, setTradeNote, setTradePair, setTradeSetup, setViewingScreenshot, settings, shareError, shareImageFile, showDisciplineInfo, showStreakInfo, startEditTrade, startingBalance, submitTrade, tradeEmotion, tradeInput, tradeNote, tradePair, tradeSetup, trades, tradesLoadError, tradesLoaded, logSheetOpen, setLogSheetOpen }, goals, persistGoals, startingBalance, trades, addJournalRow, addPlaybookRule, addingSetup, cancelAddSetup, confirmAddSetup, customMoods, customSetups, deleteJournalRow, deletePlaybookCheckin, endJournalResize, exportJournalCSV, handleJournalCellKeyDown, handleJournalPhotoChange, hiddenDefaultSetupIds, importJournalCSV, isDesktop, isNarrowScreen, journalCellRefs, journalColWidths, journalEntries, journalExpandedRows, journalExportMsg, journalImportInputRef, journalImportMsg, journalLoaded, journalMonth, journalPhotoError, journalPhotoInputRef, journalPhotoSaving, journalPhotoTarget, journalSubTab, journalYear, moveJournalResize, newRuleText, newSetupName, openJournalPhotoPicker, persistSettings, playbookCheckins, playbookMsg, playbookRuleError, playbookRules, playbookRulesLoaded, removePlaybookRule, renderSubNav, setJournalMonth, setJournalSubTab, setJournalYear, setNewRuleText, setNewSetupName, setPendingJournalPhotoDelete, setPlaybookRuleError, setSetupError, setViewingJournalPhoto, settings, setupError, startJournalResize, submitCheckin, todayResults, toggleJournalRowExpanded, toggleTodayResult, triggerJournalImport, updateJournalField, updateJournalPnl }} /></Suspense>;
+    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><JournalTab {...{ CurveTab, curveProps: { backupMsg, calMonth, cancelEditTrade, cancelImport, clearTrades, confirmImport, copyFallbackText, copyMsg, copyWeekSummary, addCustomSetup, customMoods, customMoodsLoaded, customSetups, customSetupsLoaded, deleteTrade, editingTradeId, expandedTradeId, exportBackup, fileInputRef, findSetupLabel, generateWeeklyShare, goals, handleScreenshotChange, importBackup, isDesktop, logFormRef, openScreenshotPicker, pendingImport, persistGoals, persistSettings, persistStartingBalance, screenshotError, screenshotInputRef, screenshotSaving, screenshotTargetId, selectedDay, setCalMonth, setCopyFallbackText, setExpandedTradeId, setPendingScreenshotDelete, setSelectedDay, setShowDisciplineInfo, setShowStreakInfo, setStatementPeriod, setTradeConfidence, setTradeEmotion, setTradeInput, setTradeNote, setTradePair, setTradeSession, setTradeSetup, setViewingScreenshot, settings, shareError, shareImageFile, showDisciplineInfo, showStreakInfo, startEditTrade, startingBalance, submitTrade, tradeConfidence, tradeEmotion, tradeInput, tradeNote, tradePair, tradeSession, tradeSetup, trades, tradesLoadError, tradesLoaded, logSheetOpen, setLogSheetOpen }, goals, persistGoals, startingBalance, trades, addJournalRow, addPlaybookRule, addingSetup, cancelAddSetup, confirmAddSetup, customMoods, customSetups, deleteJournalRow, deletePlaybookCheckin, endJournalResize, exportJournalCSV, handleJournalCellKeyDown, handleJournalPhotoChange, hiddenDefaultSetupIds, importJournalCSV, isDesktop, isNarrowScreen, journalCellRefs, journalColWidths, journalEntries, journalExpandedRows, journalExportMsg, journalImportInputRef, journalImportMsg, journalLoaded, journalMonth, journalPhotoError, journalPhotoInputRef, journalPhotoSaving, journalPhotoTarget, journalSubTab, journalYear, moveJournalResize, newRuleText, newSetupName, openJournalPhotoPicker, persistSettings, playbookCheckins, playbookMsg, playbookRuleError, playbookRules, playbookRulesLoaded, removePlaybookRule, renderSubNav, setJournalMonth, setJournalSubTab, setJournalYear, setNewRuleText, setNewSetupName, setPendingJournalPhotoDelete, setPlaybookRuleError, setSetupError, setViewingJournalPhoto, settings, setupError, startJournalResize, submitCheckin, todayResults, toggleJournalRowExpanded, toggleTodayResult, triggerJournalImport, updateJournalField, updateJournalPnl }} /></Suspense>;
   }
 
   if (activeTab === "broker") {
@@ -8278,9 +8239,10 @@ if (activeTab === "community") {
             {[
               { id: "overview", label: "Overview" },
               { id: "behavior", label: "Behavior" },
-              { id: "journal", label: "Journal" },
+              { id: "patterns", label: "Patterns" },
             ].map((opt) => {
-              const active = (settings.defaultInsightsTab || "overview") === opt.id;
+              const savedTab = settings.defaultInsightsTab === "journal" ? "patterns" : settings.defaultInsightsTab;
+              const active = (savedTab || "overview") === opt.id;
               return (
                 <button
                   key={opt.id}
@@ -8779,25 +8741,6 @@ if (activeTab === "community") {
             Auto uses Cards on narrow screens, Table on wider ones.
           </p>
 
-          <button
-            type="button"
-            onClick={() => persistSettings({ ...settings, autoSyncTradesToJournal: !settings.autoSyncTradesToJournal })}
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg mb-1 transition-colors ${TAP}`}
-            style={{
-              background: settings.autoSyncTradesToJournal ? palette.gold : palette.surface,
-              color: settings.autoSyncTradesToJournal ? palette.letterbox : palette.textMuted,
-              border: `1px solid ${settings.autoSyncTradesToJournal ? palette.gold : palette.border}`,
-              fontFamily: mono,
-              fontSize: "12.5px",
-            }}
-          >
-            <ArrowLeftRight size={14} />
-            {settings.autoSyncTradesToJournal ? "Auto-sync is on" : "Auto-sync is off"}
-          </button>
-          <p className="text-xs" style={{ color: palette.textFaint }}>
-            Mirrors every logged trade into a matching Journal row. One-way — editing a Journal row never
-            changes the trade.
-          </p>
         </SettingsSection>
 
         {/* HELP */}
@@ -9072,7 +9015,7 @@ if (activeTab === "community") {
   // A4 — active session(s) + historical win rate for them
   const nowUTCHourPulse = nowPulse.getUTCHours() + nowPulse.getUTCMinutes() / 60;
   const openSessionsPulse = MARKET_SESSIONS.filter((s) => sessionOpenAtUTCHour(s, nowUTCHourPulse));
-  const sessionWinRatesPulse = computeSessionWinRates(filledJournalRows(journalEntries));
+  const sessionWinRatesPulse = computeSessionWinRates(tradesAsJournalRows(trades));
   const openSessionStatsPulse = openSessionsPulse
     .map((s) => sessionWinRatesPulse.find((r) => r.id === s.id))
     .filter(Boolean);
