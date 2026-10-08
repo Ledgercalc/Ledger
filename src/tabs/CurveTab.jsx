@@ -2,12 +2,14 @@ import { pokeCrab } from "../lib/mascot.js";
 import { OnboardingTip } from "../components/onboarding.jsx";
 import { StatChip } from "../components/ui.jsx";
 import { computeDisciplineStreak, computeRevengeIds } from "../lib/analytics.js";
-import { EMOTIONS, MAX_CUSTOM_SETUPS, NOTE_TAGS, RUNTIME, SETUPS, emotionMeta } from "../lib/constants.js";
+import { EMOTIONS, NOTE_TAGS, RUNTIME, SETUPS, emotionMeta } from "../lib/constants.js";
+import { MARKET_SESSIONS, sessionOpenAtUTCHour } from "../lib/sessions.js";
+import { CONFIDENCE_MAX, CONFIDENCE_MIN, confidenceWord } from "../lib/tradeInsights.js";
 import { MONTH_NAMES, dayKeyFromDate, dayKeyFromTs, fmt, fmtMoney, formatDayLabel, num, pad2 } from "../lib/format.js";
 import { SCREENSHOT_MAX_PER_TRADE, tradeScreenshots } from "../lib/images.js";
 import { TAP, THEME_TRANSITION, display, mono, palette } from "../lib/theme.js";
-import { Camera, Check, ChevronLeft, ChevronRight, Copy, FileText, Pencil, Plus, Share2, Trash2, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { ArrowDown, ArrowUp, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, FileText, Pencil, Plus, Share2, Trash2, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 // Stable references so recharts never sees new prop identities on re-render.
@@ -30,6 +32,222 @@ const CURVE_REVEAL_CSS = `
 @media (prefers-reduced-motion: reduce) { .curve-reveal { animation: none; } }
 `;
 
+
+// Horizontal confidence meter: ten rising bars. Tap or drag across it to set 1-10, arrow keys also work.
+function ConfidenceMeter({ value, onChange }) {
+  const trackRef = useRef(null);
+  const dragging = useRef(false);
+  const v = Number(value) || 0;
+  const fromX = (clientX) => {
+    const r = trackRef.current.getBoundingClientRect();
+    const ratio = (clientX - r.left) / r.width;
+    return Math.min(CONFIDENCE_MAX, Math.max(CONFIDENCE_MIN, Math.ceil(ratio * CONFIDENCE_MAX)));
+  };
+  const onPointerDown = (e) => {
+    dragging.current = true;
+    try { trackRef.current.setPointerCapture(e.pointerId); } catch (err) { /* older browsers */ }
+    onChange(fromX(e.clientX));
+  };
+  const onPointerMove = (e) => {
+    if (dragging.current) onChange(fromX(e.clientX));
+  };
+  const stopDrag = () => {
+    dragging.current = false;
+  };
+  const onKeyDown = (e) => {
+    if (e.key === "ArrowRight" || e.key === "ArrowUp") {
+      e.preventDefault();
+      onChange(Math.min(CONFIDENCE_MAX, v + 1 || CONFIDENCE_MIN));
+    } else if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
+      e.preventDefault();
+      onChange(Math.max(CONFIDENCE_MIN, (v || CONFIDENCE_MIN + 1) - 1));
+    } else if (e.key === "Backspace" || e.key === "Delete") {
+      onChange(null);
+    }
+  };
+  return (
+    <div className="mb-3">
+      <div className="flex items-baseline justify-between mb-1.5">
+        <span style={{ color: palette.textFaint, fontSize: "11px" }}>Confidence</span>
+        <span className="flex items-center gap-2">
+          <span style={{ color: v ? palette.text : palette.textFaint, fontFamily: mono, fontSize: "12px" }}>
+            {v ? `${v}/${CONFIDENCE_MAX} \u00b7 ${confidenceWord(v)}` : "Not set"}
+          </span>
+          {v > 0 && (
+            <button
+              type="button"
+              onClick={() => onChange(null)}
+              className={TAP}
+              style={{ color: palette.textFaint, fontSize: "11px" }}
+            >
+              Clear
+            </button>
+          )}
+        </span>
+      </div>
+      <div
+        ref={trackRef}
+        role="slider"
+        tabIndex={0}
+        aria-label="Confidence"
+        aria-valuemin={CONFIDENCE_MIN}
+        aria-valuemax={CONFIDENCE_MAX}
+        aria-valuenow={v || undefined}
+        aria-valuetext={v ? `${v} of ${CONFIDENCE_MAX}, ${confidenceWord(v)}` : "Not set"}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={stopDrag}
+        onPointerCancel={stopDrag}
+        onKeyDown={onKeyDown}
+        className="flex items-end"
+        style={{ gap: "4px", height: "30px", cursor: "pointer", touchAction: "pan-y", userSelect: "none" }}
+      >
+        {Array.from({ length: CONFIDENCE_MAX }, (_, i) => {
+          const on = i < v;
+          return (
+            <span
+              key={i}
+              style={{
+                flex: 1,
+                height: `${34 + i * 7}%`,
+                borderRadius: "4px",
+                background: on ? palette.gold : palette.field,
+                border: `1px solid ${on ? palette.gold : palette.border}`,
+                transition: "background 120ms ease, border-color 120ms ease",
+              }}
+            />
+          );
+        })}
+      </div>
+      <div className="flex justify-between" style={{ marginTop: "4px", color: palette.textFaint, fontSize: "10px" }}>
+        <span>Unsure</span>
+        <span>Certain</span>
+      </div>
+    </div>
+  );
+}
+
+// Dropdown for the trade's setup, with an inline "add your own" so nobody has to leave the log sheet.
+function SetupSelect({ value, onChange, customSetups, customSetupsLoaded, addCustomSetup }) {
+  const [adding, setAdding] = useState(false);
+  const [name, setName] = useState("");
+  const [err, setErr] = useState("");
+  const fieldStyle = {
+    background: palette.field,
+    border: `1px solid ${palette.border}`,
+    color: palette.text,
+    fontSize: "14px",
+  };
+  const save = () => {
+    const res = addCustomSetup ? addCustomSetup(name) : { error: "Adding setups isn\u2019t available here." };
+    if (res && res.error) {
+      setErr(res.error);
+      return;
+    }
+    if (res && res.id) onChange(res.id);
+    setAdding(false);
+    setName("");
+    setErr("");
+  };
+  return (
+    <div className="mb-3">
+      <label htmlFor="trade-setup-select" style={{ color: palette.textFaint, fontSize: "11px", display: "block", marginBottom: "6px" }}>
+        Setup
+      </label>
+      <div className="relative">
+        <select
+          id="trade-setup-select"
+          value={adding ? "__new__" : value || ""}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v === "__new__") {
+              setAdding(true);
+              return;
+            }
+            setAdding(false);
+            setErr("");
+            onChange(v || null);
+          }}
+          className="w-full rounded-lg px-3 py-2.5 outline-none"
+          style={{ ...fieldStyle, appearance: "none", WebkitAppearance: "none", paddingRight: "36px" }}
+        >
+          <option value="">No setup</option>
+          <optgroup label="Standard">
+            {SETUPS.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.label}
+              </option>
+            ))}
+          </optgroup>
+          {customSetupsLoaded && customSetups.length > 0 && (
+            <optgroup label="Yours">
+              {customSetups.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.label}
+                </option>
+              ))}
+            </optgroup>
+          )}
+          <option value="__new__">+ Add a new setup</option>
+        </select>
+        <ChevronDown
+          size={16}
+          aria-hidden="true"
+          style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: palette.textMuted, pointerEvents: "none" }}
+        />
+      </div>
+      {adding && (
+        <div className="flex gap-2 mt-2">
+          <input
+            type="text"
+            autoFocus
+            value={name}
+            maxLength={20}
+            onChange={(e) => {
+              setName(e.target.value);
+              setErr("");
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                save();
+              }
+            }}
+            placeholder="Setup name"
+            className="flex-1 min-w-0 rounded-lg px-3 py-2 outline-none"
+            style={fieldStyle}
+          />
+          <button
+            type="button"
+            onClick={save}
+            className={`rounded-lg px-3 ${TAP}`}
+            style={{ background: palette.gold, color: palette.letterbox, fontSize: "13px", fontWeight: 700 }}
+          >
+            Add
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setAdding(false);
+              setName("");
+              setErr("");
+            }}
+            className={`rounded-lg px-3 ${TAP}`}
+            style={{ color: palette.textMuted, border: `1px solid ${palette.border}`, fontSize: "13px" }}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+      {err && (
+        <p className="text-xs mt-1.5" style={{ color: palette.red }}>
+          {err}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function CurveTab(props) {
   const {
     calMonth,
@@ -40,6 +258,7 @@ export default function CurveTab(props) {
     copyWeekSummary,
     customMoods,
     customMoodsLoaded,
+    addCustomSetup,
     customSetups,
     customSetupsLoaded,
     deleteTrade,
@@ -65,10 +284,13 @@ export default function CurveTab(props) {
     setShowDisciplineInfo,
     setShowStreakInfo,
     setStatementPeriod,
+    setTradeConfidence,
+    setTradeDirection,
     setTradeEmotion,
     setTradeInput,
     setTradeNote,
     setTradePair,
+    setTradeSession,
     setTradeSetup,
     setViewingScreenshot,
     settings,
@@ -79,10 +301,13 @@ export default function CurveTab(props) {
     startEditTrade,
     startingBalance,
     submitTrade,
+    tradeConfidence,
+    tradeDirection,
     tradeEmotion,
     tradeInput,
     tradeNote,
     tradePair,
+    tradeSession,
     tradeSetup,
     trades,
     tradesLoadError,
@@ -91,6 +316,16 @@ export default function CurveTab(props) {
     logSheetOpen,
     setLogSheetOpen
   } = props;
+  // When the log sheet opens for a NEW trade, preselect the session if exactly one market is open right now.
+  // Overlaps are ambiguous, so those are left for the trader to pick.
+  useEffect(() => {
+    if (!logSheetOpen || editingTradeId || tradeSession) return;
+    const now = new Date();
+    const hour = now.getUTCHours() + now.getUTCMinutes() / 60;
+    const open = MARKET_SESSIONS.filter((s) => sessionOpenAtUTCHour(s, hour));
+    if (open.length === 1) setTradeSession(open[0].id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [logSheetOpen, editingTradeId]);
   const [historyFilter, setHistoryFilter] = useState("all");
   const [historyVisible, setHistoryVisible] = useState(30);
   const chartData = useMemo(() => {
@@ -313,7 +548,10 @@ export default function CurveTab(props) {
                       {(() => {
                         const showRevenge = settings.showRevengeTag !== false && revengeIds.has(t.id);
                         const mood = t.emotion ? emotionMeta(t.emotion) : null;
-                        if (!t.setup && !mood && !showRevenge && !isBeingEdited && shots.length === 0 && !savingThisTrade) return null;
+                        const sessionLabel = t.session ? MARKET_SESSIONS.find((x) => x.id === t.session)?.label : "";
+                        const dirLabel = t.direction === "up" ? "Up" : t.direction === "down" ? "Down" : "";
+                        const conf = Number(t.confidence) > 0 ? Number(t.confidence) : 0;
+                        if (!t.setup && !mood && !sessionLabel && !dirLabel && !conf && !showRevenge && !isBeingEdited && shots.length === 0 && !savingThisTrade) return null;
                         const chip = (color) => ({
                           fontSize: "12px",
                           color,
@@ -324,6 +562,13 @@ export default function CurveTab(props) {
                         return (
                           <div className="flex gap-1.5 flex-wrap items-center" style={{ marginTop: "10px" }}>
                             {t.setup && <span style={chip(palette.textMuted)}>{findSetupLabel(t.setup)}</span>}
+                            {dirLabel && <span style={chip(t.direction === "up" ? palette.green : palette.red)}>{dirLabel}</span>}
+                            {sessionLabel && <span style={chip(palette.textMuted)}>{sessionLabel}</span>}
+                            {conf > 0 && (
+                              <span style={chip(palette.textMuted)}>
+                                Confidence {conf}/{CONFIDENCE_MAX}
+                              </span>
+                            )}
                             {mood && (
                               <span style={chip(palette.textMuted)}>
                                 {mood.emoji} {mood.label}
@@ -1216,6 +1461,33 @@ export default function CurveTab(props) {
             fontSize: "14px",
           }}
         />
+        <div className="flex gap-2 mb-2" role="group" aria-label="Direction">
+          {[
+            { id: "up", label: "Up (buy)", Icon: ArrowUp, color: palette.green },
+            { id: "down", label: "Down (sell)", Icon: ArrowDown, color: palette.red },
+          ].map(({ id, label, Icon, color }) => {
+            const active = tradeDirection === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                aria-pressed={active}
+                onClick={() => setTradeDirection(active ? null : id)}
+                className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2.5 transition-colors ${TAP}`}
+                style={{
+                  background: active ? `${color}22` : palette.field,
+                  color: active ? color : palette.textMuted,
+                  border: `1px solid ${active ? color : palette.border}`,
+                  fontSize: "13.5px",
+                  fontWeight: active ? 700 : 500,
+                }}
+              >
+                <Icon size={15} strokeWidth={2.4} />
+                {label}
+              </button>
+            );
+          })}
+        </div>
         <div className="flex gap-2 mb-2">
           <div
             className="flex items-center rounded-lg px-3 flex-1"
@@ -1290,20 +1562,24 @@ export default function CurveTab(props) {
           })}
         </div>
 
-        <span
-          className="block mb-1.5 uppercase"
-          style={{ color: palette.textFaint, letterSpacing: "0.08em", fontSize: "10px" }}
-        >
-          Setup
-        </span>
-        <div className="flex gap-2 flex-wrap mb-2 items-center">
-          {SETUPS.map((s) => {
-            const active = tradeSetup === s.id;
+        <SetupSelect
+          value={tradeSetup}
+          onChange={setTradeSetup}
+          customSetups={customSetups}
+          customSetupsLoaded={customSetupsLoaded}
+          addCustomSetup={addCustomSetup}
+        />
+
+        <span style={{ color: palette.textFaint, fontSize: "11px", display: "block", marginBottom: "6px" }}>Session</span>
+        <div className="flex gap-2 flex-wrap mb-3 items-center" role="group" aria-label="Session">
+          {MARKET_SESSIONS.map((s) => {
+            const active = tradeSession === s.id;
             return (
               <button
                 key={s.id}
                 type="button"
-                onClick={() => setTradeSetup(active ? null : s.id)}
+                aria-pressed={active}
+                onClick={() => setTradeSession(active ? null : s.id)}
                 className={`px-3 py-1.5 rounded-full transition-colors ${TAP}`}
                 style={{
                   background: active ? palette.gold : palette.field,
@@ -1316,35 +1592,11 @@ export default function CurveTab(props) {
               </button>
             );
           })}
-
-          {customSetupsLoaded &&
-            customSetups.map((s) => {
-              const active = tradeSetup === s.id;
-              return (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => setTradeSetup(active ? null : s.id)}
-                  className={`px-3 py-1.5 rounded-full transition-colors ${TAP}`}
-                  style={{
-                    background: active ? palette.gold : palette.field,
-                    color: active ? palette.letterbox : palette.textMuted,
-                    border: `1px dashed ${active ? palette.gold : palette.border}`,
-                    fontSize: "13px",
-                  }}
-                >
-                  {s.label}
-                </button>
-              );
-            })}
         </div>
 
-        <span
-          className="block mb-1.5 uppercase"
-          style={{ color: palette.textFaint, letterSpacing: "0.08em", fontSize: "10px" }}
-        >
-          Mood
-        </span>
+        <ConfidenceMeter value={tradeConfidence} onChange={setTradeConfidence} />
+
+        <span style={{ color: palette.textFaint, fontSize: "11px", display: "block", marginBottom: "6px" }}>Mood</span>
         <div className="flex gap-2 flex-wrap mb-2 items-center">
           {EMOTIONS.map((e) => {
             const active = tradeEmotion === e.id;
@@ -1391,11 +1643,10 @@ export default function CurveTab(props) {
         </div>
 
         <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-          Enter net P&amp;L for the trade. Positive logs a win, negative logs a loss. The dashed chips quick-fill
-          the note; Setup tags what kind of trade it was (tap the + to add up to {MAX_CUSTOM_SETUPS} of your own);
-          Mood tags how you felt. Tap the pencil on any logged trade below to edit it in place. Tags and a
-          "revenge" flag (opened within {RUNTIME.REVENGE_WINDOW_MINUTES} minutes of a loss) show up per trade in the
-          calendar below.
+          Enter net P&amp;L for the trade. Positive logs a win, negative logs a loss. Setup, session, confidence
+          and mood are optional, but every one you fill in sharpens your Insights. Tap the pencil on any logged
+          trade to edit it. A "revenge" flag (opened within {RUNTIME.REVENGE_WINDOW_MINUTES} minutes of a loss)
+          shows up per trade in the calendar below.
         </p>
 
         {tradesLoadError && (
