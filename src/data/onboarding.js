@@ -38,14 +38,14 @@ export const TOUR_STEPS = [
   {
     id: "welcome",
     title: "Welcome to Tredzi",
-    text: "Quick tour of the app \u2014 about 9 steps. Skip anytime with the button below.",
+    text: "Quick tour of the app \u2014 about 8 steps. Skip anytime with the button below.",
   },
   {
     id: "tab-risk",
     tabId: "risk",
     target: "tab-risk",
-    title: "Challenge Calculator",
-    text: "Track profit targets, daily/max drawdown, consistency rules, and position sizing for prop firm challenges.",
+    title: "Tools",
+    text: "Your calculators in one place: the prop firm challenge tracker, edge and position size, and a currency converter.",
   },
   {
     id: "tab-propfirm",
@@ -55,18 +55,11 @@ export const TOUR_STEPS = [
     text: "Look up a firm's published rules and apply them straight into the Challenge calculator.",
   },
   {
-    id: "tab-fx",
-    tabId: "fx",
-    target: "tab-fx",
-    title: "Currency Convert",
-    text: "Convert between currencies using live daily rates, or override with your broker's exact rate.",
-  },
-  {
     id: "tab-insights",
     tabId: "insights",
     target: "tab-insights",
     title: "Insights",
-    text: "Deeper analytics \u2014 performance heatmap, discipline grade, setup and mood breakdowns.",
+    text: "Deeper analytics from your logged trades \u2014 heatmap, discipline grade, and which setups, sessions and confidence levels make you money.",
   },
   {
     id: "tab-journal",
