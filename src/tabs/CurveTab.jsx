@@ -33,6 +33,100 @@ const CURVE_REVEAL_CSS = `
 `;
 
 
+// "3h 12m", "14m 05s", "2d 4h". Used for how long a trade has been (or was) open.
+function fmtHold(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ${String(s % 60).padStart(2, "0")}s`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ${String(m % 60).padStart(2, "0")}m`;
+  return `${Math.floor(h / 24)}d ${h % 24}h`;
+}
+const fmtClock = (ts) => new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+const fmtDay = (ts) => new Date(ts).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" });
+
+// Right half of the top card: the trade that is open right now, straight from the connected broker.
+function ActiveTradePanel({ connected, positions, pnlAvailable, error, isDesktop }) {
+  const [now, setNow] = useState(() => Date.now());
+  const hasLive = connected && positions.length > 0;
+  useEffect(() => {
+    if (!hasLive) return undefined;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [hasLive]);
+
+  const title = (
+    <div style={{ color: palette.textMuted, fontSize: "12px", display: "flex", alignItems: "center", gap: "6px" }}>
+      Active trade
+      {hasLive && (
+        <span
+          aria-label="Live"
+          style={{ width: 7, height: 7, borderRadius: 999, background: palette.green, boxShadow: `0 0 0 3px ${palette.green}26` }}
+        />
+      )}
+    </div>
+  );
+  const quiet = { color: palette.textFaint, fontSize: "12px", marginTop: "6px", lineHeight: 1.4 };
+
+  if (!connected) {
+    return (
+      <div>
+        {title}
+        <div style={{ color: palette.textMuted, fontFamily: display, fontSize: isDesktop ? "22px" : "17px", fontWeight: 700, marginTop: "4px" }}>
+          No broker
+        </div>
+        <div style={quiet}>Connect one in the Broker tab to see your open trade here.</div>
+      </div>
+    );
+  }
+  if (!positions.length) {
+    return (
+      <div>
+        {title}
+        <div style={{ color: palette.text, fontFamily: display, fontSize: isDesktop ? "22px" : "17px", fontWeight: 700, marginTop: "4px" }}>
+          No open trade
+        </div>
+        <div style={quiet}>{error ? "Couldn\u2019t reach your broker just now." : "You\u2019re flat."}</div>
+      </div>
+    );
+  }
+  const p = positions[0];
+  const isBuy = p.direction === "up";
+  const dirColor = isBuy ? palette.green : palette.red;
+  const pnlColor = p.pnl === null ? palette.textMuted : p.pnl >= 0 ? palette.green : palette.red;
+  return (
+    <div>
+      {title}
+      <div className="flex items-baseline" style={{ gap: "8px", marginTop: "4px", minWidth: 0 }}>
+        <span className="truncate" style={{ color: palette.text, fontFamily: mono, fontSize: "14px", fontWeight: 700 }}>
+          {p.pair}
+        </span>
+        <span style={{ color: dirColor, fontSize: "13px", fontWeight: 700, flexShrink: 0 }}>{isBuy ? "Buy" : "Sell"}</span>
+      </div>
+      <div
+        style={{
+          fontFamily: display,
+          fontSize: isDesktop ? "34px" : "24px",
+          fontWeight: 700,
+          lineHeight: 1.1,
+          marginTop: "2px",
+          color: pnlColor,
+        }}
+      >
+        {p.pnl === null ? "P&L n/a" : `${p.pnl >= 0 ? "+" : "-"}$${fmtMoney(p.pnl)}`}
+      </div>
+      <div style={{ ...quiet, fontFamily: mono }}>
+        {p.openTs ? `Held ${fmtHold(now - p.openTs)}` : "Open"}
+        {positions.length > 1 ? ` \u00b7 +${positions.length - 1} more` : ""}
+      </div>
+      {p.pnl === null && !pnlAvailable && (
+        <div style={{ ...quiet, marginTop: "2px" }}>Your broker doesn\u2019t send live P&amp;L.</div>
+      )}
+    </div>
+  );
+}
+
 // Horizontal confidence meter: ten rising bars. Tap or drag across it to set 1-10, arrow keys also work.
 function ConfidenceMeter({ value, onChange }) {
   const trackRef = useRef(null);
@@ -259,6 +353,10 @@ export default function CurveTab(props) {
     customMoods,
     customMoodsLoaded,
     addCustomSetup,
+    brokerConn,
+    liveError,
+    livePnlAvailable,
+    livePositions,
     customSetups,
     customSetupsLoaded,
     deleteTrade,
@@ -517,9 +615,19 @@ export default function CurveTab(props) {
                               </span>
                             )}
                           </div>
-                          <div style={{ color: palette.textFaint, fontSize: "13px" }}>
-                            {new Date(t.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}
-                          </div>
+                          {t.openTs ? (
+                            <div style={{ color: palette.textFaint, fontSize: "12px", lineHeight: 1.5 }}>
+                              <div>{fmtDay(t.openTs)}</div>
+                              <div style={{ fontFamily: mono }}>
+                                In {fmtClock(t.openTs)}
+                                {fmtDay(t.ts) !== fmtDay(t.openTs) ? ` (${fmtDay(t.openTs)})` : ""} {"\u00b7"} Out {fmtClock(t.ts)}
+                                {fmtDay(t.ts) !== fmtDay(t.openTs) ? ` (${fmtDay(t.ts)})` : ""}
+                              </div>
+                              <div style={{ color: palette.textMuted, fontFamily: mono }}>Held {fmtHold(Math.max(0, t.ts - t.openTs))}</div>
+                            </div>
+                          ) : (
+                            <div style={{ color: palette.textFaint, fontSize: "13px" }}>{fmtClock(t.ts)}</div>
+                          )}
                         </div>
                         <div className="flex flex-col items-end flex-shrink-0" style={{ marginLeft: "8px", gap: "6px" }}>
                           <span
@@ -531,6 +639,9 @@ export default function CurveTab(props) {
                             }}
                           >
                             {t.pnl >= 0 ? "+" : "-"}${fmtMoney(t.pnl)}
+                            {t.pnlEstimated && (
+                              <span style={{ fontSize: "10px", fontWeight: 500, color: palette.textFaint, marginLeft: "4px" }}>est.</span>
+                            )}
                           </span>
                           <div className="flex items-center" style={{ gap: "10px" }}>
                             <button
@@ -730,25 +841,45 @@ export default function CurveTab(props) {
         {view !== "history" && (
           <>
         <div
-          className={isDesktop ? "rounded-2xl p-6 mb-4" : "rounded-2xl p-5 mb-4"}
-          style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow, transition: THEME_TRANSITION }}
+          className="rounded-2xl mb-4"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
+            background: palette.surface,
+            border: `1px solid ${palette.border}`,
+            boxShadow: palette.shadow,
+            transition: THEME_TRANSITION,
+            overflow: "hidden",
+          }}
         >
-          <div style={{ color: palette.textMuted, fontSize: "12px" }}>Net P&amp;L</div>
-          <div
-            style={{
-              fontFamily: display,
-              fontSize: isDesktop ? "40px" : "32px",
-              fontWeight: 700,
-              lineHeight: 1.1,
-              marginTop: "2px",
-              color: trades.length === 0 || netPnl === 0 ? palette.text : netPnl > 0 ? palette.green : palette.red,
-            }}
-          >
-            {trades.length === 0 ? "$0" : `${netPnl >= 0 ? "+" : "-"}$${fmtMoney(netPnl)}`}
+          <div style={{ padding: isDesktop ? "24px" : "16px", minWidth: 0 }}>
+            <div style={{ color: palette.textMuted, fontSize: "12px" }}>Net P&amp;L</div>
+            <div
+              style={{
+                fontFamily: display,
+                fontSize: isDesktop ? "40px" : "24px",
+                fontWeight: 700,
+                lineHeight: 1.1,
+                marginTop: "4px",
+                overflowWrap: "anywhere",
+                color: trades.length === 0 || netPnl === 0 ? palette.text : netPnl > 0 ? palette.green : palette.red,
+              }}
+            >
+              {trades.length === 0 ? "$0" : `${netPnl >= 0 ? "+" : "-"}$${fmtMoney(netPnl)}`}
+            </div>
+            <div style={{ color: palette.textFaint, fontSize: isDesktop ? "12px" : "11px", marginTop: "6px", lineHeight: 1.4 }}>
+              {trades.length} trade{trades.length === 1 ? "" : "s"}
+              {startBal > 0 ? ` \u00b7 Balance $${fmt(startBal + netPnl, 0)}` : ""}
+            </div>
           </div>
-          <div style={{ color: palette.textFaint, fontSize: "12px", marginTop: "6px" }}>
-            {trades.length} trade{trades.length === 1 ? "" : "s"}
-            {startBal > 0 ? ` \u00b7 Balance $${fmt(startBal + netPnl, 0)}` : ""}
+          <div style={{ padding: isDesktop ? "24px" : "16px", minWidth: 0, borderLeft: `1px solid ${palette.border}` }}>
+            <ActiveTradePanel
+              connected={!!(brokerConn && brokerConn.connected)}
+              positions={livePositions || []}
+              pnlAvailable={livePnlAvailable !== false}
+              error={liveError}
+              isDesktop={isDesktop}
+            />
           </div>
         </div>
 
