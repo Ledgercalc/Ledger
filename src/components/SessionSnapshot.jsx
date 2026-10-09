@@ -1,82 +1,97 @@
-import { memo, useMemo } from "react";
-import { Activity, Flame, TrendingDown, TrendingUp } from "lucide-react";
-import { computeDisciplineStreak } from "../lib/analytics.js";
+import { ChevronRight } from "lucide-react";
+import { useEffect, useState } from "react";
 import { dayKeyFromDate, dayKeyFromTs, fmtMoney, num } from "../lib/format.js";
-import { TAP, display, mono, palette } from "../lib/theme.js";
+import { MARKET_SESSIONS, sessionOpenAtUTCHour } from "../lib/sessions.js";
+import { TAP, THEME_TRANSITION, display, mono, palette } from "../lib/theme.js";
 
-// Mobile-only "Session Snapshot": the phone counterpart of the desktop sidebar's Today's Pulse.
-// Own component + memo, so it only recalculates when trades or the relevant settings change,
-// not on every App render.
-function SessionSnapshotBase({ trades, maxTradesPerDay, onOpen, themeKey }) {
-  const stats = useMemo(() => {
-    const key = dayKeyFromDate(new Date());
-    const today = trades.filter((t) => dayKeyFromTs(t.ts) === key);
-    return {
-      count: today.length,
-      net: today.reduce((s, t) => s + t.pnl, 0),
-      streak: computeDisciplineStreak(trades).current,
-    };
-  }, [trades]);
-  const snapMax = num(maxTradesPerDay);
-  const hasToday = stats.count > 0;
-  const tone = !hasToday || stats.net === 0 ? palette.goldBright : stats.net > 0 ? palette.green : palette.red;
-  const progress = snapMax > 0 ? Math.min(1, stats.count / snapMax) : hasToday ? 1 : 0;
-  const R = 21;
-  const C = 2 * Math.PI * R;
-  const Icon = !hasToday || stats.net === 0 ? Activity : stats.net > 0 ? TrendingUp : TrendingDown;
+// Phone-only strip at the top of the Journal tab. One glance: today's result, how many trades,
+// and which market is open. Tap it to open the full snapshot sheet.
+export default function SessionSnapshot({ trades = [], maxTradesPerDay, onOpen }) {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 30000);
+    return () => clearInterval(id);
+  }, []);
+
+  const todayKey = dayKeyFromDate(now);
+  const today = trades.filter((t) => dayKeyFromTs(t.ts) === todayKey);
+  const net = today.reduce((s, t) => s + t.pnl, 0);
+  const wins = today.filter((t) => t.pnl > 0).length;
+  const losses = today.filter((t) => t.pnl < 0).length;
+  const decided = wins + losses;
+  const winRate = decided > 0 ? Math.round((wins / decided) * 100) : null;
+  const max = num(maxTradesPerDay);
+  const usedPct = max > 0 ? Math.min(100, (today.length / max) * 100) : 0;
+
+  const hour = now.getUTCHours() + now.getUTCMinutes() / 60;
+  const open = MARKET_SESSIONS.filter((s) => sessionOpenAtUTCHour(s, hour));
+
+  const netColor = today.length === 0 || net === 0 ? palette.text : net > 0 ? palette.green : palette.red;
+  const stat = (label, value, color) => (
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ color: palette.textFaint, fontSize: "11px" }}>{label}</div>
+      <div style={{ color: color || palette.text, fontFamily: mono, fontSize: "14px", fontWeight: 700, marginTop: "2px" }}>{value}</div>
+    </div>
+  );
+
   return (
     <button
       type="button"
       onClick={onOpen}
       aria-label="Open session snapshot"
-      className={`w-full text-left ${TAP}`}
+      className={`w-full text-left rounded-2xl mb-4 ${TAP}`}
       style={{
-        display: "flex", alignItems: "center", gap: "14px", padding: "14px 14px 14px 12px", marginBottom: "16px",
-        borderRadius: "20px", cursor: "pointer",
-        background: `linear-gradient(135deg, ${tone}22 0%, ${palette.surface} 62%)`,
-        border: `1px solid ${tone}38`, boxShadow: palette.shadow,
+        display: "block",
+        padding: "14px 16px",
+        background: palette.surface,
+        border: `1px solid ${palette.border}`,
+        boxShadow: palette.shadow,
+        transition: THEME_TRANSITION,
       }}
     >
-      <span style={{ position: "relative", width: "54px", height: "54px", flex: "none", display: "block" }}>
-        <svg width="54" height="54" viewBox="0 0 54 54" aria-hidden="true" style={{ transform: "rotate(-90deg)", display: "block" }}>
-          <circle cx="27" cy="27" r={R} fill="none" stroke={palette.border} strokeWidth="5" />
-          <circle cx="27" cy="27" r={R} fill="none" stroke={tone} strokeWidth="5" strokeLinecap="round"
-            strokeDasharray={`${C * progress} ${C}`} style={{ transition: "stroke-dasharray .6s ease" }} />
-        </svg>
-        <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: tone }}>
-          <Icon size={20} strokeWidth={2.4} />
+      <div className="flex items-center justify-between" style={{ marginBottom: "6px" }}>
+        <span style={{ color: palette.textMuted, fontSize: "12px" }}>Today</span>
+        <span className="flex items-center gap-1.5" style={{ color: open.length ? palette.text : palette.textFaint, fontSize: "12px" }}>
+          <span
+            aria-hidden="true"
+            style={{
+              width: 7,
+              height: 7,
+              borderRadius: "999px",
+              background: open.length ? palette.green : palette.textFaint,
+              boxShadow: open.length ? `0 0 0 3px ${palette.green}26` : "none",
+            }}
+          />
+          {open.length ? `${open.map((s) => s.label).join(" + ")} open` : "Markets quiet"}
         </span>
-      </span>
-      <span style={{ flex: "1 1 auto", minWidth: 0 }}>
-        <span style={{ display: "block", fontSize: "10px", fontWeight: 800, letterSpacing: "0.14em", color: palette.textFaint, textTransform: "uppercase" }}>
-          Session snapshot
+      </div>
+
+      <div className="flex items-center justify-between">
+        <span style={{ fontFamily: display, fontSize: "30px", fontWeight: 700, lineHeight: 1.1, color: netColor }}>
+          {today.length === 0 ? "$0" : `${net >= 0 ? "+" : "-"}$${fmtMoney(net)}`}
         </span>
-        {trades.length > 0 ? (
-          <>
-            <span style={{ display: "block", fontFamily: mono, fontSize: "22px", fontWeight: 800, lineHeight: 1.15, color: hasToday ? tone : palette.textFaint, marginTop: "2px" }}>
-              {hasToday ? `${stats.net >= 0 ? "+" : "-"}$${fmtMoney(stats.net)}` : "$0"}
-            </span>
-            <span style={{ display: "block", fontSize: "11.5px", color: palette.textMuted, marginTop: "1px" }}>
-              {hasToday ? `${stats.count} trade${stats.count === 1 ? "" : "s"} today${snapMax > 0 ? ` of ${snapMax}` : ""}` : "No trades yet today"}
-            </span>
-          </>
-        ) : (
-          <span style={{ display: "block", fontSize: "12.5px", color: palette.textMuted, marginTop: "3px" }}>
-            Log your first trade to start your snapshot.
-          </span>
-        )}
-      </span>
-      <span style={{ flex: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: "2px", padding: "7px 11px", borderRadius: "14px", background: stats.streak > 0 ? `${palette.gold}1C` : palette.field, border: `1px solid ${stats.streak > 0 ? `${palette.gold}40` : palette.border}` }}>
-        <Flame size={16} strokeWidth={2.3} style={{ color: stats.streak > 0 ? palette.goldBright : palette.textFaint }} />
-        <span style={{ fontFamily: mono, fontSize: "14px", fontWeight: 800, color: stats.streak > 0 ? palette.goldBright : palette.textFaint, lineHeight: 1 }}>{stats.streak}d</span>
-        <span style={{ fontSize: "8.5px", fontWeight: 700, letterSpacing: "0.1em", color: palette.textFaint, textTransform: "uppercase" }}>streak</span>
-      </span>
+        <ChevronRight size={20} style={{ color: palette.textFaint, flexShrink: 0 }} />
+      </div>
+
+      <div className="flex" style={{ gap: "12px", marginTop: "12px", paddingTop: "12px", borderTop: `1px solid ${palette.border}` }}>
+        {stat("Trades", max > 0 ? `${today.length} / ${max}` : String(today.length), max > 0 && today.length >= max ? palette.red : undefined)}
+        {stat("Win rate", winRate === null ? "\u2013" : `${winRate}%`, winRate === null ? palette.textFaint : winRate >= 50 ? palette.green : palette.red)}
+        {stat("W / L", `${wins} / ${losses}`)}
+      </div>
+
+      {max > 0 && (
+        <div style={{ height: "4px", borderRadius: "999px", background: palette.field, overflow: "hidden", marginTop: "12px" }}>
+          <div
+            style={{
+              height: "100%",
+              width: `${usedPct}%`,
+              borderRadius: "999px",
+              background: usedPct >= 100 ? palette.red : usedPct >= 70 ? palette.gold : palette.green,
+              transition: "width 0.3s ease",
+            }}
+          />
+        </div>
+      )}
     </button>
   );
 }
-
-const SessionSnapshot = memo(
-  SessionSnapshotBase,
-  (p, n) => p.trades === n.trades && p.maxTradesPerDay === n.maxTradesPerDay && p.themeKey === n.themeKey
-);
-export default SessionSnapshot;
