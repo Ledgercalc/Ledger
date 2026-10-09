@@ -1,5 +1,5 @@
 import { pokeCrab } from "../lib/mascot.js";
-import { useEffect, useRef } from "react";
+import { Suspense, useEffect, useRef } from "react";
 import { Field, PillGroup, Readout, RuleRow, StatChip } from "../components/ui.jsx";
 import { computeQualifyingTradingDays } from "../lib/analytics.js";
 import { EDGE_PROJECTION_PERIODS, PROFIT_TARGET_OPTIONS } from "../lib/constants.js";
@@ -10,7 +10,9 @@ import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Too
 
 export default function RiskTab(props) {
   const {
+    ConvertTab,
     applyPreset,
+    convertProps,
     cs,
     edge,
     edgeProjectionPeriodIdx,
@@ -33,6 +35,7 @@ export default function RiskTab(props) {
       { id: "challenge", label: "Challenge" },
       { id: "edge", label: "Edge" },
       { id: "size", label: "Size" },
+      { id: "convert", label: "Convert" },
     ];
 
     const ratio = num(edge.rr); // reward multiple, e.g. 2 = risking 1R to make 2R
@@ -233,7 +236,11 @@ const edgeCurveData = Array.from({ length: EDGE_CURVE_POINTS + 1 }, (_, i) => {
       <>
         {renderSubNav(RISK_SUB_TABS, riskSubTab, setRiskSubTab)}
 
-        {riskSubTab === "challenge" ? (
+        {riskSubTab === "convert" ? (
+          <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}>
+            <ConvertTab {...convertProps} />
+          </Suspense>
+        ) : riskSubTab === "challenge" ? (
           <>
             <Readout isDesktop={isDesktop}
               icon={Target}
