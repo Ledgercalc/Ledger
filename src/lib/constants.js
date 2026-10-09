@@ -1,5 +1,5 @@
 import { MARKET_SESSIONS } from "./sessions.js";
-import { ArrowLeftRight, BookOpen, Building2, Clock, Lightbulb, Link2, Scale, Users } from "lucide-react";
+import { BookOpen, Building2, Clock, Lightbulb, Link2, Scale, Users } from "lucide-react";
 
 export const EMOTIONS = [
   { id: "calm", label: "Calm", emoji: "\u{1F60C}" },
@@ -74,9 +74,8 @@ export const ALARM_CHECK_INTERVAL_MS = 15000;
 export const ALARM_STALE_WINDOW_MS = 10 * 60 * 1000;
 
 export const TABS = [
-  { id: "risk", label: "Challenge", icon: Scale },
+  { id: "risk", label: "Tools", icon: Scale },
   { id: "propfirm", label: "Prop Firm", icon: Building2 },
-  { id: "fx", label: "Convert", icon: ArrowLeftRight },
   { id: "insights", label: "Insights", icon: Lightbulb },
   { id: "journal", label: "Journal", icon: BookOpen },
   { id: "broker", label: "Broker", icon: Link2 },
