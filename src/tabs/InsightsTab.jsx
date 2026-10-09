@@ -142,7 +142,7 @@ export default function InsightsTab(props) {
     trades
   } = props;
   // "journal" and "patterns" were separate tabs. They are part of Overview now, so saved defaults land there.
-  const insightsSubTab = insightsSubTabProp === "journal" || insightsSubTabProp === "patterns" ? "overview" : insightsSubTabProp;
+  const insightsSubTab = insightsSubTabProp === "journal" || insightsSubTabProp === "patterns" || insightsSubTabProp === "behavior" ? "overview" : insightsSubTabProp;
   // ── Mascot reactions ───────────────────────────────────────────────
   const crabReady = useRef(false);
   const prevCoachLoading = useRef(false);
@@ -227,7 +227,6 @@ export default function InsightsTab(props) {
 
     const INSIGHTS_SUB_TABS = [
       { id: "overview", label: "Overview" },
-      { id: "behavior", label: "Behavior" },
       { id: "coach", label: "Coach" },
     ];
 
@@ -442,9 +441,9 @@ export default function InsightsTab(props) {
 
         <div className={isDesktop ? "grid grid-cols-2 gap-5 items-start" : ""}>
           <div>
-            <PatternHeading hint="Do you do better buying or selling?">Up against down</PatternHeading>
+            <PatternHeading hint="Do you do better buying or selling?">Buy against sell</PatternHeading>
             <PatternCard>
-              <EdgeRows rows={patterns.directionRows} signed={fmtSigned} emptyText="Pick Up or Down when you log a trade to compare them here." />
+              <EdgeRows rows={patterns.directionRows} signed={fmtSigned} emptyText="Pick Buy or Sell when you log a trade to compare them here." />
             </PatternCard>
           </div>
           <div>
@@ -587,30 +586,20 @@ export default function InsightsTab(props) {
             <PlanLockCard title="Pattern insights" plan="pro" blurb="See which setups, sessions, directions and confidence levels make or lose you money." />
           </div>
         )}
-      </>
-    );
 
-    const behaviorSection = !hasData ? (
-      <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-        No trades yet. Behavior stats appear once you start logging trades in the Journal tab.
-      </p>
-    ) : (
-      <>
+        <PatternHeading hint="How well you stick to your own rules.">Discipline</PatternHeading>
+        {hasFeature(myPlan.plan, "behaviorInsights") ? (
+          <>
         <Readout
           icon={ShieldAlert}
           eyebrow="Discipline Grade"
           value={grade.grade}
           unit={grade.grade !== "N/A" ? `${grade.score}/100` : undefined}
-          sub="Combines discipline streak, revenge-trade rate, and journal completeness"
+          sub="Combines discipline streak, revenge-trade rate, and log completeness"
           tone={grade.grade === "A" || grade.grade === "B" ? "good" : grade.grade === "D" || grade.grade === "F" ? "bad" : undefined}
         />
 
-        <span
-          className="block mb-1.5 uppercase"
-          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
-        >
-          Cost of Revenge Trading
-        </span>
+        <PatternHeading>Cost of revenge trading</PatternHeading>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
           <StatChip
             label={`Revenge (${revengeCost.revengeCount})`}
@@ -619,12 +608,7 @@ export default function InsightsTab(props) {
           <StatChip label={`Everything Else (${revengeCost.cleanCount})`} value={fmtSigned(revengeCost.cleanTotal)} />
         </div>
 
-        <span
-          className="block mb-1.5 uppercase"
-          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
-        >
-          Win-Streak Sizing Check
-        </span>
+        <PatternHeading>Win-streak sizing check</PatternHeading>
         <div
           className="rounded-2xl p-4 mb-6"
           style={{
@@ -653,15 +637,10 @@ export default function InsightsTab(props) {
           )}
         </div>
 
-        <div className={isDesktop ? "grid grid-cols-2 gap-5 items-start" : "contents"}>
+        <div className={isDesktop ? "grid grid-cols-2 gap-5 items-start" : ""}>
         {disciplineTrend.length > 1 && (
           <div>
-            <span
-              className="block mb-1.5 uppercase"
-              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
-            >
-              Discipline Streak Trend
-            </span>
+            <PatternHeading>Discipline streak trend</PatternHeading>
             <div
               className={isDesktop ? "rounded-2xl p-6 mb-6" : "rounded-2xl p-4 mb-6"}
               style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
@@ -702,12 +681,7 @@ export default function InsightsTab(props) {
 
         {noteTags.length > 0 && (
           <div>
-            <span
-              className="block mb-1.5 uppercase"
-              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
-            >
-              Note Tag Win Rate
-            </span>
+            <PatternHeading>Note tag win rate</PatternHeading>
             <div
               className={isDesktop ? "rounded-2xl p-6 mb-6" : "rounded-2xl p-4 mb-6"}
               style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
@@ -745,149 +719,14 @@ export default function InsightsTab(props) {
         )}
         </div>
 
-        <span
-          className="block mb-1.5 uppercase"
-          style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
-        >
-          Consistency
-        </span>
+        <PatternHeading>Consistency</PatternHeading>
         <div className="mb-6">
           <StatChip label="Day-to-Day Volatility" value={consistency ? consistency.label : "N/A"} />
         </div>
-
-        <div className={isDesktop ? "grid grid-cols-2 gap-5 items-start" : "contents"}>
-        <div>
-        {insights.setupRows.length > 0 ? (
-          <>
-            <span
-              className="block mb-1.5 uppercase"
-              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
-            >
-              Setup Performance
-            </span>
-            <div
-              className={isDesktop ? "rounded-2xl p-6 mb-2" : "rounded-2xl p-4 mb-2"}
-              style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
-            >
-              <div style={{ width: "100%", height: isDesktop ? 260 : 160 }}>
-                <ResponsiveContainer>
-                  <BarChart data={insights.setupRows} margin={{ top: 6, right: 8, bottom: 0, left: 0 }} barCategoryGap="40%">
-                    <CartesianGrid stroke={palette.border} strokeDasharray="3 3" vertical={false} />
-                    <XAxis
-                      dataKey="label"
-                      stroke={palette.textFaint}
-                      tick={{ fill: palette.textFaint, fontSize: 9, fontFamily: mono }}
-                      tickLine={false}
-                      axisLine={{ stroke: palette.border }}
-                    />
-                    <YAxis
-                      stroke={palette.textFaint}
-                      tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
-                      tickLine={false}
-                      axisLine={{ stroke: palette.border }}
-                      width={28}
-                      unit="%"
-                    />
-                    <Tooltip {...barTooltipProps} formatter={(v) => [`${v.toFixed(0)}%`, "Win Rate"]} />
-                    <Bar dataKey="winRate" radius={[4, 4, 0, 0]} barSize={THIN_BAR_SIZE} activeBar={false}>
-                      {insights.setupRows.map((r, i) => (
-                        <Cell key={i} fill={r.winRate >= 50 ? palette.green : palette.red} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-            {insights.setupRows.map((r) => (
-              <div
-                key={r.id}
-                className="flex items-center justify-between rounded-lg px-3 py-2.5 mb-2"
-                style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
-              >
-                <div>
-                  <div style={{ color: palette.text, fontSize: "14px" }}>{r.label}</div>
-                  <div style={{ color: palette.textMuted, fontSize: "12px" }}>
-                    {r.count} trade{r.count === 1 ? "" : "s"} {r.winRate.toFixed(0)}% win rate
-                  </div>
-                </div>
-                <span style={{ fontFamily: mono, fontSize: "13px", color: r.pnl >= 0 ? palette.green : palette.red }}>
-                  {fmtSigned(r.pnl)}
-                </span>
-              </div>
-            ))}
           </>
         ) : (
-          <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-            Pick a Setup when you log a trade to see setup performance here.
-          </p>
+          <PlanLockCard title="Discipline insights" plan="pro" blurb="Revenge-trade cost, discipline streaks and consistency." />
         )}
-        </div>
-
-        <div>
-        {insights.moodRows.length > 0 && (
-          <>
-            <span
-              className="block mt-4 mb-1.5 uppercase"
-              style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
-            >
-              Mood Impact
-            </span>
-            <div
-              className={isDesktop ? "rounded-2xl p-6 mb-2" : "rounded-2xl p-4 mb-2"}
-              style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
-            >
-              <div style={{ width: "100%", height: isDesktop ? 260 : 160 }}>
-                <ResponsiveContainer>
-                  <BarChart data={insights.moodRows} margin={{ top: 6, right: 8, bottom: 0, left: 0 }} barCategoryGap="40%">
-                    <CartesianGrid stroke={palette.border} strokeDasharray="3 3" vertical={false} />
-                    <XAxis
-                      dataKey="label"
-                      stroke={palette.textFaint}
-                      tick={{ fill: palette.textFaint, fontSize: 9, fontFamily: mono }}
-                      tickLine={false}
-                      axisLine={{ stroke: palette.border }}
-                    />
-                    <YAxis
-                      stroke={palette.textFaint}
-                      tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }}
-                      tickLine={false}
-                      axisLine={{ stroke: palette.border }}
-                      width={28}
-                      unit="%"
-                    />
-                    <Tooltip {...barTooltipProps} formatter={(v) => [`${v.toFixed(0)}%`, "Win Rate"]} />
-                    <Bar dataKey="winRate" radius={[4, 4, 0, 0]} barSize={THIN_BAR_SIZE} activeBar={false}>
-                      {insights.moodRows.map((r, i) => (
-                        <Cell key={i} fill={r.winRate >= 50 ? palette.green : palette.red} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-            {insights.moodRows.map((r) => (
-              <div
-                key={r.id}
-                className="flex items-center justify-between rounded-lg px-3 py-2.5 mb-2"
-                style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
-              >
-                <div>
-                  <div style={{ color: palette.text, fontSize: "14px" }}>
-                    {r.emoji} {r.label}
-                  </div>
-                  <div style={{ color: palette.textMuted, fontSize: "12px" }}>
-                    {r.count} trade{r.count === 1 ? "" : "s"} {r.winRate.toFixed(0)}% win rate
-                  </div>
-                </div>
-                <span style={{ fontFamily: mono, fontSize: "13px", color: r.pnl >= 0 ? palette.green : palette.red }}>
-                  {fmtSigned(r.pnl)}
-                </span>
-              </div>
-            ))}
-          </>
-        )}
-        </div>
-        </div>
       </>
     );
 
@@ -1156,7 +995,6 @@ export default function InsightsTab(props) {
         )}
         {insightsSubNav}
         {insightsSubTab === "overview" && overviewSection}
-        {insightsSubTab === "behavior" && (hasFeature(myPlan.plan, "behaviorInsights") ? behaviorSection : <PlanLockCard title="Behaviour insights" plan="pro" blurb="See how emotions, setups and habits shape your results." />)}
         {insightsSubTab === "coach" && coachSection}
 
         {insightsSubTab !== "coach" && hasData && (
