@@ -3,7 +3,7 @@ import { useState } from "react";
 
 // Broker connection screen (TradeLocker). UI only for now: Connect calls the optional `onConnect`
 // prop, and shows a "not switched on yet" message until a backend handler is passed in.
-export default function BrokerTab({ onConnect }) {
+export default function BrokerTab({ onConnect, onDisconnect, onSync, onAutoSyncChange, connection, syncInfo, autoSync: autoSyncProp }) {
   const PLATFORMS = [
     { id: "tradelocker", label: "TradeLocker", ready: true },
     { id: "mt5", label: "MetaTrader 5", ready: false },
@@ -16,7 +16,7 @@ export default function BrokerTab({ onConnect }) {
   const [server, setServer] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [autoSync, setAutoSync] = useState(true);
-  const [status, setStatus] = useState("idle"); // idle | connecting | connected | error
+  const [status, setStatus] = useState("idle"); // idle | connecting | error
   const [msg, setMsg] = useState("");
 
   const card = {
@@ -45,7 +45,8 @@ export default function BrokerTab({ onConnect }) {
     outline: "none",
   };
 
-  const connected = status === "connected";
+  const connected = !!(connection && connection.connected);
+  const sync = syncInfo || {};
 
   const submit = async () => {
     if (!email.trim() || !password || !server.trim()) {
@@ -62,7 +63,7 @@ export default function BrokerTab({ onConnect }) {
     setMsg("");
     try {
       await onConnect({ platform, env, email: email.trim(), password, server: server.trim(), autoSync });
-      setStatus("connected");
+      setStatus("idle");
       setPassword("");
     } catch (e) {
       setStatus("error");
@@ -70,10 +71,17 @@ export default function BrokerTab({ onConnect }) {
     }
   };
 
-  const disconnect = () => {
+  const disconnect = async () => {
     setStatus("idle");
     setMsg("");
+    try {
+      if (onDisconnect) await onDisconnect();
+    } catch (e) {
+      setStatus("error");
+      setMsg(e?.message || "Couldn\u2019t disconnect. Try again.");
+    }
   };
+  const when = (ts) => (ts ? new Date(ts).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: false }) : "never");
 
   const pill = (text, color) => (
     <span
@@ -287,7 +295,7 @@ export default function BrokerTab({ onConnect }) {
             <div>
               <div style={{ color: palette.text, fontSize: "15px", fontWeight: 700 }}>TradeLocker</div>
               <div className="text-xs" style={{ color: palette.textFaint }}>
-                {`${email} \u00b7 ${server} \u00b7 ${env === "demo" ? "Demo" : "Live"}`}
+                {[connection.accountName, connection.server, connection.env === "demo" ? "Demo" : "Live"].filter(Boolean).join(" \u00b7 ")}
               </div>
             </div>
             <button
@@ -306,6 +314,66 @@ export default function BrokerTab({ onConnect }) {
               Disconnect
             </button>
           </div>
+
+          <div
+            className="flex items-center justify-between"
+            style={{ padding: "12px 0", marginTop: 14, borderTop: `1px solid ${palette.border}` }}
+          >
+            <div>
+              <div style={{ color: palette.text, fontSize: "14px", fontWeight: 600 }}>Auto-log new trades</div>
+              <div className="text-xs" style={{ color: palette.textFaint }}>
+                Checks for closed trades about every 90 seconds while the app is open.
+              </div>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={!!autoSyncProp}
+              onClick={() => onAutoSyncChange && onAutoSyncChange(!autoSyncProp)}
+              style={{
+                width: 44,
+                height: 26,
+                borderRadius: 999,
+                border: "none",
+                position: "relative",
+                background: autoSyncProp ? palette.gold : palette.border,
+                transition: "background 150ms",
+                flexShrink: 0,
+              }}
+            >
+              <span
+                style={{
+                  position: "absolute",
+                  top: 3,
+                  left: autoSyncProp ? 21 : 3,
+                  width: 20,
+                  height: 20,
+                  borderRadius: "50%",
+                  background: "#fff",
+                  transition: "left 150ms",
+                }}
+              />
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={() => onSync && onSync()}
+            disabled={sync.syncing}
+            className={TAP}
+            style={{
+              width: "100%",
+              background: "transparent",
+              color: palette.text,
+              border: `1px solid ${palette.border}`,
+              borderRadius: "12px",
+              padding: "10px 16px",
+              fontSize: "14px",
+              fontWeight: 600,
+              opacity: sync.syncing ? 0.6 : 1,
+            }}
+          >
+            {sync.syncing ? "Syncing\u2026" : "Sync now"}
+          </button>
         </div>
       )}
 
@@ -313,9 +381,11 @@ export default function BrokerTab({ onConnect }) {
       <div style={card}>
         <span style={label}>Synced trades</span>
         <p className="text-xs" style={{ color: palette.textFaint }}>
-          {connected
-            ? "Waiting for your next closed trade. It will appear in your journal automatically."
-            : "Nothing synced yet. Connect an account to start."}
+          {!connected
+            ? "Nothing synced yet. Connect an account to start."
+            : sync.message
+            ? sync.message
+            : `Last checked ${when(sync.lastSync || connection.lastSync)}. New closed trades appear in your journal.`}
         </p>
       </div>
 
