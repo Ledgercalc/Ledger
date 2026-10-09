@@ -77,8 +77,8 @@ export const byMood = (trades, metaOf) =>
   );
 
 export const DIRECTIONS = [
-  { id: "up", label: "Up (buy)" },
-  { id: "down", label: "Down (sell)" },
+  { id: "up", label: "Buy" },
+  { id: "down", label: "Sell" },
 ];
 
 export const byDirection = (trades) =>
