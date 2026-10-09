@@ -8,7 +8,7 @@ import { CONFIDENCE_MAX, CONFIDENCE_MIN, confidenceWord } from "../lib/tradeInsi
 import { MONTH_NAMES, dayKeyFromDate, dayKeyFromTs, fmt, fmtMoney, formatDayLabel, num, pad2 } from "../lib/format.js";
 import { SCREENSHOT_MAX_PER_TRADE, tradeScreenshots } from "../lib/images.js";
 import { TAP, THEME_TRANSITION, display, mono, palette } from "../lib/theme.js";
-import { ArrowDown, ArrowUp, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, FileText, Pencil, Plus, Share2, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, FileText, Pencil, Plus, Search, Share2, SlidersHorizontal, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
@@ -327,6 +327,9 @@ export default function CurveTab(props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [logSheetOpen, editingTradeId]);
   const [historyFilter, setHistoryFilter] = useState("all");
+  const [historySearch, setHistorySearch] = useState("");
+  const [historyFilterOpen, setHistoryFilterOpen] = useState(false);
+  const [historyExtra, setHistoryExtra] = useState({ direction: "", setup: "", session: "", mood: "" });
   const [historyVisible, setHistoryVisible] = useState(30);
   const chartData = useMemo(() => {
     const start = num(startingBalance);
@@ -431,7 +434,14 @@ export default function CurveTab(props) {
     const monthGreenDays = monthDayKeys.filter((k) => tradesByDay[k].total > 0).length;
     const monthMaxAbs = Math.max(1, ...monthDayKeys.map((k) => Math.abs(tradesByDay[k].total)));
     const WEEK_LABELS_MON = ["M", "T", "W", "T", "F", "S", "S"];
-    const WEEK_GRID = "repeat(7, minmax(0, 1fr)) minmax(58px, 1.15fr)";
+    const WEEK_GRID = isDesktop ? "repeat(7, minmax(0, 1fr)) minmax(58px, 1.15fr)" : "repeat(7, minmax(0, 1fr))";
+    // Short money for small calendar tiles: 950, 1.2k, 12k.
+    const fmtCompactMoney = (n) => {
+      const a = Math.abs(n);
+      if (a >= 10000) return `${Math.round(a / 1000)}k`;
+      if (a >= 1000) return `${(a / 1000).toFixed(1).replace(/\.0$/, "")}k`;
+      return String(Math.round(a));
+    };
     const weekRows = [];
     for (let i = 0; i < monthCells.length; i += 7) weekRows.push(monthCells.slice(i, i + 7));
     const isoWeekOf = (date) => {
@@ -494,8 +504,27 @@ export default function CurveTab(props) {
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
-                          <div style={{ color: palette.text, fontSize: "15px", fontWeight: 700 }}>
-                            #{tradeNumberById[t.id]} {t.pair || "Trade"}
+                          <div className="flex items-center gap-2" style={{ color: palette.text, fontSize: "15px", fontWeight: 700 }}>
+                            <span className="truncate">
+                              #{tradeNumberById[t.id]} {t.pair || "Trade"}
+                            </span>
+                            {(t.direction === "up" || t.direction === "down") && (
+                              <span
+                                className="flex items-center gap-0.5 flex-shrink-0"
+                                style={{
+                                  fontSize: "11px",
+                                  fontWeight: 700,
+                                  padding: "2px 7px 2px 5px",
+                                  borderRadius: "999px",
+                                  color: t.direction === "up" ? palette.green : palette.red,
+                                  background: `${t.direction === "up" ? palette.green : palette.red}1f`,
+                                  border: `1px solid ${t.direction === "up" ? palette.green : palette.red}`,
+                                }}
+                              >
+                                {t.direction === "up" ? <ArrowUp size={11} strokeWidth={3} /> : <ArrowDown size={11} strokeWidth={3} />}
+                                {t.direction === "up" ? "Buy" : "Sell"}
+                              </span>
+                            )}
                           </div>
                           <div style={{ color: palette.textFaint, fontSize: "13px" }}>
                             {new Date(t.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}
@@ -549,9 +578,8 @@ export default function CurveTab(props) {
                         const showRevenge = settings.showRevengeTag !== false && revengeIds.has(t.id);
                         const mood = t.emotion ? emotionMeta(t.emotion) : null;
                         const sessionLabel = t.session ? MARKET_SESSIONS.find((x) => x.id === t.session)?.label : "";
-                        const dirLabel = t.direction === "up" ? "Up" : t.direction === "down" ? "Down" : "";
-                        const conf = Number(t.confidence) > 0 ? Number(t.confidence) : 0;
-                        if (!t.setup && !mood && !sessionLabel && !dirLabel && !conf && !showRevenge && !isBeingEdited && shots.length === 0 && !savingThisTrade) return null;
+                                                const conf = Number(t.confidence) > 0 ? Number(t.confidence) : 0;
+                        if (!t.setup && !mood && !sessionLabel && !conf && !showRevenge && !isBeingEdited && shots.length === 0 && !savingThisTrade) return null;
                         const chip = (color) => ({
                           fontSize: "12px",
                           color,
@@ -562,7 +590,6 @@ export default function CurveTab(props) {
                         return (
                           <div className="flex gap-1.5 flex-wrap items-center" style={{ marginTop: "10px" }}>
                             {t.setup && <span style={chip(palette.textMuted)}>{findSetupLabel(t.setup)}</span>}
-                            {dirLabel && <span style={chip(t.direction === "up" ? palette.green : palette.red)}>{dirLabel}</span>}
                             {sessionLabel && <span style={chip(palette.textMuted)}>{sessionLabel}</span>}
                             {conf > 0 && (
                               <span style={chip(palette.textMuted)}>
@@ -676,7 +703,7 @@ export default function CurveTab(props) {
 
       <OnboardingTip
   	id="curve-setup-mood"
-  	text="Tag each trade with a Setup and Mood below — it unlocks the Insights tab's breakdowns by strategy and emotional state."
+  	text="Tag each trade with its direction, setup, session, confidence and mood. It unlocks the breakdowns in Insights."
   	settings={settings}
   	persistSettings={persistSettings}
        />
@@ -711,6 +738,29 @@ export default function CurveTab(props) {
 
         {view !== "history" && (
           <>
+        <div
+          className={isDesktop ? "rounded-2xl p-6 mb-4" : "rounded-2xl p-5 mb-4"}
+          style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow, transition: THEME_TRANSITION }}
+        >
+          <div style={{ color: palette.textMuted, fontSize: "12px" }}>Net P&amp;L</div>
+          <div
+            style={{
+              fontFamily: display,
+              fontSize: isDesktop ? "40px" : "32px",
+              fontWeight: 700,
+              lineHeight: 1.1,
+              marginTop: "2px",
+              color: trades.length === 0 || netPnl === 0 ? palette.text : netPnl > 0 ? palette.green : palette.red,
+            }}
+          >
+            {trades.length === 0 ? "$0" : `${netPnl >= 0 ? "+" : "-"}$${fmtMoney(netPnl)}`}
+          </div>
+          <div style={{ color: palette.textFaint, fontSize: "12px", marginTop: "6px" }}>
+            {trades.length} trade{trades.length === 1 ? "" : "s"}
+            {startBal > 0 ? ` \u00b7 Balance $${fmt(startBal + netPnl, 0)}` : ""}
+          </div>
+        </div>
+
         <div className="mb-4">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-2">
             <StatChip label="Win Rate" value={trades.length ? `${winRate.toFixed(1)}%` : "N/A"} />
@@ -820,12 +870,7 @@ export default function CurveTab(props) {
         ) : (
           <>
             <div className="flex items-center justify-between mb-1.5">
-              <span
-                className="uppercase"
-                style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
-              >
-                Calendar
-              </span>
+              <span style={{ color: palette.text, fontFamily: display, fontSize: "15px", fontWeight: 700 }}>Calendar</span>
               {trades.length > 0 && (
                 <button
                   type="button"
@@ -876,15 +921,17 @@ export default function CurveTab(props) {
                 </div>
               </div>
 
-              <div className="grid gap-1.5 mb-1.5" style={{ gridTemplateColumns: WEEK_GRID }}>
+              <div className={`grid ${isDesktop ? "gap-1.5 mb-1.5" : "gap-1 mb-1"}`} style={{ gridTemplateColumns: WEEK_GRID }}>
                 {WEEK_LABELS_MON.map((w, i) => (
                   <div key={i} className="text-center" style={{ fontSize: "11px", fontWeight: 600, color: palette.textMuted }}>
                     {w}
                   </div>
                 ))}
-                <div className="text-center" style={{ fontSize: "11px", fontWeight: 600, color: palette.textMuted }}>
-                  Week
-                </div>
+                {isDesktop && (
+                  <div className="text-center" style={{ fontSize: "11px", fontWeight: 600, color: palette.textMuted }}>
+                    Week
+                  </div>
+                )}
               </div>
 
               <div>
@@ -896,7 +943,7 @@ export default function CurveTab(props) {
                   const wTotal = wKeys.reduce((x, k) => x + tradesByDay[k].total, 0);
                   const wNum = isoWeekOf(new Date(viewYear, viewMonthIdx, 1 - firstWeekday + wi * 7));
                   return (
-                    <div key={wi} className="grid gap-1.5 mb-1.5" style={{ gridTemplateColumns: WEEK_GRID }}>
+                    <div key={wi} className={`grid ${isDesktop ? "gap-1.5 mb-1.5" : "gap-1 mb-1"}`} style={{ gridTemplateColumns: WEEK_GRID }}>
                 {row.map((d, i) => {
                   if (d === null) return <div key={i} />;
                   const key = `${monthPrefix}-${pad2(d)}`;
@@ -920,10 +967,12 @@ export default function CurveTab(props) {
                       key={i}
                       type="button"
                       onClick={() => hasTrades && setSelectedDay(isSelected ? null : key)}
-                      className={`relative flex flex-col items-start justify-between rounded-xl ${hasTrades ? TAP : ""}`}
+                      className={`relative flex flex-col items-start justify-between ${isDesktop ? "rounded-xl" : "rounded-lg"} ${hasTrades ? TAP : ""}`}
                       style={{
                         aspectRatio: "1",
-                        padding: "5px 6px",
+                        minWidth: 0,
+                        overflow: "hidden",
+                        padding: isDesktop ? "6px 7px" : "4px 4px 4px 5px",
                         background: bg,
                         border: `${isSelected ? 2 : 1}px solid ${
                           isSelected ? palette.text : isToday ? palette.textMuted : "transparent"
@@ -934,7 +983,8 @@ export default function CurveTab(props) {
                     >
                       <span
                         style={{
-                          fontSize: "12px",
+                          fontSize: isDesktop ? "12px" : "11px",
+                          lineHeight: 1,
                           fontWeight: hasTrades ? 700 : 500,
                           color: hasTrades ? palette.text : isFuture ? palette.textFaint : palette.textMuted,
                           opacity: !hasTrades && isFuture ? 0.6 : 1,
@@ -947,31 +997,34 @@ export default function CurveTab(props) {
                           <span
                             style={{
                               position: "absolute",
-                              top: 6,
-                              right: 6,
-                              width: 6,
-                              height: 6,
+                              top: isDesktop ? 7 : 5,
+                              right: isDesktop ? 7 : 5,
+                              width: isDesktop ? 6 : 5,
+                              height: isDesktop ? 6 : 5,
                               borderRadius: "999px",
                               background: ruleBreak ? palette.red : palette.green,
                             }}
                           />
                           <span
                             style={{
-                              fontSize: "10px",
+                              fontSize: isDesktop ? "11px" : "9.5px",
+                              lineHeight: 1,
                               fontWeight: 700,
                               fontFamily: mono,
+                              whiteSpace: "nowrap",
+                              maxWidth: "100%",
                               color: posDay ? palette.green : palette.red,
                             }}
                           >
                             {posDay ? "+" : "-"}
-                            {fmtMoney(total)}
+                            {isDesktop ? fmtMoney(total) : fmtCompactMoney(total)}
                           </span>
                         </>
                       )}
                     </button>
                   );
                 })}
-                      {wKeys.length > 0 ? (
+                      {!isDesktop ? null : wKeys.length > 0 ? (
                         <div
                           className="flex flex-col justify-between rounded-xl"
                           style={{ padding: "5px 6px", background: palette.field, border: `1px solid ${palette.border}` }}
@@ -1005,6 +1058,35 @@ export default function CurveTab(props) {
                   );
                 })}
               </div>
+
+              {!isDesktop && (
+                <div className="grid gap-2 mt-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(96px, 1fr))" }}>
+                  {weekRows.map((row, wi) => {
+                    const keys = row
+                      .filter((d) => d !== null)
+                      .map((d) => `${monthPrefix}-${pad2(d)}`)
+                      .filter((k) => tradesByDay[k]);
+                    if (keys.length === 0) return null;
+                    const total = keys.reduce((x, k) => x + tradesByDay[k].total, 0);
+                    const wn = isoWeekOf(new Date(viewYear, viewMonthIdx, 1 - firstWeekday + wi * 7));
+                    return (
+                      <div
+                        key={wi}
+                        className="rounded-lg"
+                        style={{ padding: "7px 9px", background: palette.field, border: `1px solid ${palette.border}` }}
+                      >
+                        <div className="flex items-baseline justify-between" style={{ gap: 6 }}>
+                          <span style={{ fontSize: "10.5px", fontWeight: 700, color: palette.textMuted }}>Week {wn}</span>
+                          <span style={{ fontSize: "10px", color: palette.textFaint }}>{keys.length}d</span>
+                        </div>
+                        <div style={{ fontFamily: mono, fontSize: "13px", fontWeight: 700, color: total >= 0 ? palette.green : palette.red }}>
+                          {total >= 0 ? "+" : "-"}${fmtMoney(total)}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
               <div
                 className="grid grid-cols-3 gap-3 mt-4 pt-4"
@@ -1267,6 +1349,220 @@ export default function CurveTab(props) {
 
         {view === "history" && (
           <>
+            {(() => {
+              const activeCount = Object.values(historyExtra).filter(Boolean).length;
+              const setExtra = (k, v) => {
+                setHistoryExtra((p) => ({ ...p, [k]: p[k] === v ? "" : v }));
+                setHistoryVisible(30);
+              };
+              const pill = (active, color) => ({
+                background: active ? `${color || palette.gold}22` : palette.field,
+                color: active ? color || palette.gold : palette.textMuted,
+                border: `1px solid ${active ? color || palette.gold : palette.border}`,
+                fontSize: "13px",
+                fontWeight: active ? 700 : 500,
+              });
+              const selectStyle = {
+                background: palette.field,
+                border: `1px solid ${palette.border}`,
+                color: palette.text,
+                fontSize: "13.5px",
+                appearance: "none",
+                WebkitAppearance: "none",
+                paddingRight: "30px",
+              };
+              const labelStyle = { color: palette.textFaint, fontSize: "11px", display: "block", marginBottom: "6px" };
+              return (
+                <>
+                  <div className="flex gap-2 mb-3">
+                    <div
+                      className="flex items-center flex-1 min-w-0 rounded-lg px-3"
+                      style={{ background: palette.field, border: `1px solid ${palette.border}` }}
+                    >
+                      <Search size={16} style={{ color: palette.textFaint, flexShrink: 0 }} aria-hidden="true" />
+                      <input
+                        type="search"
+                        value={historySearch}
+                        onChange={(e) => {
+                          setHistorySearch(e.target.value);
+                          setHistoryVisible(30);
+                        }}
+                        placeholder="Search pair, note, setup"
+                        aria-label="Search trades"
+                        className="w-full bg-transparent py-2.5 pl-2 outline-none"
+                        style={{ color: palette.text, fontSize: "14px" }}
+                      />
+                      {historySearch && (
+                        <button
+                          type="button"
+                          onClick={() => setHistorySearch("")}
+                          aria-label="Clear search"
+                          className={TAP}
+                          style={{ color: palette.textFaint, flexShrink: 0 }}
+                        >
+                          <X size={16} />
+                        </button>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setHistoryFilterOpen((v) => !v)}
+                      aria-expanded={historyFilterOpen}
+                      aria-label="Filter trades"
+                      className={`relative flex items-center justify-center gap-1.5 rounded-lg px-3 flex-shrink-0 ${TAP}`}
+                      style={{
+                        background: historyFilterOpen || activeCount > 0 ? `${palette.gold}22` : palette.field,
+                        color: historyFilterOpen || activeCount > 0 ? palette.gold : palette.textMuted,
+                        border: `1px solid ${historyFilterOpen || activeCount > 0 ? palette.gold : palette.border}`,
+                        fontSize: "13px",
+                        fontWeight: 600,
+                      }}
+                    >
+                      <SlidersHorizontal size={16} />
+                      {isDesktop && "Filter"}
+                      {activeCount > 0 && (
+                        <span
+                          style={{
+                            minWidth: 18,
+                            height: 18,
+                            borderRadius: 999,
+                            background: palette.gold,
+                            color: palette.letterbox,
+                            fontSize: "11px",
+                            fontWeight: 700,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            padding: "0 4px",
+                          }}
+                        >
+                          {activeCount}
+                        </span>
+                      )}
+                    </button>
+                  </div>
+
+                  {historyFilterOpen && (
+                    <div
+                      className="rounded-2xl p-4 mb-3"
+                      style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
+                    >
+                      <span style={labelStyle}>Direction</span>
+                      <div className="flex gap-2 mb-4">
+                        {[
+                          { id: "up", label: "Buy", color: palette.green },
+                          { id: "down", label: "Sell", color: palette.red },
+                        ].map((d) => (
+                          <button
+                            key={d.id}
+                            type="button"
+                            aria-pressed={historyExtra.direction === d.id}
+                            onClick={() => setExtra("direction", d.id)}
+                            className={`px-4 py-1.5 rounded-full ${TAP}`}
+                            style={pill(historyExtra.direction === d.id, d.color)}
+                          >
+                            {d.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      <span style={labelStyle}>Session</span>
+                      <div className="flex gap-2 flex-wrap mb-4">
+                        {MARKET_SESSIONS.map((m) => (
+                          <button
+                            key={m.id}
+                            type="button"
+                            aria-pressed={historyExtra.session === m.id}
+                            onClick={() => setExtra("session", m.id)}
+                            className={`px-3 py-1.5 rounded-full ${TAP}`}
+                            style={pill(historyExtra.session === m.id)}
+                          >
+                            {m.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label htmlFor="hist-setup" style={labelStyle}>
+                            Setup
+                          </label>
+                          <div className="relative">
+                            <select
+                              id="hist-setup"
+                              value={historyExtra.setup}
+                              onChange={(e) => {
+                                setHistoryExtra((p) => ({ ...p, setup: e.target.value }));
+                                setHistoryVisible(30);
+                              }}
+                              className="w-full rounded-lg px-3 py-2.5 outline-none"
+                              style={selectStyle}
+                            >
+                              <option value="">Any setup</option>
+                              {[...SETUPS, ...(customSetupsLoaded ? customSetups : [])].map((x) => (
+                                <option key={x.id} value={x.id}>
+                                  {x.label}
+                                </option>
+                              ))}
+                            </select>
+                            <ChevronDown size={14} aria-hidden="true" style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: palette.textMuted, pointerEvents: "none" }} />
+                          </div>
+                        </div>
+                        <div>
+                          <label htmlFor="hist-mood" style={labelStyle}>
+                            Mood
+                          </label>
+                          <div className="relative">
+                            <select
+                              id="hist-mood"
+                              value={historyExtra.mood}
+                              onChange={(e) => {
+                                setHistoryExtra((p) => ({ ...p, mood: e.target.value }));
+                                setHistoryVisible(30);
+                              }}
+                              className="w-full rounded-lg px-3 py-2.5 outline-none"
+                              style={selectStyle}
+                            >
+                              <option value="">Any mood</option>
+                              {[...EMOTIONS, ...(customMoodsLoaded ? customMoods : [])].map((x) => (
+                                <option key={x.id} value={x.id}>
+                                  {x.label}
+                                </option>
+                              ))}
+                            </select>
+                            <ChevronDown size={14} aria-hidden="true" style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: palette.textMuted, pointerEvents: "none" }} />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between mt-4">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setHistoryExtra({ direction: "", setup: "", session: "", mood: "" });
+                            setHistoryVisible(30);
+                          }}
+                          disabled={activeCount === 0}
+                          className={TAP}
+                          style={{ color: activeCount ? palette.textMuted : palette.textFaint, fontSize: "13px", opacity: activeCount ? 1 : 0.6 }}
+                        >
+                          Clear filters
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setHistoryFilterOpen(false)}
+                          className={`rounded-lg px-4 py-2 ${TAP}`}
+                          style={{ background: palette.gold, color: palette.letterbox, fontSize: "13px", fontWeight: 700 }}
+                        >
+                          Done
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+
             <div className="flex gap-2 flex-wrap mb-3 items-center">
               {[
                 ["all", "All"],
@@ -1298,14 +1594,34 @@ export default function CurveTab(props) {
               })}
             </div>
             {(() => {
-              const passes = (t) =>
-                historyFilter === "wins"
-                  ? t.pnl > 0
-                  : historyFilter === "losses"
-                  ? t.pnl < 0
-                  : historyFilter === "rules"
-                  ? revengeIds.has(t.id)
-                  : true;
+              const q = historySearch.trim().toLowerCase();
+              const haystack = (t) => {
+                const mood = t.emotion
+                  ? emotionMeta(t.emotion)?.label || (customMoods || []).find((m) => m.id === t.emotion)?.label || ""
+                  : "";
+                const sess = t.session ? MARKET_SESSIONS.find((m) => m.id === t.session)?.label || "" : "";
+                const dir = t.direction === "up" ? "buy" : t.direction === "down" ? "sell" : "";
+                return [t.pair, t.note, t.setup ? findSetupLabel(t.setup) : "", mood, sess, dir, formatDayLabel(dayKeyFromTs(t.ts))]
+                  .join(" ")
+                  .toLowerCase();
+              };
+              const passes = (t) => {
+                const byResult =
+                  historyFilter === "wins"
+                    ? t.pnl > 0
+                    : historyFilter === "losses"
+                    ? t.pnl < 0
+                    : historyFilter === "rules"
+                    ? revengeIds.has(t.id)
+                    : true;
+                if (!byResult) return false;
+                if (historyExtra.direction && t.direction !== historyExtra.direction) return false;
+                if (historyExtra.setup && t.setup !== historyExtra.setup) return false;
+                if (historyExtra.session && t.session !== historyExtra.session) return false;
+                if (historyExtra.mood && t.emotion !== historyExtra.mood) return false;
+                if (q && !q.split(/\s+/).every((w) => haystack(t).includes(w))) return false;
+                return true;
+              };
               const allGroups = Object.keys(tradesByDay)
                 .sort()
                 .reverse()
@@ -1321,7 +1637,7 @@ export default function CurveTab(props) {
                   )}
                   {trades.length > 0 && allGroups.length === 0 && (
                     <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-                      No trades match this filter.
+                      No trades match your search or filters.
                     </p>
                   )}
                   {shown.map((g) => {
@@ -1447,46 +1763,53 @@ export default function CurveTab(props) {
             Editing a logged trade.
           </p>
         )}
-        <input
-          type="text"
-          value={tradePair}
-          onChange={(e) => setTradePair(e.target.value.toUpperCase())}
-          placeholder="Pair"
-          className="w-full rounded-lg px-3 py-2.5 mb-2 bg-transparent outline-none"
-          style={{
-            background: palette.field,
-            border: `1px solid ${palette.border}`,
-            color: palette.text,
-            fontFamily: mono,
-            fontSize: "14px",
-          }}
-        />
-        <div className="flex gap-2 mb-2" role="group" aria-label="Direction">
-          {[
-            { id: "up", label: "Up (buy)", Icon: ArrowUp, color: palette.green },
-            { id: "down", label: "Down (sell)", Icon: ArrowDown, color: palette.red },
-          ].map(({ id, label, Icon, color }) => {
-            const active = tradeDirection === id;
-            return (
-              <button
-                key={id}
-                type="button"
-                aria-pressed={active}
-                onClick={() => setTradeDirection(active ? null : id)}
-                className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2.5 transition-colors ${TAP}`}
-                style={{
-                  background: active ? `${color}22` : palette.field,
-                  color: active ? color : palette.textMuted,
-                  border: `1px solid ${active ? color : palette.border}`,
-                  fontSize: "13.5px",
-                  fontWeight: active ? 700 : 500,
-                }}
-              >
-                <Icon size={15} strokeWidth={2.4} />
-                {label}
-              </button>
-            );
-          })}
+        <div className="flex gap-2 mb-2 items-stretch">
+          <input
+            type="text"
+            value={tradePair}
+            onChange={(e) => setTradePair(e.target.value.toUpperCase())}
+            placeholder="Pair"
+            className="flex-1 min-w-0 rounded-lg px-3 py-2.5 bg-transparent outline-none"
+            style={{
+              background: palette.field,
+              border: `1px solid ${palette.border}`,
+              color: palette.text,
+              fontFamily: mono,
+              fontSize: "14px",
+            }}
+          />
+          <div
+            className="flex flex-shrink-0 rounded-lg overflow-hidden"
+            role="group"
+            aria-label="Direction"
+            style={{ border: `1px solid ${palette.border}`, background: palette.field }}
+          >
+            {[
+              { id: "up", label: "Buy", Icon: ArrowUp, color: palette.green },
+              { id: "down", label: "Sell", Icon: ArrowDown, color: palette.red },
+            ].map(({ id, label, Icon, color }, i) => {
+              const active = tradeDirection === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setTradeDirection(active ? null : id)}
+                  className={`flex items-center justify-center gap-1 px-3 transition-colors ${TAP}`}
+                  style={{
+                    background: active ? color : "transparent",
+                    color: active ? "#fff" : palette.textMuted,
+                    borderLeft: i === 1 ? `1px solid ${palette.border}` : "none",
+                    fontSize: "13px",
+                    fontWeight: active ? 700 : 500,
+                  }}
+                >
+                  <Icon size={14} strokeWidth={2.6} />
+                  {label}
+                </button>
+              );
+            })}
+          </div>
         </div>
         <div className="flex gap-2 mb-2">
           <div
