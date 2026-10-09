@@ -510,18 +510,9 @@ export default function CurveTab(props) {
                             </span>
                             {(t.direction === "up" || t.direction === "down") && (
                               <span
-                                className="flex items-center gap-0.5 flex-shrink-0"
-                                style={{
-                                  fontSize: "11px",
-                                  fontWeight: 700,
-                                  padding: "2px 7px 2px 5px",
-                                  borderRadius: "999px",
-                                  color: t.direction === "up" ? palette.green : palette.red,
-                                  background: `${t.direction === "up" ? palette.green : palette.red}1f`,
-                                  border: `1px solid ${t.direction === "up" ? palette.green : palette.red}`,
-                                }}
+                                className="flex-shrink-0"
+                                style={{ fontSize: "13px", fontWeight: 700, color: t.direction === "up" ? palette.green : palette.red }}
                               >
-                                {t.direction === "up" ? <ArrowUp size={11} strokeWidth={3} /> : <ArrowDown size={11} strokeWidth={3} />}
                                 {t.direction === "up" ? "Buy" : "Sell"}
                               </span>
                             )}
@@ -1763,53 +1754,46 @@ export default function CurveTab(props) {
             Editing a logged trade.
           </p>
         )}
-        <div className="flex gap-2 mb-2 items-stretch">
-          <input
-            type="text"
-            value={tradePair}
-            onChange={(e) => setTradePair(e.target.value.toUpperCase())}
-            placeholder="Pair"
-            className="flex-1 min-w-0 rounded-lg px-3 py-2.5 bg-transparent outline-none"
-            style={{
-              background: palette.field,
-              border: `1px solid ${palette.border}`,
-              color: palette.text,
-              fontFamily: mono,
-              fontSize: "14px",
-            }}
-          />
-          <div
-            className="flex flex-shrink-0 rounded-lg overflow-hidden"
-            role="group"
-            aria-label="Direction"
-            style={{ border: `1px solid ${palette.border}`, background: palette.field }}
-          >
-            {[
-              { id: "up", label: "Buy", Icon: ArrowUp, color: palette.green },
-              { id: "down", label: "Sell", Icon: ArrowDown, color: palette.red },
-            ].map(({ id, label, Icon, color }, i) => {
-              const active = tradeDirection === id;
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  aria-pressed={active}
-                  onClick={() => setTradeDirection(active ? null : id)}
-                  className={`flex items-center justify-center gap-1 px-3 transition-colors ${TAP}`}
-                  style={{
-                    background: active ? color : "transparent",
-                    color: active ? "#fff" : palette.textMuted,
-                    borderLeft: i === 1 ? `1px solid ${palette.border}` : "none",
-                    fontSize: "13px",
-                    fontWeight: active ? 700 : 500,
-                  }}
-                >
-                  <Icon size={14} strokeWidth={2.6} />
-                  {label}
-                </button>
-              );
-            })}
-          </div>
+        <input
+          type="text"
+          value={tradePair}
+          onChange={(e) => setTradePair(e.target.value.toUpperCase())}
+          placeholder="Pair"
+          className="w-full rounded-lg px-3 py-2.5 mb-2 bg-transparent outline-none"
+          style={{
+            background: palette.field,
+            border: `1px solid ${palette.border}`,
+            color: palette.text,
+            fontFamily: mono,
+            fontSize: "14px",
+          }}
+        />
+        <div className="flex gap-2 mb-2" role="group" aria-label="Direction">
+          {[
+            { id: "up", label: "Buy", Icon: ArrowUp, color: palette.green },
+            { id: "down", label: "Sell", Icon: ArrowDown, color: palette.red },
+          ].map(({ id, label, Icon, color }) => {
+            const active = tradeDirection === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                aria-pressed={active}
+                onClick={() => setTradeDirection(active ? null : id)}
+                className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2.5 transition-colors ${TAP}`}
+                style={{
+                  background: active ? `${color}22` : palette.field,
+                  color: active ? color : palette.textMuted,
+                  border: `1px solid ${active ? color : palette.border}`,
+                  fontSize: "13.5px",
+                  fontWeight: active ? 700 : 500,
+                }}
+              >
+                <Icon size={15} strokeWidth={2.4} />
+                {label}
+              </button>
+            );
+          })}
         </div>
         <div className="flex gap-2 mb-2">
           <div
@@ -1981,15 +1965,19 @@ export default function CurveTab(props) {
           </div>
         )}
         {!logSheetOpen && (
+          <>
+          {/* Phones: sits above the dock, and drops into the dock's spot when the dock slides away on scroll.
+              Desktop: sits a little lower so it no longer covers the monthly statement table. */}
+          <style>{`.log-fab{transition:bottom .25s ease}.log-fab-m{bottom:88px}body[data-nav-hidden="1"] .log-fab-m{bottom:calc(20px + env(safe-area-inset-bottom, 0px))}`}</style>
           <button
             type="button"
             onClick={() => setLogSheetOpen(true)}
             aria-label="Log trade"
-            className={`flex items-center gap-2 ${TAP}`}
+            className={`log-fab ${isDesktop ? "" : "log-fab-m"} flex items-center gap-2 ${TAP}`}
             style={{
               position: "fixed",
-              right: isDesktop ? 32 : 16,
-              bottom: isDesktop ? 32 : 88,
+              right: isDesktop ? 28 : 16,
+              ...(isDesktop ? { bottom: 12 } : {}),
               zIndex: 40,
               background: palette.gold,
               color: palette.letterbox,
@@ -2004,6 +1992,7 @@ export default function CurveTab(props) {
             <Plus size={16} strokeWidth={2.6} />
             Log trade
           </button>
+          </>
         )}
 
         <input
