@@ -359,6 +359,14 @@ const resetPropFirmWizard = () => {
       setActiveTab("journal");
     }
   }, [activeTab]);
+  // A new tab always starts with the mobile dock showing, so the floating Log trade button goes back above it.
+  useEffect(() => {
+    document.body.dataset.navHidden = "0";
+    mobileDockRef.current?.setScrollHidden(false);
+    return () => {
+      delete document.body.dataset.navHidden;
+    };
+  }, [activeTab, journalSubTab]);
   const [journalEntries, setJournalEntries] = useState([]);
   const [journalLoaded, setJournalLoaded] = useState(false);
   const [journalYear, setJournalYear] = useState(() => new Date().getFullYear());
@@ -6686,9 +6694,13 @@ const persistNotepadNotes = async (next) => {
     const last = lastNavScrollYRef.current;
     const delta = y - last;
     // Straight to the dock's DOM node: scrolling no longer re-renders the whole App.
-    if (y < 24) mobileDockRef.current?.setScrollHidden(false);
-    else if (delta > 6) mobileDockRef.current?.setScrollHidden(true);
-    else if (delta < -6) mobileDockRef.current?.setScrollHidden(false);
+    const setDockHidden = (hidden) => {
+      mobileDockRef.current?.setScrollHidden(hidden);
+      document.body.dataset.navHidden = hidden ? "1" : "0";
+    };
+    if (y < 24) setDockHidden(false);
+    else if (delta > 6) setDockHidden(true);
+    else if (delta < -6) setDockHidden(false);
     lastNavScrollYRef.current = y;
   };
 
