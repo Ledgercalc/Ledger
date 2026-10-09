@@ -3219,6 +3219,162 @@ useEffect(() => {
     }
   };
 
+
+  // ---------- Broker (TradeLocker) ----------
+  const [brokerConn, setBrokerConn] = useState(null); // { connected, server, accountName, lastSync, ... } | null
+  const [brokerSyncInfo, setBrokerSyncInfo] = useState({ syncing: false, lastSync: 0, message: "" });
+  const [livePositions, setLivePositions] = useState([]);
+  const [livePnlAvailable, setLivePnlAvailable] = useState(true);
+  const [liveError, setLiveError] = useState("");
+  const tradesRef = useRef(trades);
+  tradesRef.current = trades;
+  const brokerSyncingRef = useRef(false);
+  const brokerHeaders = () => ({ Authorization: `Bearer ${session?.token}` });
+
+  useEffect(() => {
+    if (!session?.token) {
+      setBrokerConn(null);
+      setLivePositions([]);
+      return undefined;
+    }
+    let alive = true;
+    (async () => {
+      try {
+        const c = await communityApi("/broker/connection", { headers: { Authorization: `Bearer ${session.token}` } });
+        if (alive) setBrokerConn(c && c.connected ? c : null);
+      } catch (err) {
+        if (alive) setBrokerConn(null);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [session?.token]);
+
+  // Only when exactly one market session is open at that moment; overlaps are left for the trader.
+  const sessionForTs = (ts) => {
+    const d = new Date(ts);
+    const hour = d.getUTCHours() + d.getUTCMinutes() / 60;
+    const open = MARKET_SESSIONS.filter((s) => sessionOpenAtUTCHour(s, hour));
+    return open.length === 1 ? open[0].id : null;
+  };
+
+  const runBrokerSync = async (opts = {}) => {
+    if (!session?.token || brokerSyncingRef.current) return;
+    brokerSyncingRef.current = true;
+    setBrokerSyncInfo((p) => ({ ...p, syncing: true }));
+    try {
+      const data = await communityApi("/broker/tradelocker/sync", {
+        method: "POST",
+        headers: brokerHeaders(),
+        body: JSON.stringify(opts.days ? { days: opts.days } : {}),
+      });
+      const have = new Set(tradesRef.current.map((t) => t.brokerId).filter(Boolean));
+      const fresh = [];
+      let noPnl = 0;
+      for (const t of data.trades || []) {
+        if (have.has(t.brokerId)) continue;
+        const pnl = t.pnl !== null && t.pnl !== undefined ? t.pnl : t.pnlEstimate;
+        if (pnl === null || pnl === undefined || pnl === 0) {
+          noPnl++;
+          continue;
+        }
+        fresh.push({
+          id: `bk-${String(t.brokerId).replace(/[^a-z0-9]/gi, "-")}`,
+          brokerId: t.brokerId,
+          source: "tradelocker",
+          pnl,
+          pnlEstimated: t.pnl === null || t.pnl === undefined,
+          pair: t.pair,
+          note: "",
+          emotion: null,
+          setup: null,
+          session: sessionForTs(t.openTs || t.ts),
+          direction: t.direction,
+          confidence: null,
+          ts: t.ts,
+          openTs: t.openTs,
+          qty: t.qty,
+          entryPrice: t.entryPrice,
+          exitPrice: t.exitPrice,
+        });
+      }
+      if (fresh.length) persistTrades([...tradesRef.current, ...fresh]);
+      const parts = [];
+      parts.push(fresh.length ? `Added ${fresh.length} new trade${fresh.length === 1 ? "" : "s"}.` : "No new closed trades.");
+      if (noPnl) parts.push(`${noPnl} skipped: P\\u0026L can\\u2019t be worked out for those pairs yet.`);
+      setBrokerSyncInfo({ syncing: false, lastSync: data.lastSync, message: parts.join(" ") });
+      setBrokerConn((c) => (c ? { ...c, lastSync: data.lastSync } : c));
+    } catch (err) {
+      const m = String((err && err.message) || "");
+      if (/moment ago/i.test(m)) {
+        setBrokerSyncInfo((p) => ({ ...p, syncing: false }));
+      } else {
+        if (/expired|reconnect/i.test(m)) setBrokerConn(null);
+        setBrokerSyncInfo((p) => ({ ...p, syncing: false, message: m || "Sync failed. Try again." }));
+      }
+    } finally {
+      brokerSyncingRef.current = false;
+    }
+  };
+
+  const connectBroker = async (form) => {
+    const data = await communityApi("/broker/tradelocker/connect", {
+      method: "POST",
+      headers: brokerHeaders(),
+      body: JSON.stringify({ env: form.env, email: form.email, password: form.password, server: form.server }),
+    });
+    setBrokerConn(data.connection);
+    persistSettings({ ...settings, brokerAutoSync: !!form.autoSync });
+    runBrokerSync();
+  };
+
+  const disconnectBroker = async () => {
+    await communityApi("/broker/connection", { method: "DELETE", headers: brokerHeaders() });
+    setBrokerConn(null);
+    setLivePositions([]);
+    setBrokerSyncInfo({ syncing: false, lastSync: 0, message: "" });
+  };
+
+  // Auto-log closed trades while the app is open and visible.
+  useEffect(() => {
+    if (!brokerConn?.connected || !settings.brokerAutoSync) return undefined;
+    const tick = () => {
+      if (document.visibilityState === "visible") runBrokerSync();
+    };
+    const first = setTimeout(tick, 2500);
+    const id = setInterval(tick, 90_000);
+    return () => {
+      clearTimeout(first);
+      clearInterval(id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [brokerConn?.connected, settings.brokerAutoSync]);
+
+  // Live open trade for the Journal's "Active trade" panel. Polls only while that tab is showing.
+  useEffect(() => {
+    if (!brokerConn?.connected || !session?.token || activeTab !== "journal") return undefined;
+    let stopped = false;
+    const poll = async () => {
+      if (stopped || document.visibilityState !== "visible") return;
+      try {
+        const d = await communityApi("/broker/tradelocker/positions", { headers: { Authorization: `Bearer ${session.token}` } });
+        if (stopped) return;
+        setLivePositions(d.positions || []);
+        setLivePnlAvailable(d.pnlAvailable !== false);
+        setLiveError("");
+      } catch (err) {
+        if (!stopped) setLiveError(String((err && err.message) || "error"));
+      }
+    };
+    poll();
+    const id = setInterval(poll, 15_000);
+    return () => {
+      stopped = true;
+      clearInterval(id);
+    };
+  }, [brokerConn?.connected, session?.token, activeTab]);
+
   const persistTrades = async (next) => {
     setTrades(next);
     if (!activeAccountId) return;
@@ -6865,11 +7021,11 @@ const hiddenTabIds = settings.hiddenTabs || [];
   }
 
   if (activeTab === "journal") {
-    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><JournalTab {...{ CurveTab, curveProps: { backupMsg, calMonth, cancelEditTrade, cancelImport, clearTrades, confirmImport, copyFallbackText, copyMsg, copyWeekSummary, addCustomSetup, customMoods, customMoodsLoaded, customSetups, customSetupsLoaded, deleteTrade, editingTradeId, expandedTradeId, exportBackup, fileInputRef, findSetupLabel, generateWeeklyShare, goals, handleScreenshotChange, importBackup, isDesktop, logFormRef, openScreenshotPicker, pendingImport, persistGoals, persistSettings, persistStartingBalance, screenshotError, screenshotInputRef, screenshotSaving, screenshotTargetId, selectedDay, setCalMonth, setCopyFallbackText, setExpandedTradeId, setPendingScreenshotDelete, setSelectedDay, setShowDisciplineInfo, setShowStreakInfo, setStatementPeriod, setTradeConfidence, setTradeDirection, setTradeEmotion, setTradeInput, setTradeNote, setTradePair, setTradeSession, setTradeSetup, setViewingScreenshot, settings, shareError, shareImageFile, showDisciplineInfo, showStreakInfo, startEditTrade, startingBalance, submitTrade, tradeConfidence, tradeDirection, tradeEmotion, tradeInput, tradeNote, tradePair, tradeSession, tradeSetup, trades, tradesLoadError, tradesLoaded, logSheetOpen, setLogSheetOpen }, goals, persistGoals, startingBalance, trades, addJournalRow, addPlaybookRule, addingSetup, cancelAddSetup, confirmAddSetup, customMoods, customSetups, deleteJournalRow, deletePlaybookCheckin, endJournalResize, exportJournalCSV, handleJournalCellKeyDown, handleJournalPhotoChange, hiddenDefaultSetupIds, importJournalCSV, isDesktop, isNarrowScreen, journalCellRefs, journalColWidths, journalEntries, journalExpandedRows, journalExportMsg, journalImportInputRef, journalImportMsg, journalLoaded, journalMonth, journalPhotoError, journalPhotoInputRef, journalPhotoSaving, journalPhotoTarget, journalSubTab, journalYear, moveJournalResize, newRuleText, newSetupName, openJournalPhotoPicker, persistSettings, playbookCheckins, playbookMsg, playbookRuleError, playbookRules, playbookRulesLoaded, removePlaybookRule, renderSubNav, setJournalMonth, setJournalSubTab, setJournalYear, setNewRuleText, setNewSetupName, setPendingJournalPhotoDelete, setPlaybookRuleError, setSetupError, setViewingJournalPhoto, settings, setupError, startJournalResize, submitCheckin, todayResults, toggleJournalRowExpanded, toggleTodayResult, triggerJournalImport, updateJournalField, updateJournalPnl }} /></Suspense>;
+    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><JournalTab {...{ CurveTab, curveProps: { backupMsg, calMonth, cancelEditTrade, cancelImport, clearTrades, confirmImport, copyFallbackText, copyMsg, copyWeekSummary, addCustomSetup, brokerConn, liveError, livePnlAvailable, livePositions, customMoods, customMoodsLoaded, customSetups, customSetupsLoaded, deleteTrade, editingTradeId, expandedTradeId, exportBackup, fileInputRef, findSetupLabel, generateWeeklyShare, goals, handleScreenshotChange, importBackup, isDesktop, logFormRef, openScreenshotPicker, pendingImport, persistGoals, persistSettings, persistStartingBalance, screenshotError, screenshotInputRef, screenshotSaving, screenshotTargetId, selectedDay, setCalMonth, setCopyFallbackText, setExpandedTradeId, setPendingScreenshotDelete, setSelectedDay, setShowDisciplineInfo, setShowStreakInfo, setStatementPeriod, setTradeConfidence, setTradeDirection, setTradeEmotion, setTradeInput, setTradeNote, setTradePair, setTradeSession, setTradeSetup, setViewingScreenshot, settings, shareError, shareImageFile, showDisciplineInfo, showStreakInfo, startEditTrade, startingBalance, submitTrade, tradeConfidence, tradeDirection, tradeEmotion, tradeInput, tradeNote, tradePair, tradeSession, tradeSetup, trades, tradesLoadError, tradesLoaded, logSheetOpen, setLogSheetOpen }, goals, persistGoals, startingBalance, trades, addJournalRow, addPlaybookRule, addingSetup, cancelAddSetup, confirmAddSetup, customMoods, customSetups, deleteJournalRow, deletePlaybookCheckin, endJournalResize, exportJournalCSV, handleJournalCellKeyDown, handleJournalPhotoChange, hiddenDefaultSetupIds, importJournalCSV, isDesktop, isNarrowScreen, journalCellRefs, journalColWidths, journalEntries, journalExpandedRows, journalExportMsg, journalImportInputRef, journalImportMsg, journalLoaded, journalMonth, journalPhotoError, journalPhotoInputRef, journalPhotoSaving, journalPhotoTarget, journalSubTab, journalYear, moveJournalResize, newRuleText, newSetupName, openJournalPhotoPicker, persistSettings, playbookCheckins, playbookMsg, playbookRuleError, playbookRules, playbookRulesLoaded, removePlaybookRule, renderSubNav, setJournalMonth, setJournalSubTab, setJournalYear, setNewRuleText, setNewSetupName, setPendingJournalPhotoDelete, setPlaybookRuleError, setSetupError, setViewingJournalPhoto, settings, setupError, startJournalResize, submitCheckin, todayResults, toggleJournalRowExpanded, toggleTodayResult, triggerJournalImport, updateJournalField, updateJournalPnl }} /></Suspense>;
   }
 
   if (activeTab === "broker") {
-    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><BrokerTab {...{ isDesktop }} /></Suspense>;
+    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><BrokerTab {...{ isDesktop, connection: brokerConn, syncInfo: brokerSyncInfo, autoSync: !!settings.brokerAutoSync, onConnect: connectBroker, onDisconnect: disconnectBroker, onSync: () => runBrokerSync(), onAutoSyncChange: (v) => persistSettings({ ...settings, brokerAutoSync: v }) }} /></Suspense>;
   }
 
   if (activeTab === "backtest") {
