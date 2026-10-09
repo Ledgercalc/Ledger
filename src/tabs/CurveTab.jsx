@@ -1341,7 +1341,7 @@ export default function CurveTab(props) {
         {view === "history" && (
           <>
             {(() => {
-              const activeCount = Object.values(historyExtra).filter(Boolean).length;
+              const activeCount = Object.values(historyExtra).filter(Boolean).length + (historyFilter !== "all" ? 1 : 0);
               const setExtra = (k, v) => {
                 setHistoryExtra((p) => ({ ...p, [k]: p[k] === v ? "" : v }));
                 setHistoryVisible(30);
@@ -1438,6 +1438,30 @@ export default function CurveTab(props) {
                       className="rounded-2xl p-4 mb-3"
                       style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
                     >
+                      <span style={labelStyle}>Result</span>
+                      <div className="flex gap-2 flex-wrap mb-4">
+                        {[
+                          ["all", "All", undefined],
+                          ["wins", "Wins", palette.green],
+                          ["losses", "Losses", palette.red],
+                          ["rules", "Rule breaks", palette.gold],
+                        ].map(([id, label, color]) => (
+                          <button
+                            key={id}
+                            type="button"
+                            aria-pressed={historyFilter === id}
+                            onClick={() => {
+                              setHistoryFilter(id);
+                              setHistoryVisible(30);
+                            }}
+                            className={`px-3 py-1.5 rounded-full ${TAP}`}
+                            style={pill(historyFilter === id, color)}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+
                       <span style={labelStyle}>Direction</span>
                       <div className="flex gap-2 mb-4">
                         {[
@@ -1531,6 +1555,7 @@ export default function CurveTab(props) {
                           type="button"
                           onClick={() => {
                             setHistoryExtra({ direction: "", setup: "", session: "", mood: "" });
+                            setHistoryFilter("all");
                             setHistoryVisible(30);
                           }}
                           disabled={activeCount === 0}
@@ -1554,36 +1579,6 @@ export default function CurveTab(props) {
               );
             })()}
 
-            <div className="flex gap-2 flex-wrap mb-3 items-center">
-              {[
-                ["all", "All"],
-                ["wins", "Wins"],
-                ["losses", "Losses"],
-                ["rules", "Rule breaks"],
-              ].map(([id, label]) => {
-                const active = historyFilter === id;
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => {
-                      setHistoryFilter(id);
-                      setHistoryVisible(30);
-                    }}
-                    className={`px-4 py-2 rounded-full ${TAP}`}
-                    style={{
-                      background: active ? palette.text : "transparent",
-                      color: active ? palette.bg : palette.textMuted,
-                      border: `1px solid ${active ? palette.text : palette.border}`,
-                      fontSize: "13px",
-                      fontWeight: 600,
-                    }}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
             {(() => {
               const q = historySearch.trim().toLowerCase();
               const haystack = (t) => {
