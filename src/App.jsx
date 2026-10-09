@@ -357,6 +357,10 @@ const resetPropFirmWizard = () => {
       setJournalSubTab("log");
     } else if (activeTab === "notepad") {
       setActiveTab("journal");
+    } else if (activeTab === "fx") {
+      // Convert now lives inside the Tools tab.
+      setActiveTab("risk");
+      setRiskSubTab("convert");
     }
   }, [activeTab]);
   // A new tab always starts with the mobile dock showing, so the floating Log trade button goes back above it.
@@ -6849,15 +6853,11 @@ const hiddenTabIds = settings.hiddenTabs || [];
   let body = null;
 
   if (activeTab === "risk") {
-    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><RiskTab {...{ applyPreset, cs, edge, edgeProjectionPeriodIdx, isDesktop, linkedFirm, ps, renderSubNav, riskSubTab, setCs, setEdge, setEdgeProjectionPeriodIdx, setPs, setRiskSubTab, settings, threeCurveResult, trades }} /></Suspense>;
+    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><RiskTab {...{ ConvertTab, convertProps: { fx, fxRatesDate, fxRatesStatus, isDesktop, liveFxRates, persistSettings, setFx, settings }, applyPreset, cs, edge, edgeProjectionPeriodIdx, isDesktop, linkedFirm, ps, renderSubNav, riskSubTab, setCs, setEdge, setEdgeProjectionPeriodIdx, setPs, setRiskSubTab, settings, threeCurveResult, trades }} /></Suspense>;
   }
 
     if (activeTab === "propfirm") {
     body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><PropFirmTab {...{ applyPropFirmToChallenge, linkedFirm, pfCompareIds, pfCompareMode, pfFilterDdMode, pfFilterInstant, pfFilterPanelOpen, pfFilterPhases, pfFirmId, pfMarketType, pfPhaseIdx, pfPlanId, pfSearch, pfSizeAmount, pfSortBy, resetPropFirmWizard, setPfCompareIds, setPfCompareMode, setPfFilterDdMode, setPfFilterInstant, setPfFilterPanelOpen, setPfFilterPhases, setPfFirmId, setPfMarketType, setPfPhaseIdx, setPfPlanId, setPfSearch, setPfSizeAmount, setPfSortBy }} /></Suspense>;
-  }
-
-  if (activeTab === "fx") {
-    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><ConvertTab {...{ fx, fxRatesDate, fxRatesStatus, isDesktop, liveFxRates, persistSettings, setFx, settings }} /></Suspense>;
   }
 
   if (activeTab === "insights") {
