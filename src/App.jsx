@@ -8240,13 +8240,12 @@ if (activeTab === "community") {
           </p>
 
           <SettingsSubLabel>Default Insights Tab</SettingsSubLabel>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             {[
               { id: "overview", label: "Overview" },
-              { id: "behavior", label: "Behavior" },
-              { id: "patterns", label: "Patterns" },
+              { id: "coach", label: "Coach" },
             ].map((opt) => {
-              const savedTab = settings.defaultInsightsTab === "journal" ? "patterns" : settings.defaultInsightsTab;
+              const savedTab = ["journal", "patterns", "behavior"].includes(settings.defaultInsightsTab) ? "overview" : settings.defaultInsightsTab;
               const active = (savedTab || "overview") === opt.id;
               return (
                 <button
@@ -9088,15 +9087,17 @@ if (activeTab === "community") {
 
   return (
     <div
-      className="fixed inset-0 flex items-center justify-center z-50 p-4"
+      className={`fixed inset-0 flex justify-center z-50 ${isDesktop ? "items-center p-4" : "items-end"}`}
       style={{ background: "rgba(5,7,12,0.85)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}
       onClick={() => setPulseOpen(false)}
     >
       <div
-        className="w-full modal-in rounded-2xl overflow-y-auto"
+        className={`w-full modal-in overflow-y-auto ${isDesktop ? "rounded-2xl" : ""}`}
         style={{
-          maxWidth: isDesktop ? "560px" : "440px",
-          maxHeight: "85vh",
+          maxWidth: isDesktop ? "560px" : "100%",
+          maxHeight: isDesktop ? "85vh" : "88vh",
+          borderRadius: isDesktop ? undefined : "24px 24px 0 0",
+          paddingBottom: isDesktop ? undefined : "env(safe-area-inset-bottom, 0px)",
           background: palette.surface,
           border: `1px solid ${palette.border}`,
           boxShadow: palette.shadow,
@@ -9107,10 +9108,16 @@ if (activeTab === "community") {
           className="flex items-center justify-between p-5"
           style={{ borderBottom: `1px solid ${palette.border}`, position: "sticky", top: 0, background: palette.surface, zIndex: 2 }}
         >
+          {!isDesktop && (
+            <span
+              aria-hidden="true"
+              style={{ position: "absolute", top: 8, left: "50%", transform: "translateX(-50%)", width: 36, height: 4, borderRadius: 999, background: palette.border }}
+            />
+          )}
 <div className="flex items-center gap-2">
   <LiveFlame size={44} active={(todayTradesPulse.length > 0 && todayNetPulse > 0) || disciplinePulse.current > 0} dimColor={palette.textFaint} style={{ margin: "-10px -2px -10px -2px" }} />
   <span style={{ fontFamily: mono, fontSize: "16px", fontWeight: 700, color: palette.text }}>
-    {isDesktop ? "Today's Pulse" : "Session Snapshot"}
+    {isDesktop ? "Today's Pulse" : "Session snapshot"}
   </span>
 </div>
           <button type="button" onClick={() => setPulseOpen(false)} className={TAP} style={{ color: palette.textFaint }} aria-label="Close">
@@ -9125,8 +9132,30 @@ if (activeTab === "community") {
             </p>
           ) : (
             <>
-              <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
-                Right Now
+              <div
+                className="rounded-2xl mb-5"
+                style={{ padding: "16px", background: palette.field, border: `1px solid ${palette.border}` }}
+              >
+                <div style={{ color: palette.textMuted, fontSize: "12px" }}>Today</div>
+                <div
+                  style={{
+                    fontFamily: display,
+                    fontSize: "30px",
+                    fontWeight: 700,
+                    lineHeight: 1.1,
+                    color: todayTradesPulse.length === 0 || todayNetPulse === 0 ? palette.text : todayNetPulse > 0 ? palette.green : palette.red,
+                  }}
+                >
+                  {todayTradesPulse.length === 0 ? "$0" : fmtSignedShort(todayNetPulse)}
+                </div>
+                <div style={{ color: palette.textFaint, fontSize: "12px", marginTop: "4px" }}>
+                  {todayTradesPulse.length} trade{todayTradesPulse.length === 1 ? "" : "s"} logged
+                  {openSessionsPulse.length > 0 ? ` \u00b7 ${openSessionsPulse.map((s) => s.label).join(" + ")} open` : ""}
+                </div>
+              </div>
+
+              <span className="block mb-2" style={{ color: palette.textMuted, fontSize: "12px", fontWeight: 700 }}>
+                Right now
               </span>
 
               {pulseRow(
@@ -9166,14 +9195,14 @@ if (activeTab === "community") {
                   openSessionStatsPulse.length
                     ? openSessionStatsPulse
                         .map((s) =>
-                          s.winRate !== null ? `${s.label} win rate: ${s.winRate.toFixed(0)}%` : `${s.label}: not enough journal data`
+                          s.winRate !== null ? `${s.label} win rate: ${s.winRate.toFixed(0)}%` : `${s.label}: not enough trades yet`
                         )
                         .join(" \u00b7 ")
-                    : "No journaled session data yet"
+                    : "Tag a session on your trades to see this"
                 )}
 
-              <span className="block mt-4 mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
-                Compared to Your History
+              <span className="block mt-5 mb-2" style={{ color: palette.textMuted, fontSize: "12px", fontWeight: 700 }}>
+                Compared to your history
               </span>
 
               {pulseRow(
@@ -9204,8 +9233,8 @@ if (activeTab === "community") {
                     : "Tag a mood on today's trades to see this"
                 )}
 
-              <span className="block mt-4 mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
-                Watch For
+              <span className="block mt-5 mb-2" style={{ color: palette.textMuted, fontSize: "12px", fontWeight: 700 }}>
+                Watch for
               </span>
 
               {liveWinStreakPulse >= 2 &&
