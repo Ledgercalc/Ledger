@@ -3296,6 +3296,7 @@ useEffect(() => {
           confidence: null,
           ts: t.ts,
           openTs: t.openTs,
+          holdMs: t.openTs ? Math.max(0, t.ts - t.openTs) : null, // hold time, saved automatically for broker trades
           qty: t.qty,
           entryPrice: t.entryPrice,
           exitPrice: t.exitPrice,
