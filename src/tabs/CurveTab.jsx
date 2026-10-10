@@ -10,6 +10,7 @@ import { SCREENSHOT_MAX_PER_TRADE, tradeScreenshots } from "../lib/images.js";
 import { TAP, THEME_TRANSITION, display, mono, palette } from "../lib/theme.js";
 import { ArrowDown, ArrowUp, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, FileText, Pencil, Plus, Search, Share2, SlidersHorizontal, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 // Stable references so recharts never sees new prop identities on re-render.
@@ -64,8 +65,191 @@ const topCard = () => ({
   transition: THEME_TRANSITION,
 });
 
+// Pop-up card listing every trade that is open right now, with the same details on phone and PC.
+function OpenTradesSheet({ positions, isDesktop, onClose }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [onClose]);
+
+  const px = (v) => String(Number(Number(v).toFixed(5)));
+  const money = (v) => `${v >= 0 ? "+" : "-"}$${fmtMoney(v)}`;
+  const known = positions.filter((p) => p.pnl !== null);
+  const total = known.length ? known.reduce((s, p) => s + p.pnl, 0) : null;
+  const label = { color: palette.textFaint, fontSize: "11px", lineHeight: 1.3 };
+  const value = { color: palette.text, fontFamily: mono, fontSize: "13px", fontWeight: 600, marginTop: "2px", overflowWrap: "anywhere" };
+
+  return createPortal(
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 1000,
+        background: "rgba(0,0,0,0.55)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "16px",
+      }}
+    >
+      <div
+        role="dialog"
+        aria-label="Open trades"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: "100%",
+          maxWidth: isDesktop ? "460px" : "420px",
+          maxHeight: "85vh",
+          overflowY: "auto",
+          background: palette.surface,
+          border: `1px solid ${palette.border}`,
+          borderRadius: "20px",
+          boxShadow: palette.shadow,
+          padding: isDesktop ? "22px" : "16px",
+        }}
+      >
+        <div className="flex items-center justify-between" style={{ marginBottom: "12px" }}>
+          <div>
+            <div style={{ color: palette.text, fontFamily: display, fontSize: "18px", fontWeight: 700 }}>Open trades</div>
+            <div style={{ color: palette.textFaint, fontSize: "12px", marginTop: "2px" }}>
+              {positions.length} open right now
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className={TAP}
+            style={{ color: palette.textMuted }}
+            aria-label="Close"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        {positions.length > 1 && total !== null && (
+          <div className="flex items-center justify-between" style={{ marginBottom: "10px" }}>
+            <span style={{ color: palette.textMuted, fontSize: "13px" }}>Total floating P&amp;L</span>
+            <span style={{ color: total >= 0 ? palette.green : palette.red, fontFamily: display, fontSize: "20px", fontWeight: 700 }}>
+              {money(total)}
+            </span>
+          </div>
+        )}
+
+        {positions.map((p, i) => {
+          const isBuy = p.direction === "up";
+          const hasSL = Number(p.stopLoss) > 0;
+          const hasTP = Number(p.takeProfit) > 0;
+          const sess = p.openTs ? sessionLabelAt(p.openTs) : "";
+          return (
+            <div
+              key={p.positionId || i}
+              style={{ border: `1px solid ${palette.border}`, borderRadius: "14px", padding: "12px", marginTop: i ? "8px" : 0 }}
+            >
+              <div className="flex items-center justify-between" style={{ gap: "8px" }}>
+                <div className="flex items-baseline" style={{ gap: "8px", minWidth: 0 }}>
+                  <span className="truncate" style={{ color: palette.text, fontFamily: mono, fontSize: "14px", fontWeight: 700 }}>
+                    {p.pair}
+                  </span>
+                  <span style={{ color: isBuy ? palette.green : palette.red, fontSize: "13px", fontWeight: 700, flexShrink: 0 }}>
+                    {isBuy ? "Buy" : "Sell"}
+                  </span>
+                </div>
+                <span
+                  style={{
+                    color: p.pnl === null ? palette.textMuted : p.pnl >= 0 ? palette.green : palette.red,
+                    fontFamily: display,
+                    fontSize: "18px",
+                    fontWeight: 700,
+                    flexShrink: 0,
+                  }}
+                >
+                  {p.pnl === null ? "n/a" : money(p.pnl)}
+                </span>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "10px 8px", marginTop: "10px" }}>
+                <div>
+                  <div style={label}>Lot</div>
+                  <div style={value}>{Number(p.qty) > 0 ? fmtLot(p.qty) : "\u2014"}</div>
+                </div>
+                <div>
+                  <div style={label}>Held</div>
+                  <div style={value}>{p.openTs ? fmtHold(now - p.openTs) : "\u2014"}</div>
+                </div>
+                <div>
+                  <div style={label}>Session</div>
+                  <div style={{ ...value, fontFamily: undefined }}>{sess || "\u2014"}</div>
+                </div>
+                <div>
+                  <div style={label}>Entry</div>
+                  <div style={value}>{Number(p.entryPrice) > 0 ? px(p.entryPrice) : "\u2014"}</div>
+                </div>
+                <div>
+                  <div style={label}>Stop loss</div>
+                  <div style={{ ...value, color: hasSL ? palette.red : palette.textFaint }}>{hasSL ? px(p.stopLoss) : "\u2014"}</div>
+                </div>
+                <div>
+                  <div style={label}>Take profit</div>
+                  <div style={{ ...value, color: hasTP ? palette.green : palette.textFaint }}>{hasTP ? px(p.takeProfit) : "\u2014"}</div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// The card on the Journal: tap it (when a trade is open) to see every open trade.
+function ActiveTradePanel({ cardStyle, ...props }) {
+  const [open, setOpen] = useState(false);
+  const tappable = !!(props.connected && props.positions.length > 0);
+  useEffect(() => {
+    if (!tappable) setOpen(false);
+  }, [tappable]);
+  return (
+    <>
+      <div
+        style={{ ...cardStyle, cursor: tappable ? "pointer" : "default" }}
+        role={tappable ? "button" : undefined}
+        tabIndex={tappable ? 0 : undefined}
+        aria-label={tappable ? "Show open trades" : undefined}
+        onClick={tappable ? () => setOpen(true) : undefined}
+        onKeyDown={
+          tappable
+            ? (e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setOpen(true);
+                }
+              }
+            : undefined
+        }
+      >
+        <ActiveTradeContent {...props} />
+      </div>
+      {open && tappable && <OpenTradesSheet positions={props.positions} isDesktop={props.isDesktop} onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
 // The trade that is open right now, straight from the connected broker.
-function ActiveTradePanel({ connected, positions, pnlAvailable, error, isDesktop }) {
+function ActiveTradeContent({ connected, positions, pnlAvailable, error, isDesktop }) {
   const [now, setNow] = useState(() => Date.now());
   const hasLive = connected && positions.length > 0;
   useEffect(() => {
@@ -922,15 +1106,14 @@ export default function CurveTab(props) {
               {startBal > 0 ? ` \u00b7 Balance $${fmt(startBal + netPnl, 0)}` : ""}
             </div>
           </div>
-          <div style={{ ...topCard(), padding: isDesktop ? "24px" : "16px" }}>
-            <ActiveTradePanel
-              connected={!!(brokerConn && brokerConn.connected)}
-              positions={livePositions || []}
-              pnlAvailable={livePnlAvailable !== false}
-              error={liveError}
-              isDesktop={isDesktop}
-            />
-          </div>
+          <ActiveTradePanel
+            cardStyle={{ ...topCard(), padding: isDesktop ? "24px" : "16px" }}
+            connected={!!(brokerConn && brokerConn.connected)}
+            positions={livePositions || []}
+            pnlAvailable={livePnlAvailable !== false}
+            error={liveError}
+            isDesktop={isDesktop}
+          />
         </div>
 
         <div className="mb-4">
