@@ -113,8 +113,32 @@ function ActiveTradePanel({ connected, positions, pnlAvailable, error, isDesktop
   const isBuy = p.direction === "up";
   const dirColor = isBuy ? palette.green : palette.red;
   const pnlColor = p.pnl === null ? palette.textMuted : p.pnl >= 0 ? palette.green : palette.red;
+  const px = (v) => String(Number(Number(v).toFixed(5)));
+  const hasSL = Number(p.stopLoss) > 0;
+  const hasTP = Number(p.takeProfit) > 0;
+  const levelRow = { fontFamily: mono, fontSize: "12px", lineHeight: 1.5, whiteSpace: "nowrap" };
+  // PC only: entry, stop loss and take profit sit in the top right corner of the card.
+  const levels = isDesktop ? (
+    <div style={{ textAlign: "right", flexShrink: 0 }}>
+      {Number(p.entryPrice) > 0 && (
+        <div style={{ ...levelRow, color: palette.textMuted }}>
+          <span style={{ color: palette.textFaint }}>Entry </span>
+          {px(p.entryPrice)}
+        </div>
+      )}
+      <div style={{ ...levelRow, color: hasSL ? palette.red : palette.textFaint }}>
+        <span style={{ color: palette.textFaint }}>SL </span>
+        {hasSL ? px(p.stopLoss) : "\u2014"}
+      </div>
+      <div style={{ ...levelRow, color: hasTP ? palette.green : palette.textFaint }}>
+        <span style={{ color: palette.textFaint }}>TP </span>
+        {hasTP ? px(p.takeProfit) : "\u2014"}
+      </div>
+    </div>
+  ) : null;
   return (
-    <div>
+    <div className="flex" style={{ justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
+    <div style={{ minWidth: 0, flex: 1 }}>
       {title}
       <div className="flex items-baseline" style={{ gap: "8px", marginTop: "4px", minWidth: 0 }}>
         <span className="truncate" style={{ color: palette.text, fontFamily: mono, fontSize: "14px", fontWeight: 700 }}>
@@ -144,26 +168,11 @@ function ActiveTradePanel({ connected, positions, pnlAvailable, error, isDesktop
         const line = [lot, sess].filter(Boolean).join(" \u00b7 ");
         return line ? <div style={{ ...quiet, marginTop: "2px", fontFamily: mono }}>{line}</div> : null;
       })()}
-      {isDesktop && (() => {
-        const px = (v) => String(Number(Number(v).toFixed(5)));
-        const hasSL = Number(p.stopLoss) > 0;
-        const hasTP = Number(p.takeProfit) > 0;
-        return (
-          <>
-            {Number(p.entryPrice) > 0 && (
-              <div style={{ ...quiet, marginTop: "2px", fontFamily: mono }}>Entry {px(p.entryPrice)}</div>
-            )}
-            <div style={{ ...quiet, marginTop: "2px", fontFamily: mono }}>
-              <span style={{ color: hasSL ? palette.red : palette.textFaint }}>SL {hasSL ? px(p.stopLoss) : "\u2014"}</span>
-              {" \u00b7 "}
-              <span style={{ color: hasTP ? palette.green : palette.textFaint }}>TP {hasTP ? px(p.takeProfit) : "\u2014"}</span>
-            </div>
-          </>
-        );
-      })()}
       {p.pnl === null && !pnlAvailable && (
         <div style={{ ...quiet, marginTop: "2px" }}>Your broker doesn\u2019t send live P&amp;L.</div>
       )}
+    </div>
+    {levels}
     </div>
   );
 }
