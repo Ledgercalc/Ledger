@@ -45,6 +45,14 @@ function fmtHold(ms) {
 }
 const fmtClock = (ts) => new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
 const fmtDay = (ts) => new Date(ts).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" });
+// Market session(s) open at a moment, e.g. "London" or "London / New York" during an overlap. Empty when none is open.
+const sessionLabelAt = (ts) => {
+  const d = new Date(ts);
+  const hour = d.getUTCHours() + d.getUTCMinutes() / 60;
+  return MARKET_SESSIONS.filter((s) => sessionOpenAtUTCHour(s, hour)).map((s) => s.label).join(" / ");
+};
+// 0.1, 0.25, 1, 2.5 (no trailing zeros)
+const fmtLot = (q) => String(Number(Number(q).toFixed(3)));
 
 // Shared look for the two top panels (Net P&L and Active trade): each is its own rounded card.
 const topCard = () => ({
@@ -130,6 +138,12 @@ function ActiveTradePanel({ connected, positions, pnlAvailable, error, isDesktop
         {p.openTs ? `Held ${fmtHold(now - p.openTs)}` : "Open"}
         {positions.length > 1 ? ` \u00b7 +${positions.length - 1} more` : ""}
       </div>
+      {(() => {
+        const lot = Number(p.qty) > 0 ? `${fmtLot(p.qty)} lot` : "";
+        const sess = p.openTs ? sessionLabelAt(p.openTs) : "";
+        const line = [lot, sess].filter(Boolean).join(" \u00b7 ");
+        return line ? <div style={{ ...quiet, marginTop: "2px", fontFamily: mono }}>{line}</div> : null;
+      })()}
       {p.pnl === null && !pnlAvailable && (
         <div style={{ ...quiet, marginTop: "2px" }}>Your broker doesn\u2019t send live P&amp;L.</div>
       )}
@@ -595,6 +609,8 @@ export default function CurveTab(props) {
                   const isBeingEdited = editingTradeId === t.id;
                   const shots = tradeScreenshots(t);
                   const savingThisTrade = screenshotSaving && screenshotTargetId === t.id;
+                  const sessionLabel = t.session ? MARKET_SESSIONS.find((x) => x.id === t.session)?.label : "";
+                  const conf = Number(t.confidence) > 0 ? Number(t.confidence) : 0;
                   return (
                     <div
                       key={t.id}
@@ -622,6 +638,16 @@ export default function CurveTab(props) {
                                 style={{ fontSize: "13px", fontWeight: 700, color: t.direction === "up" ? palette.green : palette.red }}
                               >
                                 {t.direction === "up" ? "Buy" : "Sell"}
+                              </span>
+                            )}
+                            {sessionLabel && (
+                              <span className="flex-shrink-0" style={{ fontSize: "12px", fontWeight: 500, color: palette.textMuted }}>
+                                {sessionLabel}
+                              </span>
+                            )}
+                            {conf > 0 && (
+                              <span className="flex-shrink-0" style={{ fontSize: "12px", fontWeight: 500, color: palette.textMuted, fontFamily: mono }}>
+                                {conf}/{CONFIDENCE_MAX}
                               </span>
                             )}
                           </div>
@@ -689,9 +715,7 @@ export default function CurveTab(props) {
                       {(() => {
                         const showRevenge = settings.showRevengeTag !== false && revengeIds.has(t.id);
                         const mood = t.emotion ? emotionMeta(t.emotion) : null;
-                        const sessionLabel = t.session ? MARKET_SESSIONS.find((x) => x.id === t.session)?.label : "";
-                                                const conf = Number(t.confidence) > 0 ? Number(t.confidence) : 0;
-                        if (!t.setup && !mood && !sessionLabel && !conf && !showRevenge && !isBeingEdited && shots.length === 0 && !savingThisTrade) return null;
+                        if (!t.setup && !mood && !showRevenge && !isBeingEdited && shots.length === 0 && !savingThisTrade) return null;
                         const chip = (color) => ({
                           fontSize: "12px",
                           color,
@@ -702,12 +726,6 @@ export default function CurveTab(props) {
                         return (
                           <div className="flex gap-1.5 flex-wrap items-center" style={{ marginTop: "10px" }}>
                             {t.setup && <span style={chip(palette.textMuted)}>{findSetupLabel(t.setup)}</span>}
-                            {sessionLabel && <span style={chip(palette.textMuted)}>{sessionLabel}</span>}
-                            {conf > 0 && (
-                              <span style={chip(palette.textMuted)}>
-                                Confidence {conf}/{CONFIDENCE_MAX}
-                              </span>
-                            )}
                             {mood && (
                               <span style={chip(palette.textMuted)}>
                                 {mood.emoji} {mood.label}
