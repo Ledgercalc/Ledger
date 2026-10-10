@@ -3282,7 +3282,7 @@ useEffect(() => {
         fresh.push({
           id: `bk-${String(t.brokerId).replace(/[^a-z0-9]/gi, "-")}`,
           brokerId: t.brokerId,
-          source: "tradelocker",
+          source: t.source || "tradelocker",
           pnl,
           pnlEstimated: t.pnl === null || t.pnl === undefined,
           pair: t.pair,
@@ -3320,12 +3320,15 @@ useEffect(() => {
 
   const connectBroker = async (form) => {
     const isMT = form.platform === "matchtrader";
-    const data = await communityApi(isMT ? "/broker/matchtrader/connect" : "/broker/tradelocker/connect", {
+    const isMT5 = form.platform === "mt5";
+    const data = await communityApi(isMT ? "/broker/matchtrader/connect" : isMT5 ? "/broker/mt5/connect" : "/broker/tradelocker/connect", {
       method: "POST",
       headers: brokerHeaders(),
       body: JSON.stringify(
         isMT
           ? { email: form.email, password: form.password, brokerId: form.brokerId, platformUrl: form.platformUrl }
+          : isMT5
+          ? { login: form.email, password: form.password, server: form.server }
           : { env: form.env, email: form.email, password: form.password, server: form.server }
       ),
     });
