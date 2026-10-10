@@ -3229,6 +3229,8 @@ useEffect(() => {
   const tradesRef = useRef(trades);
   tradesRef.current = trades;
   const brokerSyncingRef = useRef(false);
+  const runBrokerSyncRef = useRef(null); // always the latest runBrokerSync, so timers never use a stale copy
+  const prevPosIdsRef = useRef(null);    // open position ids from the last poll, to spot a trade that just closed
   const brokerHeaders = () => ({ Authorization: `Bearer ${session?.token}` });
 
   useEffect(() => {
@@ -3304,7 +3306,7 @@ useEffect(() => {
       parts.push(fresh.length ? `Added ${fresh.length} new trade${fresh.length === 1 ? "" : "s"}.` : "No new closed trades.");
       if (noPnl) parts.push(`${noPnl} skipped: no P&L available, or exactly breakeven.`);
       setBrokerSyncInfo({ syncing: false, lastSync: data.lastSync, message: parts.join(" ") });
-      setBrokerConn((c) => (c ? { ...c, lastSync: data.lastSync } : c));
+      setBrokerConn((c) => (c ? { ...c, ...(data.connection || {}), lastSync: data.lastSync } : c));
     } catch (err) {
       const m = String((err && err.message) || "");
       if (/moment ago/i.test(m)) {
@@ -3318,6 +3320,8 @@ useEffect(() => {
     }
   };
 
+  runBrokerSyncRef.current = runBrokerSync;
+
   const connectBroker = async (form) => {
     const isMT = form.platform === "matchtrader";
     const isMT5 = form.platform === "mt5";
@@ -3328,13 +3332,14 @@ useEffect(() => {
         isMT
           ? { email: form.email, password: form.password, brokerId: form.brokerId, platformUrl: form.platformUrl }
           : isMT5
-          ? { login: form.email, password: form.password, server: form.server }
+          ? {}
           : { env: form.env, email: form.email, password: form.password, server: form.server }
       ),
     });
     setBrokerConn(data.connection);
     persistSettings({ ...settings, brokerAutoSync: !!form.autoSync });
     runBrokerSync();
+    return data;
   };
 
   const disconnectBroker = async () => {
@@ -3348,16 +3353,16 @@ useEffect(() => {
   useEffect(() => {
     if (!brokerConn?.connected || !settings.brokerAutoSync) return undefined;
     const tick = () => {
-      if (document.visibilityState === "visible") runBrokerSync();
+      if (document.visibilityState === "visible" && runBrokerSyncRef.current) runBrokerSyncRef.current();
     };
     const first = setTimeout(tick, 2500);
-    const id = setInterval(tick, 90_000);
+    const id = setInterval(tick, brokerConn?.platform === "mt5" ? 30_000 : 90_000);
     return () => {
       clearTimeout(first);
       clearInterval(id);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [brokerConn?.connected, settings.brokerAutoSync]);
+  }, [brokerConn?.connected, brokerConn?.platform, settings.brokerAutoSync]);
 
   // Live open trade for the Journal's "Active trade" panel. Polls only while that tab is showing.
   useEffect(() => {
@@ -3368,11 +3373,23 @@ useEffect(() => {
       try {
         const d = await communityApi("/broker/positions", { headers: { Authorization: `Bearer ${session.token}` } });
         if (stopped) return;
-        setLivePositions(d.positions || []);
+        const next = d.positions || [];
+        setLivePositions(next);
         setLivePnlAvailable(d.pnlAvailable !== false);
         setLiveError("");
+        // A position that was open and is now gone just closed: pull it into the journal right away.
+        const prev = prevPosIdsRef.current;
+        if (prev && prev.some((id) => !next.some((p) => p.positionId === id))) {
+          setTimeout(() => runBrokerSyncRef.current && runBrokerSyncRef.current(), 4000);
+          setTimeout(() => runBrokerSyncRef.current && runBrokerSyncRef.current(), 20000);
+        }
+        prevPosIdsRef.current = next.map((p) => p.positionId);
       } catch (err) {
-        if (!stopped) setLiveError(String((err && err.message) || "error"));
+        if (!stopped) {
+          setLiveError(String((err && err.message) || "error"));
+          setLivePositions([]); // don't keep showing an old trade as live when the broker stops sending
+          prevPosIdsRef.current = null;
+        }
       }
     };
     poll();
