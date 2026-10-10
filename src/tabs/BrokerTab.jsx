@@ -1,19 +1,21 @@
 import { TAP, display, palette } from "../lib/theme.js";
 import { useState } from "react";
 
-// Broker connection screen (TradeLocker). UI only for now: Connect calls the optional `onConnect`
+// Broker connection screen (TradeLocker, Match-Trader). Connect calls the optional `onConnect`
 // prop, and shows a "not switched on yet" message until a backend handler is passed in.
 export default function BrokerTab({ onConnect, onDisconnect, onSync, onAutoSyncChange, connection, syncInfo, autoSync: autoSyncProp }) {
   const PLATFORMS = [
     { id: "tradelocker", label: "TradeLocker", ready: true },
     { id: "mt5", label: "MetaTrader 5", ready: false },
-    { id: "matchtrader", label: "Match-Trader", ready: false },
+    { id: "matchtrader", label: "Match-Trader", ready: true },
   ];
   const [platform, setPlatform] = useState("tradelocker");
   const [env, setEnv] = useState("demo");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [server, setServer] = useState("");
+  const [brokerId, setBrokerId] = useState("");
+  const [platformUrl, setPlatformUrl] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [autoSync, setAutoSync] = useState(true);
   const [status, setStatus] = useState("idle"); // idle | connecting | error
@@ -45,13 +47,16 @@ export default function BrokerTab({ onConnect, onDisconnect, onSync, onAutoSyncC
     outline: "none",
   };
 
+  const isMT = platform === "matchtrader";
+  const platformLabel = isMT ? "Match-Trader" : "TradeLocker";
+  const connectedLabel = connection && connection.platform === "matchtrader" ? "Match-Trader" : "TradeLocker";
   const connected = !!(connection && connection.connected);
   const sync = syncInfo || {};
 
   const submit = async () => {
-    if (!email.trim() || !password || !server.trim()) {
+    if (!email.trim() || !password || (isMT ? !brokerId.trim() || !platformUrl.trim() : !server.trim())) {
       setStatus("error");
-      setMsg("Enter your email, password and server name.");
+      setMsg(isMT ? "Enter your email, password, Broker ID and platform web address." : "Enter your email, password and server name.");
       return;
     }
     if (!onConnect) {
@@ -62,7 +67,7 @@ export default function BrokerTab({ onConnect, onDisconnect, onSync, onAutoSyncC
     setStatus("connecting");
     setMsg("");
     try {
-      await onConnect({ platform, env, email: email.trim(), password, server: server.trim(), autoSync });
+      await onConnect({ platform, env, email: email.trim(), password, server: server.trim(), brokerId: brokerId.trim(), platformUrl: platformUrl.trim(), autoSync });
       setStatus("idle");
       setPassword("");
     } catch (e) {
@@ -144,6 +149,8 @@ export default function BrokerTab({ onConnect, onDisconnect, onSync, onAutoSyncC
       {/* Connection form / connected state */}
       {!connected ? (
         <div style={card}>
+          {!isMT && (
+            <>
           <span style={label}>Account type</span>
           <div
             className="flex mb-4"
@@ -172,6 +179,8 @@ export default function BrokerTab({ onConnect, onDisconnect, onSync, onAutoSyncC
               </button>
             ))}
           </div>
+            </>
+          )}
 
           <label style={label}>Email</label>
           <input
@@ -189,7 +198,7 @@ export default function BrokerTab({ onConnect, onDisconnect, onSync, onAutoSyncC
               style={{ ...field, paddingRight: 64 }}
               type={showPw ? "text" : "password"}
               autoComplete="new-password"
-              placeholder="TradeLocker password"
+              placeholder={`${platformLabel} password`}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
@@ -211,17 +220,48 @@ export default function BrokerTab({ onConnect, onDisconnect, onSync, onAutoSyncC
             </button>
           </div>
 
-          <label style={label}>Server name</label>
-          <input
-            style={field}
-            autoComplete="off"
-            placeholder="e.g. your broker or prop firm's server"
-            value={server}
-            onChange={(e) => setServer(e.target.value)}
-          />
-          <p className="text-xs mt-2 mb-4" style={{ color: palette.textFaint }}>
-            You'll find the server name on your broker or prop firm's TradeLocker login page.
-          </p>
+          {isMT ? (
+            <>
+              <label style={label}>Broker ID</label>
+              <input
+                style={{ ...field, marginBottom: 14 }}
+                autoComplete="off"
+                placeholder="From your broker or prop firm"
+                value={brokerId}
+                onChange={(e) => setBrokerId(e.target.value)}
+              />
+              <label style={label}>Platform web address</label>
+              <input
+                style={field}
+                type="url"
+                autoComplete="off"
+                autoCapitalize="none"
+                placeholder="https://trader.yourbroker.com"
+                value={platformUrl}
+                onChange={(e) => setPlatformUrl(e.target.value)}
+              />
+              <p className="text-xs mt-2 mb-4" style={{ color: palette.textFaint }}>
+                Use the email and password you sign in to Match-Trader with. The web address is the page you open to log in to your
+                broker or prop firm&apos;s Match-Trader. Ask them for the Broker ID if you don&apos;t have it, and check that API access is switched
+                on for your account.
+              </p>
+            </>
+          ) : (
+            <>
+              <label style={label}>Server name</label>
+              <input
+                style={field}
+                autoComplete="off"
+                placeholder="e.g. your broker or prop firm's server"
+                value={server}
+                onChange={(e) => setServer(e.target.value)}
+              />
+              <p className="text-xs mt-2 mb-4" style={{ color: palette.textFaint }}>
+                Use the email and password you sign in to TradeLocker with. A demo account has no separate password of its own.
+                The server name is the broker shown on the TradeLocker login screen.
+              </p>
+            </>
+          )}
 
           <div
             className="flex items-center justify-between mb-4"
@@ -281,7 +321,7 @@ export default function BrokerTab({ onConnect, onDisconnect, onSync, onAutoSyncC
               opacity: status === "connecting" ? 0.7 : 1,
             }}
           >
-            {status === "connecting" ? "Connecting\u2026" : "Connect TradeLocker"}
+            {status === "connecting" ? "Connecting\u2026" : `Connect ${platformLabel}`}
           </button>
           {msg && (
             <p className="text-xs mt-3" style={{ color: status === "error" ? palette.red : palette.textFaint }}>
@@ -293,7 +333,7 @@ export default function BrokerTab({ onConnect, onDisconnect, onSync, onAutoSyncC
         <div style={card}>
           <div className="flex items-center justify-between">
             <div>
-              <div style={{ color: palette.text, fontSize: "15px", fontWeight: 700 }}>TradeLocker</div>
+              <div style={{ color: palette.text, fontSize: "15px", fontWeight: 700 }}>{connectedLabel}</div>
               <div className="text-xs" style={{ color: palette.textFaint }}>
                 {[connection.accountName, connection.server, connection.env === "demo" ? "Demo" : "Live"].filter(Boolean).join(" \u00b7 ")}
               </div>
