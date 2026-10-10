@@ -144,6 +144,23 @@ function ActiveTradePanel({ connected, positions, pnlAvailable, error, isDesktop
         const line = [lot, sess].filter(Boolean).join(" \u00b7 ");
         return line ? <div style={{ ...quiet, marginTop: "2px", fontFamily: mono }}>{line}</div> : null;
       })()}
+      {isDesktop && (() => {
+        const px = (v) => String(Number(Number(v).toFixed(5)));
+        const hasSL = Number(p.stopLoss) > 0;
+        const hasTP = Number(p.takeProfit) > 0;
+        return (
+          <>
+            {Number(p.entryPrice) > 0 && (
+              <div style={{ ...quiet, marginTop: "2px", fontFamily: mono }}>Entry {px(p.entryPrice)}</div>
+            )}
+            <div style={{ ...quiet, marginTop: "2px", fontFamily: mono }}>
+              <span style={{ color: hasSL ? palette.red : palette.textFaint }}>SL {hasSL ? px(p.stopLoss) : "\u2014"}</span>
+              {" \u00b7 "}
+              <span style={{ color: hasTP ? palette.green : palette.textFaint }}>TP {hasTP ? px(p.takeProfit) : "\u2014"}</span>
+            </div>
+          </>
+        );
+      })()}
       {p.pnl === null && !pnlAvailable && (
         <div style={{ ...quiet, marginTop: "2px" }}>Your broker doesn\u2019t send live P&amp;L.</div>
       )}
