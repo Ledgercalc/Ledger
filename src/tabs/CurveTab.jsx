@@ -46,7 +46,17 @@ function fmtHold(ms) {
 const fmtClock = (ts) => new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
 const fmtDay = (ts) => new Date(ts).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" });
 
-// Right half of the top card: the trade that is open right now, straight from the connected broker.
+// Shared look for the two top panels (Net P&L and Active trade): each is its own rounded card.
+const topCard = () => ({
+  minWidth: 0,
+  background: palette.surface,
+  border: `1px solid ${palette.border}`,
+  borderRadius: "20px",
+  boxShadow: palette.shadow,
+  transition: THEME_TRANSITION,
+});
+
+// The trade that is open right now, straight from the connected broker.
 function ActiveTradePanel({ connected, positions, pnlAvailable, error, isDesktop }) {
   const [now, setNow] = useState(() => Date.now());
   const hasLive = connected && positions.length > 0;
@@ -841,18 +851,14 @@ export default function CurveTab(props) {
         {view !== "history" && (
           <>
         <div
-          className="rounded-2xl mb-4"
+          className="mb-4"
           style={{
             display: "grid",
             gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
-            background: palette.surface,
-            border: `1px solid ${palette.border}`,
-            boxShadow: palette.shadow,
-            transition: THEME_TRANSITION,
-            overflow: "hidden",
+            gap: isDesktop ? "16px" : "12px",
           }}
         >
-          <div style={{ padding: isDesktop ? "24px" : "16px", minWidth: 0 }}>
+          <div style={{ ...topCard(), padding: isDesktop ? "24px" : "16px" }}>
             <div style={{ color: palette.textMuted, fontSize: "12px" }}>Net P&amp;L</div>
             <div
               style={{
@@ -872,7 +878,7 @@ export default function CurveTab(props) {
               {startBal > 0 ? ` \u00b7 Balance $${fmt(startBal + netPnl, 0)}` : ""}
             </div>
           </div>
-          <div style={{ padding: isDesktop ? "24px" : "16px", minWidth: 0, borderLeft: `1px solid ${palette.border}` }}>
+          <div style={{ ...topCard(), padding: isDesktop ? "24px" : "16px" }}>
             <ActiveTradePanel
               connected={!!(brokerConn && brokerConn.connected)}
               positions={livePositions || []}
