@@ -54,9 +54,9 @@ export default function BrokerTab({ onConnect, onDisconnect, onSync, onAutoSyncC
   const sync = syncInfo || {};
 
   const submit = async () => {
-    if (!email.trim() || !password || (isMT ? !brokerId.trim() || !platformUrl.trim() : !server.trim())) {
+    if (!email.trim() || !password || (isMT ? !platformUrl.trim() : !server.trim())) {
       setStatus("error");
-      setMsg(isMT ? "Enter your email, password, Broker ID and platform web address." : "Enter your email, password and server name.");
+      setMsg(isMT ? "Enter your login, password and platform web address." : "Enter your email, password and server name.");
       return;
     }
     if (!onConnect) {
@@ -223,11 +223,11 @@ export default function BrokerTab({ onConnect, onDisconnect, onSync, onAutoSyncC
 
           {isMT ? (
             <>
-              <label style={label}>Broker ID</label>
+              <label style={label}>Broker ID / Server (optional)</label>
               <input
                 style={{ ...field, marginBottom: 14 }}
                 autoComplete="off"
-                placeholder="From your broker or prop firm"
+                placeholder="Broker ID or server name, if you have one"
                 value={brokerId}
                 onChange={(e) => setBrokerId(e.target.value)}
               />
@@ -242,9 +242,8 @@ export default function BrokerTab({ onConnect, onDisconnect, onSync, onAutoSyncC
                 onChange={(e) => setPlatformUrl(e.target.value)}
               />
               <p className="text-xs mt-2 mb-4" style={{ color: palette.textFaint }}>
-                Use the email (or login number) and password you sign in to Match-Trader with. The web address is the page you open to log in to your
-                broker or prop firm&apos;s Match-Trader. Ask them for the Broker ID if you don&apos;t have it, and check that API access is switched
-                on for your account.
+                Use the login and password you sign in to Match-Trader with. The web address is the page you open to log in to your
+                broker or prop firm&apos;s Match-Trader. Some firms show this as a "Server" in their dashboard, so paste that if you have no Broker ID. Leave it blank if login works without it.
               </p>
             </>
           ) : (
