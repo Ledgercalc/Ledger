@@ -293,6 +293,37 @@ function ActiveTradeContent({ connected, positions, pnlAvailable, error, isDeskt
       </div>
     );
   }
+  // Several trades open: show only the combined picture (total P&L, total lots, sessions). Details are in the pop-up.
+  if (positions.length > 1) {
+    const known = positions.filter((x) => x.pnl !== null);
+    const total = known.length ? known.reduce((s, x) => s + x.pnl, 0) : null;
+    const lots = positions.reduce((s, x) => s + (Number(x.qty) || 0), 0);
+    const sessions = [...new Set(positions.flatMap((x) => (x.openTs ? sessionLabelAt(x.openTs).split(" / ").filter(Boolean) : [])))];
+    const line = [lots > 0 ? `${fmtLot(lots)} lot` : "", sessions.join(" / ")].filter(Boolean).join(" \u00b7 ");
+    const totalColor = total === null ? palette.textMuted : total >= 0 ? palette.green : palette.red;
+    return (
+      <div>
+        {title}
+        <div style={{ color: palette.textMuted, fontSize: "13px", fontWeight: 600, marginTop: "4px" }}>Total floating P&amp;L</div>
+        <div
+          style={{
+            fontFamily: display,
+            fontSize: isDesktop ? "34px" : "24px",
+            fontWeight: 700,
+            lineHeight: 1.1,
+            marginTop: "2px",
+            color: totalColor,
+          }}
+        >
+          {total === null ? "P&L n/a" : `${total >= 0 ? "+" : "-"}$${fmtMoney(total)}`}
+        </div>
+        {line && <div style={{ ...quiet, fontFamily: mono }}>{line}</div>}
+        {total === null && !pnlAvailable && (
+          <div style={{ ...quiet, marginTop: "2px" }}>Your broker doesn\u2019t send live P&amp;L.</div>
+        )}
+      </div>
+    );
+  }
   const p = positions[0];
   const isBuy = p.direction === "up";
   const dirColor = isBuy ? palette.green : palette.red;
