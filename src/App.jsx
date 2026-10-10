@@ -3231,6 +3231,46 @@ useEffect(() => {
   const brokerSyncingRef = useRef(false);
   const runBrokerSyncRef = useRef(null); // always the latest runBrokerSync, so timers never use a stale copy
   const prevPosIdsRef = useRef(null);    // open position ids from the last poll, to spot a trade that just closed
+
+  // Setup / mood / confidence / note the trader adds to a trade while it is still open.
+  // Kept by position id and attached to the logged trade when it closes and syncs.
+  const OPEN_TAGS_KEY = "tredzi-open-trade-tags";
+  const [openTags, setOpenTags] = useState({});
+  const openTagsRef = useRef({});
+  openTagsRef.current = openTags;
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await window.storage.get(OPEN_TAGS_KEY, false);
+        const parsed = r && r.value ? JSON.parse(r.value) : {};
+        const cutoff = Date.now() - 30 * 86400000; // forget tags for trades that never synced
+        const kept = {};
+        for (const [k, v] of Object.entries(parsed || {})) if (v && (v.ts || 0) >= cutoff) kept[k] = v;
+        setOpenTags(kept);
+      } catch (err) {
+        // nothing saved yet
+      }
+    })();
+  }, []);
+  const persistOpenTags = async (next) => {
+    openTagsRef.current = next;
+    setOpenTags(next);
+    try {
+      await window.storage.set(OPEN_TAGS_KEY, JSON.stringify(next), false);
+    } catch (err) {
+      // non-critical
+    }
+  };
+  const saveOpenTag = (positionId, patch) => {
+    const id = String(positionId || "");
+    if (!id) return;
+    const cur = { ...(openTagsRef.current[id] || {}), ...patch };
+    const empty = !cur.setup && !cur.emotion && !(Number(cur.confidence) > 0) && !String(cur.note || "").trim();
+    const next = { ...openTagsRef.current };
+    if (empty) delete next[id];
+    else next[id] = { ...cur, ts: Date.now() };
+    persistOpenTags(next);
+  };
   const brokerHeaders = () => ({ Authorization: `Bearer ${session?.token}` });
 
   useEffect(() => {
@@ -3273,6 +3313,7 @@ useEffect(() => {
       });
       const have = new Set(tradesRef.current.map((t) => t.brokerId).filter(Boolean));
       const fresh = [];
+      const usedTags = [];
       let noPnl = 0;
       for (const t of data.trades || []) {
         if (have.has(t.brokerId)) continue;
@@ -3281,6 +3322,9 @@ useEffect(() => {
           noPnl++;
           continue;
         }
+        const posId = String(t.brokerId).split(":").pop();
+        const tag = openTagsRef.current[posId];
+        if (tag) usedTags.push(posId);
         fresh.push({
           id: `bk-${String(t.brokerId).replace(/[^a-z0-9]/gi, "-")}`,
           brokerId: t.brokerId,
@@ -3288,12 +3332,12 @@ useEffect(() => {
           pnl,
           pnlEstimated: t.pnl === null || t.pnl === undefined,
           pair: t.pair,
-          note: "",
-          emotion: null,
-          setup: null,
+          note: (tag && tag.note) || "",
+          emotion: (tag && tag.emotion) || null,
+          setup: (tag && tag.setup) || null,
           session: sessionForTs(t.openTs || t.ts),
           direction: t.direction,
-          confidence: null,
+          confidence: tag && Number(tag.confidence) > 0 ? Number(tag.confidence) : null,
           ts: t.ts,
           openTs: t.openTs,
           holdMs: t.openTs ? Math.max(0, t.ts - t.openTs) : null, // hold time, saved automatically for broker trades
@@ -3303,6 +3347,11 @@ useEffect(() => {
         });
       }
       if (fresh.length) persistTrades([...tradesRef.current, ...fresh]);
+      if (usedTags.length) {
+        const nextTags = { ...openTagsRef.current };
+        usedTags.forEach((k) => delete nextTags[k]);
+        persistOpenTags(nextTags);
+      }
       const parts = [];
       parts.push(fresh.length ? `Added ${fresh.length} new trade${fresh.length === 1 ? "" : "s"}.` : "No new closed trades.");
       if (noPnl) parts.push(`${noPnl} skipped: no P&L available, or exactly breakeven.`);
@@ -7047,7 +7096,7 @@ const hiddenTabIds = settings.hiddenTabs || [];
   }
 
   if (activeTab === "journal") {
-    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><JournalTab {...{ CurveTab, curveProps: { backupMsg, calMonth, cancelEditTrade, cancelImport, clearTrades, confirmImport, copyFallbackText, copyMsg, copyWeekSummary, addCustomSetup, brokerConn, liveError, livePnlAvailable, livePositions, customMoods, customMoodsLoaded, customSetups, customSetupsLoaded, deleteTrade, editingTradeId, expandedTradeId, exportBackup, fileInputRef, findSetupLabel, generateWeeklyShare, goals, handleScreenshotChange, importBackup, isDesktop, logFormRef, openScreenshotPicker, pendingImport, persistGoals, persistSettings, persistStartingBalance, screenshotError, screenshotInputRef, screenshotSaving, screenshotTargetId, selectedDay, setCalMonth, setCopyFallbackText, setExpandedTradeId, setPendingScreenshotDelete, setSelectedDay, setShowDisciplineInfo, setShowStreakInfo, setStatementPeriod, setTradeConfidence, setTradeDirection, setTradeEmotion, setTradeInput, setTradeNote, setTradePair, setTradeSession, setTradeSetup, setViewingScreenshot, settings, shareError, shareImageFile, showDisciplineInfo, showStreakInfo, startEditTrade, startingBalance, submitTrade, tradeConfidence, tradeDirection, tradeEmotion, tradeInput, tradeNote, tradePair, tradeSession, tradeSetup, trades, tradesLoadError, tradesLoaded, logSheetOpen, setLogSheetOpen }, goals, persistGoals, startingBalance, trades, addJournalRow, addPlaybookRule, addingSetup, cancelAddSetup, confirmAddSetup, customMoods, customSetups, deleteJournalRow, deletePlaybookCheckin, endJournalResize, exportJournalCSV, handleJournalCellKeyDown, handleJournalPhotoChange, hiddenDefaultSetupIds, importJournalCSV, isDesktop, isNarrowScreen, journalCellRefs, journalColWidths, journalEntries, journalExpandedRows, journalExportMsg, journalImportInputRef, journalImportMsg, journalLoaded, journalMonth, journalPhotoError, journalPhotoInputRef, journalPhotoSaving, journalPhotoTarget, journalSubTab, journalYear, moveJournalResize, newRuleText, newSetupName, openJournalPhotoPicker, persistSettings, playbookCheckins, playbookMsg, playbookRuleError, playbookRules, playbookRulesLoaded, removePlaybookRule, renderSubNav, setJournalMonth, setJournalSubTab, setJournalYear, setNewRuleText, setNewSetupName, setPendingJournalPhotoDelete, setPlaybookRuleError, setSetupError, setViewingJournalPhoto, settings, setupError, startJournalResize, submitCheckin, todayResults, toggleJournalRowExpanded, toggleTodayResult, triggerJournalImport, updateJournalField, updateJournalPnl }} /></Suspense>;
+    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><JournalTab {...{ CurveTab, curveProps: { backupMsg, calMonth, cancelEditTrade, cancelImport, clearTrades, confirmImport, copyFallbackText, copyMsg, copyWeekSummary, addCustomSetup, brokerConn, liveError, livePnlAvailable, livePositions, openTags, saveOpenTag, customMoods, customMoodsLoaded, customSetups, customSetupsLoaded, deleteTrade, editingTradeId, expandedTradeId, exportBackup, fileInputRef, findSetupLabel, generateWeeklyShare, goals, handleScreenshotChange, importBackup, isDesktop, logFormRef, openScreenshotPicker, pendingImport, persistGoals, persistSettings, persistStartingBalance, screenshotError, screenshotInputRef, screenshotSaving, screenshotTargetId, selectedDay, setCalMonth, setCopyFallbackText, setExpandedTradeId, setPendingScreenshotDelete, setSelectedDay, setShowDisciplineInfo, setShowStreakInfo, setStatementPeriod, setTradeConfidence, setTradeDirection, setTradeEmotion, setTradeInput, setTradeNote, setTradePair, setTradeSession, setTradeSetup, setViewingScreenshot, settings, shareError, shareImageFile, showDisciplineInfo, showStreakInfo, startEditTrade, startingBalance, submitTrade, tradeConfidence, tradeDirection, tradeEmotion, tradeInput, tradeNote, tradePair, tradeSession, tradeSetup, trades, tradesLoadError, tradesLoaded, logSheetOpen, setLogSheetOpen }, goals, persistGoals, startingBalance, trades, addJournalRow, addPlaybookRule, addingSetup, cancelAddSetup, confirmAddSetup, customMoods, customSetups, deleteJournalRow, deletePlaybookCheckin, endJournalResize, exportJournalCSV, handleJournalCellKeyDown, handleJournalPhotoChange, hiddenDefaultSetupIds, importJournalCSV, isDesktop, isNarrowScreen, journalCellRefs, journalColWidths, journalEntries, journalExpandedRows, journalExportMsg, journalImportInputRef, journalImportMsg, journalLoaded, journalMonth, journalPhotoError, journalPhotoInputRef, journalPhotoSaving, journalPhotoTarget, journalSubTab, journalYear, moveJournalResize, newRuleText, newSetupName, openJournalPhotoPicker, persistSettings, playbookCheckins, playbookMsg, playbookRuleError, playbookRules, playbookRulesLoaded, removePlaybookRule, renderSubNav, setJournalMonth, setJournalSubTab, setJournalYear, setNewRuleText, setNewSetupName, setPendingJournalPhotoDelete, setPlaybookRuleError, setSetupError, setViewingJournalPhoto, settings, setupError, startJournalResize, submitCheckin, todayResults, toggleJournalRowExpanded, toggleTodayResult, triggerJournalImport, updateJournalField, updateJournalPnl }} /></Suspense>;
   }
 
   if (activeTab === "broker") {
