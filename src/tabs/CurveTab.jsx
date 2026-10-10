@@ -65,8 +65,94 @@ const topCard = () => ({
   transition: THEME_TRANSITION,
 });
 
+// Lets the trader tag a trade while it is still open. Saved by position id and attached to the logged trade once it closes.
+function OpenTradeTags({ positionId, tags, saveOpenTag, customSetups, customSetupsLoaded, addCustomSetup, customMoods, customMoodsLoaded }) {
+  const [open, setOpen] = useState(false);
+  const t = tags || {};
+  const [note, setNote] = useState(t.note || "");
+  if (!saveOpenTag || !positionId) return null;
+  const setupLabel = t.setup ? [...SETUPS, ...(customSetups || [])].find((s) => s.id === t.setup)?.label || "" : "";
+  const mood = t.emotion ? emotionMeta(t.emotion) || (customMoods || []).find((m) => m.id === t.emotion) || null : null;
+  const summary = [
+    setupLabel,
+    Number(t.confidence) > 0 ? `${t.confidence}/${CONFIDENCE_MAX}` : "",
+    mood ? `${mood.emoji || ""} ${mood.label}`.trim() : "",
+    String(t.note || "").trim() ? "Note" : "",
+  ]
+    .filter(Boolean)
+    .join(" \u00b7 ");
+  const chipStyle = (active, dashed) => ({
+    background: active ? palette.gold : palette.field,
+    color: active ? palette.letterbox : palette.textMuted,
+    border: `1px ${dashed ? "dashed" : "solid"} ${active ? palette.gold : palette.border}`,
+    fontSize: "13px",
+  });
+  const moods = [...EMOTIONS.map((e) => ({ ...e, custom: false })), ...(customMoodsLoaded ? (customMoods || []).map((m) => ({ ...m, custom: true })) : [])];
+  return (
+    <div style={{ marginTop: "10px" }}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={TAP}
+        style={{ color: palette.gold, fontSize: "13px", fontWeight: 600 }}
+      >
+        {open ? "Hide details" : summary ? "Edit details" : "Add setup, mood, confidence"}
+      </button>
+      {!open && summary && <div style={{ color: palette.textMuted, fontSize: "12px", marginTop: "4px" }}>{summary}</div>}
+      {open && (
+        <div style={{ marginTop: "10px" }}>
+          <SetupSelect
+            idKey={`open-setup-${positionId}`}
+            value={t.setup || null}
+            onChange={(v) => saveOpenTag(positionId, { setup: v || null })}
+            customSetups={customSetups || []}
+            customSetupsLoaded={customSetupsLoaded}
+            addCustomSetup={addCustomSetup}
+          />
+          <ConfidenceMeter value={t.confidence || null} onChange={(v) => saveOpenTag(positionId, { confidence: v || null })} />
+          <span style={{ color: palette.textFaint, fontSize: "11px", display: "block", marginBottom: "6px" }}>Mood</span>
+          <div className="flex gap-2 flex-wrap items-center" style={{ marginBottom: "12px" }}>
+            {moods.map((e) => {
+              const active = t.emotion === e.id;
+              return (
+                <button
+                  key={e.id}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => saveOpenTag(positionId, { emotion: active ? null : e.id })}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-colors ${TAP}`}
+                  style={chipStyle(active, e.custom)}
+                >
+                  <span>{e.emoji}</span>
+                  {e.label}
+                </button>
+              );
+            })}
+          </div>
+          <span style={{ color: palette.textFaint, fontSize: "11px", display: "block", marginBottom: "6px" }}>Note</span>
+          <textarea
+            value={note}
+            maxLength={500}
+            rows={2}
+            onChange={(e) => {
+              setNote(e.target.value);
+              saveOpenTag(positionId, { note: e.target.value });
+            }}
+            placeholder="Why did you take this trade?"
+            className="w-full rounded-lg px-3 py-2 outline-none"
+            style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontSize: "14px", resize: "vertical" }}
+          />
+          <div style={{ color: palette.textFaint, fontSize: "11px", marginTop: "6px" }}>
+            Saved automatically and added to this trade when it closes.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Pop-up card listing every trade that is open right now, with the same details on phone and PC.
-function OpenTradesSheet({ positions, isDesktop, onClose }) {
+function OpenTradesSheet({ positions, isDesktop, onClose, tagProps }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
@@ -206,6 +292,16 @@ function OpenTradesSheet({ positions, isDesktop, onClose }) {
                   <div style={{ ...value, color: hasTP ? palette.green : palette.textFaint }}>{hasTP ? px(p.takeProfit) : "\u2014"}</div>
                 </div>
               </div>
+              <OpenTradeTags
+                positionId={p.positionId}
+                tags={tagProps && tagProps.openTags ? tagProps.openTags[p.positionId] : null}
+                saveOpenTag={tagProps && tagProps.saveOpenTag}
+                customSetups={tagProps && tagProps.customSetups}
+                customSetupsLoaded={tagProps && tagProps.customSetupsLoaded}
+                addCustomSetup={tagProps && tagProps.addCustomSetup}
+                customMoods={tagProps && tagProps.customMoods}
+                customMoodsLoaded={tagProps && tagProps.customMoodsLoaded}
+              />
             </div>
           );
         })}
@@ -216,7 +312,7 @@ function OpenTradesSheet({ positions, isDesktop, onClose }) {
 }
 
 // The card on the Journal: tap it (when a trade is open) to see every open trade.
-function ActiveTradePanel({ cardStyle, ...props }) {
+function ActiveTradePanel({ cardStyle, tagProps, ...props }) {
   const [open, setOpen] = useState(false);
   const tappable = !!(props.connected && props.positions.length > 0);
   useEffect(() => {
@@ -243,7 +339,7 @@ function ActiveTradePanel({ cardStyle, ...props }) {
       >
         <ActiveTradeContent {...props} />
       </div>
-      {open && tappable && <OpenTradesSheet positions={props.positions} isDesktop={props.isDesktop} onClose={() => setOpen(false)} />}
+      {open && tappable && <OpenTradesSheet positions={props.positions} isDesktop={props.isDesktop} onClose={() => setOpen(false)} tagProps={tagProps} />}
     </>
   );
 }
@@ -260,7 +356,7 @@ function ActiveTradeContent({ connected, positions, pnlAvailable, error, isDeskt
 
   const title = (
     <div style={{ color: palette.textMuted, fontSize: "12px", display: "flex", alignItems: "center", gap: "6px" }}>
-      Active trade
+      {positions.length > 1 ? `${positions.length} Active trades` : "Active trade"}
       {hasLive && (
         <span
           aria-label="Live"
@@ -487,7 +583,7 @@ function ConfidenceMeter({ value, onChange }) {
 }
 
 // Dropdown for the trade's setup, with an inline "add your own" so nobody has to leave the log sheet.
-function SetupSelect({ value, onChange, customSetups, customSetupsLoaded, addCustomSetup }) {
+function SetupSelect({ value, onChange, customSetups, customSetupsLoaded, addCustomSetup, idKey = "trade-setup-select" }) {
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
   const [err, setErr] = useState("");
@@ -510,12 +606,12 @@ function SetupSelect({ value, onChange, customSetups, customSetupsLoaded, addCus
   };
   return (
     <div className="mb-3">
-      <label htmlFor="trade-setup-select" style={{ color: palette.textFaint, fontSize: "11px", display: "block", marginBottom: "6px" }}>
+      <label htmlFor={idKey} style={{ color: palette.textFaint, fontSize: "11px", display: "block", marginBottom: "6px" }}>
         Setup
       </label>
       <div className="relative">
         <select
-          id="trade-setup-select"
+          id={idKey}
           value={adding ? "__new__" : value || ""}
           onChange={(e) => {
             const v = e.target.value;
@@ -1139,6 +1235,7 @@ export default function CurveTab(props) {
           </div>
           <ActiveTradePanel
             cardStyle={{ ...topCard(), padding: isDesktop ? "24px" : "16px" }}
+            tagProps={{ openTags: props.openTags, saveOpenTag: props.saveOpenTag, customSetups, customSetupsLoaded, addCustomSetup, customMoods, customMoodsLoaded }}
             connected={!!(brokerConn && brokerConn.connected)}
             positions={livePositions || []}
             pnlAvailable={livePnlAvailable !== false}
