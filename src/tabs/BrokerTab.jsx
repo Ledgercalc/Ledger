@@ -6,7 +6,7 @@ import { useState } from "react";
 export default function BrokerTab({ onConnect, onDisconnect, onSync, onAutoSyncChange, connection, syncInfo, autoSync: autoSyncProp }) {
   const PLATFORMS = [
     { id: "tradelocker", label: "TradeLocker", ready: true },
-    { id: "mt5", label: "MetaTrader 5", ready: true, tag: "Preview" },
+    { id: "mt5", label: "MetaTrader 5", ready: true, tag: "Free \u00b7 1 account" },
     { id: "matchtrader", label: "Match-Trader", ready: true },
   ];
   const [platform, setPlatform] = useState("tradelocker");
@@ -50,7 +50,7 @@ export default function BrokerTab({ onConnect, onDisconnect, onSync, onAutoSyncC
   const isMT = platform === "matchtrader";
   const isMT5 = platform === "mt5";
   const platformLabel = isMT ? "Match-Trader" : isMT5 ? "MetaTrader 5" : "TradeLocker";
-  const connectedLabel = connection && connection.platform === "matchtrader" ? "Match-Trader" : "TradeLocker";
+  const connectedLabel = connection && connection.platform === "matchtrader" ? "Match-Trader" : connection && connection.platform === "mt5" ? "MetaTrader 5" : "TradeLocker";
   const connected = !!(connection && connection.connected);
   const sync = syncInfo || {};
 
@@ -64,11 +64,6 @@ export default function BrokerTab({ onConnect, onDisconnect, onSync, onAutoSyncC
           ? "Enter your login number, password and server name."
           : "Enter your email, password and server name."
       );
-      return;
-    }
-    if (isMT5) {
-      setStatus("error");
-      setMsg("MetaTrader 5 sync isn\u2019t switched on yet. This screen is ready; the connection is coming soon. Nothing was sent.");
       return;
     }
     if (!onConnect) {
@@ -277,7 +272,7 @@ export default function BrokerTab({ onConnect, onDisconnect, onSync, onAutoSyncC
               />
               <p className="text-xs mt-2 mb-4" style={{ color: palette.textFaint }}>
                 {isMT5
-                  ? "Use your account login number and server name from your broker or prop firm. The investor password is read-only: it can see your trades but can't place or change any. If you only have your main password, change it or ask your broker for an investor one. MetaTrader 5 sync is a preview for now, so connecting does nothing yet."
+                  ? "Use your account login number and server name from your broker or prop firm. The investor password is read-only: it can see your trades but can't place or change any. If you only have your main password, change it or ask your broker for an investor one. Your investor password is passed once to our sync partner (MetaApi) to link the account, and Tredzi doesn\u2019t keep it. The free plan links one account."
                   : "Use the email and password you sign in to TradeLocker with. A demo account has no separate password of its own. The server name is the broker shown on the TradeLocker login screen."}
               </p>
             </>
