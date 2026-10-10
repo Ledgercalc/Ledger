@@ -6,7 +6,7 @@ import { useState } from "react";
 export default function BrokerTab({ onConnect, onDisconnect, onSync, onAutoSyncChange, connection, syncInfo, autoSync: autoSyncProp }) {
   const PLATFORMS = [
     { id: "tradelocker", label: "TradeLocker", ready: true },
-    { id: "mt5", label: "MetaTrader 5", ready: false },
+    { id: "mt5", label: "MetaTrader 5", ready: true, tag: "Preview" },
     { id: "matchtrader", label: "Match-Trader", ready: true },
   ];
   const [platform, setPlatform] = useState("tradelocker");
@@ -48,7 +48,8 @@ export default function BrokerTab({ onConnect, onDisconnect, onSync, onAutoSyncC
   };
 
   const isMT = platform === "matchtrader";
-  const platformLabel = isMT ? "Match-Trader" : "TradeLocker";
+  const isMT5 = platform === "mt5";
+  const platformLabel = isMT ? "Match-Trader" : isMT5 ? "MetaTrader 5" : "TradeLocker";
   const connectedLabel = connection && connection.platform === "matchtrader" ? "Match-Trader" : "TradeLocker";
   const connected = !!(connection && connection.connected);
   const sync = syncInfo || {};
@@ -56,7 +57,18 @@ export default function BrokerTab({ onConnect, onDisconnect, onSync, onAutoSyncC
   const submit = async () => {
     if (!email.trim() || !password || (isMT ? !platformUrl.trim() : !server.trim())) {
       setStatus("error");
-      setMsg(isMT ? "Enter your login, password and platform web address." : "Enter your email, password and server name.");
+      setMsg(
+        isMT
+          ? "Enter your login, password and platform web address."
+          : isMT5
+          ? "Enter your login number, password and server name."
+          : "Enter your email, password and server name."
+      );
+      return;
+    }
+    if (isMT5) {
+      setStatus("error");
+      setMsg("MetaTrader 5 sync isn\u2019t switched on yet. This screen is ready; the connection is coming soon. Nothing was sent.");
       return;
     }
     if (!onConnect) {
@@ -124,7 +136,12 @@ export default function BrokerTab({ onConnect, onDisconnect, onSync, onAutoSyncC
                 key={p.id}
                 type="button"
                 disabled={!p.ready}
-                onClick={() => p.ready && setPlatform(p.id)}
+                onClick={() => {
+                  if (!p.ready) return;
+                  setPlatform(p.id);
+                  setStatus("idle");
+                  setMsg("");
+                }}
                 className={TAP}
                 style={{
                   padding: "9px 14px",
@@ -140,6 +157,7 @@ export default function BrokerTab({ onConnect, onDisconnect, onSync, onAutoSyncC
               >
                 {p.label}
                 {!p.ready && <span style={{ marginLeft: 8, fontSize: "10.5px" }}>Soon</span>}
+                {p.ready && p.tag && <span style={{ marginLeft: 8, fontSize: "10.5px", opacity: 0.8 }}>{p.tag}</span>}
               </button>
             );
           })}
@@ -149,7 +167,7 @@ export default function BrokerTab({ onConnect, onDisconnect, onSync, onAutoSyncC
       {/* Connection form / connected state */}
       {!connected ? (
         <div style={card}>
-          {!isMT && (
+          {!isMT && !isMT5 && (
             <>
           <span style={label}>Account type</span>
           <div
@@ -182,24 +200,25 @@ export default function BrokerTab({ onConnect, onDisconnect, onSync, onAutoSyncC
             </>
           )}
 
-          <label style={label}>{isMT ? "Email or login" : "Email"}</label>
+          <label style={label}>{isMT ? "Email or login" : isMT5 ? "Login (account number)" : "Email"}</label>
           <input
             style={{ ...field, marginBottom: 14 }}
-            type={isMT ? "text" : "email"}
+            type={isMT || isMT5 ? "text" : "email"}
+            inputMode={isMT5 ? "numeric" : undefined}
             autoComplete="off"
             autoCapitalize="none"
-            placeholder={isMT ? "Email or login number" : "you@example.com"}
+            placeholder={isMT ? "Email or login number" : isMT5 ? "e.g. 22453" : "you@example.com"}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
 
-          <label style={label}>Password</label>
+          <label style={label}>{isMT5 ? "Investor password (read-only)" : "Password"}</label>
           <div style={{ position: "relative", marginBottom: 14 }}>
             <input
               style={{ ...field, paddingRight: 64 }}
               type={showPw ? "text" : "password"}
               autoComplete="new-password"
-              placeholder={`${platformLabel} password`}
+              placeholder={isMT5 ? "Investor password" : `${platformLabel} password`}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
@@ -252,13 +271,14 @@ export default function BrokerTab({ onConnect, onDisconnect, onSync, onAutoSyncC
               <input
                 style={field}
                 autoComplete="off"
-                placeholder="e.g. your broker or prop firm's server"
+                placeholder={isMT5 ? "e.g. YourBroker-Live" : "e.g. your broker or prop firm's server"}
                 value={server}
                 onChange={(e) => setServer(e.target.value)}
               />
               <p className="text-xs mt-2 mb-4" style={{ color: palette.textFaint }}>
-                Use the email and password you sign in to TradeLocker with. A demo account has no separate password of its own.
-                The server name is the broker shown on the TradeLocker login screen.
+                {isMT5
+                  ? "Use your account login number and server name from your broker or prop firm. The investor password is read-only: it can see your trades but can't place or change any. If you only have your main password, change it or ask your broker for an investor one. MetaTrader 5 sync is a preview for now, so connecting does nothing yet."
+                  : "Use the email and password you sign in to TradeLocker with. A demo account has no separate password of its own. The server name is the broker shown on the TradeLocker login screen."}
               </p>
             </>
           )}
