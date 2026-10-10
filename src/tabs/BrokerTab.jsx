@@ -182,12 +182,13 @@ export default function BrokerTab({ onConnect, onDisconnect, onSync, onAutoSyncC
             </>
           )}
 
-          <label style={label}>Email</label>
+          <label style={label}>{isMT ? "Email or login" : "Email"}</label>
           <input
             style={{ ...field, marginBottom: 14 }}
-            type="email"
+            type={isMT ? "text" : "email"}
             autoComplete="off"
-            placeholder="you@example.com"
+            autoCapitalize="none"
+            placeholder={isMT ? "Email or login number" : "you@example.com"}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
@@ -241,7 +242,7 @@ export default function BrokerTab({ onConnect, onDisconnect, onSync, onAutoSyncC
                 onChange={(e) => setPlatformUrl(e.target.value)}
               />
               <p className="text-xs mt-2 mb-4" style={{ color: palette.textFaint }}>
-                Use the email and password you sign in to Match-Trader with. The web address is the page you open to log in to your
+                Use the email (or login number) and password you sign in to Match-Trader with. The web address is the page you open to log in to your
                 broker or prop firm&apos;s Match-Trader. Ask them for the Broker ID if you don&apos;t have it, and check that API access is switched
                 on for your account.
               </p>
