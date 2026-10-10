@@ -3264,7 +3264,7 @@ useEffect(() => {
     brokerSyncingRef.current = true;
     setBrokerSyncInfo((p) => ({ ...p, syncing: true }));
     try {
-      const data = await communityApi("/broker/tradelocker/sync", {
+      const data = await communityApi("/broker/sync", {
         method: "POST",
         headers: brokerHeaders(),
         body: JSON.stringify(opts.days ? { days: opts.days } : {}),
@@ -3302,7 +3302,7 @@ useEffect(() => {
       if (fresh.length) persistTrades([...tradesRef.current, ...fresh]);
       const parts = [];
       parts.push(fresh.length ? `Added ${fresh.length} new trade${fresh.length === 1 ? "" : "s"}.` : "No new closed trades.");
-      if (noPnl) parts.push(`${noPnl} skipped: P\\u0026L can\\u2019t be worked out for those pairs yet.`);
+      if (noPnl) parts.push(`${noPnl} skipped: no P&L available, or exactly breakeven.`);
       setBrokerSyncInfo({ syncing: false, lastSync: data.lastSync, message: parts.join(" ") });
       setBrokerConn((c) => (c ? { ...c, lastSync: data.lastSync } : c));
     } catch (err) {
@@ -3319,10 +3319,15 @@ useEffect(() => {
   };
 
   const connectBroker = async (form) => {
-    const data = await communityApi("/broker/tradelocker/connect", {
+    const isMT = form.platform === "matchtrader";
+    const data = await communityApi(isMT ? "/broker/matchtrader/connect" : "/broker/tradelocker/connect", {
       method: "POST",
       headers: brokerHeaders(),
-      body: JSON.stringify({ env: form.env, email: form.email, password: form.password, server: form.server }),
+      body: JSON.stringify(
+        isMT
+          ? { email: form.email, password: form.password, brokerId: form.brokerId, platformUrl: form.platformUrl }
+          : { env: form.env, email: form.email, password: form.password, server: form.server }
+      ),
     });
     setBrokerConn(data.connection);
     persistSettings({ ...settings, brokerAutoSync: !!form.autoSync });
@@ -3358,7 +3363,7 @@ useEffect(() => {
     const poll = async () => {
       if (stopped || document.visibilityState !== "visible") return;
       try {
-        const d = await communityApi("/broker/tradelocker/positions", { headers: { Authorization: `Bearer ${session.token}` } });
+        const d = await communityApi("/broker/positions", { headers: { Authorization: `Bearer ${session.token}` } });
         if (stopped) return;
         setLivePositions(d.positions || []);
         setLivePnlAvailable(d.pnlAvailable !== false);
