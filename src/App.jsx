@@ -1,13 +1,13 @@
 import { startCloudSync, stopCloudSync } from "./lib/cloudSync.js";
 import { COMMUNITY_API_BASE, COMMUNITY_AVATAR_KEY, COMMUNITY_JOIN_REQUESTS_KEY, COMMUNITY_MEMBERSHIPS_KEY, COMMUNITY_MESSAGE_POLL_MS, COMMUNITY_ONBOARDING_KEY, COMMUNITY_SESSION_KEY, COMMUNITY_USERNAME_KEY, communityApi } from "./api/community.js";
 import { pokeCrab } from "./lib/mascot.js";
-import { PlanSettingsCard, PlansHost } from "./components/PlansModal.jsx";
+import { PlanLockCard, PlanSettingsCard, PlansHost } from "./components/PlansModal.jsx";
 import MobileDock from "./components/MobileDock.jsx";
 import SessionSnapshot from "./components/SessionSnapshot.jsx";
 import TabHost from "./components/TabHost.jsx";
 import { PlanName } from "./components/PlanBadge.jsx";
 import { PLAN_LIMITS, PLAN_NAMES, hasFeature } from "./data/plans.js";
-import { getMyPlan, openPlans, resetMyPlan, setMyPlan } from "./lib/planStore.js";
+import { getMyPlan, openPlans, resetMyPlan, setMyPlan, useMyPlan } from "./lib/planStore.js";
 import { computeGoalProgress } from "./lib/analytics.js";
 import { OnboardingAmbientBG } from "./components/onboarding.jsx";
 import { Avatar, PillGroup, SettingsSection, SettingsSubLabel } from "./components/ui.jsx";
@@ -3305,9 +3305,10 @@ useEffect(() => {
   // Cloud sync: the same accounts and journal data on every device you sign in on.
   const syncTokenRef = useRef(null);
   syncTokenRef.current = session?.token || null;
+  const syncPlan = useMyPlan().plan; // cloud sync is a Pro feature
   useEffect(() => {
     if (!accountsLoaded) return undefined; // wait until the app has set up its own account list
-    if (!session?.token) {
+    if (!session?.token || !hasFeature(syncPlan, "cloudSync")) {
       stopCloudSync();
       return undefined;
     }
@@ -3320,7 +3321,7 @@ useEffect(() => {
       scopedKey,
     });
     return () => stopCloudSync();
-  }, [accountsLoaded, session?.token]);
+  }, [accountsLoaded, session?.token, syncPlan]);
 
   // Setup / mood / confidence / note the trader adds to a trade while it is still open.
   // Kept by position id and attached to the logged trade when it closes and syncs.
@@ -5151,7 +5152,7 @@ const switchAccount = (id) => {
     const accountCap = PLAN_LIMITS[myPlan].accounts;
     if (accounts.filter((acc) => !acc.archived).length >= accountCap) {
       setAccountNameError(`Your ${PLAN_NAMES[myPlan]} plan includes ${accountCap} account${accountCap === 1 ? "" : "s"}. Upgrade to add more.`);
-      openPlans("Add more trading accounts with Pro (5) or Creator (10).");
+      openPlans(`Your ${PLAN_NAMES[myPlan]} plan includes ${accountCap} trading account${accountCap === 1 ? "" : "s"}. Upgrade to add more (Pro ${PLAN_LIMITS.pro.accounts}, Creator ${PLAN_LIMITS.creator.accounts}).`);
       return;
     }
     const id = `acc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -7220,7 +7221,11 @@ const hiddenTabIds = settings.hiddenTabs || [];
   }
 
   if (activeTab === "broker") {
-    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><BrokerTab {...{ isDesktop, connection: brokerConn, syncInfo: brokerSyncInfo, autoSync: !!settings.brokerAutoSync, onConnect: connectBroker, onDisconnect: disconnectBroker, brokerAccountName, activeAccountName, linkedElsewhere: !!(brokerLinkedId && activeAccountId && brokerLinkedId !== activeAccountId), onLinkToActive: () => persistBrokerAccountId(activeAccountId), onSync: () => runBrokerSync(), onAutoSyncChange: (v) => persistSettings({ ...settings, brokerAutoSync: v }) }} /></Suspense>;
+    body = !hasFeature(syncPlan, "brokerSync") ? (
+      <div style={{ maxWidth: 520, margin: "24px auto", padding: "0 12px" }}>
+        <PlanLockCard title="Broker sync" plan="pro" blurb="Auto-log your MT5 trades and watch your open trade live. Included in Pro and Creator." />
+      </div>
+    ) : <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><BrokerTab {...{ isDesktop, connection: brokerConn, syncInfo: brokerSyncInfo, autoSync: !!settings.brokerAutoSync, onConnect: connectBroker, onDisconnect: disconnectBroker, brokerAccountName, activeAccountName, linkedElsewhere: !!(brokerLinkedId && activeAccountId && brokerLinkedId !== activeAccountId), onLinkToActive: () => persistBrokerAccountId(activeAccountId), onSync: () => runBrokerSync(), onAutoSyncChange: (v) => persistSettings({ ...settings, brokerAutoSync: v }) }} /></Suspense>;
   }
 
   if (activeTab === "backtest") {
@@ -8292,7 +8297,7 @@ if (activeTab === "community") {
 
         {/* PLAN */}
         <SettingsSection icon={Sparkles} title="Plan" isDesktop={isDesktop} hidden={!isDesktop && settingsMobileSection !== "plan"}>
-          <PlanSettingsCard />
+          <PlanSettingsCard accountsUsed={accounts.filter((acc) => !acc.archived).length} coachRemaining={session?.token ? coachRemaining : null} />
         </SettingsSection>
 
         {/* ACCOUNTS */}
