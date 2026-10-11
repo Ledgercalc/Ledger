@@ -68,13 +68,14 @@ export const bySetup = (trades, labelOf) => groupTrades(trades, (t) => t.setup, 
 
 export const bySession = (trades, labelOf) => groupTrades(trades, (t) => t.session, (k) => labelOf(k) || k);
 
+// Scale moods first (Very bad to Very good), older moods after.
 export const byMood = (trades, metaOf) =>
   groupTrades(
     trades,
     (t) => t.emotion,
     (k) => metaOf(k)?.label || k,
-    (k) => ({ emoji: metaOf(k)?.emoji || "" })
-  );
+    (k) => ({ score: metaOf(k)?.score ?? 99 })
+  ).sort((a, b) => a.score - b.score);
 
 export const DIRECTIONS = [
   { id: "up", label: "Buy" },
