@@ -967,7 +967,7 @@ export default function CurveTab(props) {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2" style={{ color: palette.text, fontSize: "15px", fontWeight: 700 }}>
                             <span className="truncate">
-                              #{tradeNumberById[t.id]} {t.pair || "Trade"}
+                              {t.pair || "Trade"}
                             </span>
                             {(t.direction === "up" || t.direction === "down") && (
                               <span
