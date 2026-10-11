@@ -295,6 +295,8 @@ async function flushOnly() {
 }
 
 // Used for edits made while the app is open: upload, and fall back to a full sync if another device got there first.
+const isPlanBlock = (err) => /part of the pro plan/i.test(String((err && err.message) || ""));
+
 async function flushSafe() {
   if (!cfg || !cfg.getToken() || !readyToUpload) return;
   try {
@@ -302,6 +304,7 @@ async function flushSafe() {
     if (r.conflict) await syncCycle();
     else if (status.state !== "error") setStatus("ok");
   } catch (err) {
+    if (isPlanBlock(err)) { setStatus("plan", "Cloud sync is part of the Pro plan."); return; }
     setStatus("error", String((err && err.message) || "Couldn't sync. Will retry."));
     clearTimeout(retryTimer);
     retryTimer = setTimeout(() => { run(syncCycle); }, RETRY_MS);
@@ -343,6 +346,7 @@ async function syncCycle() {
       setStatus("locked", err.message);
       return;
     }
+    if (isPlanBlock(err)) { setStatus("plan", "Cloud sync is part of the Pro plan."); return; } // no retry loop
     setStatus("error", String((err && err.message) || "Couldn't sync. Will retry."));
     retryTimer = setTimeout(() => { run(syncCycle); }, RETRY_MS);
   }
