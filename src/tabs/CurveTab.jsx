@@ -2,7 +2,7 @@ import { pokeCrab } from "../lib/mascot.js";
 import { OnboardingTip } from "../components/onboarding.jsx";
 import { StatChip } from "../components/ui.jsx";
 import { computeDisciplineStreak, computeRevengeIds } from "../lib/analytics.js";
-import { EMOTIONS, NOTE_TAGS, RUNTIME, SETUPS, emotionMeta } from "../lib/constants.js";
+import { EMOTIONS, LEGACY_EMOTIONS, NOTE_TAGS, RUNTIME, SETUPS, emotionMeta } from "../lib/constants.js";
 import { MARKET_SESSIONS, sessionOpenAtUTCHour } from "../lib/sessions.js";
 import { CONFIDENCE_MAX, CONFIDENCE_MIN, confidenceWord } from "../lib/tradeInsights.js";
 import { MONTH_NAMES, dayKeyFromDate, dayKeyFromTs, fmt, fmtMoney, formatDayLabel, num, pad2 } from "../lib/format.js";
@@ -76,7 +76,7 @@ function OpenTradeTags({ positionId, tags, saveOpenTag, customSetups, customSetu
   const summary = [
     setupLabel,
     Number(t.confidence) > 0 ? `${t.confidence}/${CONFIDENCE_MAX}` : "",
-    mood ? `${mood.emoji || ""} ${mood.label}`.trim() : "",
+    mood ? mood.label : "",
     String(t.note || "").trim() ? "Note" : "",
   ]
     .filter(Boolean)
@@ -87,7 +87,7 @@ function OpenTradeTags({ positionId, tags, saveOpenTag, customSetups, customSetu
     border: `1px ${dashed ? "dashed" : "solid"} ${active ? palette.gold : palette.border}`,
     fontSize: "13px",
   });
-  const moods = [...EMOTIONS.map((e) => ({ ...e, custom: false })), ...(customMoodsLoaded ? (customMoods || []).map((m) => ({ ...m, custom: true })) : [])];
+  const moods = EMOTIONS;
   return (
     <div style={{ marginTop: "10px" }}>
       <button
@@ -121,9 +121,8 @@ function OpenTradeTags({ positionId, tags, saveOpenTag, customSetups, customSetu
                   aria-pressed={active}
                   onClick={() => saveOpenTag(positionId, { emotion: active ? null : e.id })}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-colors ${TAP}`}
-                  style={chipStyle(active, e.custom)}
+                  style={chipStyle(active, false)}
                 >
-                  <span>{e.emoji}</span>
                   {e.label}
                 </button>
               );
@@ -152,7 +151,7 @@ function OpenTradeTags({ positionId, tags, saveOpenTag, customSetups, customSetu
 }
 
 // Pop-up card listing every trade that is open right now, with the same details on phone and PC.
-function OpenTradesSheet({ positions, isDesktop, onClose, tagProps }) {
+function OpenTradesSheet({ positions, isDesktop, onClose, tagProps, accountLabel }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
@@ -212,7 +211,7 @@ function OpenTradesSheet({ positions, isDesktop, onClose, tagProps }) {
           <div>
             <div style={{ color: palette.text, fontFamily: display, fontSize: "18px", fontWeight: 700 }}>Open trades</div>
             <div style={{ color: palette.textFaint, fontSize: "12px", marginTop: "2px" }}>
-              {positions.length} open right now
+              {positions.length} open right now{accountLabel ? ` \u00b7 ${accountLabel}` : ""}
             </div>
           </div>
           <button
@@ -339,13 +338,13 @@ function ActiveTradePanel({ cardStyle, tagProps, ...props }) {
       >
         <ActiveTradeContent {...props} />
       </div>
-      {open && tappable && <OpenTradesSheet positions={props.positions} isDesktop={props.isDesktop} onClose={() => setOpen(false)} tagProps={tagProps} />}
+      {open && tappable && <OpenTradesSheet positions={props.positions} isDesktop={props.isDesktop} onClose={() => setOpen(false)} tagProps={tagProps} accountLabel={props.accountLabel} />}
     </>
   );
 }
 
 // The trade that is open right now, straight from the connected broker.
-function ActiveTradeContent({ connected, positions, pnlAvailable, error, isDesktop }) {
+function ActiveTradeContent({ connected, positions, pnlAvailable, error, isDesktop, accountLabel }) {
   const [now, setNow] = useState(() => Date.now());
   const hasLive = connected && positions.length > 0;
   useEffect(() => {
@@ -354,8 +353,8 @@ function ActiveTradeContent({ connected, positions, pnlAvailable, error, isDeskt
     return () => clearInterval(id);
   }, [hasLive]);
 
-  const title = (
-    <div style={{ color: palette.textMuted, fontSize: "12px", display: "flex", alignItems: "center", gap: "6px" }}>
+  const titleText = (
+    <div style={{ color: palette.textMuted, fontSize: "12px", display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
       {positions.length > 1 ? `${positions.length} Active trades` : "Active trade"}
       {hasLive && (
         <span
@@ -363,6 +362,17 @@ function ActiveTradeContent({ connected, positions, pnlAvailable, error, isDeskt
           style={{ width: 7, height: 7, borderRadius: 999, background: palette.green, boxShadow: `0 0 0 3px ${palette.green}26` }}
         />
       )}
+    </div>
+  );
+  // Top row: "Active trade" on the left, the Tredzi account the broker saves into on the right (same on phone and PC).
+  const title = (
+    <div className="flex items-center justify-between" style={{ gap: "10px", minWidth: 0 }}>
+      {titleText}
+      {accountLabel ? (
+        <span className="truncate" title={accountLabel} style={{ color: palette.textFaint, fontSize: "12px", fontWeight: 600, minWidth: 0, textAlign: "right" }}>
+          {accountLabel}
+        </span>
+      ) : null}
     </div>
   );
   const quiet = { color: palette.textFaint, fontSize: "12px", marginTop: "6px", lineHeight: 1.4 };
@@ -448,9 +458,10 @@ function ActiveTradeContent({ connected, positions, pnlAvailable, error, isDeskt
     </div>
   ) : null;
   return (
+    <div>
+    {title}
     <div className="flex" style={{ justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
     <div style={{ minWidth: 0, flex: 1 }}>
-      {title}
       <div className="flex items-baseline" style={{ gap: "8px", marginTop: "4px", minWidth: 0 }}>
         <span className="truncate" style={{ color: palette.text, fontFamily: mono, fontSize: "14px", fontWeight: 700 }}>
           {p.pair}
@@ -484,6 +495,7 @@ function ActiveTradeContent({ connected, positions, pnlAvailable, error, isDeskt
       )}
     </div>
     {levels}
+    </div>
     </div>
   );
 }
@@ -1065,7 +1077,7 @@ export default function CurveTab(props) {
                             {t.setup && <span style={chip(palette.textMuted)}>{findSetupLabel(t.setup)}</span>}
                             {mood && (
                               <span style={chip(palette.textMuted)}>
-                                {mood.emoji} {mood.label}
+                                {mood.label}
                               </span>
                             )}
                             {showRevenge && <span style={chip(palette.red)}>Revenge trade</span>}
@@ -1235,6 +1247,7 @@ export default function CurveTab(props) {
           </div>
           <ActiveTradePanel
             cardStyle={{ ...topCard(), padding: isDesktop ? "24px" : "16px" }}
+            accountLabel={brokerConn && brokerConn.connected ? props.brokerAccountName : ""}
             tagProps={{ openTags: props.openTags, saveOpenTag: props.saveOpenTag, customSetups, customSetupsLoaded, addCustomSetup, customMoods, customMoodsLoaded }}
             connected={!!(brokerConn && brokerConn.connected)}
             positions={livePositions || []}
@@ -2031,7 +2044,7 @@ export default function CurveTab(props) {
                               style={selectStyle}
                             >
                               <option value="">Any mood</option>
-                              {[...EMOTIONS, ...(customMoodsLoaded ? customMoods : [])].map((x) => (
+                              {[...EMOTIONS, ...LEGACY_EMOTIONS, ...(customMoodsLoaded ? customMoods : [])].map((x) => (
                                 <option key={x.id} value={x.id}>
                                   {x.label}
                                 </option>
@@ -2407,33 +2420,10 @@ export default function CurveTab(props) {
                   fontSize: "13px",
                 }}
               >
-                <span>{e.emoji}</span>
                 {e.label}
               </button>
             );
           })}
-
-          {customMoodsLoaded &&
-            customMoods.map((m) => {
-              const active = tradeEmotion === m.id;
-              return (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => setTradeEmotion(active ? null : m.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-colors ${TAP}`}
-                  style={{
-                    background: active ? palette.gold : palette.field,
-                    color: active ? palette.letterbox : palette.textMuted,
-                    border: `1px dashed ${active ? palette.gold : palette.border}`,
-                    fontSize: "13px",
-                  }}
-                >
-                  <span>{m.emoji}</span>
-                  {m.label}
-                </button>
-              );
-            })}
         </div>
 
         <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
