@@ -4,7 +4,7 @@ import { TREDZI_EA } from "../lib/tredziEa.js";
 
 // Broker connection screen (TradeLocker, Match-Trader). Connect calls the optional `onConnect`
 // prop, and shows a "not switched on yet" message until a backend handler is passed in.
-export default function BrokerTab({ onConnect, onDisconnect, onSync, onAutoSyncChange, connection, syncInfo, autoSync: autoSyncProp }) {
+export default function BrokerTab({ onConnect, onDisconnect, onSync, onAutoSyncChange, connection, syncInfo, autoSync: autoSyncProp, brokerAccountName, activeAccountName, linkedElsewhere, onLinkToActive }) {
   const PLATFORMS = [
     { id: "tradelocker", label: "TradeLocker", ready: true },
     { id: "mt5", label: "MetaTrader 5", ready: true, tag: "Free" },
@@ -471,6 +471,16 @@ export default function BrokerTab({ onConnect, onDisconnect, onSync, onAutoSyncC
               <div className="text-xs" style={{ color: palette.textFaint }}>
                 {[connection.accountName, connection.server, connection.env === "demo" ? "Demo" : "Live"].filter(Boolean).join(" \u00b7 ")}
               </div>
+              {brokerAccountName && (
+                <div className="text-xs" style={{ color: palette.textFaint, marginTop: 2 }}>
+                  Saves trades into <span style={{ color: palette.text, fontWeight: 600 }}>{brokerAccountName}</span>
+                </div>
+              )}
+              {linkedElsewhere && onLinkToActive && (
+                <button type="button" onClick={onLinkToActive} className="text-xs font-semibold" style={{ color: palette.gold, marginTop: 4, textAlign: "left" }}>
+                  Save into {activeAccountName || "this account"} instead
+                </button>
+              )}
             </div>
             <button
               type="button"
