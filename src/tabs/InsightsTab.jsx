@@ -6,7 +6,7 @@ import { hasFeature } from "../data/plans.js";
 import { useMyPlan } from "../lib/planStore.js";
 import { Readout, StatChip } from "../components/ui.jsx";
 import { METRIC_INFO, MIN_TRADES_FOR_TIERS, computeConsistencyScore, computeDisciplineGrade, computeDisciplineStreakTrend, computeHeadlineInsight, computeInsights, computeJournalCompleteness, computeMonthComparison, computeNoteTagAnalysis, computeOverconfidenceCheck, computePerformanceMetrics, computeRevengeCostSplit, tierColor } from "../lib/analytics.js";
-import { EMOTIONS, SETUPS } from "../lib/constants.js";
+import { SETUPS, emotionMeta } from "../lib/constants.js";
 import { MARKET_SESSIONS } from "../lib/sessions.js";
 import { CONFIDENCE_MAX, bySession, bySetup, byConfidence, byDirection, byMood, byPair, byWeekday, findPatterns, tagCoverage } from "../lib/tradeInsights.js";
 import { fmtMoney } from "../lib/format.js";
@@ -52,7 +52,6 @@ function EdgeRows({ rows, signed, emptyText }) {
           <div key={r.id} style={{ marginBottom: i === rows.length - 1 ? 0 : "14px" }}>
             <div className="flex items-baseline justify-between" style={{ gap: "8px" }}>
               <span style={{ color: palette.text, fontSize: "14px", minWidth: 0 }} className="truncate">
-                {r.emoji ? `${r.emoji} ` : ""}
                 {r.label}
               </span>
               <span style={{ fontFamily: mono, fontSize: "13px", fontWeight: 700, color, flexShrink: 0 }}>{signed(r.pnl)}</span>
@@ -180,7 +179,7 @@ export default function InsightsTab(props) {
     } = useMemo(() => {
       const setupLabel = (id) => [...SETUPS, ...(customSetups || [])].find((x) => x.id === id)?.label;
       const sessionLabel = (id) => MARKET_SESSIONS.find((x) => x.id === id)?.label;
-      const moodMeta = (id) => [...EMOTIONS, ...(customMoods || [])].find((x) => x.id === id);
+      const moodMeta = (id) => emotionMeta(id) || (customMoods || []).find((x) => x.id === id);
       const setupRows = bySetup(trades, setupLabel);
       const sessionRows = bySession(trades, sessionLabel);
       const moodRows = byMood(trades, moodMeta);
