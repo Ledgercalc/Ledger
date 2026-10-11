@@ -15,7 +15,7 @@ import { FX_CACHE_MS, FX_LIVE_STORAGE_KEY, fetchLiveFxRates } from "./data/curre
 import { ONBOARDING_SLIDES, TOUR_STEPS } from "./data/onboarding.js";
 import { buildWeekRecap, computeConsistencyScore, computeDisciplineGrade, computeDisciplineStreak, computeDisciplineStreakTrend, computeHeadlineInsight, computeInsights, computeJournalCompleteness, computeMonthComparison, computeNoteTagAnalysis, computeOverconfidenceCheck, computePerformanceMetrics, computeRevengeCostSplit, computeSessionWinRates, computeStatementData, filledJournalRows, generateThreeCurveProjection, journalMistakeFrequency } from "./lib/analytics.js";
 import { FMP_CACHE_MS, FMP_STORAGE_KEY, fetchEconomicCalendar, registerAlarmServiceWorker } from "./lib/calendar.js";
-import { ACCOUNTS_ACTIVE_KEY, ACCOUNTS_LIST_KEY, ALARM_CHECK_INTERVAL_MS, ALARM_STALE_WINDOW_MS, CONFIDENCE_OPTIONS, CS_STORAGE_KEY, CUSTOM_MOODS_STORAGE_KEY, CUSTOM_SETUPS_STORAGE_KEY, DEFAULT_CS_INPUTS, DEFAULT_JOURNAL_COL_WIDTHS, DEFAULT_NOTEPAD_FONT_SIZE, DEFAULT_SETTINGS, EDGE_PROJECTION_PERIODS, EDGE_STORAGE_KEY, EMOTIONS, FX_LAST_PAIR_KEY, GOALS_STORAGE_KEY, HIDDEN_DEFAULT_SETUPS_KEY, JOURNAL_COLS_STORAGE_KEY, JOURNAL_COLUMNS, JOURNAL_COL_MAX, JOURNAL_COL_MIN, JOURNAL_STORAGE_KEY, LINKED_FIRM_KEY, MAX_CUSTOM_MOODS, MAX_CUSTOM_SETUPS, MAX_JOURNAL_PHOTOS_PER_ROW, MAX_PLAYBOOK_RULES, MOBILE_NAV_PRIMARY_COUNT, NEWS_STORAGE_KEY, NOTEPAD_FONT_SIZES, NOTEPAD_STORAGE_KEY, OUTCOME_OPTIONS, PLAYBOOK_CHECKINS_KEY, PLAYBOOK_RULES_KEY, PLAYBOOK_STARTER_RULES, PS_STORAGE_KEY, RUNTIME, SETTINGS_STORAGE_KEY, SETUPS, STORAGE_BAL_KEY, STORAGE_KEY, TABS as BASE_TABS, THEME_STORAGE_KEY, TREND_OPTIONS, WEEK_MS, confidenceLabel, emotionMeta, outcomeLabel, scopedKey, sessionLabelFor, setupMeta } from "./lib/constants.js";
+import { ACCOUNTS_ACTIVE_KEY, ACCOUNTS_LIST_KEY, ALARM_CHECK_INTERVAL_MS, ALARM_STALE_WINDOW_MS, CONFIDENCE_OPTIONS, CS_STORAGE_KEY, CUSTOM_MOODS_STORAGE_KEY, CUSTOM_SETUPS_STORAGE_KEY, DEFAULT_CS_INPUTS, DEFAULT_JOURNAL_COL_WIDTHS, DEFAULT_NOTEPAD_FONT_SIZE, DEFAULT_SETTINGS, EDGE_PROJECTION_PERIODS, EDGE_STORAGE_KEY, EMOTIONS, FX_LAST_PAIR_KEY, LEGACY_EMOTIONS, GOALS_STORAGE_KEY, HIDDEN_DEFAULT_SETUPS_KEY, JOURNAL_COLS_STORAGE_KEY, JOURNAL_COLUMNS, JOURNAL_COL_MAX, JOURNAL_COL_MIN, JOURNAL_STORAGE_KEY, LINKED_FIRM_KEY, MAX_CUSTOM_MOODS, MAX_CUSTOM_SETUPS, MAX_JOURNAL_PHOTOS_PER_ROW, MAX_PLAYBOOK_RULES, MOBILE_NAV_PRIMARY_COUNT, NEWS_STORAGE_KEY, NOTEPAD_FONT_SIZES, NOTEPAD_STORAGE_KEY, OUTCOME_OPTIONS, PLAYBOOK_CHECKINS_KEY, PLAYBOOK_RULES_KEY, PLAYBOOK_STARTER_RULES, PS_STORAGE_KEY, RUNTIME, SETTINGS_STORAGE_KEY, SETUPS, STORAGE_BAL_KEY, STORAGE_KEY, TABS as BASE_TABS, THEME_STORAGE_KEY, TREND_OPTIONS, WEEK_MS, confidenceLabel, emotionMeta, outcomeLabel, scopedKey, sessionLabelFor, setupMeta } from "./lib/constants.js";
 import { STORY_SLIDE_MS, feedTimeAgo, isWithinStoryWindow } from "./lib/feed.js";
 import { dayKeyFromDate, dayKeyFromTs, fmt, fmtMoney, fmtPct, formatDayLabel, num, pad2 } from "./lib/format.js";
 import { SCREENSHOT_MAX_PER_TRADE, dataUrlToFile, readStickerFileRaw, resizeImageFile, resizeStickerFile, tradeScreenshots } from "./lib/images.js";
@@ -29,6 +29,27 @@ import { formatCountdown, formatMinSec, nextOccurrenceMs } from "./lib/time.js";
 import { AlertTriangle, ArrowLeftRight, Link2, Bell, Building2, Camera, CandlestickChart, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, Flame, Heart, LayoutGrid, Lightbulb, LogOut, MessageCircle, Moon, Newspaper, Palette, Pencil, Plus, RotateCcw, Scale, Search, Send, Settings, Share2, ShieldAlert, Sparkles, Sun, Table2, Tags, Trash2, Upload, Users, X , Activity, TrendingDown, TrendingUp } from "lucide-react";
 import React, { Suspense, lazy, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import "./typography.css";
+
+// Risk management settings belong to each account (a new account starts at the defaults).
+const RISK_KEYS = ["dailyLossLimit", "maxTradesPerDay", "revengeLockEnabled", "revengeWindowMinutes", "showRevengeTag"];
+const RISK_BASE = "tredzi-risk-settings";
+const RISK_LEGACY_KEY = "tredzi-risk-settings-legacy"; // the old shared values, used by accounts that never set their own
+const pickRisk = (o) => {
+  const r = {};
+  RISK_KEYS.forEach((k) => {
+    if (o && o[k] !== undefined) r[k] = o[k];
+  });
+  return r;
+};
+const applyRisk = (s, risk) => {
+  const n = { ...s };
+  RISK_KEYS.forEach((k) => {
+    if (risk && risk[k] !== undefined) n[k] = risk[k];
+    else if (DEFAULT_SETTINGS[k] !== undefined) n[k] = DEFAULT_SETTINGS[k];
+    else delete n[k];
+  });
+  return n;
+};
 
 // Bottom-dock sliding pill helpers (mobile).
 function readDockActive(root) {
@@ -3251,6 +3272,36 @@ useEffect(() => {
   const runBrokerSyncRef = useRef(null); // always the latest runBrokerSync, so timers never use a stale copy
   const prevPosIdsRef = useRef(null);    // open position ids from the last poll, to spot a trade that just closed
 
+  // Which Tredzi account the broker saves its trades into. Switching accounts later does not move it.
+  const BROKER_LINK_KEY = "tredzi-broker-linked-account";
+  const [brokerAccountId, setBrokerAccountId] = useState(null);
+  const brokerAccountIdRef = useRef(null);
+  brokerAccountIdRef.current = brokerAccountId;
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await window.storage.get(BROKER_LINK_KEY, false);
+        if (r && r.value) setBrokerAccountId(String(r.value));
+      } catch (err) {
+        // not linked yet
+      }
+    })();
+  }, []);
+  const persistBrokerAccountId = async (id) => {
+    brokerAccountIdRef.current = id || null;
+    setBrokerAccountId(id || null);
+    try {
+      if (id) await window.storage.set(BROKER_LINK_KEY, String(id), false);
+      else await window.storage.delete(BROKER_LINK_KEY, false);
+    } catch (err) {
+      // non-critical
+    }
+  };
+
+  const brokerLinkedId = brokerAccountId && accounts.some((x) => x.id === brokerAccountId) ? brokerAccountId : activeAccountId;
+  const brokerAccountName = (accounts.find((x) => x.id === brokerLinkedId) || {}).name || "";
+  const activeAccountName = (accounts.find((x) => x.id === activeAccountId) || {}).name || "";
+
   // Cloud sync: the same accounts and journal data on every device you sign in on.
   const syncTokenRef = useRef(null);
   syncTokenRef.current = session?.token || null;
@@ -3263,8 +3314,8 @@ useEffect(() => {
     startCloudSync({
       getToken: () => syncTokenRef.current,
       accountsKey: ACCOUNTS_LIST_KEY,
-      globalKeys: [CUSTOM_SETUPS_STORAGE_KEY, CUSTOM_MOODS_STORAGE_KEY, HIDDEN_DEFAULT_SETUPS_KEY],
-      accountBases: [STORAGE_BAL_KEY, CS_STORAGE_KEY, STORAGE_KEY, JOURNAL_STORAGE_KEY, PLAYBOOK_RULES_KEY, PLAYBOOK_CHECKINS_KEY, NOTEPAD_STORAGE_KEY, LINKED_FIRM_KEY, GOALS_STORAGE_KEY],
+      globalKeys: [CUSTOM_SETUPS_STORAGE_KEY, CUSTOM_MOODS_STORAGE_KEY, HIDDEN_DEFAULT_SETUPS_KEY, "tredzi-broker-linked-account"],
+      accountBases: [STORAGE_BAL_KEY, CS_STORAGE_KEY, STORAGE_KEY, JOURNAL_STORAGE_KEY, PLAYBOOK_RULES_KEY, PLAYBOOK_CHECKINS_KEY, NOTEPAD_STORAGE_KEY, LINKED_FIRM_KEY, GOALS_STORAGE_KEY, RISK_BASE],
       pristineBases: [STORAGE_KEY, JOURNAL_STORAGE_KEY, NOTEPAD_STORAGE_KEY, PLAYBOOK_CHECKINS_KEY],
       scopedKey,
     });
@@ -3350,7 +3401,34 @@ useEffect(() => {
         headers: brokerHeaders(),
         body: JSON.stringify(opts.days ? { days: opts.days } : {}),
       });
-      const have = new Set(tradesRef.current.map((t) => t.brokerId).filter(Boolean));
+      // Trades go into the account the broker was connected from, even if another account is open right now.
+      let targetId = brokerAccountIdRef.current;
+      if (!targetId || !accounts.some((a) => a.id === targetId)) {
+        targetId = activeAccountId;
+        if (targetId) persistBrokerAccountId(targetId);
+      }
+      const sameAccount = !targetId || targetId === activeAccountId;
+      let baseTrades = tradesRef.current;
+      if (!sameAccount) {
+        baseTrades = [];
+        try {
+          const r = await window.storage.get(scopedKey(STORAGE_KEY, targetId), false);
+          const parsed = r && r.value ? JSON.parse(r.value) : [];
+          if (Array.isArray(parsed)) baseTrades = parsed;
+        } catch (err) {
+          const target = accounts.find((a) => a.id === targetId);
+          if (target && target.legacy) {
+            try {
+              const r2 = await window.storage.get(STORAGE_KEY, false);
+              const parsed2 = r2 && r2.value ? JSON.parse(r2.value) : [];
+              if (Array.isArray(parsed2)) baseTrades = parsed2;
+            } catch (err2) {
+              baseTrades = [];
+            }
+          }
+        }
+      }
+      const have = new Set(baseTrades.map((t) => t.brokerId).filter(Boolean));
       const fresh = [];
       const usedTags = [];
       let noPnl = 0;
@@ -3385,7 +3463,10 @@ useEffect(() => {
           exitPrice: t.exitPrice,
         });
       }
-      if (fresh.length) persistTrades([...tradesRef.current, ...fresh]);
+      if (fresh.length) {
+        if (sameAccount) persistTrades([...tradesRef.current, ...fresh]);
+        else await window.storage.set(scopedKey(STORAGE_KEY, targetId), JSON.stringify([...baseTrades, ...fresh]), false);
+      }
       if (usedTags.length) {
         const nextTags = { ...openTagsRef.current };
         usedTags.forEach((k) => delete nextTags[k]);
@@ -3426,6 +3507,7 @@ useEffect(() => {
       ),
     });
     setBrokerConn(data.connection);
+    persistBrokerAccountId(activeAccountId); // this broker saves into the account that is open right now
     persistSettings({ ...settings, brokerAutoSync: !!form.autoSync });
     runBrokerSync();
     return data;
@@ -3435,6 +3517,7 @@ useEffect(() => {
     await communityApi("/broker/connection", { method: "DELETE", headers: brokerHeaders() });
     setBrokerConn(null);
     setLivePositions([]);
+    persistBrokerAccountId(null);
     setBrokerSyncInfo({ syncing: false, lastSync: 0, message: "" });
   };
 
@@ -3537,7 +3620,11 @@ useEffect(() => {
   };
 
   const persistSettings = async (next) => {
+    const riskChanged = !!activeAccountId && RISK_KEYS.some((k) => next[k] !== settings[k]);
     setSettings(next);
+    if (riskChanged) {
+      window.storage.set(scopedKey(RISK_BASE, activeAccountId), JSON.stringify(pickRisk(next)), false).catch(() => {});
+    }
     try {
       await window.storage.set(SETTINGS_STORAGE_KEY, JSON.stringify(next), false);
     } catch (err) {
@@ -3546,6 +3633,35 @@ useEffect(() => {
   };
 
 
+
+  // Load the active account's own risk management settings whenever the account changes.
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+  useEffect(() => {
+    if (!accountsLoaded || !settingsLoaded || !activeAccountId) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        let legacy = null;
+        try {
+          const l = await window.storage.get(RISK_LEGACY_KEY, false);
+          if (l && l.value) legacy = JSON.parse(l.value);
+        } catch (e) { /* not saved yet */ }
+        if (!legacy) {
+          legacy = pickRisk(settingsRef.current); // freeze today's shared values for accounts that never set their own
+          try { await window.storage.set(RISK_LEGACY_KEY, JSON.stringify(legacy), false); } catch (e) { /* ignore */ }
+        }
+        let own = null;
+        try {
+          const r = await window.storage.get(scopedKey(RISK_BASE, activeAccountId), false);
+          if (r && r.value) own = JSON.parse(r.value);
+        } catch (e) { /* none yet */ }
+        if (cancelled) return;
+        setSettings((s) => applyRisk(s, own || legacy));
+      } catch (e) { /* non-critical */ }
+    })();
+    return () => { cancelled = true; };
+  }, [accountsLoaded, settingsLoaded, activeAccountId]);
 
   // --- Community actions (talk to the real backend) ---
   const persistCommunityUsername = async (name) => {
@@ -5044,6 +5160,8 @@ const switchAccount = (id) => {
     // A new account starts with its own empty targets, not a copy of another account's.
     window.storage.set(scopedKey(GOALS_STORAGE_KEY, id), JSON.stringify({ weeklyTargetPct: "", monthlyTargetPct: "" }), false).catch(() => {});
     setGoals({ weeklyTargetPct: "", monthlyTargetPct: "" });
+    window.storage.set(scopedKey(RISK_BASE, id), JSON.stringify({}), false).catch(() => {}); // empty = default risk settings
+    setSettings((s) => applyRisk(s, {}));
     persistActiveAccountId(id);
     setAddingAccount(false);
     setNewAccountName("");
@@ -5069,6 +5187,7 @@ const switchAccount = (id) => {
     }
     persistAccounts(remaining);
     window.storage.delete(scopedKey(GOALS_STORAGE_KEY, pendingAccountDelete), false).catch(() => {});
+    window.storage.delete(scopedKey(RISK_BASE, pendingAccountDelete), false).catch(() => {});
     if (activeAccountId === pendingAccountDelete) {
       persistActiveAccountId(remaining[0].id);
     }
@@ -5119,48 +5238,6 @@ const selectInsightsSubTab = (id) => {
   const findSetupLabel = (id) => setupMeta(id)?.label || customSetups.find((s) => s.id === id)?.label || id;
 
     const findMoodMeta = (id) => emotionMeta(id) || customMoods.find((m) => m.id === id);
-
-  const openAddMood = () => {
-    setMoodError("");
-    setNewMoodName("");
-    setNewMoodEmoji("🙂");
-    setAddingMood(true);
-  };
-
-  const cancelAddMood = () => {
-    setAddingMood(false);
-    setNewMoodName("");
-    setMoodError("");
-  };
-
-  const confirmAddMood = () => {
-    const name = newMoodName.trim();
-    if (!name) return;
-    if (name.length > 16) {
-      setMoodError("Keep it under 16 characters.");
-      return;
-    }
-    const allLabels = [...EMOTIONS, ...customMoods].map((m) => m.label.toLowerCase());
-    if (allLabels.includes(name.toLowerCase())) {
-      setMoodError("That mood already exists.");
-      return;
-    }
-    if (customMoods.length >= MAX_CUSTOM_MOODS) {
-      setMoodError(`You can add up to ${MAX_CUSTOM_MOODS} custom moods.`);
-      return;
-    }
-    const id = `custom-mood-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    const next = [...customMoods, { id, label: name, emoji: newMoodEmoji || "🙂" }];
-    persistCustomMoods(next);
-    setAddingMood(false);
-    setNewMoodName("");
-    setMoodError("");
-  };
-
-  const removeCustomMood = (id) => {
-    persistCustomMoods(customMoods.filter((m) => m.id !== id));
-    if (tradeEmotion === id) setTradeEmotion(null);
-  };
 
   const persistJournalEntries = async (next) => {
     setJournalEntries(next);
@@ -5837,7 +5914,7 @@ const selectInsightsSubTab = (id) => {
   };
   const findMoodIdByLabel = (label) => {
     const l = (label || "").trim().toLowerCase();
-    const found = EMOTIONS.find((e) => e.label.toLowerCase() === l);
+    const found = [...EMOTIONS, ...LEGACY_EMOTIONS].find((e) => e.label.toLowerCase() === l);
     return found ? found.id : "";
   };
   const findConfidenceIdByLabel = (label) => {
@@ -7139,11 +7216,11 @@ const hiddenTabIds = settings.hiddenTabs || [];
   }
 
   if (activeTab === "journal") {
-    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><JournalTab {...{ CurveTab, curveProps: { backupMsg, calMonth, cancelEditTrade, cancelImport, clearTrades, confirmImport, copyFallbackText, copyMsg, copyWeekSummary, addCustomSetup, brokerConn, liveError, livePnlAvailable, livePositions, openTags, saveOpenTag, customMoods, customMoodsLoaded, customSetups, customSetupsLoaded, deleteTrade, editingTradeId, expandedTradeId, exportBackup, fileInputRef, findSetupLabel, generateWeeklyShare, goals, handleScreenshotChange, importBackup, isDesktop, logFormRef, openScreenshotPicker, pendingImport, persistGoals, persistSettings, persistStartingBalance, screenshotError, screenshotInputRef, screenshotSaving, screenshotTargetId, selectedDay, setCalMonth, setCopyFallbackText, setExpandedTradeId, setPendingScreenshotDelete, setSelectedDay, setShowDisciplineInfo, setShowStreakInfo, setStatementPeriod, setTradeConfidence, setTradeDirection, setTradeEmotion, setTradeInput, setTradeNote, setTradePair, setTradeSession, setTradeSetup, setViewingScreenshot, settings, shareError, shareImageFile, showDisciplineInfo, showStreakInfo, startEditTrade, startingBalance, submitTrade, tradeConfidence, tradeDirection, tradeEmotion, tradeInput, tradeNote, tradePair, tradeSession, tradeSetup, trades, tradesLoadError, tradesLoaded, logSheetOpen, setLogSheetOpen }, goals, persistGoals, startingBalance, trades, addJournalRow, addPlaybookRule, addingSetup, cancelAddSetup, confirmAddSetup, customMoods, customSetups, deleteJournalRow, deletePlaybookCheckin, endJournalResize, exportJournalCSV, handleJournalCellKeyDown, handleJournalPhotoChange, hiddenDefaultSetupIds, importJournalCSV, isDesktop, isNarrowScreen, journalCellRefs, journalColWidths, journalEntries, journalExpandedRows, journalExportMsg, journalImportInputRef, journalImportMsg, journalLoaded, journalMonth, journalPhotoError, journalPhotoInputRef, journalPhotoSaving, journalPhotoTarget, journalSubTab, journalYear, moveJournalResize, newRuleText, newSetupName, openJournalPhotoPicker, persistSettings, playbookCheckins, playbookMsg, playbookRuleError, playbookRules, playbookRulesLoaded, removePlaybookRule, renderSubNav, setJournalMonth, setJournalSubTab, setJournalYear, setNewRuleText, setNewSetupName, setPendingJournalPhotoDelete, setPlaybookRuleError, setSetupError, setViewingJournalPhoto, settings, setupError, startJournalResize, submitCheckin, todayResults, toggleJournalRowExpanded, toggleTodayResult, triggerJournalImport, updateJournalField, updateJournalPnl }} /></Suspense>;
+    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><JournalTab {...{ CurveTab, curveProps: { backupMsg, calMonth, cancelEditTrade, cancelImport, clearTrades, confirmImport, copyFallbackText, copyMsg, copyWeekSummary, addCustomSetup, brokerConn, brokerAccountName, liveError, livePnlAvailable, livePositions, openTags, saveOpenTag, customMoods, customMoodsLoaded, customSetups, customSetupsLoaded, deleteTrade, editingTradeId, expandedTradeId, exportBackup, fileInputRef, findSetupLabel, generateWeeklyShare, goals, handleScreenshotChange, importBackup, isDesktop, logFormRef, openScreenshotPicker, pendingImport, persistGoals, persistSettings, persistStartingBalance, screenshotError, screenshotInputRef, screenshotSaving, screenshotTargetId, selectedDay, setCalMonth, setCopyFallbackText, setExpandedTradeId, setPendingScreenshotDelete, setSelectedDay, setShowDisciplineInfo, setShowStreakInfo, setStatementPeriod, setTradeConfidence, setTradeDirection, setTradeEmotion, setTradeInput, setTradeNote, setTradePair, setTradeSession, setTradeSetup, setViewingScreenshot, settings, shareError, shareImageFile, showDisciplineInfo, showStreakInfo, startEditTrade, startingBalance, submitTrade, tradeConfidence, tradeDirection, tradeEmotion, tradeInput, tradeNote, tradePair, tradeSession, tradeSetup, trades, tradesLoadError, tradesLoaded, logSheetOpen, setLogSheetOpen }, goals, persistGoals, startingBalance, trades, addJournalRow, addPlaybookRule, addingSetup, cancelAddSetup, confirmAddSetup, customMoods, customSetups, deleteJournalRow, deletePlaybookCheckin, endJournalResize, exportJournalCSV, handleJournalCellKeyDown, handleJournalPhotoChange, hiddenDefaultSetupIds, importJournalCSV, isDesktop, isNarrowScreen, journalCellRefs, journalColWidths, journalEntries, journalExpandedRows, journalExportMsg, journalImportInputRef, journalImportMsg, journalLoaded, journalMonth, journalPhotoError, journalPhotoInputRef, journalPhotoSaving, journalPhotoTarget, journalSubTab, journalYear, moveJournalResize, newRuleText, newSetupName, openJournalPhotoPicker, persistSettings, playbookCheckins, playbookMsg, playbookRuleError, playbookRules, playbookRulesLoaded, removePlaybookRule, renderSubNav, setJournalMonth, setJournalSubTab, setJournalYear, setNewRuleText, setNewSetupName, setPendingJournalPhotoDelete, setPlaybookRuleError, setSetupError, setViewingJournalPhoto, settings, setupError, startJournalResize, submitCheckin, todayResults, toggleJournalRowExpanded, toggleTodayResult, triggerJournalImport, updateJournalField, updateJournalPnl }} /></Suspense>;
   }
 
   if (activeTab === "broker") {
-    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><BrokerTab {...{ isDesktop, connection: brokerConn, syncInfo: brokerSyncInfo, autoSync: !!settings.brokerAutoSync, onConnect: connectBroker, onDisconnect: disconnectBroker, onSync: () => runBrokerSync(), onAutoSyncChange: (v) => persistSettings({ ...settings, brokerAutoSync: v }) }} /></Suspense>;
+    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><BrokerTab {...{ isDesktop, connection: brokerConn, syncInfo: brokerSyncInfo, autoSync: !!settings.brokerAutoSync, onConnect: connectBroker, onDisconnect: disconnectBroker, brokerAccountName, activeAccountName, linkedElsewhere: !!(brokerLinkedId && activeAccountId && brokerLinkedId !== activeAccountId), onLinkToActive: () => persistBrokerAccountId(activeAccountId), onSync: () => runBrokerSync(), onAutoSyncChange: (v) => persistSettings({ ...settings, brokerAutoSync: v }) }} /></Suspense>;
   }
 
   if (activeTab === "backtest") {
@@ -8384,7 +8461,7 @@ if (activeTab === "community") {
 
           <p className="text-xs mt-3" style={{ color: palette.textFaint }}>
             Each account keeps its own starting balance, Challenge calculator inputs, trades, journal entries,
-            weekly and monthly targets, and Trade plan check-ins. Setup/mood tags, notes, and news events stay
+            weekly and monthly targets, risk management, and Trade plan check-ins. Setup/mood tags, notes, and news events stay
             shared across every account. Switching here changes which one is active.
           </p>
         </SettingsSection>
@@ -8853,96 +8930,9 @@ if (activeTab === "community") {
             Up to {MAX_CUSTOM_SETUPS}. Shows up on the Curve tab's trade log and the Journal tab's Setup field.
           </p>
 
-          <SettingsSubLabel>Mood Tags</SettingsSubLabel>
-          <div className="flex gap-2 flex-wrap mb-1 items-center">
-            {customMoodsLoaded &&
-              customMoods.map((m) => (
-                <span key={m.id} className="relative inline-flex">
-                  <span
-                    className="px-3 py-1.5 rounded-full inline-flex items-center gap-1.5"
-                    style={{ background: palette.surface, color: palette.textMuted, border: `1px dashed ${palette.border}`, fontSize: "12.5px" }}
-                  >
-                    <span>{m.emoji}</span>
-                    {m.label}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => removeCustomMood(m.id)}
-                    className={`absolute flex items-center justify-center rounded-full ${TAP}`}
-                    style={{ top: "-5px", right: "-5px", width: "15px", height: "15px", background: palette.red, color: "#FFFFFF" }}
-                    aria-label={`Remove ${m.label} mood`}
-                  >
-                    <X size={9} />
-                  </button>
-                </span>
-              ))}
-            {customMoodsLoaded && customMoods.length < MAX_CUSTOM_MOODS && !addingMood && (
-              <button
-                type="button"
-                onClick={openAddMood}
-                className={`flex items-center justify-center rounded-full flex-shrink-0 ${TAP}`}
-                style={{ width: "28px", height: "28px", background: "transparent", border: `1px dashed ${palette.border}`, color: palette.textFaint }}
-                aria-label="Add custom mood"
-                title="Add your own mood tag"
-              >
-                <Plus size={13} />
-              </button>
-            )}
-          </div>
-          {addingMood && (
-            <div className="flex items-center gap-2 mb-1">
-              <input
-                type="text"
-                value={newMoodEmoji}
-                onChange={(e) => setNewMoodEmoji(e.target.value.slice(0, 2))}
-                className="rounded-lg px-2 py-2 bg-transparent outline-none text-center"
-                style={{ width: "44px", background: palette.surface, border: `1px solid ${palette.border}`, color: palette.text, fontSize: "16px" }}
-              />
-              <input
-                type="text"
-                value={newMoodName}
-                onChange={(e) => {
-                  setNewMoodName(e.target.value);
-                  if (moodError) setMoodError("");
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    confirmAddMood();
-                  } else if (e.key === "Escape") {
-                    cancelAddMood();
-                  }
-                }}
-                placeholder="New mood name"
-                autoFocus
-                maxLength={16}
-                className="flex-1 rounded-lg px-3 py-2 bg-transparent outline-none"
-                style={{ background: palette.surface, border: `1px solid ${palette.border}`, color: palette.text, fontFamily: mono, fontSize: "12.5px" }}
-              />
-              <button
-                type="button"
-                onClick={confirmAddMood}
-                className={`rounded-lg px-3 py-2 flex-shrink-0 ${TAP}`}
-                style={{ background: palette.gold, color: palette.letterbox, fontFamily: mono, fontSize: "12.5px", fontWeight: 600 }}
-              >
-                Add
-              </button>
-              <button
-                type="button"
-                onClick={cancelAddMood}
-                className={`flex items-center justify-center rounded-lg flex-shrink-0 ${TAP}`}
-                style={{ width: "34px", height: "34px", background: "transparent", border: `1px solid ${palette.border}`, color: palette.textFaint }}
-                aria-label="Cancel adding mood"
-              >
-                <X size={14} />
-              </button>
-            </div>
-          )}
-          {moodError && (
-            <p className="text-xs mb-2" style={{ color: palette.red }}>{moodError}</p>
-          )}
+          <SettingsSubLabel>Mood</SettingsSubLabel>
           <p className="text-xs" style={{ color: palette.textFaint }}>
-            Up to {MAX_CUSTOM_MOODS}. Shows up on the Curve tab's trade log and the Journal tab's Mood field.
+            Mood is a five-level scale: Very bad, Bad, Neutral, Good, Very good. Trades you tagged with an older mood keep it.
           </p>
         </SettingsSection>
 
@@ -9515,7 +9505,7 @@ if (activeTab === "community") {
                   moodRowPulse ? `${moodRowPulse.winRate.toFixed(0)}% win rate` : "N/A",
                   moodRowPulse ? (moodRowPulse.winRate >= 50 ? palette.green : palette.red) : palette.textFaint,
                   moodRowPulse
-                    ? `${moodRowPulse.emoji} ${moodRowPulse.label} \u2014 ${moodRowPulse.count} trade${moodRowPulse.count === 1 ? "" : "s"} historically`
+                    ? `${moodRowPulse.label} \u2014 ${moodRowPulse.count} trade${moodRowPulse.count === 1 ? "" : "s"} historically`
                     : "Tag a mood on today's trades to see this"
                 )}
 
@@ -10430,7 +10420,7 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
                     {data.bestMood && (
                       <div style={{ flex: 1, background: `${S.green}14`, border: `1px solid ${S.green}55`, borderRadius: "8px", padding: "8px 10px" }}>
                         <div style={{ fontSize: "9px", color: S.green, textTransform: "uppercase", letterSpacing: "0.06em" }}>Best Mood</div>
-                        <div style={{ fontSize: "12px", color: S.text, fontWeight: 600 }}>{data.bestMood.emoji} {data.bestMood.label}</div>
+                        <div style={{ fontSize: "12px", color: S.text, fontWeight: 600 }}>{data.bestMood.label}</div>
                       </div>
                     )}
                   </div>
