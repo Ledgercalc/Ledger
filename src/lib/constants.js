@@ -1,14 +1,24 @@
 import { MARKET_SESSIONS } from "./sessions.js";
 import { BookOpen, Building2, Clock, Lightbulb, Link2, Scale, Users } from "lucide-react";
 
+// Mood is a 5-level scale (score 1-5). No emojis.
 export const EMOTIONS = [
-  { id: "calm", label: "Calm", emoji: "\u{1F60C}" },
-  { id: "confident", label: "Confident", emoji: "\u{1F4AA}" },
-  { id: "rushed", label: "Rushed", emoji: "\u26A1" },
-  { id: "tilted", label: "Tilted", emoji: "\u{1F624}" },
+  { id: "very_bad", label: "Very bad", score: 1 },
+  { id: "bad", label: "Bad", score: 2 },
+  { id: "neutral", label: "Neutral", score: 3 },
+  { id: "good", label: "Good", score: 4 },
+  { id: "very_good", label: "Very good", score: 5 },
 ];
 
-export const emotionMeta = (id) => EMOTIONS.find((e) => e.id === id);
+// Moods from before the scale. Not offered any more, but trades already tagged with them keep their label.
+export const LEGACY_EMOTIONS = [
+  { id: "calm", label: "Calm" },
+  { id: "confident", label: "Confident" },
+  { id: "rushed", label: "Rushed" },
+  { id: "tilted", label: "Tilted" },
+];
+
+export const emotionMeta = (id) => EMOTIONS.find((e) => e.id === id) || LEGACY_EMOTIONS.find((e) => e.id === id);
 
 export const SETUPS = [
   { id: "reversal", label: "Reversal" },
