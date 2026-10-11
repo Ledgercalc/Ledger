@@ -1,3 +1,4 @@
+import { startCloudSync, stopCloudSync } from "./lib/cloudSync.js";
 import { COMMUNITY_API_BASE, COMMUNITY_AVATAR_KEY, COMMUNITY_JOIN_REQUESTS_KEY, COMMUNITY_MEMBERSHIPS_KEY, COMMUNITY_MESSAGE_POLL_MS, COMMUNITY_ONBOARDING_KEY, COMMUNITY_SESSION_KEY, COMMUNITY_USERNAME_KEY, communityApi } from "./api/community.js";
 import { pokeCrab } from "./lib/mascot.js";
 import { PlanSettingsCard, PlansHost } from "./components/PlansModal.jsx";
@@ -586,9 +587,7 @@ RUNTIME.ALARM_LEAD_MS = RUNTIME.ALARM_LEAD_MINUTES * 60 * 1000;
         if (cancelled) return;
         if (res && res.value) {
           const parsed = JSON.parse(res.value);
-          if (parsed && typeof parsed === "object") {
-            setGoals({ weeklyTargetPct: parsed.weeklyTargetPct || "", monthlyTargetPct: parsed.monthlyTargetPct || "" });
-          }
+          // Goals are per account now: the account loader sets them. This old shared value is only a fallback there.
         }
       } catch (err) {
         // non-critical, fail silently
@@ -611,7 +610,7 @@ RUNTIME.ALARM_LEAD_MS = RUNTIME.ALARM_LEAD_MINUTES * 60 * 1000;
   const persistGoals = async (next) => {
     setGoals(next);
     try {
-      await window.storage.set(GOALS_STORAGE_KEY, JSON.stringify(next), false);
+      await window.storage.set(activeAccountId ? scopedKey(GOALS_STORAGE_KEY, activeAccountId) : GOALS_STORAGE_KEY, JSON.stringify(next), false);
     } catch (err) {
       // non-critical, fail silently
     }
@@ -2877,6 +2876,26 @@ const [balRes, csRes, tradesRes, journalRes, playbookRulesRes, playbookCheckinsR
           setLinkedFirm(null);
         }
 
+        // Weekly / monthly targets belong to each account. Accounts that existed before this change fall back to the old shared value once.
+        try {
+          const ownGoals = await window.storage.get(scopedKey(GOALS_STORAGE_KEY, activeAccountId), false).catch(() => null);
+          let parsedGoals = null;
+          if (ownGoals && ownGoals.value) {
+            parsedGoals = JSON.parse(ownGoals.value);
+          } else {
+            const sharedGoals = await window.storage.get(GOALS_STORAGE_KEY, false).catch(() => null);
+            if (sharedGoals && sharedGoals.value) parsedGoals = JSON.parse(sharedGoals.value);
+          }
+          if (!cancelled) {
+            setGoals({
+              weeklyTargetPct: (parsedGoals && parsedGoals.weeklyTargetPct) || "",
+              monthlyTargetPct: (parsedGoals && parsedGoals.monthlyTargetPct) || "",
+            });
+          }
+        } catch (e) {
+          if (!cancelled) setGoals({ weeklyTargetPct: "", monthlyTargetPct: "" });
+        }
+
       } catch (err) {
         // non-critical, fail silently
 
@@ -3231,6 +3250,26 @@ useEffect(() => {
   const brokerSyncingRef = useRef(false);
   const runBrokerSyncRef = useRef(null); // always the latest runBrokerSync, so timers never use a stale copy
   const prevPosIdsRef = useRef(null);    // open position ids from the last poll, to spot a trade that just closed
+
+  // Cloud sync: the same accounts and journal data on every device you sign in on.
+  const syncTokenRef = useRef(null);
+  syncTokenRef.current = session?.token || null;
+  useEffect(() => {
+    if (!accountsLoaded) return undefined; // wait until the app has set up its own account list
+    if (!session?.token) {
+      stopCloudSync();
+      return undefined;
+    }
+    startCloudSync({
+      getToken: () => syncTokenRef.current,
+      accountsKey: ACCOUNTS_LIST_KEY,
+      globalKeys: [CUSTOM_SETUPS_STORAGE_KEY, CUSTOM_MOODS_STORAGE_KEY, HIDDEN_DEFAULT_SETUPS_KEY],
+      accountBases: [STORAGE_BAL_KEY, CS_STORAGE_KEY, STORAGE_KEY, JOURNAL_STORAGE_KEY, PLAYBOOK_RULES_KEY, PLAYBOOK_CHECKINS_KEY, NOTEPAD_STORAGE_KEY, LINKED_FIRM_KEY, GOALS_STORAGE_KEY],
+      pristineBases: [STORAGE_KEY, JOURNAL_STORAGE_KEY, NOTEPAD_STORAGE_KEY, PLAYBOOK_CHECKINS_KEY],
+      scopedKey,
+    });
+    return () => stopCloudSync();
+  }, [accountsLoaded, session?.token]);
 
   // Setup / mood / confidence / note the trader adds to a trade while it is still open.
   // Kept by position id and attached to the logged trade when it closes and syncs.
@@ -5002,6 +5041,9 @@ const switchAccount = (id) => {
     const id = `acc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const next = [...accounts, { id, name, createdAt: Date.now(), archived: false }];
     persistAccounts(next);
+    // A new account starts with its own empty targets, not a copy of another account's.
+    window.storage.set(scopedKey(GOALS_STORAGE_KEY, id), JSON.stringify({ weeklyTargetPct: "", monthlyTargetPct: "" }), false).catch(() => {});
+    setGoals({ weeklyTargetPct: "", monthlyTargetPct: "" });
     persistActiveAccountId(id);
     setAddingAccount(false);
     setNewAccountName("");
@@ -5026,6 +5068,7 @@ const switchAccount = (id) => {
       return;
     }
     persistAccounts(remaining);
+    window.storage.delete(scopedKey(GOALS_STORAGE_KEY, pendingAccountDelete), false).catch(() => {});
     if (activeAccountId === pendingAccountDelete) {
       persistActiveAccountId(remaining[0].id);
     }
@@ -8341,8 +8384,8 @@ if (activeTab === "community") {
 
           <p className="text-xs mt-3" style={{ color: palette.textFaint }}>
             Each account keeps its own starting balance, Challenge calculator inputs, trades, journal entries,
-            and Trade plan check-ins. Setup/mood tags, notes, news events, and goals stay shared across every
-            account. Switching here changes which one is active.
+            weekly and monthly targets, and Trade plan check-ins. Setup/mood tags, notes, and news events stay
+            shared across every account. Switching here changes which one is active.
           </p>
         </SettingsSection>
 
