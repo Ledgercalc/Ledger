@@ -8297,7 +8297,7 @@ if (activeTab === "community") {
 
         {/* PLAN */}
         <SettingsSection icon={Sparkles} title="Plan" isDesktop={isDesktop} hidden={!isDesktop && settingsMobileSection !== "plan"}>
-          <PlanSettingsCard accountsUsed={accounts.filter((acc) => !acc.archived).length} coachRemaining={session?.token ? coachRemaining : null} />
+          <PlanSettingsCard />
         </SettingsSection>
 
         {/* ACCOUNTS */}
