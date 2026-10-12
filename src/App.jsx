@@ -26,7 +26,7 @@ import { bySession, byConfidence, tradesAsJournalRows } from "./lib/tradeInsight
 import { drawShareCard } from "./lib/shareCard.js";
 import { DARK_PALETTE, LIGHT_PALETTE, TAP, THEME_TRANSITION, TREDZI_LOGO_SRC, VOID_PALETTE, display, mono, palette, sans } from "./lib/theme.js";
 import { formatCountdown, formatMinSec, nextOccurrenceMs } from "./lib/time.js";
-import { AlertTriangle, ArrowLeftRight, Link2, Bell, Building2, Camera, CandlestickChart, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, Flame, Heart, LayoutGrid, Lightbulb, LogOut, MessageCircle, Moon, Newspaper, Palette, Pencil, Plus, RotateCcw, Scale, Search, Send, Settings, Share2, ShieldAlert, Sparkles, Sun, Table2, Tags, Trash2, Upload, Users, X , Activity, TrendingDown, TrendingUp } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, CalendarDays, Link2, Bell, Building2, Camera, CandlestickChart, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, Flame, Heart, LayoutGrid, Lightbulb, LogOut, MessageCircle, Moon, Newspaper, Palette, Pencil, Plus, RotateCcw, Scale, Search, Send, Settings, Share2, ShieldAlert, Sparkles, Sun, Table2, Tags, Trash2, Upload, Users, X , Activity, TrendingDown, TrendingUp } from "lucide-react";
 import React, { Suspense, lazy, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import "./typography.css";
 
@@ -89,12 +89,14 @@ const SessionsTab = lazyTab(() => import("./tabs/SessionsTab.jsx"));
 const CommunityTab = lazyTab(() => import("./tabs/CommunityTab.jsx"));
 const BacktestTab = lazyTab(() => import("./tabs/BacktestTab.jsx"));
 const BrokerTab = lazyTab(() => import("./tabs/BrokerTab.jsx"));
+const EconCalendarTab = lazyTab(() => import("./tabs/EconCalendarTab.jsx"));
 const TAB_PRELOAD = {
   risk: RiskTab.preload, propfirm: PropFirmTab.preload, fx: ConvertTab.preload,
   curve: CurveTab.preload, insights: InsightsTab.preload, journal: JournalTab.preload,
   sessions: SessionsTab.preload, community: CommunityTab.preload,
   backtest: BacktestTab.preload,
   broker: BrokerTab.preload,
+  econ: EconCalendarTab.preload,
 };
 
 // The tab list is finished here so it always matches this file, even if constants.js is out of date:
@@ -104,6 +106,10 @@ const TABS = (() => {
   if (!tabs.some((t) => t.id === "broker")) {
     const at = tabs.findIndex((t) => t.id === "journal");
     tabs.splice(at === -1 ? tabs.length : at + 1, 0, { id: "broker", label: "Broker", icon: Link2 });
+  }
+  if (!tabs.some((t) => t.id === "econ")) {
+    const at = tabs.findIndex((t) => t.id === "sessions");
+    tabs.splice(at === -1 ? tabs.length : at + 1, 0, { id: "econ", label: "Economic calendar", icon: CalendarDays });
   }
   if (!tabs.some((t) => t.id === "backtest")) {
     tabs.push({ id: "backtest", label: "Backtest", icon: CandlestickChart });
@@ -124,6 +130,7 @@ if (typeof window !== "undefined") {
     import("./tabs/CommunityTab.jsx");
     import("./tabs/BacktestTab.jsx");
     import("./tabs/BrokerTab.jsx");
+    import("./tabs/EconCalendarTab.jsx");
   };
   (window.requestIdleCallback || ((fn) => setTimeout(fn, 1500)))(warm);
 }
@@ -7226,6 +7233,10 @@ const hiddenTabIds = settings.hiddenTabs || [];
         <PlanLockCard title="Broker sync" plan="pro" blurb="Auto-log your MT5 trades and watch your open trade live. Included in Pro and Creator." />
       </div>
     ) : <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><BrokerTab {...{ isDesktop, connection: brokerConn, syncInfo: brokerSyncInfo, autoSync: !!settings.brokerAutoSync, onConnect: connectBroker, onDisconnect: disconnectBroker, brokerAccountName, activeAccountName, linkedElsewhere: !!(brokerLinkedId && activeAccountId && brokerLinkedId !== activeAccountId), onLinkToActive: () => persistBrokerAccountId(activeAccountId), onSync: () => runBrokerSync(), onAutoSyncChange: (v) => persistSettings({ ...settings, brokerAutoSync: v }) }} /></Suspense>;
+  }
+
+  if (activeTab === "econ") {
+    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><EconCalendarTab {...{ theme, isDesktop }} /></Suspense>;
   }
 
   if (activeTab === "backtest") {
