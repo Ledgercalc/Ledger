@@ -7236,7 +7236,7 @@ const hiddenTabIds = settings.hiddenTabs || [];
   }
 
   if (activeTab === "econ") {
-    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><EconCalendarTab {...{ theme, isDesktop, econEvents, econStatus, econError }} onRefresh={loadEconomicCalendar} /></Suspense>;
+    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><EconCalendarTab {...{ theme, isDesktop, econEvents, econStatus, econError }} apiBase={COMMUNITY_API_BASE} onRefresh={loadEconomicCalendar} /></Suspense>;
   }
 
   if (activeTab === "backtest") {
