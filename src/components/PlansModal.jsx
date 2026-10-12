@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Check, ChevronDown, X } from "lucide-react";
 import { communityApi } from "../api/community.js";
-import { PLAN_HIGHLIGHTS, PLAN_IDS, PLAN_LIMITS, PLAN_NAMES, PLAN_PRICES, PLAN_TABLE, PLAN_TAGLINES } from "../data/plans.js";
+import { PLAN_HIGHLIGHTS, PLAN_IDS, PLAN_NAMES, PLAN_PRICES, PLAN_TABLE, PLAN_TAGLINES } from "../data/plans.js";
 import { closePlans, openPlans, setMyPlan, useMyPlan, usePlansModal } from "../lib/planStore.js";
 import { display, mono, palette, sans } from "../lib/theme.js";
 import { PlanBadge } from "./PlanBadge.jsx";
@@ -212,59 +212,51 @@ export function PlansHost({ session }) {
   );
 }
 
-// A small usage bar: "Trading accounts  2 of 3".
-function UsageRow({ label, used, total, note }) {
-  const pct = total > 0 ? Math.min(100, Math.round((used / total) * 100)) : 0;
-  const full = total > 0 && used >= total;
-  return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12.5px", fontFamily: sans, color: palette.textMuted }}>
-        <span>{label}</span>
-        <span style={{ color: palette.text, fontWeight: 700 }}>{note || `${used} of ${total}`}</span>
-      </div>
-      <div style={{ marginTop: "6px", height: "6px", borderRadius: "999px", background: palette.field, overflow: "hidden" }}>
-        <div style={{ width: `${pct}%`, height: "100%", borderRadius: "999px", background: full ? palette.red : palette.gold, transition: "width .3s" }} />
-      </div>
-    </div>
-  );
-}
+// Settings > Plan section body.
+const PLAN_TINT = {
+  free: { bg: "transparent", border: null },
+  pro: { bg: "linear-gradient(135deg, rgba(14,165,233,.16), rgba(99,102,241,.12))", border: "rgba(56,189,248,.45)" },
+  creator: { bg: "linear-gradient(135deg, rgba(139,92,246,.18), rgba(244,63,126,.12))", border: "rgba(192,38,211,.45)" },
+};
 
-// Settings > Plan section body. Optional: accountsUsed (number of active accounts), coachRemaining (AI messages left today).
-export function PlanSettingsCard({ accountsUsed = null, coachRemaining = null }) {
+export function PlanSettingsCard() {
   const me = useMyPlan();
-  const limits = PLAN_LIMITS[me.plan] || PLAN_LIMITS.free;
   const free = me.plan === "free";
+  const tint = PLAN_TINT[me.plan] || PLAN_TINT.free;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: "11px", fontWeight: 800, letterSpacing: ".08em", textTransform: "uppercase", color: palette.textFaint, fontFamily: sans }}>Your plan</div>
-          <div style={{ marginTop: "5px", display: "flex", alignItems: "center", gap: "8px" }}>
-            {free ? <span style={{ fontFamily: display, fontWeight: 800, fontSize: "20px", color: palette.text }}>Free</span> : <PlanBadge plan={me.plan} size="md" />}
-          </div>
-          {!free && me.expiresAt && (
-            <div style={{ marginTop: "5px", fontSize: "12px", color: palette.textMuted, fontFamily: sans }}>
-              {me.interval === "yearly" ? "Yearly" : "Monthly"} · active until {new Date(me.expiresAt).toLocaleDateString()}
+      <div style={{ padding: "18px 16px", borderRadius: "18px", background: tint.bg === "transparent" ? palette.surface : tint.bg, border: `1px solid ${tint.border || palette.border}`, display: "flex", flexDirection: "column", gap: "16px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: "11px", fontWeight: 800, letterSpacing: ".09em", textTransform: "uppercase", color: palette.textFaint, fontFamily: sans }}>Your plan</div>
+            <div style={{ marginTop: "8px", display: "flex", alignItems: "center", gap: "10px" }}>
+              {free ? <span style={{ fontFamily: display, fontWeight: 800, fontSize: "24px", color: palette.text, lineHeight: 1 }}>Free</span> : <PlanBadge plan={me.plan} size="lg" />}
             </div>
-          )}
+            <div style={{ marginTop: "8px", fontSize: "12.5px", color: palette.textMuted, fontFamily: sans }}>
+              {free ? "Upgrade any time. Your data stays." : me.expiresAt ? `${me.interval === "yearly" ? "Yearly" : "Monthly"} plan · active until ${new Date(me.expiresAt).toLocaleDateString()}` : PLAN_TAGLINES[me.plan]}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => openPlans()}
+            style={{ padding: "11px 20px", borderRadius: "12px", border: free ? "none" : `1px solid ${tint.border}`, background: free ? palette.gold : "transparent", color: free ? "#fff" : palette.text, fontWeight: 800, fontSize: "13px", fontFamily: sans, cursor: "pointer" }}
+          >
+            {free ? "See plans" : "Manage plan"}
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => openPlans()}
-          style={{ padding: "10px 18px", borderRadius: "12px", border: `1px solid ${palette.gold}`, background: free ? palette.gold : "transparent", color: free ? "#fff" : palette.text, fontWeight: 800, fontSize: "13px", fontFamily: sans, cursor: "pointer" }}
-        >
-          {free ? "See plans" : "Manage plan"}
-        </button>
-      </div>
 
-      {(accountsUsed !== null || coachRemaining !== null) && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "12px", padding: "14px", borderRadius: "14px", background: palette.field, border: `1px solid ${palette.border}` }}>
-          {accountsUsed !== null && <UsageRow label="Trading accounts" used={accountsUsed} total={limits.accounts} />}
-          {coachRemaining !== null && (
-            <UsageRow label="AI Coach messages today" used={Math.max(0, limits.coachDaily - coachRemaining)} total={limits.coachDaily} note={`${coachRemaining} left`} />
-          )}
+        <div style={{ borderTop: `1px solid ${tint.border || palette.border}`, paddingTop: "14px" }}>
+          <div style={{ fontSize: "11px", fontWeight: 800, letterSpacing: ".09em", textTransform: "uppercase", color: palette.textFaint, fontFamily: sans, marginBottom: "10px" }}>Included</div>
+          <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: "9px 14px" }}>
+            {PLAN_HIGHLIGHTS[me.plan].slice(0, 6).map((line) => (
+              <li key={line} style={{ display: "flex", gap: "8px", alignItems: "flex-start", fontSize: "13px", lineHeight: 1.35, color: palette.text, fontFamily: sans }}>
+                <Check size={15} strokeWidth={3} style={{ color: palette.green, flexShrink: 0, marginTop: "2px" }} />
+                <span style={{ minWidth: 0 }}>{line}</span>
+              </li>
+            ))}
+          </ul>
         </div>
-      )}
+      </div>
 
       {free && (
         <p style={{ margin: 0, fontSize: "12.5px", color: palette.textMuted, fontFamily: sans, lineHeight: 1.5 }}>
