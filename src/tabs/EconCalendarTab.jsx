@@ -1402,6 +1402,209 @@ function MobileNews(p) {
   );
 }
 
+/* =====================================================================================
+   Phone layout for the Sessions tab: full width, flat bands and rows, no cards.
+   ===================================================================================== */
+function MobileSessions({ now, tz, clockTime, events = [] }) {
+  const z = zonedParts(now, tz);
+  const dayStart = wallToUtc(z.year, z.month, z.day, 0, 0, tz);
+  const dayEnd = wallToUtc(z.year, z.month, z.day + 1, 0, 0, tz);
+  const len = dayEnd - dayStart;
+  const pct = (ms) => Math.min(100, Math.max(0, ((ms - dayStart) / len) * 100));
+  const data = SESSIONS.map((s) => {
+    const st = sessionStatus(s, now);
+    const segs = sessionWindows(s, now, -2, 2).filter((w) => w.end > dayStart && w.start < dayEnd).map((w) => ({ a: Math.max(w.start, dayStart), b: Math.min(w.end, dayEnd), w }));
+    return { s, st, segs };
+  });
+  const overlaps = [];
+  for (let i = 0; i < data.length; i++) for (let j = i + 1; j < data.length; j++) {
+    data[i].segs.forEach((x) => data[j].segs.forEach((y) => {
+      const a = Math.max(x.a, y.a), b = Math.min(x.b, y.b);
+      if (b > a) overlaps.push({ a, b, label: `${data[i].s.name} + ${data[j].s.name}` });
+    }));
+  }
+  const openNow = data.filter((d) => d.st.open);
+  const live = openNow.length > 0;
+  const utcDay = new Date(now).getUTCDay();
+  const weekendHere = !live && (utcDay === 6 || utcDay === 0 || (utcDay === 5 && new Date(now).getUTCHours() >= 21));
+  const nextOpen = data.filter((d) => !d.st.open && d.st.start).sort((a, b) => a.st.start - b.st.start)[0];
+  const overlapNow = openNow.length > 1 ? { label: openNow.map((d) => d.s.name).join(" + "), end: Math.min(...openNow.map((d) => d.st.end)) } : null;
+  let nextOverlap = null;
+  if (!overlapNow) {
+    const ws = SESSIONS.map((s) => ({ s, w: sessionWindows(s, now, -1, 8) }));
+    for (let i = 0; i < ws.length; i++) for (let j = i + 1; j < ws.length; j++) {
+      ws[i].w.forEach((x) => ws[j].w.forEach((y) => {
+        const a = Math.max(x.start, y.start), b = Math.min(x.end, y.end);
+        if (b > a && b > now && (!nextOverlap || Math.max(a, now) < nextOverlap.start)) nextOverlap = { start: Math.max(a, now), label: `${ws[i].s.name} + ${ws[j].s.name}` };
+      }));
+    }
+  }
+  const newsToday = events.filter((e) => !e.holiday && e.impact >= 3 && e.ms >= dayStart && e.ms < dayEnd).sort((a, b) => a.ms - b.ms);
+  const sessionOf = (ms) => data.filter((d) => d.segs.some((g) => ms >= g.a && ms < g.b)).map((d) => d.s.name);
+  const hours = [0, 4, 8, 12, 16, 20];
+  const hourAt = (h) => pct(wallToUtc(z.year, z.month, z.day, h, 0, tz));
+  const nowPct = pct(now);
+  const col = live ? palette.gold : palette.textFaint;
+  const headline = live ? openNow.map((d) => d.s.name).join(" + ") : nextOpen ? `${nextOpen.s.name} opens in ${span(nextOpen.st.start - now)}` : "No session scheduled";
+  const sub = overlapNow
+    ? `Overlap for another ${span(overlapNow.end - now)}: highest volume and tightest spreads of the day.`
+    : live
+      ? "One session is active right now."
+      : weekendHere
+        ? "Weekend: forex is closed until the new week opens."
+        : "Forex trades Monday to Friday.";
+  const stat = (label, value) => (
+    <div style={{ minWidth: 0 }}>
+      <div style={{ fontSize: 11, color: palette.textFaint, marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: 15, fontWeight: 800, color: palette.text, fontVariantNumeric: "tabular-nums", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</div>
+    </div>
+  );
+  const laneLabel = (text, aside) => (
+    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", fontSize: 11.5, marginBottom: 4 }}>
+      <span style={{ fontWeight: 700, color: palette.textMuted }}>{text}</span>
+      {aside && <span style={{ color: palette.textFaint, fontVariantNumeric: "tabular-nums" }}>{aside}</span>}
+    </div>
+  );
+  const band = { padding: "10px 14px", background: tint(palette.text, 4), borderTop: `1px solid ${palette.border}`, borderBottom: `1px solid ${palette.border}`, fontSize: 13, fontWeight: 800, color: palette.text, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 };
+  return (
+    <div style={{ width: "100vw", marginLeft: "calc(50% - 50vw)", overflowX: "clip" }}>
+      {/* header */}
+      <div style={{ padding: "10px 12px 12px" }}>
+        <div style={{ fontSize: 21, fontWeight: 800, color: palette.text, letterSpacing: -0.2 }}>Market Sessions</div>
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 3, color: palette.textMuted, fontSize: 12 }}>
+          <Clock size={12} aria-hidden="true" />
+          <b style={{ color: palette.text, fontVariantNumeric: "tabular-nums" }}>{clockTime}</b>
+          {offsetLabel(now, tz)} · {tzCity(tz)}
+        </div>
+      </div>
+
+      {/* status band */}
+      <div style={{ padding: "16px 16px 14px", background: tint(col, 10), borderTop: `1px solid ${tint(col, 35)}`, borderBottom: `1px solid ${tint(col, 35)}` }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, fontWeight: 700, color: live ? palette.gold : palette.textMuted }}>
+          <span className={live ? "ec-pulse" : undefined} aria-hidden="true" style={{ width: 7, height: 7, borderRadius: 99, background: col }} />
+          {live ? "Market open" : weekendHere ? "Weekend, market closed" : "Market closed"}
+        </div>
+        <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: -0.4, lineHeight: 1.15, marginTop: 5, color: palette.text }}>{headline}</div>
+        <div style={{ fontSize: 12.5, lineHeight: 1.5, color: palette.textMuted, marginTop: 5 }}>{sub}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12, marginTop: 14 }}>
+          {live ? stat(overlapNow ? "Overlap ends in" : "Closes in", span((overlapNow ? overlapNow.end : openNow[0].st.end) - now)) : stat("Opens in", nextOpen ? span(nextOpen.st.start - now) : "—")}
+          {overlapNow ? stat("Active", overlapNow.label) : nextOverlap ? stat("Next overlap", `${nextOverlap.label} in ${span(nextOverlap.start - now)}`) : stat("Next overlap", "—")}
+        </div>
+      </div>
+
+      {/* 24h timeline */}
+      <div style={{ ...band, marginTop: 14 }}>
+        <span>Today</span>
+        <span style={{ fontSize: 11.5, fontWeight: 600, color: palette.textFaint }}>{tz}</span>
+      </div>
+      <div style={{ padding: "12px 14px 10px", borderBottom: `1px solid ${palette.border}` }}>
+        <div style={{ position: "relative" }}>
+          {data.map(({ s, st, segs }) => (
+            <div key={s.id} style={{ marginBottom: 10 }}>
+              {laneLabel(s.name, st.open ? "open now" : "")}
+              <div style={{ position: "relative", height: 16, borderRadius: 99, background: tint(palette.text, 6) }}>
+                {segs.map((g, i) => (
+                  <div key={i} style={{ position: "absolute", top: 0, bottom: 0, left: `${pct(g.a)}%`, width: `${pct(g.b) - pct(g.a)}%`, borderRadius: 99, background: s.color, opacity: st.open ? 1 : 0.55 }} />
+                ))}
+              </div>
+            </div>
+          ))}
+          <div style={{ marginBottom: 10 }}>
+            {laneLabel("Overlap", overlaps.length ? "" : "none today")}
+            <div style={{ position: "relative", height: 10, borderRadius: 99, background: tint(palette.text, 4) }}>
+              {overlaps.map((o, i) => (
+                <div key={i} style={{ position: "absolute", top: 0, bottom: 0, left: `${pct(o.a)}%`, width: `${pct(o.b) - pct(o.a)}%`, borderRadius: 99, background: palette.gold }} />
+              ))}
+            </div>
+          </div>
+          <div style={{ marginBottom: 6 }}>
+            {laneLabel("High-impact news", newsToday.length ? `${newsToday.length} today` : "none today")}
+            <div style={{ position: "relative", height: 14 }}>
+              {newsToday.map((e) => (
+                <span key={e.id} style={{ position: "absolute", left: `${pct(e.ms)}%`, top: 1, width: 11, height: 11, marginLeft: -5.5, borderRadius: 99, background: BAD, boxShadow: `0 0 0 2px ${palette.bg || palette.surface}` }} />
+              ))}
+            </div>
+          </div>
+          <div style={{ position: "relative", height: 16 }}>
+            {hours.map((h) => (
+              <span key={h} style={{ position: "absolute", left: `${hourAt(h)}%`, transform: h === 0 ? "none" : "translateX(-50%)", fontSize: 10.5, color: palette.textFaint, fontVariantNumeric: "tabular-nums" }}>{String(h).padStart(2, "0")}:00</span>
+            ))}
+          </div>
+          <div aria-hidden="true" style={{ position: "absolute", top: 0, bottom: 18, left: `${nowPct}%`, width: 2, marginLeft: -1, background: palette.text, borderRadius: 2, opacity: 0.85 }} />
+        </div>
+      </div>
+
+      {/* news today */}
+      <div style={band}>
+        <span>High-impact news today</span>
+        <span style={{ fontSize: 11.5, fontWeight: 600, color: palette.textFaint }}>{newsToday.length} {newsToday.length === 1 ? "event" : "events"}</span>
+      </div>
+      {newsToday.length === 0 ? (
+        <div style={{ padding: "14px 14px", fontSize: 12.5, color: palette.textFaint, borderBottom: `1px solid ${palette.border}` }}>No high-impact events scheduled today.</div>
+      ) : (
+        newsToday.slice(0, 10).map((e) => {
+          const where = sessionOf(e.ms);
+          return (
+            <div key={e.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", borderBottom: `1px solid ${palette.border}`, opacity: e.ms < now ? 0.55 : 1 }}>
+              <span style={{ width: 44, fontSize: 13.5, fontWeight: 800, color: palette.text, fontVariantNumeric: "tabular-nums" }}>{hm(e.ms, tz)}</span>
+              <Flag ccy={e.ccy} w={20} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: palette.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.title}</div>
+                <div style={{ fontSize: 11.5, color: palette.textFaint, marginTop: 1 }}>{where.length ? where.join(" + ") : "Off-session"}</div>
+              </div>
+            </div>
+          );
+        })
+      )}
+
+      {/* the three sessions */}
+      <div style={{ ...band, marginTop: 14 }}>
+        <span>Sessions</span>
+        <span style={{ fontSize: 11.5, fontWeight: 600, color: palette.textFaint }}>Your time</span>
+      </div>
+      {data.map(({ s, st }) => {
+        const on = st.open;
+        const w = sessionWindows(s, now, -1, 8).find((x) => (on ? now >= x.start && now < x.end : x.start === st.start));
+        return (
+          <div key={s.id} style={{ position: "relative", padding: "13px 14px 13px 17px", borderBottom: `1px solid ${palette.border}`, background: on ? tint(s.color, 8) : "transparent" }}>
+            <span aria-hidden="true" style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: s.color, opacity: on ? 1 : 0.4 }} />
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+              <span style={{ fontSize: 16, fontWeight: 800, color: palette.text }}>{s.name}</span>
+              <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 99, whiteSpace: "nowrap", background: on ? tint(s.color, 22) : tint(palette.text, 6), color: on ? s.color : palette.textMuted }}>
+                {on ? `Open · closes in ${span(st.end - now)}` : st.start ? `Closed · opens in ${span(st.start - now)}` : "Closed"}
+              </span>
+            </div>
+            {w && (
+              <div style={{ fontSize: 15, fontWeight: 800, color: palette.text, marginTop: 7, fontVariantNumeric: "tabular-nums" }}>
+                {hm(w.start, tz)}–{hm(w.end, tz)}
+              </div>
+            )}
+            <div style={{ fontSize: 12, color: palette.textFaint, marginTop: 4, lineHeight: 1.5 }}>
+              {(s.of || [{ city: "Local", ...s }]).map((c, i) => (
+                <div key={i}>
+                  {c.city} {String(c.open[0]).padStart(2, "0")}:{String(c.open[1]).padStart(2, "0")}–{String(c.close[0]).padStart(2, "0")}:{String(c.close[1]).padStart(2, "0")}, now {hm(now, c.tz)} there
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize: 12, color: palette.textMuted, marginTop: 7, lineHeight: 1.5 }}>{s.note}</div>
+            <div className="ec-pills" style={{ display: "flex", gap: 6, overflowX: "auto", margin: "9px -14px 0 0", paddingRight: 14 }}>
+              {s.pairs.map((pr) => {
+                const [a, b] = pr.split("/");
+                return (
+                  <span key={pr} style={{ display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0, padding: "4px 10px 4px 6px", borderRadius: 99, border: `1px solid ${palette.border}`, fontSize: 11.5, fontWeight: 700, color: palette.textMuted }}>
+                    <PairIcon a={a} b={b} w={14} />
+                    {pr}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, subTab, setSubTab, renderSubNav }) {
   const [rangeSel, setRangeSel] = useState("today");
   const [customFrom, setCustomFrom] = useState("");
@@ -1668,7 +1871,9 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, su
           ))}
         </div>
       )}
-      {!isDesktop && view !== "sessions" ? (
+      {!isDesktop && view === "sessions" ? (
+        <MobileSessions now={now} tz={tz} clockTime={clockTime} events={all} />
+      ) : !isDesktop ? (
         <MobileNews
           now={now} tz={tz} clockTime={clockTime} marketOpen={open} busy={busy} onRefresh={() => loadOwn.current()}
           rangeSel={rangeSel} pickRange={pickRange} pill={pill} customFrom={customFrom} customTo={customTo} setCustomFrom={setCustomFrom} setCustomTo={setCustomTo}
