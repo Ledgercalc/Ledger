@@ -279,15 +279,6 @@ function offsetLabel(ms, tz) {
     return "";
   }
 }
-function marketOpen(ms) {
-  const d = new Date(ms);
-  const day = d.getUTCDay();
-  const h = d.getUTCHours();
-  if (day === 6) return false;
-  if (day === 0) return h >= 22;
-  if (day === 5) return h < 22;
-  return true;
-}
 function updatedText(ms, now) {
   if (!ms) return "";
   const m = Math.floor((now - ms) / 60000);
@@ -683,12 +674,181 @@ const IMPACTS = [
   { id: "high", label: "High", min: 3 },
 ];
 
+
+/* ---------- trading sessions ---------- */
+const SESSIONS = [
+  { id: "asia", name: "Asia", tz: "Asia/Tokyo", open: [9, 0], close: [18, 0], color: "#f472b6", of: [{ city: "Sydney", tz: "Australia/Sydney", open: [8, 0], close: [17, 0] }, { city: "Tokyo", tz: "Asia/Tokyo", open: [9, 0], close: [18, 0] }], note: "Sydney and Tokyo combined. Opens the forex week; AUD, NZD and JPY lead." },
+  { id: "london", name: "London", tz: "Europe/London", open: [8, 0], close: [17, 0], color: "#a78bfa", note: "The deepest market. EUR, GBP and CHF move most; biggest daily range starts here." },
+  { id: "newyork", name: "New York", tz: "America/New_York", open: [8, 0], close: [17, 0], color: "#fbbf24", note: "USD data and Fed news. Busiest while it overlaps London." },
+];
+function zonedParts(ms, timeZone) {
+  const p = {};
+  new Intl.DateTimeFormat("en-US", { timeZone, hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric" })
+    .formatToParts(new Date(ms)).forEach((x) => { if (x.type !== "literal") p[x.type] = Number(x.value); });
+  return p;
+}
+function wallToUtc(y, m, d, h, mi, timeZone) {
+  const target = Date.UTC(y, m - 1, d, h, mi);
+  let guess = target;
+  for (let i = 0; i < 3; i++) {
+    const z = zonedParts(guess, timeZone);
+    guess += target - Date.UTC(z.year, z.month - 1, z.day, z.hour, z.minute, z.second);
+  }
+  return guess;
+}
+/* open windows (UTC ms) of a session whose local date offset is within [from, to] days of now's local date; weekdays only */
+function sessionWindows(s, now, from, to) {
+  if (s.of) {
+    const all = s.of.flatMap((c) => sessionWindows(c, now, from, to)).sort((a, b) => a.start - b.start);
+    const out = [];
+    all.forEach((w) => {
+      const last = out[out.length - 1];
+      if (last && w.start <= last.end) last.end = Math.max(last.end, w.end);
+      else out.push({ ...w });
+    });
+    return out;
+  }
+  const z = zonedParts(now, s.tz);
+  const out = [];
+  for (let off = from; off <= to; off++) {
+    const base = new Date(Date.UTC(z.year, z.month - 1, z.day + off));
+    const wd = base.getUTCDay();
+    if (wd === 0 || wd === 6) continue;
+    const y = base.getUTCFullYear(), m = base.getUTCMonth() + 1, d = base.getUTCDate();
+    out.push({ start: wallToUtc(y, m, d, s.open[0], s.open[1], s.tz), end: wallToUtc(y, m, d, s.close[0], s.close[1], s.tz) });
+  }
+  return out;
+}
+function sessionStatus(s, now) {
+  const w = sessionWindows(s, now, -1, 8);
+  const cur = w.find((x) => now >= x.start && now < x.end);
+  if (cur) return { open: true, end: cur.end };
+  const nxt = w.find((x) => x.start > now);
+  return { open: false, start: nxt ? nxt.start : 0 };
+}
+function anySessionOpen(now) {
+  return SESSIONS.some((s) => sessionStatus(s, now).open);
+}
+function span(ms) {
+  const m = Math.max(0, Math.round(ms / 60000));
+  const d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), mi = m % 60;
+  return d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${mi}m` : `${mi}m`;
+}
+function hm(ms, timeZone) {
+  return new Date(ms).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone });
+}
+
+function SessionsView({ now, tz, isDesktop }) {
+  const z = zonedParts(now, tz);
+  const dayStart = wallToUtc(z.year, z.month, z.day, 0, 0, tz);
+  const dayEnd = wallToUtc(z.year, z.month, z.day + 1, 0, 0, tz);
+  const len = dayEnd - dayStart;
+  const pct = (ms) => Math.min(100, Math.max(0, ((ms - dayStart) / len) * 100));
+  const data = SESSIONS.map((s) => {
+    const st = sessionStatus(s, now);
+    const segs = sessionWindows(s, now, -2, 2).filter((w) => w.end > dayStart && w.start < dayEnd).map((w) => ({ a: Math.max(w.start, dayStart), b: Math.min(w.end, dayEnd), w }));
+    return { s, st, segs };
+  });
+  const overlaps = [];
+  for (let i = 0; i < data.length; i++) for (let j = i + 1; j < data.length; j++) {
+    data[i].segs.forEach((x) => data[j].segs.forEach((y) => {
+      const a = Math.max(x.a, y.a), b = Math.min(x.b, y.b);
+      if (b > a) overlaps.push({ a, b, label: `${data[i].s.name} + ${data[j].s.name}` });
+    }));
+  }
+  const openNow = data.filter((d) => d.st.open);
+  const nowUtcDay = new Date(now).getUTCDay();
+  const weekendHere = openNow.length === 0 && (nowUtcDay === 6 || nowUtcDay === 0 || (nowUtcDay === 5 && new Date(now).getUTCHours() >= 21));
+  const live = openNow.length > 0;
+  const nextOpen = data.filter((d) => !d.st.open && d.st.start).sort((a, b) => a.st.start - b.st.start)[0];
+  const hours = [0, 3, 6, 9, 12, 15, 18, 21];
+  const hourAt = (i) => pct(wallToUtc(z.year, z.month, z.day, i, 0, tz));
+  const nowPct = pct(now);
+  return (
+    <div style={{ padding: "0 18px 18px" }}>
+      <div style={{ borderRadius: 16, padding: isDesktop ? "20px 22px" : "16px", marginBottom: 16, border: `1px solid ${palette.border}`, background: `linear-gradient(135deg, ${tint(live ? palette.gold : palette.textFaint, 14)}, ${tint(palette.text, 2)})` }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, fontWeight: 800, letterSpacing: ".08em", textTransform: "uppercase", color: live ? palette.gold : palette.textMuted }}>
+          <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 99, background: live ? palette.gold : palette.textFaint, boxShadow: live ? `0 0 0 4px ${tint(palette.gold, 25)}` : "none" }} />
+          {live ? "Market open" : weekendHere ? "Weekend · market closed" : "Market closed"}
+        </div>
+        <div style={{ fontSize: isDesktop ? 26 : 21, fontWeight: 800, color: palette.text, marginTop: 6 }}>
+          {live ? openNow.map((d) => d.s.name).join(" · ") : nextOpen ? `${nextOpen.s.name} opens in ${span(nextOpen.st.start - now)}` : "No session scheduled"}
+        </div>
+        <div style={{ fontSize: 13, color: palette.textMuted, marginTop: 4 }}>
+          {live ? (openNow.length > 1 ? "Sessions are overlapping: expect higher volume and tighter spreads." : "One session active right now.") : "Forex trades Monday to Friday. Sessions follow each market's local weekday and daylight-saving time."}
+          {" "}Your time: {hm(now, tz)} ({tz})
+        </div>
+      </div>
+
+      <div style={{ border: `1px solid ${palette.border}`, borderRadius: 16, padding: "14px 16px 12px", marginBottom: 16 }}>
+        <div style={{ fontSize: 12.5, fontWeight: 800, color: palette.text, marginBottom: 10 }}>Today in {tz}</div>
+        <div style={{ position: "relative", paddingLeft: isDesktop ? 78 : 0 }}>
+          {data.map(({ s, st, segs }) => (
+            <div key={s.id} style={{ display: "flex", alignItems: "center", height: 30, position: "relative" }}>
+              {isDesktop && <span style={{ position: "absolute", left: -78, width: 70, fontSize: 12, fontWeight: 700, color: palette.textMuted }}>{s.name}</span>}
+              <div style={{ position: "relative", flex: 1, height: 14, borderRadius: 99, background: tint(palette.text, 6) }}>
+                {segs.map((g, i) => (
+                  <div key={i} title={`${s.name} ${hm(g.w.start, tz)}–${hm(g.w.end, tz)}`} style={{ position: "absolute", top: 0, bottom: 0, left: `${pct(g.a)}%`, width: `${pct(g.b) - pct(g.a)}%`, borderRadius: 99, background: s.color, opacity: st.open ? 1 : 0.55 }} />
+                ))}
+              </div>
+            </div>
+          ))}
+          <div style={{ display: "flex", alignItems: "center", height: 22, position: "relative" }}>
+            {isDesktop && <span style={{ position: "absolute", left: -78, width: 70, fontSize: 11.5, fontWeight: 700, color: palette.textFaint }}>Overlap</span>}
+            <div style={{ position: "relative", flex: 1, height: 8, borderRadius: 99, background: tint(palette.text, 4) }}>
+              {overlaps.map((o, i) => (
+                <div key={i} title={`${o.label} ${hm(o.a, tz)}–${hm(o.b, tz)}`} style={{ position: "absolute", top: 0, bottom: 0, left: `${pct(o.a)}%`, width: `${pct(o.b) - pct(o.a)}%`, borderRadius: 99, background: palette.gold }} />
+              ))}
+            </div>
+          </div>
+          <div style={{ position: "relative", height: 18, marginLeft: isDesktop ? 0 : 0 }}>
+            {hours.map((h) => (
+              <span key={h} style={{ position: "absolute", left: `${hourAt(h)}%`, transform: "translateX(-50%)", fontSize: 10.5, color: palette.textFaint }}>{String(h).padStart(2, "0")}:00</span>
+            ))}
+          </div>
+          <div aria-hidden="true" style={{ position: "absolute", top: -4, bottom: 18, left: `calc(${isDesktop ? "78px" : "0px"} + (100% - ${isDesktop ? "78px" : "0px"}) * ${nowPct / 100})`, width: 2, background: palette.text, borderRadius: 2, opacity: 0.85 }} />
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "repeat(2, minmax(0, 1fr))" : "1fr", gap: 12 }}>
+        {data.map(({ s, st }) => {
+          const on = st.open;
+          const w = sessionWindows(s, now, -1, 8).find((x) => (on ? now >= x.start && now < x.end : x.start === st.start));
+          return (
+            <div key={s.id} style={{ border: `1px solid ${on ? tint(s.color, 55) : palette.border}`, borderRadius: 16, padding: "14px 16px", background: on ? tint(s.color, 9) : "transparent", position: "relative", overflow: "hidden" }}>
+              <div aria-hidden="true" style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, background: s.color, opacity: on ? 1 : 0.4 }} />
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                <div style={{ fontSize: 15, fontWeight: 800, color: palette.text }}>{s.name}</div>
+                <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 99, background: on ? tint(s.color, 22) : tint(palette.text, 6), color: on ? s.color : palette.textMuted }}>
+                  {on ? `Open · closes in ${span(st.end - now)}` : st.start ? `Closed · opens in ${span(st.start - now)}` : "Closed"}
+                </span>
+              </div>
+              <div style={{ fontSize: 12.5, color: palette.textMuted, marginTop: 8 }}>
+                {(s.of || [{ city: "Local", ...s }]).map((c, i) => (
+                  <div key={i}>{c.city} {String(c.open[0]).padStart(2, "0")}:{String(c.open[1]).padStart(2, "0")}–{String(c.close[0]).padStart(2, "0")}:{String(c.close[1]).padStart(2, "0")} · now {hm(now, c.tz)} there</div>
+                ))}
+              </div>
+              {w && <div style={{ fontSize: 13, fontWeight: 700, color: palette.text, marginTop: 4 }}>{hm(w.start, tz)}–{hm(w.end, tz)} <span style={{ fontWeight: 500, color: palette.textFaint }}>your time ({tz})</span></div>}
+              <div style={{ fontSize: 12, color: palette.textFaint, marginTop: 8, lineHeight: 1.45 }}>{s.note}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase }) {
   const [rangeSel, setRangeSel] = useState("today");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
   const [impact, setImpactState] = useState(() => loadPref("ec-impact", "medium"));
   const [ccys, setCcysState] = useState(() => loadPref("ec-ccys", []));
+  const [view, setViewState] = useState(() => (loadPref("ec-view", "calendar") === "sessions" ? "sessions" : "calendar"));
+  const setView = (v) => {
+    setViewState(v);
+    savePref("ec-view", v);
+  };
   const [cat, setCat] = useState("all");
   const [search, setSearch] = useState("");
   const [tzSel, setTzSel] = useState(() => loadPref("ec-tz", "local"));
@@ -816,7 +976,7 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase }) 
   }, [filtered]);
   const currencyOptions = useMemo(() => {
     const present = [...new Set(all.flatMap(legsOf))].filter((c) => c && c !== "ALL");
-    return [...CCY_ORDER.filter((c) => present.includes(c)), ...present.filter((c) => !CCY_ORDER.includes(c)).sort()];
+    return [...CCY_ORDER, ...present.filter((c) => !CCY_ORDER.includes(c)).sort()];
   }, [all]);
   const categoryOptions = useMemo(() => CATEGORIES.filter((c) => all.some((e) => e.cat === c)), [all]);
   const next = filtered.find((e) => !e.holiday && e.ms > now);
@@ -839,7 +999,7 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase }) 
   const loading = own.status === "loading";
   const failed = own.status === "error" && all.length === 0;
   const syncing = own.status === "syncing" && all.length === 0;
-  const open = marketOpen(now);
+  const open = anySessionOpen(now);
   const clockTime = new Date(now).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", timeZone: tz });
   const ccyText = ccys.length === 0 ? `Currencies (${currencyOptions.length})` : ccys.length <= 3 ? ccys.join(", ") : `${ccys.length} currencies`;
   const catText = cat === "all" ? "All Categories" : cat;
@@ -862,7 +1022,19 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase }) 
         </Notice>
       );
     }
-    if (groups.length === 0) return <Notice>No events match these filters. Try another date range, lower the importance, or press Reset.</Notice>;
+    if (groups.length === 0) {
+      const upcoming = ccys.length > 0 ? all.filter((e) => e.ms > now && legsOf(e).some((c) => ccys.includes(c))).sort((a, b) => a.ms - b.ms)[0] : null;
+      return (
+        <Notice>
+          No events match these filters. Try another date range, lower the importance, or press Reset.
+          {upcoming && (
+            <div style={{ marginTop: 10, fontSize: 12.5 }}>
+              Next scheduled for {ccys.join(", ")}: <b>{upcoming.title}</b> on {longDay(ymd(upcoming.ms, tz))}.
+            </div>
+          )}
+        </Notice>
+      );
+    }
     return groups.map((g) => {
       const items = g.items;
       return (
@@ -912,6 +1084,15 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase }) 
           </span>
         </div>
 
+        <div role="tablist" aria-label="Economic calendar view" style={{ display: "flex", gap: 4, padding: "0 18px 12px" }}>
+          {[["calendar", "Calendar"], ["sessions", "Sessions"]].map(([id, label]) => (
+            <button key={id} type="button" role="tab" aria-selected={view === id} onClick={() => setView(id)} style={pill(view === id)}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {view === "sessions" ? <SessionsView now={now} tz={tz} isDesktop={isDesktop} /> : (<>
         {/* date tabs + filter toggle */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 18px 12px" }}>
           <div className="ec-pills" role="tablist" aria-label="Date range" style={{ display: "flex", gap: 2, overflowX: "auto", flex: 1, minWidth: 0 }}>
@@ -1049,6 +1230,7 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase }) 
             </button>
           </span>
         </div>
+        </>)}
       </div>
     </div>
   );
