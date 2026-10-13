@@ -22,13 +22,26 @@ const CCY_META = {
   CAD: { name: "Canada", bank: "BoC" },
   CHF: { name: "Switzerland", bank: "SNB" },
   CNY: { name: "China", bank: "PBoC" },
+  SEK: { name: "Sweden", bank: "Riksbank" },
+  NOK: { name: "Norway", bank: "Norges Bank" },
+  PLN: { name: "Poland", bank: "NBP" },
+  TRY: { name: "Turkey", bank: "CBRT" },
+  ZAR: { name: "South Africa", bank: "SARB" },
+  MXN: { name: "Mexico", bank: "Banxico" },
+  BRL: { name: "Brazil", bank: "BCB" },
+  INR: { name: "India", bank: "RBI" },
+  KRW: { name: "South Korea", bank: "BoK" },
+  SGD: { name: "Singapore", bank: "MAS" },
+  HKD: { name: "Hong Kong", bank: "HKMA" },
 };
-const CCY_ORDER = ["USD", "EUR", "GBP", "JPY", "AUD", "NZD", "CAD", "CHF", "CNY"];
+const CCY_ORDER = ["USD", "EUR", "GBP", "JPY", "AUD", "NZD", "CAD", "CHF", "CNY", "HKD", "SGD", "KRW", "INR", "SEK", "NOK", "PLN", "TRY", "ZAR", "MXN", "BRL"];
 const CCY_BY_COUNTRY = {
   US: "USD", "UNITED STATES": "USD", EU: "EUR", EA: "EUR", "EURO AREA": "EUR", EUROZONE: "EUR",
   DE: "EUR", GERMANY: "EUR", FR: "EUR", FRANCE: "EUR", IT: "EUR", ITALY: "EUR", ES: "EUR", SPAIN: "EUR",
   GB: "GBP", UK: "GBP", "UNITED KINGDOM": "GBP", JP: "JPY", JAPAN: "JPY", CH: "CHF", SWITZERLAND: "CHF",
   CA: "CAD", CANADA: "CAD", AU: "AUD", AUSTRALIA: "AUD", NZ: "NZD", "NEW ZEALAND": "NZD", CN: "CNY", CHINA: "CNY",
+  SE: "SEK", SWEDEN: "SEK", NO: "NOK", NORWAY: "NOK", PL: "PLN", POLAND: "PLN", TR: "TRY", TURKEY: "TRY", ZA: "ZAR", "SOUTH AFRICA": "ZAR",
+  MX: "MXN", MEXICO: "MXN", BR: "BRL", BRAZIL: "BRL", IN: "INR", INDIA: "INR", KR: "KRW", "SOUTH KOREA": "KRW", SG: "SGD", SINGAPORE: "SGD", HK: "HKD", "HONG KONG": "HKD",
 };
 const ZONES = [
   ["Asia/Dhaka", "Dhaka"], ["Asia/Singapore", "Singapore"], ["Asia/Dubai", "Dubai"], ["Asia/Tokyo", "Tokyo"], ["Australia/Sydney", "Sydney"],
@@ -38,6 +51,12 @@ const ZONES = [
 
 /* ---------- currency icons: round flags (artwork from the MIT-licensed "country-flag-icons" set, stored right here so nothing is loaded from outside) ---------- */
 const FLAG_SVG = {
+  SEK: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 100\"><path fill=\"#006AA7\" d=\"M0 0h160v100H0z\"/><path fill=\"#FECC00\" d=\"M50 0h20v100H50zM0 40h160v20H0z\"/></svg>",
+  NOK: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 100\"><path fill=\"#BA0C2F\" d=\"M0 0h160v100H0z\"/><path fill=\"#FFF\" d=\"M45 0h22v100H45zM0 39h160v22H0z\"/><path fill=\"#00205B\" d=\"M52 0h8v100h-8zM0 46h160v8H0z\"/></svg>",
+  PLN: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 100\"><path fill=\"#FFF\" d=\"M0 0h160v50H0z\"/><path fill=\"#DC143C\" d=\"M0 50h160v50H0z\"/></svg>",
+  MXN: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 100\"><path fill=\"#006847\" d=\"M0 0h54v100H0z\"/><path fill=\"#FFF\" d=\"M53 0h54v100H53z\"/><path fill=\"#CE1126\" d=\"M106 0h54v100h-54z\"/><circle cx=\"80\" cy=\"50\" r=\"12\" fill=\"#8C6B3F\"/></svg>",
+  INR: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 100\"><path fill=\"#FF9933\" d=\"M0 0h160v34H0z\"/><path fill=\"#FFF\" d=\"M0 33h160v34H0z\"/><path fill=\"#138808\" d=\"M0 66h160v34H0z\"/><circle cx=\"80\" cy=\"50\" r=\"11\" fill=\"none\" stroke=\"#000080\" stroke-width=\"3\"/></svg>",
+  SGD: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 100\"><path fill=\"#EF3340\" d=\"M0 0h160v50H0z\"/><path fill=\"#FFF\" d=\"M0 50h160v50H0z\"/><circle cx=\"34\" cy=\"25\" r=\"14\" fill=\"#FFF\"/><circle cx=\"40\" cy=\"25\" r=\"13\" fill=\"#EF3340\"/></svg>",
   USD: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"59.85 0 342 342\"><path fill=\"#FFF\" d=\"M0 0h513v342H0z\"/><g fill=\"#D80027\"><path d=\"M0 0h513v26.3H0zM0 52.6h513v26.3H0zM0 105.2h513v26.3H0zM0 157.8h513v26.3H0zM0 210.5h513v26.3H0zM0 263.1h513v26.3H0zM0 315.7h513V342H0z\"/></g><path fill=\"#2E52B2\" d=\"M0 0h256.5v184.1H0z\"/><g fill=\"#FFF\"><path d=\"m47.8 138.9-4-12.8-4.4 12.8H26.2l10.7 7.7-4 12.8 10.9-7.9 10.6 7.9-4.1-12.8 10.9-7.7zM104.1 138.9l-4.1-12.8-4.2 12.8H82.6l10.7 7.7-4 12.8 10.7-7.9 10.8 7.9-4-12.8 10.7-7.7zM160.6 138.9l-4.3-12.8-4 12.8h-13.5l11 7.7-4.2 12.8 10.7-7.9 11 7.9-4.2-12.8 10.7-7.7zM216.8 138.9l-4-12.8-4.2 12.8h-13.3l10.8 7.7-4 12.8 10.7-7.9 10.8 7.9-4.3-12.8 11-7.7zM100 75.3l-4.2 12.8H82.6L93.3 96l-4 12.6 10.7-7.8 10.8 7.8-4-12.6 10.7-7.9h-13.4zM43.8 75.3l-4.4 12.8H26.2L36.9 96l-4 12.6 10.9-7.8 10.6 7.8L50.3 96l10.9-7.9H47.8zM156.3 75.3l-4 12.8h-13.5l11 7.9-4.2 12.6 10.7-7.8 11 7.8-4.2-12.6 10.7-7.9h-13.2zM212.8 75.3l-4.2 12.8h-13.3l10.8 7.9-4 12.6 10.7-7.8 10.8 7.8-4.3-12.6 11-7.9h-13.5zM43.8 24.7l-4.4 12.6H26.2l10.7 7.9-4 12.7L43.8 50l10.6 7.9-4.1-12.7 10.9-7.9H47.8zM100 24.7l-4.2 12.6H82.6l10.7 7.9-4 12.7L100 50l10.8 7.9-4-12.7 10.7-7.9h-13.4zM156.3 24.7l-4 12.6h-13.5l11 7.9-4.2 12.7 10.7-7.9 11 7.9-4.2-12.7 10.7-7.9h-13.2zM212.8 24.7l-4.2 12.6h-13.3l10.8 7.9-4 12.7 10.7-7.9 10.8 7.9-4.3-12.7 11-7.9h-13.5z\"/></g></svg>",
   EUR: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 408 408\"><path fill=\"#039\" d=\"M0 0h408v408H0V0z\"/><path fill=\"#FC0\" d=\"m203.963 45.231 5.089 15.653h16.542l-13.322 9.68 5.015 15.67-13.323-9.68-13.323 9.68 5.089-15.662-13.322-9.68h16.468l5.087-15.661zm-68 18.134 5.089 15.653h16.542l-13.323 9.68 5.016 15.67-13.324-9.68-13.323 9.68 5.089-15.662-13.323-9.681h16.468l5.089-15.66zm-49.867 49.866 5.089 15.653h16.542l-13.323 9.68 5.016 15.67-13.324-9.68-13.323 9.68 5.089-15.662-13.323-9.68h16.468l5.089-15.661zM67.963 181.23l5.089 15.654h16.542l-13.323 9.682 5.016 15.67-13.324-9.682-13.323 9.682 5.089-15.664-13.323-9.679h16.468l5.089-15.663zm18.133 68.001 5.089 15.654h16.542l-13.323 9.68 5.016 15.67-13.324-9.68-13.323 9.68 5.089-15.662-13.323-9.68h16.468l5.089-15.662zm49.867 49.867 5.089 15.654h16.542l-13.323 9.68 5.016 15.67-13.324-9.679-13.323 9.679 5.089-15.661-13.323-9.681h16.468l5.089-15.662zm136-235.733 5.089 15.653h16.542l-13.322 9.68 5.015 15.67-13.323-9.68-13.324 9.68 5.09-15.662-13.322-9.681h16.468l5.087-15.66zm49.867 49.866 5.088 15.653h16.543l-13.323 9.68 5.015 15.67-13.322-9.68-13.324 9.68 5.09-15.662-13.323-9.68h16.468l5.088-15.661zm18.133 68 5.089 15.653h16.542l-13.322 9.682 5.015 15.67-13.323-9.682-13.323 9.682 5.089-15.664-13.322-9.679h16.468l5.087-15.662zm-18.133 68 5.088 15.654h16.543l-13.323 9.68 5.016 15.67-13.323-9.68-13.324 9.68 5.09-15.662-13.323-9.68h16.469l5.087-15.662zm-117.867 68 5.089 15.654h16.542l-13.322 9.68 5.015 15.67-13.323-9.68-13.323 9.68 5.089-15.662-13.322-9.68h16.468l5.087-15.662zm68-18.133 5.089 15.654h16.542l-13.322 9.68 5.016 15.67-13.324-9.68-13.322 9.68 5.088-15.662-13.322-9.68h16.469l5.086-15.662z\"/></svg>",
   GBP: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"85.5 0 342 342\"><g fill=\"#FFF\"><path d=\"M0 0h513v341.3H0V0z\"/><path d=\"M311.7 230 513 341.3v-31.5L369.3 230h-57.6zM200.3 111.3 0 0v31.5l143.7 79.8h56.6z\"/></g><g fill=\"#012169\"><path d=\"M393.8 230 513 295.7V230H393.8zm-82.1 0L513 341.3v-31.5L369.3 230h-57.6zm146.9 111.3-147-81.7v81.7h147zM90.3 230 0 280.2V230h90.3zm110 14.2v97.2H25.5l174.8-97.2zM118.2 111.3 0 45.6v65.7h118.2zm82.1 0L0 0v31.5l143.7 79.8h56.6zM53.4 0l147 81.7V0h-147zM421.7 111.3 513 61.1v50.2h-91.3zm-110-14.2V0h174.9L311.7 97.1z\"/></g><g fill=\"#c8102e\"><path d=\"M288 0h-64v138.7H0v64h224v138.7h64V202.7h224v-64H288V0z\"/><path d=\"M311.7 230 513 341.3v-31.5L369.3 230h-57.6zM143.7 230 0 309.9v31.5L200.3 230h-56.6zM200.3 111.3 0 0v31.5l143.7 79.8h56.6zM368.3 111.3 513 31.5V0L311.7 111.3h56.6z\"/></g></svg>",
@@ -121,6 +140,49 @@ function eventMs(ev) {
   }
   return NaN;
 }
+
+/* ---------- forecast fallback: used only when the worker's own forecast copy is missing ---------- */
+const FF_URLS = ["https://nfs.faireconomy.media/ff_calendar_thisweek.json", "https://nfs.faireconomy.media/ff_calendar_nextweek.json"];
+let ffCache = { at: 0, rows: null };
+function parseFfNum(t) {
+  const m = /^[+]?(-?\d*\.?\d+)\s*([%KMBT]?)$/i.exec(String(t == null ? "" : t).trim().replace(/,/g, ""));
+  return m ? { value: Number(m[1]), unit: m[2].toUpperCase() } : null;
+}
+async function fillForecasts(events, feed) {
+  const missing = events.filter((e) => !e.holiday && e.estimate == null && e.timestamp > Date.now() - 86400000);
+  if (!missing.length || (feed && feed.ok && !feed.stale)) return events;
+  if (!ffCache.rows || Date.now() - ffCache.at > 30 * 60000) {
+    const rows = [];
+    for (const u of FF_URLS) {
+      try {
+        const r = await fetch(u);
+        const l = r.ok ? await r.json() : null;
+        if (Array.isArray(l)) rows.push(...l);
+      } catch (e) {
+        /* the browser may not be allowed to read the feed: then nothing changes */
+      }
+    }
+    ffCache = { at: Date.now() - (rows.length ? 0 : 25 * 60000), rows }; // a failed attempt is retried after about 5 minutes
+  }
+  if (!ffCache.rows.length) return events;
+  const norm = (t) => String(t || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const byKey = new Map();
+  ffCache.rows.forEach((x) => {
+    const ts = Date.parse(x.date);
+    const f = parseFfNum(x.forecast);
+    if (Number.isFinite(ts) && f) byKey.set(`${String(x.country).toUpperCase()}|${norm(x.title)}|${ts}`, f);
+  });
+  return events.map((e) => {
+    if (e.holiday || e.estimate != null) return e;
+    const f = byKey.get(`${String(e.currency).toUpperCase()}|${norm(e.event)}|${e.timestamp}`);
+    if (!f) return e;
+    const u = typeof e.unit === "string" ? e.unit : "";
+    if (f.unit === u) return { ...e, estimate: f.value };
+    if (f.unit === "M" && u === "K") return { ...e, estimate: f.value * 1000 };
+    if (f.unit === "K" && u === "M") return { ...e, estimate: f.value / 1000 };
+    return e;
+  });
+}
 function currencyOf(ev) {
   const c = String(ev.currency || "").toUpperCase();
   if (c) return c;
@@ -138,7 +200,7 @@ function impactOf(ev) {
 }
 // Central-bank news is worded differently per bank ("Main Refinancing Rate", "Official Bank Rate", "Cash Rate", "... Speaks", "... Minutes"),
 // so it is recognised by the bank's name or by those phrases.
-const CB_RE = /\b(fed|fomc|ecb|boe|boj|rba|rbnz|snb|boc|pboc|mpc|governor|gov|chair|monetary policy|policy rate|funds rate|refinancing rate|overnight rate|deposit rate|cash rate|bank rate|rate decision|rate statement|summary of opinions|ocr|interest rate|press conference|minutes)\b/;
+const CB_RE = /\b(fed|fomc|ecb|boe|boj|rba|rbnz|snb|boc|pboc|riksbank|norges|nbp|cbrt|sarb|banxico|copom|rbi|bok|mas|hkma|lpr|loan prime|mpc|governor|gov|chair|monetary policy|policy rate|funds rate|refinancing rate|overnight rate|deposit rate|cash rate|bank rate|rate decision|rate statement|summary of opinions|ocr|interest rate|press conference|minutes)\b/;
 function categoryOf(title) {
   const t = title.toLowerCase();
   if (CB_RE.test(t)) return "Central Bank";
@@ -672,7 +734,14 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase }) 
       const res = await fetch(`${apiBase}/market/calendar`);
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !Array.isArray(data.events)) throw new Error(data.error || "Couldn't load the calendar.");
-      setOwn({ events: data.events, history: Array.isArray(data.history) ? data.history : [], feed: data.feed && typeof data.feed === "object" ? data.feed : null, updatedAt: Date.now(), status: data.syncing ? "syncing" : "live", error: "" });
+      let events = data.events;
+      // If the worker has no forecasts (the publisher refuses its shared address), try the public feed straight from this browser.
+      try {
+        events = await fillForecasts(events, data.feed);
+      } catch (e) {
+        events = data.events;
+      }
+      setOwn({ events, history: Array.isArray(data.history) ? data.history : [], feed: data.feed && typeof data.feed === "object" ? data.feed : null, updatedAt: Date.now(), status: data.syncing ? "syncing" : "live", error: "" });
     } catch (err) {
       setOwn((o) => ({ ...o, status: o.events.length ? "live" : "error", error: err.message || "Couldn't load the calendar." }));
     } finally {
