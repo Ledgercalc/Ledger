@@ -892,6 +892,238 @@ function SessionsView({ now, tz, isDesktop, events = [] }) {
   );
 }
 
+/* =====================================================================================
+   MOBILE LAYOUT (phones and small tablets). Desktop keeps the table layout above.
+   Card-based feed, a "next up" countdown card, and one bottom sheet for all filters.
+   ===================================================================================== */
+const GOOD = palette.green || "#22c55e";
+const BAD = palette.red || "#ef4444";
+const INVERSE_RE = /(unemployment|jobless|claims|claimant)/i; // for these, a LOWER number is the stronger result
+const MAJORS = ["USD", "EUR", "GBP", "JPY", "AUD", "NZD", "CAD", "CHF"];
+const impactColor = (lvl) => (lvl >= 3 ? palette.red : lvl === 2 ? AMBER : palette.textFaint);
+const shortDay = (s) => new Date(`${s}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", timeZone: "UTC" });
+const tzName = (tz) => String(tz).split("/").pop().replace(/_/g, " ");
+
+// Colour of the "actual" number: green = better for the currency, red = worse (only when a numeric forecast exists).
+function toneOf(ev) {
+  const sup = surpriseOf(ev);
+  if (!sup || !isNum(ev.forecast) || sup.dir === 0) return { sup, col: palette.text, arrow: sup ? "●" : "" };
+  const good = INVERSE_RE.test(ev.title) ? -sup.dir : sup.dir;
+  return { sup, col: good > 0 ? GOOD : BAD, arrow: sup.dir > 0 ? "▲" : "▼" };
+}
+
+function MChip({ on, onClick, children, label }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={on}
+      aria-label={label}
+      className="ec-ctl"
+      onClick={onClick}
+      style={{ display: "inline-flex", alignItems: "center", gap: 7, minHeight: 40, padding: "0 13px", borderRadius: 99, cursor: "pointer", fontFamily: sans, fontSize: 13, fontWeight: 700, whiteSpace: "nowrap", border: `1px solid ${on ? tint(palette.gold, 55) : palette.border}`, background: on ? tint(palette.gold, 14) : tint(palette.text, 4), color: on ? palette.gold : palette.textMuted }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function SheetTitle({ children }) {
+  return <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: 0.7, textTransform: "uppercase", color: palette.textFaint, margin: "20px 0 10px" }}>{children}</div>;
+}
+
+function NextUpCard({ ev, now, tz, onOpen }) {
+  const left = ev.ms - now;
+  const soon = left < 3600000;
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="ec-ctl"
+      style={{ display: "block", width: "100%", textAlign: "left", cursor: "pointer", fontFamily: sans, margin: "4px 0 6px", padding: "14px 16px", borderRadius: 18, color: palette.text, border: `1px solid ${tint(palette.gold, soon ? 60 : 32)}`, background: `linear-gradient(135deg, ${tint(palette.gold, soon ? 20 : 12)}, ${tint(palette.text, 2)})` }}
+    >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 11, fontWeight: 800, letterSpacing: 0.8, color: palette.gold }}>
+          <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: 99, background: palette.gold, boxShadow: `0 0 0 4px ${tint(palette.gold, 25)}` }} />
+          NEXT UP
+        </span>
+        <ImpactBars level={ev.impact} />
+      </div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginTop: 8 }}>
+        <span style={{ fontSize: 30, fontWeight: 800, letterSpacing: -0.5, fontVariantNumeric: "tabular-nums" }}>{countdown(left)}</span>
+        <span style={{ fontSize: 12.5, color: palette.textMuted, fontVariantNumeric: "tabular-nums" }}>at {timeIn(ev.ms, tz)}</span>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 9, marginTop: 8, minWidth: 0 }}>
+        {ev.pair ? <PairIcon a={ev.pair[0]} b={ev.pair[1]} w={22} /> : <Flag ccy={ev.ccy} w={22} />}
+        <span style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.3, minWidth: 0 }}>
+          <b style={{ fontWeight: 800 }}>{ev.ccy}</b> · {ev.title}
+        </span>
+      </div>
+    </button>
+  );
+}
+
+function MobileEventCard({ ev, isNext, now, tz, open, onToggle, history }) {
+  const past = ev.ms <= now;
+  const tone = toneOf(ev);
+  const bar = impactColor(ev.impact);
+  const soon = !past && ev.ms - now < 86400000;
+  const pending = isNum(ev.actual) === false && (ev.actual == null || ev.actual === "") && ev.status === "pending";
+  const cell = (label, v, strong, first) => {
+    const empty = v == null || v === "";
+    return (
+      <div style={{ padding: "9px 12px", minWidth: 0, borderLeft: first ? "none" : `1px solid ${palette.border}`, fontVariantNumeric: "tabular-nums" }}>
+        <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 0.6, textTransform: "uppercase", color: palette.textFaint, marginBottom: 3 }}>{label}</div>
+        <div style={{ fontSize: strong && pending ? 12.5 : 15, fontWeight: strong ? 800 : 700, color: strong ? (pending ? palette.gold : empty ? palette.textFaint : tone.col) : empty ? palette.textFaint : palette.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {strong && pending ? "Pending" : strong && !empty && tone.arrow ? `${tone.arrow} ` : ""}
+          {strong && pending ? "" : fmtVal(v, ev.unit)}
+        </div>
+      </div>
+    );
+  };
+  return (
+    <div
+      style={{ position: "relative", marginBottom: 10, borderRadius: 16, overflow: "hidden", background: isNext ? `linear-gradient(0deg, ${tint(palette.gold, 5)}, ${tint(palette.gold, 5)}), ${palette.surface}` : palette.surface, border: `1px solid ${isNext ? tint(palette.gold, 45) : palette.border}`, opacity: past && !open ? 0.78 : 1 }}
+    >
+      <span aria-hidden="true" style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, background: bar, opacity: ev.impact ? 1 : 0.5 }} />
+      <div
+        role="button"
+        tabIndex={0}
+        aria-expanded={open}
+        onClick={onToggle}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onToggle();
+          }
+        }}
+        className="ec-ctl"
+        style={{ padding: "12px 14px 12px 18px", cursor: "pointer" }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+          {ev.pair ? <PairIcon a={ev.pair[0]} b={ev.pair[1]} w={22} /> : <Flag ccy={ev.ccy} w={22} />}
+          <span style={{ fontSize: 13, fontWeight: 800, color: palette.text }}>{ev.ccy}</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: palette.textMuted, fontVariantNumeric: "tabular-nums" }}>{timeIn(ev.ms, tz)}</span>
+          <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 9 }}>
+            {soon && <span style={{ fontSize: 11, fontWeight: 800, padding: "2px 8px", borderRadius: 99, background: tint(palette.gold, isNext ? 22 : 12), color: palette.gold, fontVariantNumeric: "tabular-nums" }}>in {countdown(ev.ms - now)}</span>}
+            <ImpactBars level={ev.impact} />
+          </span>
+        </div>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 8, margin: "9px 0 11px" }}>
+          <div style={{ flex: 1, minWidth: 0, fontSize: 15, fontWeight: 700, lineHeight: 1.35, color: palette.text }}>
+            {ev.title}
+            <Tag>{ev.cat}</Tag>
+          </div>
+          <ChevronDown size={16} aria-hidden="true" style={{ flexShrink: 0, marginTop: 3, color: palette.textFaint, transform: open ? "rotate(180deg)" : "none", transition: "transform .15s ease" }} />
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", borderRadius: 12, background: tint(palette.text, 4), border: `1px solid ${palette.border}` }}>
+          {cell("Actual", ev.actual, true, true)}
+          {cell("Forecast", ev.forecast, false)}
+          {cell("Previous", ev.previous, false)}
+        </div>
+        {tone.sup && (
+          <div style={{ marginTop: 8, fontSize: 12, fontWeight: 700, color: tone.col }}>
+            {tone.arrow} {tone.sup.text}
+          </div>
+        )}
+      </div>
+      {open && <Detail ev={ev} history={history} tz={tz} compact onClose={onToggle} />}
+    </div>
+  );
+}
+
+function MobileHoliday({ ev }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, padding: "12px 14px", borderRadius: 16, background: tint(AMBER, 8), border: `1px solid ${tint(AMBER, 30)}` }}>
+      <Flag ccy={ev.ccy} w={22} />
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: palette.text, lineHeight: 1.3 }}>
+          {ev.ccy} · {ev.title}
+        </div>
+        <div style={{ fontSize: 12, color: palette.textMuted, marginTop: 2 }}>Bank holiday: thinner liquidity, wider spreads.</div>
+      </div>
+      <span style={{ padding: "2px 8px", borderRadius: 6, fontSize: 10.5, fontWeight: 800, color: AMBER, background: tint(AMBER, 16) }}>Holiday</span>
+    </div>
+  );
+}
+
+function FilterSheet({ onClose, impact, setImpact, ccys, setCcys, currencyOptions, cat, setCat, categoryOptions, tzSel, pickTz, localTz, showHolidays, toggleHolidays, reset, count }) {
+  useEffect(() => {
+    const esc = (e) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", esc);
+    return () => document.removeEventListener("keydown", esc);
+  }, [onClose]);
+  const flip = (c) => setCcys(ccys.includes(c) ? ccys.filter((x) => x !== c) : [...ccys, c]);
+  const majorsOn = MAJORS.every((c) => ccys.includes(c)) && ccys.length === MAJORS.length;
+  return (
+    <div role="dialog" aria-modal="true" aria-label="Filters" style={{ position: "fixed", inset: 0, zIndex: 100 }}>
+      <div className="ec-fade" onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.6)" }} />
+      <div className="ec-sheet" style={{ position: "absolute", left: 0, right: 0, bottom: 0, maxHeight: "90vh", display: "flex", flexDirection: "column", background: palette.surface, borderRadius: "22px 22px 0 0", border: `1px solid ${palette.border}`, borderBottom: 0, boxShadow: "0 -14px 44px rgba(0,0,0,.5)" }}>
+        <div aria-hidden="true" style={{ width: 40, height: 4, borderRadius: 4, background: tint(palette.text, 22), margin: "10px auto 2px" }} />
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 18px 6px" }}>
+          <div style={{ fontSize: 18, fontWeight: 800, color: palette.text }}>Filters</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <button type="button" className="ec-ctl" onClick={reset} style={{ minHeight: 40, padding: "0 10px", border: 0, background: "transparent", color: palette.gold, fontSize: 14, fontWeight: 800, fontFamily: sans, cursor: "pointer" }}>Reset</button>
+            <button type="button" className="ec-ctl" aria-label="Close filters" onClick={onClose} style={{ display: "grid", placeItems: "center", width: 40, height: 40, borderRadius: 12, border: `1px solid ${palette.border}`, background: "transparent", color: palette.textMuted, cursor: "pointer" }}>
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+        <div style={{ overflowY: "auto", overscrollBehavior: "contain", padding: "0 18px 8px" }}>
+          <SheetTitle>Importance</SheetTitle>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {IMPACTS.map((i) => (
+              <MChip key={i.id} on={impact === i.id} onClick={() => setImpact(i.id)}>{i.label}</MChip>
+            ))}
+          </div>
+
+          <SheetTitle>Currencies</SheetTitle>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+            <MChip on={ccys.length === 0} onClick={() => setCcys([])}>All</MChip>
+            <MChip on={majorsOn} onClick={() => setCcys(majorsOn ? [] : MAJORS)}>Majors</MChip>
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {currencyOptions.map((c) => (
+              <MChip key={c} on={ccys.includes(c)} onClick={() => flip(c)} label={CCY_META[c] ? CCY_META[c].name : c}>
+                <Flag ccy={c} w={18} />
+                {c}
+              </MChip>
+            ))}
+          </div>
+
+          <SheetTitle>Category</SheetTitle>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <MChip on={cat === "all"} onClick={() => setCat("all")}>All</MChip>
+            {categoryOptions.map((c) => (
+              <MChip key={c} on={cat === c} onClick={() => setCat(cat === c ? "all" : c)}>{c}</MChip>
+            ))}
+          </div>
+
+          <SheetTitle>Time zone</SheetTitle>
+          <select className="ec-ctl" aria-label="Time zone" value={tzSel} onChange={(e) => pickTz(e.target.value)} style={{ ...fieldBase, width: "100%", minHeight: 46, padding: "0 12px", fontSize: 16 }}>
+            <option value="local">Your timezone: {localTz}</option>
+            {ZONES.filter(([id]) => id !== localTz).map(([id, name]) => (
+              <option key={id} value={id}>{name} ({id})</option>
+            ))}
+          </select>
+
+          <SheetTitle>Show</SheetTitle>
+          <button type="button" role="switch" aria-checked={showHolidays} className="ec-ctl" onClick={toggleHolidays} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", minHeight: 48, padding: "0 14px", borderRadius: 12, border: `1px solid ${palette.border}`, background: tint(palette.text, 4), color: palette.text, fontFamily: sans, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+            Bank holidays
+            <span aria-hidden="true" style={{ position: "relative", width: 42, height: 24, borderRadius: 99, background: showHolidays ? palette.gold : tint(palette.text, 16), transition: "background .15s ease" }}>
+              <span style={{ position: "absolute", top: 3, left: showHolidays ? 21 : 3, width: 18, height: 18, borderRadius: 99, background: "#fff", transition: "left .15s ease" }} />
+            </span>
+          </button>
+        </div>
+        <div style={{ padding: "12px 18px", paddingBottom: "calc(12px + env(safe-area-inset-bottom, 0px))", borderTop: `1px solid ${palette.border}` }}>
+          <button type="button" className="ec-ctl" onClick={onClose} style={{ width: "100%", minHeight: 48, borderRadius: 14, border: 0, cursor: "pointer", fontFamily: sans, fontSize: 15, fontWeight: 800, background: palette.gold, color: "#0b0b0b" }}>
+            Show {count} {count === 1 ? "event" : "events"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, subTab, setSubTab, renderSubNav }) {
   const [rangeSel, setRangeSel] = useState("today");
   const [customFrom, setCustomFrom] = useState("");
@@ -906,6 +1138,7 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, su
   const [tzSel, setTzSel] = useState(() => loadPref("ec-tz", "local"));
   const [mode, setMode] = useState("clock");
   const [filtersOpen, setFiltersOpen] = useState(() => loadPref("ec-filters", true));
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [showHolidays, setShowHolidaysState] = useState(() => loadPref("ec-holidays", true));
   const [openId, setOpenId] = useState(null);
   const [now, setNow] = useState(() => Date.now());
@@ -1117,6 +1350,136 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, su
     });
   })();
 
+  /* ---------- mobile feed ---------- */
+  const mobileGroups = groups.map((g) => {
+    const hi = g.items.filter((e) => !e.holiday && e.impact >= 3).length;
+    return (
+      <section key={g.day}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "16px 2px 10px" }}>
+          <span style={{ fontSize: 16, fontWeight: 800, color: palette.text, letterSpacing: -0.2 }}>{shortDay(g.day)}</span>
+          {g.day === todayS && <span style={{ fontSize: 10.5, fontWeight: 800, padding: "2px 8px", borderRadius: 99, background: tint(palette.gold, 18), color: palette.gold }}>Today</span>}
+          <span style={{ marginLeft: "auto", fontSize: 12, color: palette.textFaint }}>
+            {g.items.length} {g.items.length === 1 ? "event" : "events"}
+            {hi > 0 ? ` · ${hi} high` : ""}
+          </span>
+        </div>
+        {g.items.map((ev) => ev.holiday ? <MobileHoliday key={ev.id} ev={ev} /> : (
+          <MobileEventCard key={ev.id} ev={ev} isNext={!!next && ev.id === next.id} now={now} tz={tz} open={openId === ev.id} onToggle={() => setOpenId(openId === ev.id ? null : ev.id)} history={own.history} />
+        ))}
+      </section>
+    );
+  });
+  const feedReady = !((loading && all.length === 0) || syncing || failed || groups.length === 0);
+  const filterCount = (ccys.length ? 1 : 0) + (cat !== "all" ? 1 : 0) + (tzSel !== "local" ? 1 : 0) + (showHolidays ? 0 : 1);
+  const mpill = (on) => ({
+    display: "inline-flex", alignItems: "center", minHeight: 40, padding: "0 15px", borderRadius: 99, cursor: "pointer", flexShrink: 0, fontFamily: sans, fontSize: 13.5, fontWeight: 700, whiteSpace: "nowrap",
+    border: `1px solid ${on ? tint(palette.gold, 55) : palette.border}`, background: on ? tint(palette.gold, 16) : "transparent", color: on ? palette.gold : palette.textMuted,
+  });
+  const segs = [["all", "All", null], ["medium", "Medium+", AMBER], ["high", "High", palette.red]];
+  const mobileNews = (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "4px 2px 12px" }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: -0.4, color: palette.text }}>Economic Calendar</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3, fontSize: 12, color: palette.textMuted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            <Clock size={12} aria-hidden="true" />
+            <b style={{ color: palette.text, fontVariantNumeric: "tabular-nums" }}>{clockTime}</b>
+            <span>{offsetLabel(now, tz)} · {tzName(tz)}</span>
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 34, padding: "0 11px", borderRadius: 99, border: `1px solid ${palette.border}`, fontSize: 12, fontWeight: 700, color: palette.textMuted }}>
+            <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: 99, background: open ? GOOD : palette.textFaint, boxShadow: open ? `0 0 0 3px ${tint(GOOD, 25)}` : "none" }} />
+            {open ? "Open" : "Closed"}
+          </span>
+          <button type="button" className="ec-ctl" onClick={() => loadOwn.current()} disabled={busy} aria-label="Refresh calendar" style={{ display: "grid", placeItems: "center", width: 40, height: 40, borderRadius: 12, border: `1px solid ${palette.border}`, background: "transparent", color: palette.textMuted, cursor: busy ? "default" : "pointer" }}>
+            <RefreshCw size={15} className={busy ? "ec-spin" : undefined} />
+          </button>
+        </div>
+      </div>
+
+      <div className="ec-pills" role="tablist" aria-label="Date range" style={{ display: "flex", gap: 8, overflowX: "auto", margin: "0 -12px", padding: "0 12px 12px" }}>
+        {RANGES.map((r) => (
+          <button key={r.id} type="button" role="tab" aria-selected={rangeSel === r.id} onClick={() => pickRange(r.id)} style={mpill(rangeSel === r.id)}>{r.label}</button>
+        ))}
+      </div>
+
+      {rangeSel === "custom" && (
+        <div style={{ display: "flex", gap: 8, alignItems: "center", paddingBottom: 12 }}>
+          <input type="date" className="ec-ctl" aria-label="From date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} style={{ ...fieldBase, flex: 1, minHeight: 44, fontSize: 16 }} />
+          <span style={{ color: palette.textFaint, fontSize: 12 }}>to</span>
+          <input type="date" className="ec-ctl" aria-label="To date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} style={{ ...fieldBase, flex: 1, minHeight: 44, fontSize: 16 }} />
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 8, paddingBottom: 10 }}>
+        <label style={{ position: "relative", flex: 1, minWidth: 0 }}>
+          <Search size={16} aria-hidden="true" style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)", color: palette.textFaint }} />
+          <input className="ec-ctl" aria-label="Find an event" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search CPI, NFP, Fed, EUR..." style={{ ...fieldBase, width: "100%", minHeight: 44, padding: "0 12px 0 38px", fontSize: 16, borderRadius: 14 }} />
+        </label>
+        <button type="button" className="ec-ctl" aria-label={`Filters${filterCount ? `, ${filterCount} active` : ""}`} onClick={() => setSheetOpen(true)} style={{ position: "relative", display: "grid", placeItems: "center", width: 44, height: 44, flexShrink: 0, borderRadius: 14, cursor: "pointer", border: `1px solid ${filterCount ? tint(palette.gold, 55) : palette.border}`, background: filterCount ? tint(palette.gold, 14) : tint(palette.text, 4), color: filterCount ? palette.gold : palette.textMuted }}>
+          <SlidersHorizontal size={17} />
+          {filterCount > 0 && <span style={{ position: "absolute", top: -5, right: -5, minWidth: 18, height: 18, padding: "0 4px", borderRadius: 99, display: "grid", placeItems: "center", fontSize: 10.5, fontWeight: 800, background: palette.gold, color: "#0b0b0b" }}>{filterCount}</span>}
+        </button>
+      </div>
+
+      <div role="radiogroup" aria-label="Importance" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 4, padding: 4, borderRadius: 14, border: `1px solid ${palette.border}`, background: palette.field || tint(palette.text, 4) }}>
+        {segs.map(([id, label, dot]) => {
+          const on = impact === id;
+          return (
+            <button key={id} type="button" role="radio" aria-checked={on} className="ec-ctl" onClick={() => setImpact(id)} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, minHeight: 38, border: 0, borderRadius: 10, cursor: "pointer", fontFamily: sans, fontSize: 13, fontWeight: 800, background: on ? tint(dot || palette.text, dot ? 20 : 12) : "transparent", color: on ? palette.text : palette.textFaint }}>
+              {dot && <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 99, background: dot }} />}
+              {label}
+            </button>
+          );
+        })}
+      </div>
+
+      {(ccys.length > 0 || cat !== "all") && (
+        <div className="ec-pills" style={{ display: "flex", gap: 8, overflowX: "auto", margin: "10px -12px 0", padding: "0 12px" }}>
+          {ccys.map((c) => (
+            <MChip key={c} on onClick={() => setCcys(ccys.filter((x) => x !== c))} label={`Remove ${c}`}>
+              <Flag ccy={c} w={16} />
+              {c}
+              <X size={13} aria-hidden="true" />
+            </MChip>
+          ))}
+          {cat !== "all" && (
+            <MChip on onClick={() => setCat("all")} label={`Remove ${cat}`}>
+              {cat}
+              <X size={13} aria-hidden="true" />
+            </MChip>
+          )}
+        </div>
+      )}
+
+      {feedReady && next && <div style={{ marginTop: 12 }}><NextUpCard ev={next} now={now} tz={tz} onOpen={() => setOpenId(next.id)} /></div>}
+
+      <div style={{ minHeight: 120 }}>
+        {feedReady ? mobileGroups : (
+          <div style={{ marginTop: 12, borderRadius: 18, border: `1px solid ${palette.border}`, background: palette.surface, overflow: "hidden" }}>{list}</div>
+        )}
+      </div>
+
+      <div style={{ padding: "10px 6px 6px", textAlign: "center", fontSize: 11.5, lineHeight: 1.6, color: palette.textFaint }}>
+        {filtered.length} of {inRange.length} events{own.updatedAt ? ` · ${updatedText(own.updatedAt, now)}` : ""}
+        <br />
+        Official data where available · forecasts from a public consensus feed
+        {own.feed && own.feed.ok === false && <b style={{ display: "block", color: AMBER, fontWeight: 700 }}>Forecasts are unavailable right now. They return on their own.</b>}
+        {own.feed && own.feed.ok && own.feed.stale && <span style={{ display: "block" }}>Forecasts are from a saved copy.</span>}
+        {!own.feed && own.status === "live" && own.events.length > 0 && <b style={{ display: "block", color: AMBER, fontWeight: 700 }}>Forecasts haven't loaded yet.</b>}
+      </div>
+
+      {sheetOpen && (
+        <FilterSheet
+          onClose={() => setSheetOpen(false)}
+          {...{ impact, setImpact, ccys, setCcys, currencyOptions, cat, setCat, categoryOptions, tzSel, pickTz, localTz, showHolidays, toggleHolidays, reset }}
+          count={filtered.length}
+        />
+      )}
+    </div>
+  );
+
   return (
     <div style={{ padding: isDesktop ? 0 : "0 12px" }}>
       <style>{`.ec-row:hover{background:${tint(palette.text, 4)}}
@@ -1125,7 +1488,10 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, su
 .ec-pills{scrollbar-width:none}.ec-pills::-webkit-scrollbar{display:none}
 @keyframes ec-spin{to{transform:rotate(360deg)}}
 .ec-spin{animation:ec-spin .9s linear infinite}
-@media (prefers-reduced-motion: reduce){.ec-pills button{transition:none!important}.ec-spin{animation:none}}`}</style>
+@media (prefers-reduced-motion: reduce){.ec-pills button{transition:none!important}.ec-spin{animation:none}.ec-sheet,.ec-fade{animation:none!important}}
+@keyframes ec-up{from{transform:translateY(100%)}to{transform:none}}
+@keyframes ec-in{from{opacity:0}to{opacity:1}}
+.ec-sheet{animation:ec-up .26s cubic-bezier(.22,1,.36,1)}.ec-fade{animation:ec-in .2s ease}`}</style>
       {renderSubNav ? renderSubNav([{ id: "news", label: "News" }, { id: "sessions", label: "Sessions" }], view, setView) : (
         <div role="tablist" style={{ display: "flex", gap: 4, paddingBottom: 12 }}>
           {[["news", "News"], ["sessions", "Sessions"]].map(([id, label]) => (
@@ -1133,6 +1499,7 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, su
           ))}
         </div>
       )}
+      {!isDesktop && view !== "sessions" ? mobileNews : (
       <div style={{ background: palette.surface, border: `1px solid ${palette.border}`, borderRadius: 18, overflow: "hidden", boxShadow: palette.shadow }}>
         {/* page header */}
         {view !== "sessions" && <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "16px 18px 12px" }}>
@@ -1287,6 +1654,7 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, su
         </div>
         </>)}
       </div>
+      )}
     </div>
   );
 }
