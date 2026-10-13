@@ -860,7 +860,7 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase }) 
 
         {/* footer */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", padding: "10px 18px", fontSize: 11.5, color: palette.textFaint, ...hairline }}>
-          <span>Source: your own calendar · forecasts from a public consensus feed{own.updatedAt ? ` · ${updatedText(own.updatedAt, now)}` : ""}</span>
+          <span>Source: your own calendar · official data where available · forecasts from a public consensus feed{own.updatedAt ? ` · ${updatedText(own.updatedAt, now)}` : ""}</span>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
             Times in {tz} · {filtered.length} {filtered.length === 1 ? "event" : "events"}
             <button type="button" className="ec-ctl" onClick={() => loadOwn.current()} disabled={busy} aria-label="Refresh calendar" title="Refresh calendar" style={{ display: "grid", placeItems: "center", width: 24, height: 24, border: 0, background: "transparent", color: palette.textMuted, cursor: busy ? "default" : "pointer" }}>
