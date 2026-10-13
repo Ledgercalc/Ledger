@@ -144,13 +144,14 @@ function categoryOf(title) {
   if (/(gdp|retail|industrial|production|pmi|manufacturing|services|trade balance)/.test(t)) return "Growth";
   return "Other";
 }
-const CATEGORIES = ["Central Bank", "Inflation", "Employment", "Growth", "Other"];
+const CATEGORIES = ["Central Bank", "Inflation", "Employment", "Growth", "Holiday", "Other"];
 function normalize(ev, i) {
   if (!ev || typeof ev !== "object") return null;
   const ms = eventMs(ev);
   const title = ev.event ?? ev.title ?? ev.name ?? ev.indicator;
   if (!Number.isFinite(ms) || !title) return null;
   const pair = parsePair(ev.pair || ev.symbol || currencyOf(ev));
+  const holiday = ev.holiday === true;
   return {
     id: ev.id ?? `${ms}-${i}`,
     indicator: ev.indicator && typeof ev.indicator === "string" ? ev.indicator : "",
@@ -159,7 +160,10 @@ function normalize(ev, i) {
     ccy: pair ? `${pair[0]}/${pair[1]}` : currencyOf(ev),
     pair,
     impact: impactOf(ev),
-    cat: categoryOf(String(title)),
+    cat: holiday ? "Holiday" : categoryOf(String(title)),
+    holiday,
+    // a holiday is a calendar date (in the bank's own country), not a moment, so it is grouped by that date in every time zone
+    dayKey: holiday && typeof ev.day === "string" && /^\d{4}-\d\d-\d\d$/.test(ev.day) ? ev.day : "",
     actual: ev.actual,
     forecast: ev.estimate ?? ev.forecast ?? ev.consensus,
     previous: ev.previous ?? ev.prior,
@@ -523,6 +527,43 @@ function EventRow({ ev, isNext, compact, now, tz, mode, open, onToggle, history 
   );
 }
 
+function HolidayRow({ ev, compact }) {
+  const ccyCell = (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+      <Flag ccy={ev.ccy} w={20} />
+      <span style={{ fontSize: 12, fontWeight: 800, color: palette.text, whiteSpace: "nowrap" }}>{ev.ccy}</span>
+    </span>
+  );
+  const chip = (
+    <span style={{ display: "inline-block", padding: "1px 8px", borderRadius: 6, fontSize: 10.5, fontWeight: 800, color: AMBER, background: tint(AMBER, 16), whiteSpace: "nowrap" }}>Holiday</span>
+  );
+  const note = "Market holiday: liquidity can be thin and spreads wider.";
+  if (compact) {
+    return (
+      <div style={{ padding: "12px 16px", borderBottom: `1px solid ${palette.border}`, background: tint(AMBER, 5) }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: 12.5, fontWeight: 700, color: palette.textMuted }}>All day</span>
+          {ccyCell}
+          {chip}
+        </div>
+        <div style={{ margin: "7px 0 3px", fontSize: 13.5, fontWeight: 700, color: palette.text, lineHeight: 1.35 }}>{ev.title}</div>
+        <div style={{ fontSize: 12, color: palette.textFaint }}>{note}</div>
+      </div>
+    );
+  }
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: COLS, gap: 10, alignItems: "center", padding: "11px 18px", borderBottom: `1px solid ${palette.border}`, background: tint(AMBER, 5) }}>
+      <span style={{ fontSize: 12.5, fontWeight: 700, color: palette.textMuted }}>All day</span>
+      {ccyCell}
+      <div style={{ gridColumn: "3 / -1", minWidth: 0, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 13.5, fontWeight: 700, color: palette.text, lineHeight: 1.35 }}>{ev.title}</span>
+        {chip}
+        <span style={{ fontSize: 12, color: palette.textFaint }}>{note}</span>
+      </div>
+    </div>
+  );
+}
+
 /* ---------- options ---------- */
 const RANGES = [
   { id: "yesterday", label: "Yesterday" },
@@ -550,10 +591,11 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase }) 
   const [tzSel, setTzSel] = useState(() => loadPref("ec-tz", "local"));
   const [mode, setMode] = useState("clock");
   const [filtersOpen, setFiltersOpen] = useState(() => loadPref("ec-filters", true));
+  const [showHolidays, setShowHolidaysState] = useState(() => loadPref("ec-holidays", true));
   const [openId, setOpenId] = useState(null);
   const [now, setNow] = useState(() => Date.now());
   const [busy, setBusy] = useState(false);
-  const [own, setOwn] = useState({ events: [], history: [], updatedAt: 0, status: apiBase ? "loading" : "error", error: apiBase ? "" : "The calendar service address is missing." });
+  const [own, setOwn] = useState({ events: [], history: [], feed: null, updatedAt: 0, status: apiBase ? "loading" : "error", error: apiBase ? "" : "The calendar service address is missing." });
 
   const setImpact = (v) => {
     setImpactState(v);
@@ -566,6 +608,12 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase }) 
   const pickTz = (v) => {
     setTzSel(v);
     savePref("ec-tz", v);
+  };
+  const toggleHolidays = () => {
+    setShowHolidaysState((v) => {
+      savePref("ec-holidays", !v);
+      return !v;
+    });
   };
   const toggleFilters = () => {
     setFiltersOpen((o) => {
@@ -583,7 +631,7 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase }) 
       const res = await fetch(`${apiBase}/market/calendar`);
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !Array.isArray(data.events)) throw new Error(data.error || "Couldn't load the calendar.");
-      setOwn({ events: data.events, history: Array.isArray(data.history) ? data.history : [], updatedAt: Date.now(), status: data.syncing ? "syncing" : "live", error: "" });
+      setOwn({ events: data.events, history: Array.isArray(data.history) ? data.history : [], feed: data.feed && typeof data.feed === "object" ? data.feed : null, updatedAt: Date.now(), status: data.syncing ? "syncing" : "live", error: "" });
     } catch (err) {
       setOwn((o) => ({ ...o, status: o.events.length ? "live" : "error", error: err.message || "Couldn't load the calendar." }));
     } finally {
@@ -613,7 +661,7 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase }) 
   const tz = tzSel === "local" ? localTz : tzSel;
 
   const all = useMemo(() => own.events.map(normalize).filter(Boolean).sort((a, b) => a.ms - b.ms), [own.events]);
-  const days = useMemo(() => all.map((e) => ({ ...e, day: ymd(e.ms, tz) })), [all, tz]);
+  const days = useMemo(() => all.map((e) => ({ ...e, day: e.holiday && e.dayKey ? e.dayKey : ymd(e.ms, tz) })), [all, tz]);
   const todayS = ymd(now, tz);
   const [from, to] = useMemo(() => {
     const monday = shiftYmd(todayS, -((dowOf(todayS) + 6) % 7));
@@ -636,12 +684,12 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase }) 
     () =>
       inRange.filter(
         (e) =>
-          e.impact >= minImpact &&
+          (e.holiday ? showHolidays || cat === "Holiday" : e.impact >= minImpact) &&
           (!ccys.length || legsOf(e).some((c) => ccys.includes(c))) &&
           (cat === "all" || e.cat === cat) &&
           (!q || e.title.toLowerCase().includes(q) || e.ccy.toLowerCase().includes(q))
       ),
-    [inRange, minImpact, ccys, cat, q]
+    [inRange, minImpact, ccys, cat, q, showHolidays]
   );
   const groups = useMemo(() => {
     const out = [];
@@ -653,6 +701,7 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase }) 
       }
       g.items.push(e);
     });
+    out.forEach((g) => g.items.sort((a, b) => (b.holiday ? 1 : 0) - (a.holiday ? 1 : 0) || a.ms - b.ms));
     return out;
   }, [filtered]);
   const currencyOptions = useMemo(() => {
@@ -660,7 +709,7 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase }) 
     return [...CCY_ORDER.filter((c) => present.includes(c)), ...present.filter((c) => !CCY_ORDER.includes(c)).sort()];
   }, [all]);
   const categoryOptions = useMemo(() => CATEGORIES.filter((c) => all.some((e) => e.cat === c)), [all]);
-  const next = filtered.find((e) => e.ms > now);
+  const next = filtered.find((e) => !e.holiday && e.ms > now);
 
   const reset = () => {
     setCcys([]);
@@ -715,7 +764,7 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase }) 
               {items.length} {items.length === 1 ? "event" : "events"}
             </span>
           </div>
-          {items.map((ev) => (
+          {items.map((ev) => ev.holiday ? <HolidayRow key={ev.id} ev={ev} compact={!isDesktop} /> : (
             <EventRow
               key={ev.id}
               ev={ev}
@@ -830,6 +879,19 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase }) 
               </button>
             ))}
           </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={showHolidays}
+            className="ec-ctl"
+            onClick={toggleHolidays}
+            style={{ ...fieldBase, display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 11px", fontSize: 12, fontWeight: 700, cursor: "pointer", color: showHolidays ? palette.gold : palette.textFaint, borderColor: showHolidays ? tint(palette.gold, 40) : palette.border }}
+          >
+            <span style={{ display: "grid", placeItems: "center", width: 15, height: 15, borderRadius: 4, border: `1px solid ${showHolidays ? palette.gold : palette.border}`, background: showHolidays ? tint(palette.gold, 20) : "transparent" }}>
+              {showHolidays && <Check size={11} />}
+            </span>
+            Holidays
+          </button>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flex: "1 1 260px", justifyContent: isDesktop ? "flex-end" : "flex-start", flexWrap: "wrap" }}>
             <label style={{ position: "relative", flex: "1 1 180px", maxWidth: 280, minWidth: 150 }}>
               <Search size={14} aria-hidden="true" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: palette.textFaint }} />
@@ -860,7 +922,13 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase }) 
 
         {/* footer */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", padding: "10px 18px", fontSize: 11.5, color: palette.textFaint, ...hairline }}>
-          <span>Source: your own calendar · official data where available · forecasts from a public consensus feed{own.updatedAt ? ` · ${updatedText(own.updatedAt, now)}` : ""}</span>
+          <span>
+            Source: your own calendar · official data where available · forecasts from a public consensus feed{own.updatedAt ? ` · ${updatedText(own.updatedAt, now)}` : ""}
+            {own.feed && own.feed.ok === false && (
+              <b style={{ color: AMBER, fontWeight: 700 }}> · Forecasts are unavailable right now (the provider is limiting requests). They return on their own.</b>
+            )}
+            {own.feed && own.feed.ok && own.feed.stale && <span> · Forecasts are from a saved copy (provider is limiting requests)</span>}
+          </span>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
             Times in {tz} · {filtered.length} {filtered.length === 1 ? "event" : "events"}
             <button type="button" className="ec-ctl" onClick={() => loadOwn.current()} disabled={busy} aria-label="Refresh calendar" title="Refresh calendar" style={{ display: "grid", placeItems: "center", width: 24, height: 24, border: 0, background: "transparent", color: palette.textMuted, cursor: busy ? "default" : "pointer" }}>
