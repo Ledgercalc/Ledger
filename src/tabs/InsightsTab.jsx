@@ -5,11 +5,11 @@ import { PlanLockCard } from "../components/PlansModal.jsx";
 import { hasFeature } from "../data/plans.js";
 import { useMyPlan } from "../lib/planStore.js";
 import { Readout, StatChip } from "../components/ui.jsx";
-import { METRIC_INFO, MIN_TRADES_FOR_TIERS, computeConsistencyScore, computeDisciplineGrade, computeDisciplineStreakTrend, computeHeadlineInsight, computeInsights, computeJournalCompleteness, computeMonthComparison, computeNoteTagAnalysis, computeOverconfidenceCheck, computePerformanceMetrics, computeRevengeCostSplit, tierColor } from "../lib/analytics.js";
-import { SETUPS, emotionMeta } from "../lib/constants.js";
+import { METRIC_INFO, MIN_TRADES_FOR_TIERS, computeConsistencyScore, computeDisciplineGrade, computeDisciplineStreak, computeDisciplineStreakTrend, computeHeadlineInsight, computeInsights, computeJournalCompleteness, computeMonthComparison, computeNoteTagAnalysis, computeOverconfidenceCheck, computePerformanceMetrics, computeRevengeCostSplit, tierColor } from "../lib/analytics.js";
+import { RUNTIME, SETUPS, emotionMeta } from "../lib/constants.js";
 import { MARKET_SESSIONS } from "../lib/sessions.js";
 import { CONFIDENCE_MAX, bySession, bySetup, byConfidence, byDirection, byMood, byPair, byWeekday, findPatterns, tagCoverage } from "../lib/tradeInsights.js";
-import { fmtMoney } from "../lib/format.js";
+import { fmt, fmtMoney } from "../lib/format.js";
 import { TAP, THEME_TRANSITION, display, mono, palette } from "../lib/theme.js";
 import { ChevronDown, Clock, Download, Lightbulb, Plus, Send, ShieldAlert, Sparkles, Trash2 } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -105,6 +105,8 @@ function CoverageMeter({ label, pct }) {
 
 export default function InsightsTab(props) {
   const myPlan = useMyPlan();
+  const [showStreakInfo, setShowStreakInfo] = useState(false);
+  const [showDisciplineInfo, setShowDisciplineInfo] = useState(false);
   const {
     coachChatId,
     coachChats,
@@ -207,6 +209,45 @@ export default function InsightsTab(props) {
         },
       };
     }, [trades, customSetups, customMoods]);
+    // Core numbers that used to sit on the Journal tab. Same maths, now computed here from the logged trades.
+    const core = useMemo(() => {
+      const wins = trades.filter((t) => t.pnl > 0);
+      const losses = trades.filter((t) => t.pnl < 0);
+      const net = trades.reduce((s, t) => s + t.pnl, 0);
+      const grossWin = wins.reduce((s, t) => s + t.pnl, 0);
+      const grossLoss = Math.abs(losses.reduce((s, t) => s + t.pnl, 0));
+      let running = 0;
+      let peak = 0;
+      let maxDrawdown = 0;
+      let cur = 0;
+      let bestStreak = 0;
+      let worstStreak = 0;
+      trades.forEach((t) => {
+        running += t.pnl;
+        peak = Math.max(peak, running);
+        maxDrawdown = Math.max(maxDrawdown, peak - running);
+        if (t.pnl > 0) cur = cur > 0 ? cur + 1 : 1;
+        else if (t.pnl < 0) cur = cur < 0 ? cur - 1 : -1;
+        else cur = 0;
+        bestStreak = Math.max(bestStreak, cur);
+        worstStreak = Math.min(worstStreak, cur);
+      });
+      const disc = computeDisciplineStreak(trades);
+      return {
+        avgWin: wins.length ? grossWin / wins.length : 0,
+        avgLoss: losses.length ? grossLoss / losses.length : 0,
+        grossWin,
+        grossLoss,
+        profitFactor: grossLoss > 0 ? grossWin / grossLoss : null,
+        expectancy: trades.length ? net / trades.length : 0,
+        maxDrawdown,
+        bestStreak,
+        worstStreak,
+        disciplineCurrent: disc.current,
+        disciplineBest: disc.best,
+        disciplineHasData: disc.hasData,
+      };
+    }, [trades]);
     const fmtSigned = (n) => `${n >= 0 ? "+" : "-"}$${fmtMoney(n)}`;
     const fmtRatio = (n) => (Number.isFinite(n) ? n.toFixed(2) : "\u221e");
 
@@ -509,7 +550,39 @@ export default function InsightsTab(props) {
         )}
 
 
-        <PatternHeading hint="Measures the Journal tab does not show.">Trade quality</PatternHeading>
+        <PatternHeading hint="Your core numbers across every logged trade.">Performance</PatternHeading>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <StatChip label="Avg Win / Loss" value={`$${fmt(core.avgWin, 0)} / $${fmt(core.avgLoss, 0)}`} />
+          <StatChip label="Max Drawdown" value={`$${fmt(core.maxDrawdown, 0)}`} />
+          <StatChip label="Best / Worst Streak" value={`+${core.bestStreak} / ${core.worstStreak}`} onClick={() => setShowStreakInfo((v) => !v)} />
+          <StatChip
+            label="Profit Factor"
+            value={core.grossWin + core.grossLoss === 0 ? "N/A" : core.profitFactor === null ? "\u221e" : core.profitFactor.toFixed(2)}
+          />
+          <StatChip label="Expectancy" value={`${core.expectancy >= 0 ? "+" : "-"}$${fmtMoney(core.expectancy)} / trade`} />
+          <StatChip
+            label="Discipline Streak"
+            value={core.disciplineHasData ? `${core.disciplineCurrent} day${core.disciplineCurrent === 1 ? "" : "s"}` : "N/A"}
+            onClick={() => setShowDisciplineInfo((v) => !v)}
+          />
+          <StatChip
+            label="Best Discipline Streak"
+            value={core.disciplineHasData ? `${core.disciplineBest} day${core.disciplineBest === 1 ? "" : "s"}` : "N/A"}
+          />
+        </div>
+        {showStreakInfo && (
+          <p className="text-xs mt-2" style={{ color: palette.textFaint }}>
+            Streaks count consecutive wins (positive) or losses (negative).
+          </p>
+        )}
+        {showDisciplineInfo && (
+          <p className="text-xs mt-2" style={{ color: palette.textFaint }}>
+            Discipline streak counts consecutive trading days with no revenge trade (opened within {RUNTIME.REVENGE_WINDOW_MINUTES} minutes of a
+            loss). It tracks behavior, not P&amp;L. Profit factor is gross wins divided by gross losses; expectancy is your average result per trade.
+          </p>
+        )}
+
+        <PatternHeading hint="How your wins and losses are shaped.">Trade quality</PatternHeading>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {metricCard("rf", "Recovery Factor", fmtRatio(perf.recoveryFactor), perf.tiers.recoveryFactor)}
           {metricCard("wl", "Win/Loss Ratio", fmtRatio(perf.winLossRatio), perf.tiers.winLossRatio)}
