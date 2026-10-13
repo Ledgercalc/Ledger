@@ -254,6 +254,10 @@ function infoFor(ev) {
     return { what: "How many jobs the US economy added or lost last month, not counting farm work.", why: jobsWhy, how: stronger };
   if (/unemployment rate/.test(t))
     return { what: "The share of people who want a job but can't find one.", why: jobsWhy, how: "Here lower is the stronger result: a lower rate than forecast usually supports the currency." };
+  if (/employment change/.test(t))
+    return { what: "How many jobs the economy added or lost over the period.", why: jobsWhy, how: stronger };
+  if (/wage price index/.test(t))
+    return { what: "How much the price paid for wages and salaries changed over the quarter.", why: "Rising wages can keep inflation high, which central banks watch closely.", how: "Higher than forecast often points to tighter policy and tends to support the currency." };
   if (/earnings/.test(t))
     return { what: "How much average pay per hour changed over the month.", why: "Rising wages can keep inflation high, which central banks watch closely.", how: "Higher than forecast often points to tighter policy and tends to support the currency." };
   if (/jolts|job openings/.test(t))
