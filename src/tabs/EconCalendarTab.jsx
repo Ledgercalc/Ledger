@@ -928,7 +928,7 @@ function Chip({ on, onClick, children, color }) {
       aria-pressed={on}
       className="ec-ctl"
       onClick={onClick}
-      style={{ display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0, padding: "7px 12px", minHeight: 36, borderRadius: 99, border: `1px solid ${on ? tint(c, 50) : palette.border}`, background: on ? tint(c, 14) : "transparent", color: on ? c : palette.textMuted, fontSize: 12.5, fontWeight: 700, fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap" }}
+      style={{ display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0, padding: "6px 11px", minHeight: 34, borderRadius: 99, border: `1px solid ${on ? tint(c, 50) : palette.border}`, background: on ? tint(c, 14) : "transparent", color: on ? c : palette.textMuted, fontSize: 11.5, fontWeight: 700, fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap" }}
     >
       {children}
     </button>
@@ -948,7 +948,7 @@ function Segmented({ options, value, onChange, label }) {
             aria-checked={on}
             className="ec-ctl"
             onClick={() => onChange(id)}
-            style={{ flex: "1 1 0", minWidth: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "7px 8px", minHeight: 34, borderRadius: 9, border: 0, cursor: "pointer", fontSize: 12.5, fontWeight: 700, fontFamily: sans, whiteSpace: "nowrap", background: on ? palette.surface : "transparent", boxShadow: on ? `0 1px 3px rgba(0,0,0,.25), 0 0 0 1px ${palette.border}` : "none", color: on ? palette.text : palette.textFaint }}
+            style={{ flex: "1 1 0", minWidth: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "6px 8px", minHeight: 32, borderRadius: 9, border: 0, cursor: "pointer", fontSize: 11.5, fontWeight: 700, fontFamily: sans, whiteSpace: "nowrap", background: on ? palette.surface : "transparent", boxShadow: on ? `0 1px 3px rgba(0,0,0,.25), 0 0 0 1px ${palette.border}` : "none", color: on ? palette.text : palette.textFaint }}
           >
             {dot && <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: 99, background: dot }} />}
             {text}
@@ -973,26 +973,26 @@ function NextUp({ ev, now, tz, onOpen }) {
       type="button"
       className="ec-card ec-ctl"
       onClick={onOpen}
-      style={{ display: "block", width: "100%", textAlign: "left", cursor: "pointer", fontFamily: sans, margin: "12px 0 0", padding: "14px 16px", borderRadius: 0, color: palette.text, border: 0, borderTop: `1px solid ${tint(col, 38)}`, borderBottom: `1px solid ${tint(col, 38)}`, background: tint(col, 9) }}
+      style={{ display: "block", textAlign: "left", cursor: "pointer", fontFamily: sans, margin: "4px 12px 0", width: "calc(100% - 24px)", padding: "13px 15px", borderRadius: 16, color: palette.text, border: `1px solid ${tint(col, 38)}`, background: tint(col, 9) }}
     >
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12 }}>
         <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, fontWeight: 700, color: col }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 11, fontWeight: 700, color: col }}>
             <span className={urgent ? "ec-pulse" : undefined} aria-hidden="true" style={{ width: 7, height: 7, borderRadius: 99, background: col }} />
             {urgent ? "High-impact news very soon" : "Next up"}
           </div>
-          <div style={{ fontSize: 34, fontWeight: 800, letterSpacing: -0.5, lineHeight: 1.1, marginTop: 4, fontVariantNumeric: "tabular-nums", color: palette.text }}>{big}</div>
+          <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.5, lineHeight: 1.1, marginTop: 4, fontVariantNumeric: "tabular-nums", color: palette.text }}>{big}</div>
         </div>
         <div style={{ textAlign: "right", flexShrink: 0 }}>
-          <div style={{ fontSize: 15, fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>{timeIn(ev.ms, tz)}</div>
-          <div style={{ fontSize: 11.5, color: palette.textFaint }}>{dayText}</div>
+          <div style={{ fontSize: 13.5, fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>{timeIn(ev.ms, tz)}</div>
+          <div style={{ fontSize: 11, color: palette.textFaint }}>{dayText}</div>
         </div>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12 }}>
         {ev.pair ? <PairIcon a={ev.pair[0]} b={ev.pair[1]} w={24} /> : <Flag ccy={ev.ccy} w={24} />}
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontSize: 13.5, fontWeight: 700, lineHeight: 1.3, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{ev.title}</div>
-          <div style={{ fontSize: 11.5, color: palette.textFaint, marginTop: 3 }}>
+          <div style={{ fontSize: 12.5, fontWeight: 700, lineHeight: 1.3, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{ev.title}</div>
+          <div style={{ fontSize: 11, color: palette.textFaint, marginTop: 3 }}>
             <b style={{ color: palette.textMuted }}>{ev.ccy}</b> · {IMPACT_NAME[ev.impact]} impact · Forecast {fmtVal(ev.forecast, ev.unit)} · Previous {fmtVal(ev.previous, ev.unit)}
           </div>
         </div>
@@ -1007,10 +1007,10 @@ function Tile({ label, ev, v, tone, strong }) {
   const colored = strong && tone;
   return (
     <div style={{ minWidth: 0 }}>
-      <div style={{ fontSize: 11, color: palette.textFaint, marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: 10.5, color: palette.textFaint, marginBottom: 2 }}>{label}</div>
       <div
         className={pending ? "ec-pulse" : undefined}
-        style={{ fontSize: pending ? 12.5 : strong ? 17 : 15, fontWeight: strong ? 800 : 600, fontVariantNumeric: "tabular-nums", color: pending ? palette.gold : colored ? tone.color : empty ? palette.textFaint : strong ? palette.text : palette.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+        style={{ fontSize: pending ? 11.5 : strong ? 15.5 : 13.5, fontWeight: strong ? 800 : 600, fontVariantNumeric: "tabular-nums", color: pending ? palette.gold : colored ? tone.color : empty ? palette.textFaint : strong ? palette.text : palette.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
       >
         {pending ? "Pending" : fmtVal(v, ev.unit)}
       </div>
@@ -1084,25 +1084,25 @@ function MCard({ ev, isNext, now, tz, mode, open, onToggle, history }) {
         style={{ padding: "13px 14px 13px 16px", cursor: "pointer" }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ minWidth: 46, fontSize: 15, fontWeight: 800, fontVariantNumeric: "tabular-nums", color: upcoming ? palette.text : palette.textMuted }}>{primary}</span>
+          <span style={{ minWidth: 44, fontSize: 14, fontWeight: 800, fontVariantNumeric: "tabular-nums", color: upcoming ? palette.text : palette.textMuted }}>{primary}</span>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 7, minWidth: 0 }}>
             {ev.pair ? <PairIcon a={ev.pair[0]} b={ev.pair[1]} w={22} /> : <Flag ccy={ev.ccy} w={22} />}
-            <span style={{ fontSize: 13, fontWeight: 800, color: palette.text, whiteSpace: "nowrap" }}>{ev.ccy}</span>
+            <span style={{ fontSize: 12, fontWeight: 800, color: palette.text, whiteSpace: "nowrap" }}>{ev.ccy}</span>
           </span>
           <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 8 }}>
             {ev.impact > 0 && (
-              <span style={{ padding: "2px 9px", borderRadius: 99, fontSize: 11, fontWeight: 800, color: rail, background: tint(rail, 16) }}>{IMPACT_NAME[ev.impact]}</span>
+              <span style={{ padding: "2px 8px", borderRadius: 99, fontSize: 10.5, fontWeight: 800, color: rail, background: tint(rail, 16) }}>{IMPACT_NAME[ev.impact]}</span>
             )}
             <ChevronDown size={15} aria-hidden="true" style={{ color: palette.textFaint, transform: open ? "rotate(180deg)" : "none", transition: "transform .15s ease" }} />
           </span>
         </div>
-        <div style={{ margin: "9px 0 10px", fontSize: 14, fontWeight: 700, color: palette.text, lineHeight: 1.35 }}>{ev.title}</div>
+        <div style={{ margin: "8px 0 9px", fontSize: 13, fontWeight: 700, color: palette.text, lineHeight: 1.35 }}>{ev.title}</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 10 }}>
           <Tile label="Actual" ev={ev} v={ev.actual} tone={tone} strong />
           <Tile label="Forecast" ev={ev} v={ev.forecast} />
           <Tile label="Previous" ev={ev} v={ev.previous} />
         </div>
-        {status && <div style={{ marginTop: 9, fontSize: 12, fontWeight: 700, color: status.color }}>{status.text}</div>}
+        {status && <div style={{ marginTop: 8, fontSize: 11, fontWeight: 700, color: status.color }}>{status.text}</div>}
       </div>
       {open && <MDetail ev={ev} history={history} tz={tz} onClose={onToggle} />}
     </div>
@@ -1118,8 +1118,8 @@ function MHoliday({ ev }) {
         <span style={{ padding: "1px 8px", borderRadius: 6, fontSize: 10.5, fontWeight: 800, color: AMBER, background: tint(AMBER, 16) }}>Holiday</span>
         <span style={{ marginLeft: "auto", fontSize: 11.5, color: palette.textFaint }}>All day</span>
       </div>
-      <div style={{ fontSize: 13.5, fontWeight: 700, color: palette.text, marginTop: 7, lineHeight: 1.35 }}>{ev.title}</div>
-      <div style={{ fontSize: 12, color: palette.textFaint, marginTop: 3 }}>Thin liquidity and wider spreads are common.</div>
+      <div style={{ fontSize: 12.5, fontWeight: 700, color: palette.text, marginTop: 7, lineHeight: 1.35 }}>{ev.title}</div>
+      <div style={{ fontSize: 11, color: palette.textFaint, marginTop: 3 }}>Thin liquidity and wider spreads are common.</div>
     </div>
   );
 }
@@ -1127,10 +1127,10 @@ function MHoliday({ ev }) {
 function MDay({ day, items, todayS }) {
   const high = items.filter((e) => !e.holiday && e.impact >= 3).length;
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", background: tint(palette.text, 4), borderTop: `1px solid ${palette.border}`, borderBottom: `1px solid ${palette.border}` }}>
-      <span style={{ fontSize: 15, fontWeight: 800, color: palette.text }}>{shortDay(day)}</span>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "14px 16px 7px" }}>
+      <span style={{ fontSize: 13, fontWeight: 800, color: palette.text }}>{shortDay(day)}</span>
       {day === todayS && <span style={{ fontSize: 10.5, fontWeight: 800, padding: "2px 8px", borderRadius: 99, background: tint(palette.gold, 18), color: palette.gold }}>Today</span>}
-      <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11.5, color: palette.textFaint }}>
+      <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, color: palette.textFaint }}>
         {items.length} {items.length === 1 ? "event" : "events"}
         {high > 0 && (
           <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: BAD, fontWeight: 700 }}>
@@ -1260,11 +1260,11 @@ function MobileNews(p) {
   return (
     <div style={{ width: "100vw", marginLeft: "calc(50% - 50vw)", overflowX: "clip" }}>
       {/* header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "10px 12px 12px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "8px 14px 10px" }}>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 21, fontWeight: 800, color: palette.text, letterSpacing: -0.2 }}>Economic Calendar</div>
-          <button type="button" className="ec-ctl" aria-label="Change time zone" onClick={() => setSheet(true)} style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 3, padding: 0, border: 0, background: "transparent", color: palette.textMuted, fontSize: 12, fontFamily: sans, cursor: "pointer" }}>
-            <Clock size={12} aria-hidden="true" />
+          <div style={{ fontSize: 18.5, fontWeight: 800, color: palette.text, letterSpacing: -0.2 }}>Economic Calendar</div>
+          <button type="button" className="ec-ctl" aria-label="Change time zone" onClick={() => setSheet(true)} style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 3, padding: 0, border: 0, background: "transparent", color: palette.textMuted, fontSize: 11.5, fontFamily: sans, cursor: "pointer" }}>
+            <Clock size={11} aria-hidden="true" />
             <b style={{ color: palette.text, fontVariantNumeric: "tabular-nums" }}>{p.clockTime}</b>
             {offsetLabel(now, tz)} · {tzCity(tz)}
           </button>
@@ -1283,7 +1283,7 @@ function MobileNews(p) {
       {/* date range */}
       <div className="ec-pills" role="tablist" aria-label="Date range" style={{ display: "flex", gap: 4, overflowX: "auto", padding: "0 10px 10px" }}>
         {RANGES.map((r) => (
-          <button key={r.id} type="button" role="tab" aria-selected={p.rangeSel === r.id} className="ec-ctl" onClick={() => p.pickRange(r.id)} style={{ ...p.pill(p.rangeSel === r.id), minHeight: 38, padding: "8px 14px", fontSize: 13 }}>
+          <button key={r.id} type="button" role="tab" aria-selected={p.rangeSel === r.id} className="ec-ctl" onClick={() => p.pickRange(r.id)} style={{ ...p.pill(p.rangeSel === r.id), minHeight: 36, padding: "7px 12px", fontSize: 12 }}>
             {r.label}
           </button>
         ))}
@@ -1336,7 +1336,7 @@ function MobileNews(p) {
 
       {/* heads-up when something big is about to land */}
       {p.soon && (!p.next || p.soon.id !== p.next.id) && (
-        <div role="status" style={{ display: "flex", alignItems: "flex-start", gap: 10, marginTop: 12, padding: "11px 14px", background: tint(BAD, 10), borderTop: `1px solid ${tint(BAD, 35)}`, borderBottom: `1px solid ${tint(BAD, 35)}`, fontSize: 12.5, lineHeight: 1.45, color: palette.text }}>
+        <div role="status" style={{ display: "flex", alignItems: "flex-start", gap: 10, margin: "10px 12px 0", padding: "10px 13px", borderRadius: 14, background: tint(BAD, 10), border: `1px solid ${tint(BAD, 35)}`, fontSize: 11.5, lineHeight: 1.45, color: palette.text }}>
           <span className="ec-pulse" aria-hidden="true" style={{ width: 8, height: 8, marginTop: 5, borderRadius: 99, background: BAD, flexShrink: 0 }} />
           <span>
             <b>{p.soon.ccy} {p.soon.title}</b> {soonLeft > 0 ? `lands in ${countdown(soonLeft)}` : "was just released"}. Expect fast moves and wider spreads.
@@ -1346,7 +1346,7 @@ function MobileNews(p) {
 
       {p.next && !p.stateNode && <NextUp ev={p.next} now={now} tz={tz} onOpen={openNext} />}
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px 8px", minHeight: 30, fontSize: 12, color: palette.textFaint }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px 6px", minHeight: 30, fontSize: 11, color: palette.textFaint }}>
         <span>
           <b style={{ color: palette.text }}>{p.filtered.length}</b> of {p.inRange.length} events
         </span>
@@ -1360,18 +1360,18 @@ function MobileNews(p) {
           p.groups.map((g) => (
             <div key={g.day}>
               <MDay day={g.day} items={g.items} todayS={p.todayS} />
-              {g.items.map((ev) =>
+              <div className="ec-grp">{g.items.map((ev) =>
                 ev.holiday ? (
                   <MHoliday key={ev.id} ev={ev} />
                 ) : (
                   <MCard key={ev.id} ev={ev} isNext={!!p.next && ev.id === p.next.id} now={now} tz={tz} mode={p.mode} open={p.openId === ev.id} onToggle={() => p.setOpenId(p.openId === ev.id ? null : ev.id)} history={p.history} />
                 )
-              )}
+              )}</div>
             </div>
           ))}
       </div>
 
-      <div style={{ padding: "12px 12px 0", fontSize: 11.5, lineHeight: 1.55, color: palette.textFaint }}>
+      <div style={{ padding: "12px 16px 0", fontSize: 10.5, lineHeight: 1.55, color: palette.textFaint }}>
         {p.sourceNote}
         <div style={{ marginTop: 4 }}>Times are shown in {tz}.</div>
       </div>
@@ -1403,7 +1403,7 @@ function MobileNews(p) {
 }
 
 /* =====================================================================================
-   Phone layout for the Sessions tab: full width, flat bands and rows, no cards.
+   Phone layout for the Sessions tab: compact rounded cards with a small side gutter.
    ===================================================================================== */
 function MobileSessions({ now, tz, clockTime, events = [] }) {
   const z = zonedParts(now, tz);
@@ -1447,152 +1447,143 @@ function MobileSessions({ now, tz, clockTime, events = [] }) {
   const col = live ? palette.gold : palette.textFaint;
   const headline = live ? openNow.map((d) => d.s.name).join(" + ") : nextOpen ? `${nextOpen.s.name} opens in ${span(nextOpen.st.start - now)}` : "No session scheduled";
   const sub = overlapNow
-    ? `Overlap for another ${span(overlapNow.end - now)}: highest volume and tightest spreads of the day.`
+    ? "Overlap: the highest volume and tightest spreads of the day."
     : live
       ? "One session is active right now."
       : weekendHere
-        ? "Weekend: forex is closed until the new week opens."
+        ? "Weekend. Forex reopens with the new week."
         : "Forex trades Monday to Friday.";
+  const card = { margin: "10px 12px 0", borderRadius: 16, overflow: "hidden", background: palette.surface, border: `1px solid ${palette.border}` };
+  const cardHead = (title, aside) => (
+    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8, padding: "11px 14px 9px" }}>
+      <span style={{ fontSize: 13, fontWeight: 800, color: palette.text }}>{title}</span>
+      {aside && <span style={{ fontSize: 11, color: palette.textFaint }}>{aside}</span>}
+    </div>
+  );
   const stat = (label, value) => (
     <div style={{ minWidth: 0 }}>
-      <div style={{ fontSize: 11, color: palette.textFaint, marginBottom: 2 }}>{label}</div>
-      <div style={{ fontSize: 15, fontWeight: 800, color: palette.text, fontVariantNumeric: "tabular-nums", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</div>
+      <div style={{ fontSize: 10.5, color: palette.textFaint, marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: 13.5, fontWeight: 800, color: palette.text, fontVariantNumeric: "tabular-nums", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</div>
     </div>
   );
-  const laneLabel = (text, aside) => (
-    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", fontSize: 11.5, marginBottom: 4 }}>
-      <span style={{ fontWeight: 700, color: palette.textMuted }}>{text}</span>
-      {aside && <span style={{ color: palette.textFaint, fontVariantNumeric: "tabular-nums" }}>{aside}</span>}
+  const lane = (text, aside, child, h) => (
+    <div style={{ marginBottom: 9 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, marginBottom: 3 }}>
+        <span style={{ fontWeight: 700, color: palette.textMuted }}>{text}</span>
+        <span style={{ color: palette.textFaint }}>{aside}</span>
+      </div>
+      <div style={{ position: "relative", height: h, borderRadius: 99, background: child === "news" ? "transparent" : tint(palette.text, 6) }}>{child === "news" ? null : child}</div>
     </div>
   );
-  const band = { padding: "10px 14px", background: tint(palette.text, 4), borderTop: `1px solid ${palette.border}`, borderBottom: `1px solid ${palette.border}`, fontSize: 13, fontWeight: 800, color: palette.text, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 };
   return (
-    <div style={{ width: "100vw", marginLeft: "calc(50% - 50vw)", overflowX: "clip" }}>
-      {/* header */}
-      <div style={{ padding: "10px 12px 12px" }}>
-        <div style={{ fontSize: 21, fontWeight: 800, color: palette.text, letterSpacing: -0.2 }}>Market Sessions</div>
-        <div style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 3, color: palette.textMuted, fontSize: 12 }}>
-          <Clock size={12} aria-hidden="true" />
+    <div style={{ boxSizing: "border-box", width: "100vw", marginLeft: "calc(50% - 50vw)", overflowX: "clip", paddingBottom: 4 }}>
+      <div style={{ padding: "8px 14px 2px" }}>
+        <div style={{ fontSize: 18.5, fontWeight: 800, color: palette.text, letterSpacing: -0.2 }}>Market Sessions</div>
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 2, color: palette.textMuted, fontSize: 11.5 }}>
+          <Clock size={11} aria-hidden="true" />
           <b style={{ color: palette.text, fontVariantNumeric: "tabular-nums" }}>{clockTime}</b>
           {offsetLabel(now, tz)} · {tzCity(tz)}
         </div>
       </div>
 
-      {/* status band */}
-      <div style={{ padding: "16px 16px 14px", background: tint(col, 10), borderTop: `1px solid ${tint(col, 35)}`, borderBottom: `1px solid ${tint(col, 35)}` }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, fontWeight: 700, color: live ? palette.gold : palette.textMuted }}>
-          <span className={live ? "ec-pulse" : undefined} aria-hidden="true" style={{ width: 7, height: 7, borderRadius: 99, background: col }} />
+      {/* status */}
+      <div style={{ ...card, overflow: "visible", padding: "14px 15px 14px", background: tint(col, 9), border: `1px solid ${tint(col, 35)}` }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 11.5, fontWeight: 700, color: live ? palette.gold : palette.textMuted }}>
+          <span className={live ? "ec-pulse" : undefined} aria-hidden="true" style={{ width: 6, height: 6, borderRadius: 99, background: col }} />
           {live ? "Market open" : weekendHere ? "Weekend, market closed" : "Market closed"}
         </div>
-        <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: -0.4, lineHeight: 1.15, marginTop: 5, color: palette.text }}>{headline}</div>
-        <div style={{ fontSize: 12.5, lineHeight: 1.5, color: palette.textMuted, marginTop: 5 }}>{sub}</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12, marginTop: 14 }}>
+        <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: -0.3, lineHeight: 1.15, marginTop: 5, color: palette.text }}>{headline}</div>
+        <div style={{ fontSize: 11.5, lineHeight: 1.5, color: palette.textMuted, marginTop: 4 }}>{sub}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12, marginTop: 12 }}>
           {live ? stat(overlapNow ? "Overlap ends in" : "Closes in", span((overlapNow ? overlapNow.end : openNow[0].st.end) - now)) : stat("Opens in", nextOpen ? span(nextOpen.st.start - now) : "—")}
-          {overlapNow ? stat("Active", overlapNow.label) : nextOverlap ? stat("Next overlap", `${nextOverlap.label} in ${span(nextOverlap.start - now)}`) : stat("Next overlap", "—")}
+          {overlapNow ? stat("Active", overlapNow.label) : nextOverlap ? stat("Next overlap", `${nextOverlap.label}, ${span(nextOverlap.start - now)}`) : stat("Next overlap", "—")}
         </div>
       </div>
 
-      {/* 24h timeline */}
-      <div style={{ ...band, marginTop: 14 }}>
-        <span>Today</span>
-        <span style={{ fontSize: 11.5, fontWeight: 600, color: palette.textFaint }}>{tz}</span>
-      </div>
-      <div style={{ padding: "12px 14px 10px", borderBottom: `1px solid ${palette.border}` }}>
-        <div style={{ position: "relative" }}>
-          {data.map(({ s, st, segs }) => (
-            <div key={s.id} style={{ marginBottom: 10 }}>
-              {laneLabel(s.name, st.open ? "open now" : "")}
-              <div style={{ position: "relative", height: 16, borderRadius: 99, background: tint(palette.text, 6) }}>
-                {segs.map((g, i) => (
-                  <div key={i} style={{ position: "absolute", top: 0, bottom: 0, left: `${pct(g.a)}%`, width: `${pct(g.b) - pct(g.a)}%`, borderRadius: 99, background: s.color, opacity: st.open ? 1 : 0.55 }} />
+      {/* timeline */}
+      <div style={card}>
+        {cardHead("Today", tz)}
+        <div style={{ padding: "0 14px 10px" }}>
+          <div style={{ position: "relative" }}>
+            {data.map(({ s, st, segs }) =>
+              lane(s.name, st.open ? "open now" : "", segs.map((g, i) => (
+                <div key={i} style={{ position: "absolute", top: 0, bottom: 0, left: `${pct(g.a)}%`, width: `${pct(g.b) - pct(g.a)}%`, borderRadius: 99, background: s.color, opacity: st.open ? 1 : 0.55 }} />
+              )), 12)
+            )}
+            {lane("Overlap", overlaps.length ? "" : "none today", overlaps.map((o, i) => (
+              <div key={i} style={{ position: "absolute", top: 0, bottom: 0, left: `${pct(o.a)}%`, width: `${pct(o.b) - pct(o.a)}%`, borderRadius: 99, background: palette.gold }} />
+            )), 8)}
+            <div style={{ marginBottom: 6 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, marginBottom: 3 }}>
+                <span style={{ fontWeight: 700, color: palette.textMuted }}>High-impact news</span>
+                <span style={{ color: palette.textFaint }}>{newsToday.length ? `${newsToday.length} today` : "none today"}</span>
+              </div>
+              <div style={{ position: "relative", height: 12 }}>
+                {newsToday.map((e) => (
+                  <span key={e.id} style={{ position: "absolute", left: `${pct(e.ms)}%`, top: 1, width: 10, height: 10, marginLeft: -5, borderRadius: 99, background: BAD, boxShadow: `0 0 0 2px ${palette.surface}` }} />
                 ))}
               </div>
             </div>
-          ))}
-          <div style={{ marginBottom: 10 }}>
-            {laneLabel("Overlap", overlaps.length ? "" : "none today")}
-            <div style={{ position: "relative", height: 10, borderRadius: 99, background: tint(palette.text, 4) }}>
-              {overlaps.map((o, i) => (
-                <div key={i} style={{ position: "absolute", top: 0, bottom: 0, left: `${pct(o.a)}%`, width: `${pct(o.b) - pct(o.a)}%`, borderRadius: 99, background: palette.gold }} />
-              ))}
-            </div>
-          </div>
-          <div style={{ marginBottom: 6 }}>
-            {laneLabel("High-impact news", newsToday.length ? `${newsToday.length} today` : "none today")}
             <div style={{ position: "relative", height: 14 }}>
-              {newsToday.map((e) => (
-                <span key={e.id} style={{ position: "absolute", left: `${pct(e.ms)}%`, top: 1, width: 11, height: 11, marginLeft: -5.5, borderRadius: 99, background: BAD, boxShadow: `0 0 0 2px ${palette.bg || palette.surface}` }} />
+              {hours.map((h) => (
+                <span key={h} style={{ position: "absolute", left: `${hourAt(h)}%`, transform: h === 0 ? "none" : "translateX(-50%)", fontSize: 9.5, color: palette.textFaint, fontVariantNumeric: "tabular-nums" }}>{String(h).padStart(2, "0")}:00</span>
               ))}
             </div>
+            <div aria-hidden="true" style={{ position: "absolute", top: 0, bottom: 16, left: `${nowPct}%`, width: 2, marginLeft: -1, background: palette.text, borderRadius: 2, opacity: 0.85 }} />
           </div>
-          <div style={{ position: "relative", height: 16 }}>
-            {hours.map((h) => (
-              <span key={h} style={{ position: "absolute", left: `${hourAt(h)}%`, transform: h === 0 ? "none" : "translateX(-50%)", fontSize: 10.5, color: palette.textFaint, fontVariantNumeric: "tabular-nums" }}>{String(h).padStart(2, "0")}:00</span>
-            ))}
-          </div>
-          <div aria-hidden="true" style={{ position: "absolute", top: 0, bottom: 18, left: `${nowPct}%`, width: 2, marginLeft: -1, background: palette.text, borderRadius: 2, opacity: 0.85 }} />
         </div>
       </div>
 
-      {/* news today */}
-      <div style={band}>
-        <span>High-impact news today</span>
-        <span style={{ fontSize: 11.5, fontWeight: 600, color: palette.textFaint }}>{newsToday.length} {newsToday.length === 1 ? "event" : "events"}</span>
-      </div>
-      {newsToday.length === 0 ? (
-        <div style={{ padding: "14px 14px", fontSize: 12.5, color: palette.textFaint, borderBottom: `1px solid ${palette.border}` }}>No high-impact events scheduled today.</div>
-      ) : (
-        newsToday.slice(0, 10).map((e) => {
-          const where = sessionOf(e.ms);
-          return (
-            <div key={e.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", borderBottom: `1px solid ${palette.border}`, opacity: e.ms < now ? 0.55 : 1 }}>
-              <span style={{ width: 44, fontSize: 13.5, fontWeight: 800, color: palette.text, fontVariantNumeric: "tabular-nums" }}>{hm(e.ms, tz)}</span>
-              <Flag ccy={e.ccy} w={20} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: palette.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.title}</div>
-                <div style={{ fontSize: 11.5, color: palette.textFaint, marginTop: 1 }}>{where.length ? where.join(" + ") : "Off-session"}</div>
+      {/* news */}
+      <div className="ec-grp-n" style={card}>
+        {cardHead("High-impact news today", newsToday.length ? `${newsToday.length} ${newsToday.length === 1 ? "event" : "events"}` : "")}
+        {newsToday.length === 0 ? (
+          <div style={{ padding: "2px 14px 13px", fontSize: 12, color: palette.textFaint }}>No high-impact events scheduled today.</div>
+        ) : (
+          newsToday.slice(0, 10).map((e) => {
+            const where = sessionOf(e.ms);
+            return (
+              <div key={e.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 14px", borderTop: `1px solid ${palette.border}`, opacity: e.ms < now ? 0.55 : 1 }}>
+                <span style={{ width: 40, fontSize: 12.5, fontWeight: 800, color: palette.text, fontVariantNumeric: "tabular-nums" }}>{hm(e.ms, tz)}</span>
+                <Flag ccy={e.ccy} w={18} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: palette.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.title}</div>
+                  <div style={{ fontSize: 10.5, color: palette.textFaint, marginTop: 1 }}>{where.length ? where.join(" + ") : "Off-session"}</div>
+                </div>
               </div>
-            </div>
-          );
-        })
-      )}
-
-      {/* the three sessions */}
-      <div style={{ ...band, marginTop: 14 }}>
-        <span>Sessions</span>
-        <span style={{ fontSize: 11.5, fontWeight: 600, color: palette.textFaint }}>Your time</span>
+            );
+          })
+        )}
       </div>
+
+      {/* sessions */}
       {data.map(({ s, st }) => {
         const on = st.open;
         const w = sessionWindows(s, now, -1, 8).find((x) => (on ? now >= x.start && now < x.end : x.start === st.start));
         return (
-          <div key={s.id} style={{ position: "relative", padding: "13px 14px 13px 17px", borderBottom: `1px solid ${palette.border}`, background: on ? tint(s.color, 8) : "transparent" }}>
+          <div key={s.id} style={{ ...card, position: "relative", padding: "12px 14px 12px 17px", background: on ? tint(s.color, 8) : palette.surface, border: `1px solid ${on ? tint(s.color, 45) : palette.border}` }}>
             <span aria-hidden="true" style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: s.color, opacity: on ? 1 : 0.4 }} />
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-              <span style={{ fontSize: 16, fontWeight: 800, color: palette.text }}>{s.name}</span>
-              <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 99, whiteSpace: "nowrap", background: on ? tint(s.color, 22) : tint(palette.text, 6), color: on ? s.color : palette.textMuted }}>
-                {on ? `Open · closes in ${span(st.end - now)}` : st.start ? `Closed · opens in ${span(st.start - now)}` : "Closed"}
+              <span style={{ fontSize: 14.5, fontWeight: 800, color: palette.text }}>{s.name}</span>
+              <span style={{ fontSize: 10.5, fontWeight: 800, padding: "3px 9px", borderRadius: 99, whiteSpace: "nowrap", background: on ? tint(s.color, 22) : tint(palette.text, 6), color: on ? s.color : palette.textMuted }}>
+                {on ? `Open, closes in ${span(st.end - now)}` : st.start ? `Opens in ${span(st.start - now)}` : "Closed"}
               </span>
             </div>
-            {w && (
-              <div style={{ fontSize: 15, fontWeight: 800, color: palette.text, marginTop: 7, fontVariantNumeric: "tabular-nums" }}>
-                {hm(w.start, tz)}–{hm(w.end, tz)}
-              </div>
-            )}
-            <div style={{ fontSize: 12, color: palette.textFaint, marginTop: 4, lineHeight: 1.5 }}>
+            {w && <div style={{ fontSize: 13.5, fontWeight: 800, color: palette.text, marginTop: 6, fontVariantNumeric: "tabular-nums" }}>{hm(w.start, tz)} to {hm(w.end, tz)}</div>}
+            <div style={{ fontSize: 11, color: palette.textFaint, marginTop: 3, lineHeight: 1.5 }}>
               {(s.of || [{ city: "Local", ...s }]).map((c, i) => (
                 <div key={i}>
-                  {c.city} {String(c.open[0]).padStart(2, "0")}:{String(c.open[1]).padStart(2, "0")}–{String(c.close[0]).padStart(2, "0")}:{String(c.close[1]).padStart(2, "0")}, now {hm(now, c.tz)} there
+                  {c.city} {String(c.open[0]).padStart(2, "0")}:{String(c.open[1]).padStart(2, "0")} to {String(c.close[0]).padStart(2, "0")}:{String(c.close[1]).padStart(2, "0")}, now {hm(now, c.tz)} there
                 </div>
               ))}
             </div>
-            <div style={{ fontSize: 12, color: palette.textMuted, marginTop: 7, lineHeight: 1.5 }}>{s.note}</div>
+            <div style={{ fontSize: 11.5, color: palette.textMuted, marginTop: 6, lineHeight: 1.5 }}>{s.note}</div>
             <div className="ec-pills" style={{ display: "flex", gap: 6, overflowX: "auto", margin: "9px -14px 0 0", paddingRight: 14 }}>
               {s.pairs.map((pr) => {
                 const [a, b] = pr.split("/");
                 return (
-                  <span key={pr} style={{ display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0, padding: "4px 10px 4px 6px", borderRadius: 99, border: `1px solid ${palette.border}`, fontSize: 11.5, fontWeight: 700, color: palette.textMuted }}>
-                    <PairIcon a={a} b={b} w={14} />
+                  <span key={pr} style={{ display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0, padding: "3px 9px 3px 5px", borderRadius: 99, border: `1px solid ${palette.border}`, fontSize: 10.5, fontWeight: 700, color: palette.textMuted }}>
+                    <PairIcon a={a} b={b} w={13} />
                     {pr}
                   </span>
                 );
@@ -1854,6 +1845,8 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, su
 .ec-row:focus-visible,.ec-pills button:focus-visible,.ec-ctl:focus-visible,.ec-opt:focus-visible{outline:2px solid ${palette.gold};outline-offset:1px}
 .ec-opt:hover{background:${tint(palette.text, 6)}}
 .ec-pills{scrollbar-width:none}.ec-pills::-webkit-scrollbar{display:none}
+.ec-grp{margin:0 12px;border:1px solid ${palette.border};border-radius:16px;overflow:hidden;background:${palette.surface}}
+.ec-grp>*:last-child{border-bottom:0!important}
 .ec-card{-webkit-tap-highlight-color:transparent;transition:background .12s ease}
 .ec-card:active{background:${tint(palette.text, 5)}}
 .ec-card:focus-visible{outline:2px solid ${palette.gold};outline-offset:-2px}
