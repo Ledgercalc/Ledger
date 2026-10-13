@@ -66,6 +66,11 @@ const FLAG_SVG = {
   CAD: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"85.5 0 342 342\"><path fill=\"#FFF\" d=\"M0 0h513v342H0z\"/><g fill=\"red\"><path d=\"M0 0h142v342H0zM371 0h142v342H371zM306.5 206l50.4-25.2-25.2-12.6V143l-50.4 25.2 25.2-50.4h-25.2L256.1 80l-25.2 37.8h-25.2l25.2 50.4-50.4-25.2v25.2l-25.2 12.6 50.4 25.2-12.6 25.2h50.4V269h25.2v-37.8h50.4z\"/></g></svg>",
   CHF: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"128 0 512 512\"><path fill=\"red\" d=\"M0 0h768v512H0V0z\"/><path fill=\"#FFF\" d=\"M336 96h96v112h112v96H432v112h-96V304H224v-96h112V96z\"/></svg>",
   CNY: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"75.24 0 342 342\"><path fill=\"#D80027\" d=\"M0 0h513v342H0z\"/><g fill=\"#FFDA44\"><path d=\"m226.8 239.2-9.7-15.6-17.9 4.4 11.9-14.1-9.7-15.6 17.1 6.9 11.8-14.1-1.3 18.4 17.1 6.9-17.9 4.4zM290.6 82l-10.1 15.4 11.6 14.3-17.7-4.8-10.1 15.5-1-18.4-17.7-4.8 17.2-6.6-1-18.4 11.6 14.3zM236.2 25.4l-2 18.3 16.8 7.6-18 3.8-2 18.3-9.2-16-17.9 3.8 12.3-13.7-9.2-15.9 16.8 7.5zM292.8 161.8l-14.9 10.9 5.8 17.5-14.9-10.8-14.9 11 5.6-17.6-14.9-10.7 18.4-.1 5.6-17.6 5.8 17.5zM115 46.3l17.3 53.5h56.2l-45.4 32.9 17.3 53.5-45.4-33-45.5 33 17.4-53.5-45.5-32.9h56.3z\"/></g></svg>",
+  TRY: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 100\"><path fill=\"#E30A17\" d=\"M0 0h160v100H0z\"/><circle cx=\"62\" cy=\"50\" r=\"26\" fill=\"#fff\"/><circle cx=\"70\" cy=\"50\" r=\"21\" fill=\"#E30A17\"/><polygon fill=\"#fff\" points=\"109.0,50.0 100.0,52.9 100.0,62.4 94.5,54.7 85.5,57.6 91.0,50.0 85.5,42.4 94.5,45.3 100.0,37.6 100.0,47.1\"/></svg>",
+  HKD: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 100\"><path fill=\"#DE2910\" d=\"M0 0h160v100H0z\"/><ellipse cx=\"80\" cy=\"30\" rx=\"8\" ry=\"17\" fill=\"#fff\" transform=\"rotate(0 80 50)\"/><ellipse cx=\"80\" cy=\"30\" rx=\"8\" ry=\"17\" fill=\"#fff\" transform=\"rotate(72 80 50)\"/><ellipse cx=\"80\" cy=\"30\" rx=\"8\" ry=\"17\" fill=\"#fff\" transform=\"rotate(144 80 50)\"/><ellipse cx=\"80\" cy=\"30\" rx=\"8\" ry=\"17\" fill=\"#fff\" transform=\"rotate(216 80 50)\"/><ellipse cx=\"80\" cy=\"30\" rx=\"8\" ry=\"17\" fill=\"#fff\" transform=\"rotate(288 80 50)\"/><circle cx=\"80\" cy=\"50\" r=\"4\" fill=\"#DE2910\"/></svg>",
+  KRW: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 100\"><path fill=\"#fff\" d=\"M0 0h160v100H0z\"/><circle cx=\"80\" cy=\"50\" r=\"22\" fill=\"#0047A0\"/><path d=\"M58 50a22 22 0 0 1 44 0a11 11 0 0 1-22 0a11 11 0 0 0-22 0z\" fill=\"#CD2E3A\"/><g transform=\"rotate(-35 80 50) translate(80 50)\" fill=\"#000\"><rect x=\"-9\" y=\"-40\" width=\"18\" height=\"3\"/><rect x=\"-9\" y=\"-35\" width=\"18\" height=\"3\"/><rect x=\"-9\" y=\"-30\" width=\"18\" height=\"3\"/></g><g transform=\"rotate(35 80 50) translate(80 50)\" fill=\"#000\"><rect x=\"-9\" y=\"-40\" width=\"18\" height=\"3\"/><rect x=\"-9\" y=\"-35\" width=\"18\" height=\"3\"/><rect x=\"-9\" y=\"-30\" width=\"18\" height=\"3\"/></g><g transform=\"rotate(145 80 50) translate(80 50)\" fill=\"#000\"><rect x=\"-9\" y=\"-40\" width=\"18\" height=\"3\"/><rect x=\"-9\" y=\"-35\" width=\"18\" height=\"3\"/><rect x=\"-9\" y=\"-30\" width=\"18\" height=\"3\"/></g><g transform=\"rotate(215 80 50) translate(80 50)\" fill=\"#000\"><rect x=\"-9\" y=\"-40\" width=\"18\" height=\"3\"/><rect x=\"-9\" y=\"-35\" width=\"18\" height=\"3\"/><rect x=\"-9\" y=\"-30\" width=\"18\" height=\"3\"/></g></svg>",
+  ZAR: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 100\"><path fill=\"#DE3831\" d=\"M0 0h160v50H0z\"/><path fill=\"#002395\" d=\"M0 50h160v50H0z\"/><path d=\"M0 0L55 50L0 100M55 50H160\" fill=\"none\" stroke=\"#fff\" stroke-width=\"30\"/><path d=\"M0 0L55 50L0 100M55 50H160\" fill=\"none\" stroke=\"#007A4D\" stroke-width=\"16\"/><path fill=\"#FFB612\" d=\"M0 8L48 50L0 92z\"/><path fill=\"#000\" d=\"M0 22L34 50L0 78z\"/></svg>",
+  BRL: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 100\"><path fill=\"#009C3B\" d=\"M0 0h160v100H0z\"/><path fill=\"#FFDF00\" d=\"M80 9L150 50L80 91L10 50z\"/><circle cx=\"80\" cy=\"50\" r=\"24\" fill=\"#002776\"/><path d=\"M57 55Q80 44 103 55\" fill=\"none\" stroke=\"#fff\" stroke-width=\"4\"/></svg>",
 };
 const FLAG_URI = {};
 const flagUri = (ccy) => {
@@ -677,9 +682,9 @@ const IMPACTS = [
 
 /* ---------- trading sessions ---------- */
 const SESSIONS = [
-  { id: "asia", name: "Asia", tz: "Asia/Tokyo", open: [9, 0], close: [18, 0], color: "#f472b6", of: [{ city: "Sydney", tz: "Australia/Sydney", open: [8, 0], close: [17, 0] }, { city: "Tokyo", tz: "Asia/Tokyo", open: [9, 0], close: [18, 0] }], note: "Sydney and Tokyo combined. Opens the forex week; AUD, NZD and JPY lead." },
-  { id: "london", name: "London", tz: "Europe/London", open: [8, 0], close: [17, 0], color: "#a78bfa", note: "The deepest market. EUR, GBP and CHF move most; biggest daily range starts here." },
-  { id: "newyork", name: "New York", tz: "America/New_York", open: [8, 0], close: [17, 0], color: "#fbbf24", note: "USD data and Fed news. Busiest while it overlaps London." },
+  { id: "asia", name: "Asia", tz: "Asia/Tokyo", open: [9, 0], close: [18, 0], color: "#f472b6", of: [{ city: "Sydney", tz: "Australia/Sydney", open: [8, 0], close: [17, 0] }, { city: "Tokyo", tz: "Asia/Tokyo", open: [9, 0], close: [18, 0] }], pairs: ["AUD/USD", "NZD/USD", "USD/JPY", "AUD/JPY"], note: "Sydney and Tokyo combined. Opens the forex week; AUD, NZD and JPY lead." },
+  { id: "london", name: "London", tz: "Europe/London", open: [8, 0], close: [17, 0], color: "#a78bfa", pairs: ["EUR/USD", "GBP/USD", "EUR/GBP", "USD/CHF"], note: "The deepest market. EUR, GBP and CHF move most; biggest daily range starts here." },
+  { id: "newyork", name: "New York", tz: "America/New_York", open: [8, 0], close: [17, 0], color: "#fbbf24", pairs: ["EUR/USD", "USD/CAD", "USD/JPY", "XAU/USD"], note: "USD data and Fed news. Busiest while it overlaps London." },
 ];
 function zonedParts(ms, timeZone) {
   const p = {};
@@ -738,7 +743,7 @@ function hm(ms, timeZone) {
   return new Date(ms).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone });
 }
 
-function SessionsView({ now, tz, isDesktop }) {
+function SessionsView({ now, tz, isDesktop, events = [] }) {
   const z = zonedParts(now, tz);
   const dayStart = wallToUtc(z.year, z.month, z.day, 0, 0, tz);
   const dayEnd = wallToUtc(z.year, z.month, z.day + 1, 0, 0, tz);
@@ -761,6 +766,19 @@ function SessionsView({ now, tz, isDesktop }) {
   const weekendHere = openNow.length === 0 && (nowUtcDay === 6 || nowUtcDay === 0 || (nowUtcDay === 5 && new Date(now).getUTCHours() >= 21));
   const live = openNow.length > 0;
   const nextOpen = data.filter((d) => !d.st.open && d.st.start).sort((a, b) => a.st.start - b.st.start)[0];
+  const overlapNow = openNow.length > 1 ? { label: openNow.map((d) => d.s.name).join(" + "), end: Math.min(...openNow.map((d) => d.st.end)) } : null;
+  let nextOverlap = null;
+  if (!overlapNow) {
+    const ws = SESSIONS.map((s) => ({ s, w: sessionWindows(s, now, -1, 8) }));
+    for (let i = 0; i < ws.length; i++) for (let j = i + 1; j < ws.length; j++) {
+      ws[i].w.forEach((x) => ws[j].w.forEach((y) => {
+        const a = Math.max(x.start, y.start), b = Math.min(x.end, y.end);
+        if (b > a && b > now && (!nextOverlap || Math.max(a, now) < nextOverlap.start)) nextOverlap = { start: Math.max(a, now), label: `${ws[i].s.name} + ${ws[j].s.name}` };
+      }));
+    }
+  }
+  const newsToday = events.filter((e) => !e.holiday && e.impact >= 3 && e.ms >= dayStart && e.ms < dayEnd).sort((a, b) => a.ms - b.ms);
+  const sessionOf = (ms) => data.filter((d) => d.segs.some((g) => ms >= g.a && ms < g.b)).map((d) => d.s.name);
   const hours = [0, 3, 6, 9, 12, 15, 18, 21];
   const hourAt = (i) => pct(wallToUtc(z.year, z.month, z.day, i, 0, tz));
   const nowPct = pct(now);
@@ -775,7 +793,7 @@ function SessionsView({ now, tz, isDesktop }) {
           {live ? openNow.map((d) => d.s.name).join(" · ") : nextOpen ? `${nextOpen.s.name} opens in ${span(nextOpen.st.start - now)}` : "No session scheduled"}
         </div>
         <div style={{ fontSize: 13, color: palette.textMuted, marginTop: 4 }}>
-          {live ? (openNow.length > 1 ? "Sessions are overlapping: expect higher volume and tighter spreads." : "One session active right now.") : "Forex trades Monday to Friday. Sessions follow each market's local weekday and daylight-saving time."}
+          {overlapNow ? `${overlapNow.label} overlap for another ${span(overlapNow.end - now)}: highest volume and tightest spreads of the day.` : live ? `One session active right now.${nextOverlap ? ` Next overlap, ${nextOverlap.label}, in ${span(nextOverlap.start - now)}.` : ""}` : `Forex trades Monday to Friday. Sessions follow each market's local weekday and daylight-saving time.${nextOverlap ? ` First overlap: ${nextOverlap.label}.` : ""}`}
           {" "}Your time: {hm(now, tz)} ({tz})
         </div>
       </div>
@@ -801,6 +819,14 @@ function SessionsView({ now, tz, isDesktop }) {
               ))}
             </div>
           </div>
+          <div style={{ display: "flex", alignItems: "center", height: 26, position: "relative" }}>
+            {isDesktop && <span style={{ position: "absolute", left: -78, width: 70, fontSize: 11.5, fontWeight: 700, color: palette.textFaint }}>High impact</span>}
+            <div style={{ position: "relative", flex: 1, height: 14 }}>
+              {newsToday.map((e) => (
+                <span key={e.id} title={`${hm(e.ms, tz)} ${e.ccy} ${e.title}`} style={{ position: "absolute", left: `${pct(e.ms)}%`, top: 1, width: 10, height: 10, marginLeft: -5, borderRadius: 99, background: "#ef4444", boxShadow: `0 0 0 2px ${palette.surface}` }} />
+              ))}
+            </div>
+          </div>
           <div style={{ position: "relative", height: 18, marginLeft: isDesktop ? 0 : 0 }}>
             {hours.map((h) => (
               <span key={h} style={{ position: "absolute", left: `${hourAt(h)}%`, transform: "translateX(-50%)", fontSize: 10.5, color: palette.textFaint }}>{String(h).padStart(2, "0")}:00</span>
@@ -808,6 +834,23 @@ function SessionsView({ now, tz, isDesktop }) {
           </div>
           <div aria-hidden="true" style={{ position: "absolute", top: -4, bottom: 18, left: `calc(${isDesktop ? "78px" : "0px"} + (100% - ${isDesktop ? "78px" : "0px"}) * ${nowPct / 100})`, width: 2, background: palette.text, borderRadius: 2, opacity: 0.85 }} />
         </div>
+      </div>
+
+      <div style={{ border: `1px solid ${palette.border}`, borderRadius: 16, padding: "12px 16px", marginBottom: 16 }}>
+        <div style={{ fontSize: 12.5, fontWeight: 800, color: palette.text, marginBottom: 6 }}>High-impact news today</div>
+        {newsToday.length === 0 ? (
+          <div style={{ fontSize: 12.5, color: palette.textFaint }}>No high-impact events scheduled today.</div>
+        ) : newsToday.slice(0, 8).map((e) => {
+          const where = sessionOf(e.ms);
+          return (
+            <div key={e.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 0", fontSize: 12.5, opacity: e.ms < now ? 0.55 : 1 }}>
+              <span style={{ width: 44, fontWeight: 800, color: palette.text, fontVariantNumeric: "tabular-nums" }}>{hm(e.ms, tz)}</span>
+              <Flag ccy={e.ccy} w={18} />
+              <span style={{ flex: 1, minWidth: 0, color: palette.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.title}</span>
+              <span style={{ color: palette.textFaint, whiteSpace: "nowrap" }}>{where.length ? where.join(" + ") : "Off-session"}</span>
+            </div>
+          );
+        })}
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "repeat(2, minmax(0, 1fr))" : "1fr", gap: 12 }}>
@@ -830,6 +873,17 @@ function SessionsView({ now, tz, isDesktop }) {
               </div>
               {w && <div style={{ fontSize: 13, fontWeight: 700, color: palette.text, marginTop: 4 }}>{hm(w.start, tz)}–{hm(w.end, tz)} <span style={{ fontWeight: 500, color: palette.textFaint }}>your time ({tz})</span></div>}
               <div style={{ fontSize: 12, color: palette.textFaint, marginTop: 8, lineHeight: 1.45 }}>{s.note}</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+                {s.pairs.map((pr) => {
+                  const [a, b] = pr.split("/");
+                  return (
+                    <span key={pr} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 9px 3px 5px", borderRadius: 99, border: `1px solid ${palette.border}`, fontSize: 11.5, fontWeight: 700, color: palette.textMuted }}>
+                      <PairIcon a={a} b={b} w={14} />
+                      {pr}
+                    </span>
+                  );
+                })}
+              </div>
             </div>
           );
         })}
@@ -838,17 +892,15 @@ function SessionsView({ now, tz, isDesktop }) {
   );
 }
 
-export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase }) {
+export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, subTab, setSubTab, renderSubNav }) {
   const [rangeSel, setRangeSel] = useState("today");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
   const [impact, setImpactState] = useState(() => loadPref("ec-impact", "medium"));
   const [ccys, setCcysState] = useState(() => loadPref("ec-ccys", []));
-  const [view, setViewState] = useState(() => (loadPref("ec-view", "calendar") === "sessions" ? "sessions" : "calendar"));
-  const setView = (v) => {
-    setViewState(v);
-    savePref("ec-view", v);
-  };
+  const [localView, setLocalView] = useState("news");
+  const view = subTab || localView;
+  const setView = (v) => (setSubTab || setLocalView)(v);
   const [cat, setCat] = useState("all");
   const [search, setSearch] = useState("");
   const [tzSel, setTzSel] = useState(() => loadPref("ec-tz", "local"));
@@ -1074,25 +1126,24 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase }) 
 @keyframes ec-spin{to{transform:rotate(360deg)}}
 .ec-spin{animation:ec-spin .9s linear infinite}
 @media (prefers-reduced-motion: reduce){.ec-pills button{transition:none!important}.ec-spin{animation:none}}`}</style>
+      {renderSubNav ? renderSubNav([{ id: "news", label: "News" }, { id: "sessions", label: "Sessions" }], view, setView) : (
+        <div role="tablist" style={{ display: "flex", gap: 4, paddingBottom: 12 }}>
+          {[["news", "News"], ["sessions", "Sessions"]].map(([id, label]) => (
+            <button key={id} type="button" role="tab" aria-selected={view === id} onClick={() => setView(id)} style={pill(view === id)}>{label}</button>
+          ))}
+        </div>
+      )}
       <div style={{ background: palette.surface, border: `1px solid ${palette.border}`, borderRadius: 18, overflow: "hidden", boxShadow: palette.shadow }}>
         {/* page header */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "16px 18px 12px" }}>
+        {view !== "sessions" && <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "16px 18px 12px" }}>
           <div style={{ fontSize: 17, fontWeight: 800, color: palette.text }}>Economic Calendar</div>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "5px 11px", borderRadius: 99, border: `1px solid ${palette.border}`, fontSize: 12, fontWeight: 700, color: palette.textMuted }}>
             <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: 99, background: open ? palette.gold : palette.textFaint }} />
             {open ? "Market open" : "Market closed"}
           </span>
-        </div>
+        </div>}
 
-        <div role="tablist" aria-label="Economic calendar view" style={{ display: "flex", gap: 4, padding: "0 18px 12px" }}>
-          {[["calendar", "Calendar"], ["sessions", "Sessions"]].map(([id, label]) => (
-            <button key={id} type="button" role="tab" aria-selected={view === id} onClick={() => setView(id)} style={pill(view === id)}>
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {view === "sessions" ? <SessionsView now={now} tz={tz} isDesktop={isDesktop} /> : (<>
+        {view === "sessions" ? <div style={{ paddingTop: 16 }}><SessionsView now={now} tz={tz} isDesktop={isDesktop} events={all} /></div> : (<>
         {/* date tabs + filter toggle */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 18px 12px" }}>
           <div className="ec-pills" role="tablist" aria-label="Date range" style={{ display: "flex", gap: 2, overflowX: "auto", flex: 1, minWidth: 0 }}>
@@ -1102,6 +1153,10 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase }) 
               </button>
             ))}
           </div>
+          <button type="button" className="ec-ctl" aria-pressed={impact === "high"} onClick={() => setImpact(impact === "high" ? "medium" : "high")} style={{ ...fieldBase, display: "inline-flex", alignItems: "center", gap: 7, cursor: "pointer", fontWeight: 700, flexShrink: 0, borderColor: impact === "high" ? "#ef4444" : palette.border, color: impact === "high" ? "#ef4444" : palette.textMuted, background: impact === "high" ? tint("#ef4444", 12) : fieldBase.background }}>
+            <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 99, background: "#ef4444" }} />
+            {isDesktop ? "High impact only" : "High"}
+          </button>
           <button type="button" className="ec-ctl" aria-expanded={filtersOpen} onClick={toggleFilters} style={{ ...fieldBase, display: "inline-flex", alignItems: "center", gap: 7, cursor: "pointer", fontWeight: 700, flexShrink: 0, borderColor: tint(palette.gold, 40), color: palette.gold }}>
             <SlidersHorizontal size={14} />
             {isDesktop ? (filtersOpen ? "Hide Filters" : "Show Filters") : null}
