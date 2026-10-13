@@ -393,9 +393,9 @@ function infoFor(ev) {
 /* ---------- small UI pieces ---------- */
 const fieldBase = {
   boxSizing: "border-box", padding: "8px 11px", borderRadius: 10, border: `1px solid ${palette.border}`, background: tint(palette.text, 4),
-  color: palette.text, fontSize: 13, fontFamily: sans, outline: "none", minWidth: 0,
+  color: palette.text, fontSize: 12, fontFamily: sans, outline: "none", minWidth: 0,
 };
-const capStyle = { fontSize: 11.5, fontWeight: 700, color: palette.textMuted, marginBottom: 6 };
+const capStyle = { fontSize: 10.5, fontWeight: 700, color: palette.textMuted, marginBottom: 6 };
 
 function ImpactBars({ level }) {
   const col = level >= 3 ? palette.red : level === 2 ? AMBER : palette.textFaint;
@@ -411,7 +411,7 @@ function ImpactBars({ level }) {
 
 function Tag({ children }) {
   return (
-    <span style={{ display: "inline-block", marginLeft: 8, padding: "1px 7px", borderRadius: 6, fontSize: 10.5, fontWeight: 700, color: palette.textFaint, background: tint(palette.text, 6), verticalAlign: "middle", whiteSpace: "nowrap" }}>
+    <span style={{ display: "inline-block", marginLeft: 8, padding: "1px 7px", borderRadius: 6, fontSize: 10, fontWeight: 700, color: palette.textFaint, background: tint(palette.text, 6), verticalAlign: "middle", whiteSpace: "nowrap" }}>
       {children}
     </span>
   );
@@ -471,7 +471,7 @@ function Option({ on, onClick, children }) {
       aria-selected={on}
       className="ec-opt"
       onClick={onClick}
-      style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", padding: "8px 9px", borderRadius: 8, border: 0, background: on ? tint(palette.gold, 12) : "transparent", color: on ? palette.gold : palette.text, fontSize: 13, fontWeight: 600, fontFamily: sans, cursor: "pointer", textAlign: "left" }}
+      style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", padding: "8px 9px", borderRadius: 8, border: 0, background: on ? tint(palette.gold, 12) : "transparent", color: on ? palette.gold : palette.text, fontSize: 12, fontWeight: 600, fontFamily: sans, cursor: "pointer", textAlign: "left" }}
     >
       <span style={{ display: "grid", placeItems: "center", width: 15, height: 15, borderRadius: 4, border: `1px solid ${on ? palette.gold : palette.border}`, background: on ? tint(palette.gold, 20) : "transparent", flexShrink: 0 }}>
         {on && <Check size={11} />}
@@ -494,7 +494,7 @@ function Skeleton() {
     </div>
   );
 }
-const Notice = ({ children }) => <div style={{ padding: "40px 24px", textAlign: "center", color: palette.textMuted, fontSize: 13, lineHeight: 1.55 }}>{children}</div>;
+const Notice = ({ children }) => <div style={{ padding: "40px 24px", textAlign: "center", color: palette.textMuted, fontSize: 12, lineHeight: 1.55 }}>{children}</div>;
 
 /* ---------- event rows ---------- */
 const COLS = "88px 112px minmax(0, 1fr) 52px 78px 78px 78px";
@@ -504,7 +504,7 @@ function ValueCell({ label, v, strong, ev, compact }) {
   const pending = strong && empty && ev.status === "pending";
   return (
     <div style={{ textAlign: compact ? "left" : "right", fontVariantNumeric: "tabular-nums", minWidth: 0 }}>
-      {compact && <div style={{ fontSize: 10.5, color: palette.textFaint, marginBottom: 1 }}>{label}</div>}
+      {compact && <div style={{ fontSize: 10, color: palette.textFaint, marginBottom: 1 }}>{label}</div>}
       <div style={{ fontSize: pending ? 12 : 13, fontWeight: strong ? 800 : 600, color: pending ? palette.gold : empty ? palette.textFaint : strong ? palette.text : palette.textMuted }}>
         {pending ? "Pending" : fmtVal(v, ev.unit)}
       </div>
@@ -516,13 +516,13 @@ function Detail({ ev, history, tz, onClose, compact }) {
   const info = infoFor(ev);
   const sup = surpriseOf(ev);
   const recent = history.filter((h) => h.indicator === ev.indicator && h.ts < ev.ms).slice(0, 5);
-  const head = (t) => <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: 0.6, color: palette.textFaint, marginBottom: 5 }}>{t}</div>;
-  const body = (t) => <div style={{ fontSize: 13, lineHeight: 1.55, color: palette.textMuted, marginBottom: 14 }}>{t}</div>;
+  const head = (t) => <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 0.6, color: palette.textFaint, marginBottom: 5 }}>{t}</div>;
+  const body = (t) => <div style={{ fontSize: 12, lineHeight: 1.55, color: palette.textMuted, marginBottom: 14 }}>{t}</div>;
   return (
     <div style={{ margin: compact ? "0 10px 12px" : "0 12px 14px", padding: compact ? "14px 14px 4px" : "16px 18px 6px", borderRadius: 14, background: tint(palette.text, 4), border: `1px solid ${palette.border}` }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
         {ev.pair ? <PairIcon a={ev.pair[0]} b={ev.pair[1]} w={26} /> : <Flag ccy={ev.ccy} w={26} />}
-        <span style={{ fontSize: 15, fontWeight: 800, color: palette.text }}>{ev.title}</span>
+        <span style={{ fontSize: 14, fontWeight: 800, color: palette.text }}>{ev.title}</span>
         {ev.pair ? <Tag>Currency pair</Tag> : <Tag>{CCY_META[ev.ccy] ? CCY_META[ev.ccy].name : ev.ccy}</Tag>}
         <Tag>{ev.ccy}</Tag>
         <Tag>{ev.cat}</Tag>
@@ -531,7 +531,7 @@ function Detail({ ev, history, tz, onClose, compact }) {
         </button>
       </div>
       {sup && (
-        <div style={{ margin: "-4px 0 14px", fontSize: 12.5, fontWeight: 800, color: palette.text }}>
+        <div style={{ margin: "-4px 0 14px", fontSize: 11.5, fontWeight: 800, color: palette.text }}>
           {sup.dir > 0 ? "▲ " : sup.dir < 0 ? "▼ " : "● "}
           {sup.text}
         </div>
@@ -548,13 +548,13 @@ function Detail({ ev, history, tz, onClose, compact }) {
         <div>
           {head("RECENT RELEASES")}
           {recent.length === 0 ? (
-            <div style={{ fontSize: 12.5, lineHeight: 1.55, color: palette.textFaint, marginBottom: 14 }}>
+            <div style={{ fontSize: 11.5, lineHeight: 1.55, color: palette.textFaint, marginBottom: 14 }}>
               No earlier figures stored yet.{isNum(ev.previous) ? ` Previous: ${fmtVal(ev.previous, ev.unit)}` : ""}
             </div>
           ) : (
             <div style={{ marginBottom: 14 }}>
               {recent.map((h) => (
-                <div key={h.ts} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "5px 0", borderBottom: `1px solid ${palette.border}`, fontSize: 12.5, fontVariantNumeric: "tabular-nums" }}>
+                <div key={h.ts} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "5px 0", borderBottom: `1px solid ${palette.border}`, fontSize: 11.5, fontVariantNumeric: "tabular-nums" }}>
                   <span style={{ color: palette.textFaint }}>{new Date(h.ts).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric", timeZone: tz })}</span>
                   <span style={{ fontWeight: 800, color: palette.text }}>{fmtVal(h.actual, ev.unit)}</span>
                 </div>
@@ -585,7 +585,7 @@ function EventRow({ ev, isNext, compact, now, tz, mode, open, onToggle, history 
   const ccyCell = (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0 }}>
       {ev.pair ? <PairIcon a={ev.pair[0]} b={ev.pair[1]} w={20} /> : <Flag ccy={ev.ccy} w={20} />}
-      <span style={{ fontSize: 12, fontWeight: 800, color: palette.text, whiteSpace: "nowrap" }}>{ev.ccy}</span>
+      <span style={{ fontSize: 11, fontWeight: 800, color: palette.text, whiteSpace: "nowrap" }}>{ev.ccy}</span>
     </span>
   );
   return (
@@ -593,11 +593,11 @@ function EventRow({ ev, isNext, compact, now, tz, mode, open, onToggle, history 
       {compact ? (
         <div {...toggle} className="ec-row" style={{ padding: "12px 16px", borderBottom: open ? "none" : `1px solid ${palette.border}`, cursor: "pointer", ...accent }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: 12.5, fontWeight: 700, color: palette.textMuted, fontVariantNumeric: "tabular-nums" }}>{timeText}</span>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: palette.textMuted, fontVariantNumeric: "tabular-nums" }}>{timeText}</span>
             {ccyCell}
             <ImpactBars level={ev.impact} />
           </div>
-          <div style={{ margin: "7px 0 9px", fontSize: 13.5, fontWeight: 700, color: palette.text, lineHeight: 1.35 }}>
+          <div style={{ margin: "7px 0 9px", fontSize: 12.5, fontWeight: 700, color: palette.text, lineHeight: 1.35 }}>
             {ev.title}
             <Tag>{ev.cat}</Tag>
           </div>
@@ -609,9 +609,9 @@ function EventRow({ ev, isNext, compact, now, tz, mode, open, onToggle, history 
         </div>
       ) : (
         <div {...toggle} className="ec-row" style={{ display: "grid", gridTemplateColumns: COLS, gap: 10, alignItems: "center", padding: "12px 18px", borderBottom: open ? "none" : `1px solid ${palette.border}`, cursor: "pointer", ...accent }}>
-          <span style={{ fontSize: 12.5, fontWeight: 700, color: palette.textMuted, fontVariantNumeric: "tabular-nums" }}>{timeText}</span>
+          <span style={{ fontSize: 11.5, fontWeight: 700, color: palette.textMuted, fontVariantNumeric: "tabular-nums" }}>{timeText}</span>
           {ccyCell}
-          <div style={{ minWidth: 0, fontSize: 13.5, fontWeight: 700, color: palette.text, lineHeight: 1.35 }}>
+          <div style={{ minWidth: 0, fontSize: 12.5, fontWeight: 700, color: palette.text, lineHeight: 1.35 }}>
             {ev.title}
             <Tag>{ev.cat}</Tag>
           </div>
@@ -630,34 +630,34 @@ function HolidayRow({ ev, compact }) {
   const ccyCell = (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0 }}>
       <Flag ccy={ev.ccy} w={20} />
-      <span style={{ fontSize: 12, fontWeight: 800, color: palette.text, whiteSpace: "nowrap" }}>{ev.ccy}</span>
+      <span style={{ fontSize: 11, fontWeight: 800, color: palette.text, whiteSpace: "nowrap" }}>{ev.ccy}</span>
     </span>
   );
   const chip = (
-    <span style={{ display: "inline-block", padding: "1px 8px", borderRadius: 6, fontSize: 10.5, fontWeight: 800, color: AMBER, background: tint(AMBER, 16), whiteSpace: "nowrap" }}>Holiday</span>
+    <span style={{ display: "inline-block", padding: "1px 8px", borderRadius: 6, fontSize: 10, fontWeight: 800, color: AMBER, background: tint(AMBER, 16), whiteSpace: "nowrap" }}>Holiday</span>
   );
   const note = "Market holiday: liquidity can be thin and spreads wider.";
   if (compact) {
     return (
       <div style={{ padding: "12px 16px", borderBottom: `1px solid ${palette.border}`, background: tint(AMBER, 5) }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 12.5, fontWeight: 700, color: palette.textMuted }}>All day</span>
+          <span style={{ fontSize: 11.5, fontWeight: 700, color: palette.textMuted }}>All day</span>
           {ccyCell}
           {chip}
         </div>
-        <div style={{ margin: "7px 0 3px", fontSize: 13.5, fontWeight: 700, color: palette.text, lineHeight: 1.35 }}>{ev.title}</div>
-        <div style={{ fontSize: 12, color: palette.textFaint }}>{note}</div>
+        <div style={{ margin: "7px 0 3px", fontSize: 12.5, fontWeight: 700, color: palette.text, lineHeight: 1.35 }}>{ev.title}</div>
+        <div style={{ fontSize: 11, color: palette.textFaint }}>{note}</div>
       </div>
     );
   }
   return (
     <div style={{ display: "grid", gridTemplateColumns: COLS, gap: 10, alignItems: "center", padding: "11px 18px", borderBottom: `1px solid ${palette.border}`, background: tint(AMBER, 5) }}>
-      <span style={{ fontSize: 12.5, fontWeight: 700, color: palette.textMuted }}>All day</span>
+      <span style={{ fontSize: 11.5, fontWeight: 700, color: palette.textMuted }}>All day</span>
       {ccyCell}
       <div style={{ gridColumn: "3 / -1", minWidth: 0, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 13.5, fontWeight: 700, color: palette.text, lineHeight: 1.35 }}>{ev.title}</span>
+        <span style={{ fontSize: 12.5, fontWeight: 700, color: palette.text, lineHeight: 1.35 }}>{ev.title}</span>
         {chip}
-        <span style={{ fontSize: 12, color: palette.textFaint }}>{note}</span>
+        <span style={{ fontSize: 11, color: palette.textFaint }}>{note}</span>
       </div>
     </div>
   );
@@ -779,105 +779,136 @@ function SessionsView({ now, tz, isDesktop, events = [] }) {
   }
   const newsToday = events.filter((e) => !e.holiday && e.impact >= 3 && e.ms >= dayStart && e.ms < dayEnd).sort((a, b) => a.ms - b.ms);
   const sessionOf = (ms) => data.filter((d) => d.segs.some((g) => ms >= g.a && ms < g.b)).map((d) => d.s.name);
-  const hours = [0, 3, 6, 9, 12, 15, 18, 21];
-  const hourAt = (i) => pct(wallToUtc(z.year, z.month, z.day, i, 0, tz));
+  const hours = isDesktop ? [0, 3, 6, 9, 12, 15, 18, 21, 24] : [0, 6, 12, 18, 24];
+  const hourAt = (i) => (i === 24 ? 100 : pct(wallToUtc(z.year, z.month, z.day, i, 0, tz)));
   const nowPct = pct(now);
+  const dayKey = (ms) => { const q = zonedParts(ms, tz); return q.year * 10000 + q.month * 100 + q.day; };
+  const range = (w) => `${hm(w.start, tz)}–${hm(w.end, tz)}${dayKey(w.end) > dayKey(w.start) ? " +1" : ""}`;
+  const labelW = isDesktop ? 78 : 0;
+  const sec = { padding: isDesktop ? "16px 20px" : "14px 14px", borderTop: `1px solid ${palette.border}` };
+  const head = { fontSize: 11.5, fontWeight: 800, color: palette.text, marginBottom: 10 };
   return (
-    <div style={{ padding: "0 18px 18px" }}>
-      <div style={{ borderRadius: 16, padding: isDesktop ? "20px 22px" : "16px", marginBottom: 16, border: `1px solid ${palette.border}`, background: `linear-gradient(135deg, ${tint(live ? palette.gold : palette.textFaint, 14)}, ${tint(palette.text, 2)})` }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, fontWeight: 800, letterSpacing: ".08em", textTransform: "uppercase", color: live ? palette.gold : palette.textMuted }}>
+    <div style={{ border: `1px solid ${palette.border}`, borderRadius: 16, overflow: "hidden", background: palette.surface, boxShadow: palette.shadow }}>
+      <div style={{ padding: isDesktop ? "20px 22px" : "16px 14px", background: `linear-gradient(135deg, ${tint(live ? palette.gold : palette.textFaint, 14)}, ${tint(palette.text, 2)})` }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 10.5, fontWeight: 800, letterSpacing: ".08em", textTransform: "uppercase", color: live ? palette.gold : palette.textMuted }}>
           <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 99, background: live ? palette.gold : palette.textFaint, boxShadow: live ? `0 0 0 4px ${tint(palette.gold, 25)}` : "none" }} />
           {live ? "Market open" : weekendHere ? "Weekend · market closed" : "Market closed"}
         </div>
-        <div style={{ fontSize: isDesktop ? 26 : 21, fontWeight: 800, color: palette.text, marginTop: 6 }}>
+        <div style={{ fontSize: isDesktop ? 24 : 19.5, fontWeight: 800, color: palette.text, marginTop: 6, lineHeight: 1.2 }}>
           {live ? openNow.map((d) => d.s.name).join(" · ") : nextOpen ? `${nextOpen.s.name} opens in ${span(nextOpen.st.start - now)}` : "No session scheduled"}
         </div>
-        <div style={{ fontSize: 13, color: palette.textMuted, marginTop: 4 }}>
+        <div style={{ fontSize: 12, color: palette.textMuted, marginTop: 4, lineHeight: 1.45 }}>
           {overlapNow ? `${overlapNow.label} overlap for another ${span(overlapNow.end - now)}: highest volume and tightest spreads of the day.` : live ? `One session active right now.${nextOverlap ? ` Next overlap, ${nextOverlap.label}, in ${span(nextOverlap.start - now)}.` : ""}` : `Forex trades Monday to Friday. Sessions follow each market's local weekday and daylight-saving time.${nextOverlap ? ` First overlap: ${nextOverlap.label}.` : ""}`}
-          {" "}Your time: {hm(now, tz)} ({tz})
         </div>
+        <div style={{ fontSize: 11, color: palette.textFaint, marginTop: 6, fontVariantNumeric: "tabular-nums" }}>Your time <b style={{ color: palette.text }}>{hm(now, tz)}</b> · {tz}</div>
       </div>
 
-      <div style={{ border: `1px solid ${palette.border}`, borderRadius: 16, padding: "14px 16px 12px", marginBottom: 16 }}>
-        <div style={{ fontSize: 12.5, fontWeight: 800, color: palette.text, marginBottom: 10 }}>Today in {tz}</div>
-        <div style={{ position: "relative", paddingLeft: isDesktop ? 78 : 0 }}>
-          {data.map(({ s, st, segs }) => (
-            <div key={s.id} style={{ display: "flex", alignItems: "center", height: 30, position: "relative" }}>
-              {isDesktop && <span style={{ position: "absolute", left: -78, width: 70, fontSize: 12, fontWeight: 700, color: palette.textMuted }}>{s.name}</span>}
-              <div style={{ position: "relative", flex: 1, height: 14, borderRadius: 99, background: tint(palette.text, 6) }}>
-                {segs.map((g, i) => (
-                  <div key={i} title={`${s.name} ${hm(g.w.start, tz)}–${hm(g.w.end, tz)}`} style={{ position: "absolute", top: 0, bottom: 0, left: `${pct(g.a)}%`, width: `${pct(g.b) - pct(g.a)}%`, borderRadius: 99, background: s.color, opacity: st.open ? 1 : 0.55 }} />
-                ))}
+      <div style={sec}>
+        <div style={head}>Today in {tz}</div>
+        <div style={{ position: "relative", paddingLeft: labelW }}>
+          {data.map(({ s, st, segs }) => {
+            const w = sessionWindows(s, now, -1, 8).find((x) => (st.open ? now >= x.start && now < x.end : x.start === st.start));
+            return (
+              <div key={s.id} style={{ position: "relative", padding: isDesktop ? "8px 0" : "6px 0" }}>
+                {isDesktop && <span style={{ position: "absolute", left: -labelW, top: 8, width: 70, fontSize: 11, fontWeight: 700, color: palette.textMuted, lineHeight: "14px" }}>{s.name}</span>}
+                {!isDesktop && (
+                  <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8, marginBottom: 4, fontSize: 10.5, fontVariantNumeric: "tabular-nums" }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 800, color: palette.text }}>
+                      <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: 99, background: s.color, opacity: st.open ? 1 : 0.55 }} />
+                      {s.name}
+                    </span>
+                    {w && <span style={{ color: palette.textFaint }}>{range(w)}</span>}
+                  </div>
+                )}
+                <div style={{ position: "relative", height: 14, borderRadius: 99, background: tint(palette.text, 6) }}>
+                  {segs.map((g, i) => (
+                    <div key={i} title={`${s.name} ${range(g.w)}`} style={{ position: "absolute", top: 0, bottom: 0, left: `${pct(g.a)}%`, width: `${pct(g.b) - pct(g.a)}%`, borderRadius: 99, background: s.color, opacity: st.open ? 1 : 0.55 }} />
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
-          <div style={{ display: "flex", alignItems: "center", height: 22, position: "relative" }}>
-            {isDesktop && <span style={{ position: "absolute", left: -78, width: 70, fontSize: 11.5, fontWeight: 700, color: palette.textFaint }}>Overlap</span>}
-            <div style={{ position: "relative", flex: 1, height: 8, borderRadius: 99, background: tint(palette.text, 4) }}>
+            );
+          })}
+          <div style={{ position: "relative", padding: isDesktop ? "6px 0" : "6px 0 4px" }}>
+            {isDesktop ? <span style={{ position: "absolute", left: -labelW, top: 4, width: 70, fontSize: 10.5, fontWeight: 700, color: palette.textFaint, lineHeight: "12px" }}>Overlap</span> : <div style={{ fontSize: 10.5, fontWeight: 800, color: palette.textMuted, marginBottom: 4 }}>Overlap</div>}
+            <div style={{ position: "relative", height: 8, borderRadius: 99, background: tint(palette.text, 4) }}>
               {overlaps.map((o, i) => (
                 <div key={i} title={`${o.label} ${hm(o.a, tz)}–${hm(o.b, tz)}`} style={{ position: "absolute", top: 0, bottom: 0, left: `${pct(o.a)}%`, width: `${pct(o.b) - pct(o.a)}%`, borderRadius: 99, background: palette.gold }} />
               ))}
             </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", height: 26, position: "relative" }}>
-            {isDesktop && <span style={{ position: "absolute", left: -78, width: 70, fontSize: 11.5, fontWeight: 700, color: palette.textFaint }}>High impact</span>}
-            <div style={{ position: "relative", flex: 1, height: 14 }}>
+          <div style={{ position: "relative", padding: isDesktop ? "6px 0" : "6px 0 4px" }}>
+            {isDesktop ? <span style={{ position: "absolute", left: -labelW, top: 4, width: 70, fontSize: 10.5, fontWeight: 700, color: palette.textFaint, lineHeight: "12px" }}>High impact</span> : <div style={{ fontSize: 10.5, fontWeight: 800, color: palette.textMuted, marginBottom: 4 }}>High impact</div>}
+            <div style={{ position: "relative", height: 12 }}>
               {newsToday.map((e) => (
                 <span key={e.id} title={`${hm(e.ms, tz)} ${e.ccy} ${e.title}`} style={{ position: "absolute", left: `${pct(e.ms)}%`, top: 1, width: 10, height: 10, marginLeft: -5, borderRadius: 99, background: "#ef4444", boxShadow: `0 0 0 2px ${palette.surface}` }} />
               ))}
             </div>
           </div>
-          <div style={{ position: "relative", height: 18, marginLeft: isDesktop ? 0 : 0 }}>
-            {hours.map((h) => (
-              <span key={h} style={{ position: "absolute", left: `${hourAt(h)}%`, transform: "translateX(-50%)", fontSize: 10.5, color: palette.textFaint }}>{String(h).padStart(2, "0")}:00</span>
+          <div style={{ position: "relative", height: 18, marginTop: 4 }}>
+            {hours.map((h, i) => (
+              <span key={h} style={{ position: "absolute", left: `${hourAt(h)}%`, transform: i === 0 ? "none" : i === hours.length - 1 ? "translateX(-100%)" : "translateX(-50%)", fontSize: 10, color: palette.textFaint, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{String(h % 24).padStart(2, "0")}:00</span>
             ))}
           </div>
-          <div aria-hidden="true" style={{ position: "absolute", top: -4, bottom: 18, left: `calc(${isDesktop ? "78px" : "0px"} + (100% - ${isDesktop ? "78px" : "0px"}) * ${nowPct / 100})`, width: 2, background: palette.text, borderRadius: 2, opacity: 0.85 }} />
+          {/* hour gridlines + now marker, drawn over the bars only */}
+          <div aria-hidden="true" style={{ position: "absolute", top: 0, bottom: 22, left: labelW, right: 0, pointerEvents: "none" }}>
+            {hours.slice(1, -1).map((h) => (
+              <span key={h} style={{ position: "absolute", top: 0, bottom: 0, left: `${hourAt(h)}%`, width: 1, background: tint(palette.text, 7) }} />
+            ))}
+            <span style={{ position: "absolute", top: -2, bottom: 0, left: `${nowPct}%`, width: 2, marginLeft: -1, background: palette.text, borderRadius: 2, opacity: 0.85 }} />
+          </div>
         </div>
       </div>
 
-      <div style={{ border: `1px solid ${palette.border}`, borderRadius: 16, padding: "12px 16px", marginBottom: 16 }}>
-        <div style={{ fontSize: 12.5, fontWeight: 800, color: palette.text, marginBottom: 6 }}>High-impact news today</div>
+      <div style={sec}>
+        <div style={{ ...head, marginBottom: 6 }}>High-impact news today</div>
         {newsToday.length === 0 ? (
-          <div style={{ fontSize: 12.5, color: palette.textFaint }}>No high-impact events scheduled today.</div>
-        ) : newsToday.slice(0, 8).map((e) => {
+          <div style={{ fontSize: 11.5, color: palette.textFaint }}>No high-impact events scheduled today.</div>
+        ) : newsToday.slice(0, 8).map((e, i) => {
           const where = sessionOf(e.ms);
           return (
-            <div key={e.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 0", fontSize: 12.5, opacity: e.ms < now ? 0.55 : 1 }}>
-              <span style={{ width: 44, fontWeight: 800, color: palette.text, fontVariantNumeric: "tabular-nums" }}>{hm(e.ms, tz)}</span>
+            <div key={e.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", fontSize: 11.5, borderTop: i ? `1px solid ${palette.border}` : "none", opacity: e.ms < now ? 0.55 : 1 }}>
+              <span style={{ width: 42, flexShrink: 0, fontWeight: 800, color: palette.text, fontVariantNumeric: "tabular-nums" }}>{hm(e.ms, tz)}</span>
               <Flag ccy={e.ccy} w={18} />
               <span style={{ flex: 1, minWidth: 0, color: palette.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.title}</span>
-              <span style={{ color: palette.textFaint, whiteSpace: "nowrap" }}>{where.length ? where.join(" + ") : "Off-session"}</span>
+              {isDesktop && <span style={{ color: palette.textFaint, whiteSpace: "nowrap" }}>{where.length ? where.join(" + ") : "Off-session"}</span>}
             </div>
           );
         })}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "repeat(2, minmax(0, 1fr))" : "1fr", gap: 12 }}>
-        {data.map(({ s, st }) => {
+      <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "repeat(3, minmax(0, 1fr))" : "1fr", borderTop: `1px solid ${palette.border}` }}>
+        {data.map(({ s, st }, idx) => {
           const on = st.open;
           const w = sessionWindows(s, now, -1, 8).find((x) => (on ? now >= x.start && now < x.end : x.start === st.start));
           return (
-            <div key={s.id} style={{ border: `1px solid ${on ? tint(s.color, 55) : palette.border}`, borderRadius: 16, padding: "14px 16px", background: on ? tint(s.color, 9) : "transparent", position: "relative", overflow: "hidden" }}>
-              <div aria-hidden="true" style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, background: s.color, opacity: on ? 1 : 0.4 }} />
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                <div style={{ fontSize: 15, fontWeight: 800, color: palette.text }}>{s.name}</div>
-                <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 99, background: on ? tint(s.color, 22) : tint(palette.text, 6), color: on ? s.color : palette.textMuted }}>
+            <div key={s.id} style={{ padding: isDesktop ? "16px 20px 16px 22px" : "14px 14px 14px 18px", background: on ? tint(s.color, 8) : "transparent", position: "relative", borderTop: !isDesktop && idx ? `1px solid ${palette.border}` : "none", borderLeft: isDesktop && idx ? `1px solid ${palette.border}` : "none" }}>
+              <div aria-hidden="true" style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: s.color, opacity: on ? 1 : 0.4 }} />
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: palette.text }}>{s.name}</div>
+                <span style={{ fontSize: 10, fontWeight: 800, padding: "3px 10px", borderRadius: 99, background: on ? tint(s.color, 22) : tint(palette.text, 6), color: on ? s.color : palette.textMuted, whiteSpace: "nowrap" }}>
                   {on ? `Open · closes in ${span(st.end - now)}` : st.start ? `Closed · opens in ${span(st.start - now)}` : "Closed"}
                 </span>
               </div>
-              <div style={{ fontSize: 12.5, color: palette.textMuted, marginTop: 8 }}>
+              {w && (
+                <div style={{ marginTop: 10, fontVariantNumeric: "tabular-nums" }}>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: palette.text }}>{range(w)}</div>
+                  <div style={{ fontSize: 10.5, color: palette.textFaint, marginTop: 1 }}>your time · {tz}</div>
+                </div>
+              )}
+              <div style={{ marginTop: 10, fontSize: 11, color: palette.textMuted, fontVariantNumeric: "tabular-nums" }}>
                 {(s.of || [{ city: "Local", ...s }]).map((c, i) => (
-                  <div key={i}>{c.city} {String(c.open[0]).padStart(2, "0")}:{String(c.open[1]).padStart(2, "0")}–{String(c.close[0]).padStart(2, "0")}:{String(c.close[1]).padStart(2, "0")} · now {hm(now, c.tz)} there</div>
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "2px 0" }}>
+                    <span>{s.of ? c.city : s.name} {String(c.open[0]).padStart(2, "0")}:{String(c.open[1]).padStart(2, "0")}–{String(c.close[0]).padStart(2, "0")}:{String(c.close[1]).padStart(2, "0")}</span>
+                    <span style={{ color: palette.textFaint, whiteSpace: "nowrap" }}>now {hm(now, c.tz)}</span>
+                  </div>
                 ))}
               </div>
-              {w && <div style={{ fontSize: 13, fontWeight: 700, color: palette.text, marginTop: 4 }}>{hm(w.start, tz)}–{hm(w.end, tz)} <span style={{ fontWeight: 500, color: palette.textFaint }}>your time ({tz})</span></div>}
-              <div style={{ fontSize: 12, color: palette.textFaint, marginTop: 8, lineHeight: 1.45 }}>{s.note}</div>
+              <div style={{ fontSize: 11, color: palette.textFaint, marginTop: 8, lineHeight: 1.45 }}>{s.note}</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
                 {s.pairs.map((pr) => {
                   const [a, b] = pr.split("/");
                   return (
-                    <span key={pr} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 9px 3px 5px", borderRadius: 99, border: `1px solid ${palette.border}`, fontSize: 11.5, fontWeight: 700, color: palette.textMuted }}>
+                    <span key={pr} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 9px 3px 5px", borderRadius: 99, border: `1px solid ${palette.border}`, fontSize: 10.5, fontWeight: 700, color: palette.textMuted }}>
                       <PairIcon a={a} b={b} w={14} />
                       {pr}
                     </span>
@@ -920,7 +951,7 @@ function MChip({ on, onClick, children, label }) {
       aria-label={label}
       className="ec-ctl"
       onClick={onClick}
-      style={{ display: "inline-flex", alignItems: "center", gap: 7, minHeight: 40, padding: "0 13px", borderRadius: 99, cursor: "pointer", fontFamily: sans, fontSize: 13, fontWeight: 700, whiteSpace: "nowrap", border: `1px solid ${on ? tint(palette.gold, 55) : palette.border}`, background: on ? tint(palette.gold, 14) : tint(palette.text, 4), color: on ? palette.gold : palette.textMuted }}
+      style={{ display: "inline-flex", alignItems: "center", gap: 7, minHeight: 40, padding: "0 13px", borderRadius: 99, cursor: "pointer", fontFamily: sans, fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", border: `1px solid ${on ? tint(palette.gold, 55) : palette.border}`, background: on ? tint(palette.gold, 14) : tint(palette.text, 4), color: on ? palette.gold : palette.textMuted }}
     >
       {children}
     </button>
@@ -928,7 +959,7 @@ function MChip({ on, onClick, children, label }) {
 }
 
 function SheetTitle({ children }) {
-  return <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: 0.7, textTransform: "uppercase", color: palette.textFaint, margin: "20px 0 10px" }}>{children}</div>;
+  return <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: 0.7, textTransform: "uppercase", color: palette.textFaint, margin: "20px 0 10px" }}>{children}</div>;
 }
 
 function NextUpCard({ ev, now, tz, onOpen }) {
@@ -942,19 +973,19 @@ function NextUpCard({ ev, now, tz, onOpen }) {
       style={{ display: "block", width: "100%", textAlign: "left", cursor: "pointer", fontFamily: sans, margin: "4px 0 6px", padding: "14px 16px", borderRadius: 18, color: palette.text, border: `1px solid ${tint(palette.gold, soon ? 60 : 32)}`, background: `linear-gradient(135deg, ${tint(palette.gold, soon ? 20 : 12)}, ${tint(palette.text, 2)})` }}
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 11, fontWeight: 800, letterSpacing: 0.8, color: palette.gold }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 10, fontWeight: 800, letterSpacing: 0.8, color: palette.gold }}>
           <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: 99, background: palette.gold, boxShadow: `0 0 0 4px ${tint(palette.gold, 25)}` }} />
           NEXT UP
         </span>
         <ImpactBars level={ev.impact} />
       </div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginTop: 8 }}>
-        <span style={{ fontSize: 30, fontWeight: 800, letterSpacing: -0.5, fontVariantNumeric: "tabular-nums" }}>{countdown(left)}</span>
-        <span style={{ fontSize: 12.5, color: palette.textMuted, fontVariantNumeric: "tabular-nums" }}>at {timeIn(ev.ms, tz)}</span>
+        <span style={{ fontSize: 27.5, fontWeight: 800, letterSpacing: -0.5, fontVariantNumeric: "tabular-nums" }}>{countdown(left)}</span>
+        <span style={{ fontSize: 11.5, color: palette.textMuted, fontVariantNumeric: "tabular-nums" }}>at {timeIn(ev.ms, tz)}</span>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 9, marginTop: 8, minWidth: 0 }}>
         {ev.pair ? <PairIcon a={ev.pair[0]} b={ev.pair[1]} w={22} /> : <Flag ccy={ev.ccy} w={22} />}
-        <span style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.3, minWidth: 0 }}>
+        <span style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.3, minWidth: 0 }}>
           <b style={{ fontWeight: 800 }}>{ev.ccy}</b> · {ev.title}
         </span>
       </div>
@@ -982,9 +1013,9 @@ function MobileEventCard({ ev, isNext, now, tz, open, onToggle, history }) {
   };
   return (
     <div
-      style={{ position: "relative", marginBottom: 10, borderRadius: 16, overflow: "hidden", background: isNext ? `linear-gradient(0deg, ${tint(palette.gold, 5)}, ${tint(palette.gold, 5)}), ${palette.surface}` : palette.surface, border: `1px solid ${isNext ? tint(palette.gold, 45) : palette.border}`, opacity: past && !open ? 0.78 : 1 }}
+      style={{ position: "relative", overflow: "hidden", borderTop: `1px solid ${palette.border}`, background: isNext ? tint(palette.gold, 7) : "transparent", opacity: past && !open ? 0.78 : 1 }}
     >
-      <span aria-hidden="true" style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, background: bar, opacity: ev.impact ? 1 : 0.5 }} />
+      <span aria-hidden="true" style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: bar, opacity: ev.impact ? 1 : 0.5 }} />
       <div
         role="button"
         tabIndex={0}
@@ -997,19 +1028,19 @@ function MobileEventCard({ ev, isNext, now, tz, open, onToggle, history }) {
           }
         }}
         className="ec-ctl"
-        style={{ padding: "12px 14px 12px 18px", cursor: "pointer" }}
+        style={{ padding: "12px 14px 12px 16px", cursor: "pointer" }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
           {ev.pair ? <PairIcon a={ev.pair[0]} b={ev.pair[1]} w={22} /> : <Flag ccy={ev.ccy} w={22} />}
-          <span style={{ fontSize: 13, fontWeight: 800, color: palette.text }}>{ev.ccy}</span>
-          <span style={{ fontSize: 13, fontWeight: 700, color: palette.textMuted, fontVariantNumeric: "tabular-nums" }}>{timeIn(ev.ms, tz)}</span>
+          <span style={{ fontSize: 12, fontWeight: 800, color: palette.text }}>{ev.ccy}</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: palette.textMuted, fontVariantNumeric: "tabular-nums" }}>{timeIn(ev.ms, tz)}</span>
           <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 9 }}>
-            {soon && <span style={{ fontSize: 11, fontWeight: 800, padding: "2px 8px", borderRadius: 99, background: tint(palette.gold, isNext ? 22 : 12), color: palette.gold, fontVariantNumeric: "tabular-nums" }}>in {countdown(ev.ms - now)}</span>}
+            {soon && <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 99, background: tint(palette.gold, isNext ? 22 : 12), color: palette.gold, fontVariantNumeric: "tabular-nums" }}>in {countdown(ev.ms - now)}</span>}
             <ImpactBars level={ev.impact} />
           </span>
         </div>
         <div style={{ display: "flex", alignItems: "flex-start", gap: 8, margin: "9px 0 11px" }}>
-          <div style={{ flex: 1, minWidth: 0, fontSize: 15, fontWeight: 700, lineHeight: 1.35, color: palette.text }}>
+          <div style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 700, lineHeight: 1.35, color: palette.text }}>
             {ev.title}
             <Tag>{ev.cat}</Tag>
           </div>
@@ -1021,7 +1052,7 @@ function MobileEventCard({ ev, isNext, now, tz, open, onToggle, history }) {
           {cell("Previous", ev.previous, false)}
         </div>
         {tone.sup && (
-          <div style={{ marginTop: 8, fontSize: 12, fontWeight: 700, color: tone.col }}>
+          <div style={{ marginTop: 8, fontSize: 11, fontWeight: 700, color: tone.col }}>
             {tone.arrow} {tone.sup.text}
           </div>
         )}
@@ -1033,15 +1064,15 @@ function MobileEventCard({ ev, isNext, now, tz, open, onToggle, history }) {
 
 function MobileHoliday({ ev }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, padding: "12px 14px", borderRadius: 16, background: tint(AMBER, 8), border: `1px solid ${tint(AMBER, 30)}` }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", background: tint(AMBER, 7), borderTop: `1px solid ${palette.border}` }}>
       <Flag ccy={ev.ccy} w={22} />
       <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: palette.text, lineHeight: 1.3 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: palette.text, lineHeight: 1.3 }}>
           {ev.ccy} · {ev.title}
         </div>
-        <div style={{ fontSize: 12, color: palette.textMuted, marginTop: 2 }}>Bank holiday: thinner liquidity, wider spreads.</div>
+        <div style={{ fontSize: 11, color: palette.textMuted, marginTop: 2 }}>Bank holiday: thinner liquidity, wider spreads.</div>
       </div>
-      <span style={{ padding: "2px 8px", borderRadius: 6, fontSize: 10.5, fontWeight: 800, color: AMBER, background: tint(AMBER, 16) }}>Holiday</span>
+      <span style={{ padding: "2px 8px", borderRadius: 6, fontSize: 10, fontWeight: 800, color: AMBER, background: tint(AMBER, 16) }}>Holiday</span>
     </div>
   );
 }
@@ -1060,9 +1091,9 @@ function FilterSheet({ onClose, impact, setImpact, ccys, setCcys, currencyOption
       <div className="ec-sheet" style={{ position: "absolute", left: 0, right: 0, bottom: 0, maxHeight: "90vh", display: "flex", flexDirection: "column", background: palette.surface, borderRadius: "22px 22px 0 0", border: `1px solid ${palette.border}`, borderBottom: 0, boxShadow: "0 -14px 44px rgba(0,0,0,.5)" }}>
         <div aria-hidden="true" style={{ width: 40, height: 4, borderRadius: 4, background: tint(palette.text, 22), margin: "10px auto 2px" }} />
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 18px 6px" }}>
-          <div style={{ fontSize: 18, fontWeight: 800, color: palette.text }}>Filters</div>
+          <div style={{ fontSize: 16.5, fontWeight: 800, color: palette.text }}>Filters</div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <button type="button" className="ec-ctl" onClick={reset} style={{ minHeight: 40, padding: "0 10px", border: 0, background: "transparent", color: palette.gold, fontSize: 14, fontWeight: 800, fontFamily: sans, cursor: "pointer" }}>Reset</button>
+            <button type="button" className="ec-ctl" onClick={reset} style={{ minHeight: 40, padding: "0 10px", border: 0, background: "transparent", color: palette.gold, fontSize: 13, fontWeight: 800, fontFamily: sans, cursor: "pointer" }}>Reset</button>
             <button type="button" className="ec-ctl" aria-label="Close filters" onClick={onClose} style={{ display: "grid", placeItems: "center", width: 40, height: 40, borderRadius: 12, border: `1px solid ${palette.border}`, background: "transparent", color: palette.textMuted, cursor: "pointer" }}>
               <X size={16} />
             </button>
@@ -1107,7 +1138,7 @@ function FilterSheet({ onClose, impact, setImpact, ccys, setCcys, currencyOption
           </select>
 
           <SheetTitle>Show</SheetTitle>
-          <button type="button" role="switch" aria-checked={showHolidays} className="ec-ctl" onClick={toggleHolidays} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", minHeight: 48, padding: "0 14px", borderRadius: 12, border: `1px solid ${palette.border}`, background: tint(palette.text, 4), color: palette.text, fontFamily: sans, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+          <button type="button" role="switch" aria-checked={showHolidays} className="ec-ctl" onClick={toggleHolidays} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", minHeight: 48, padding: "0 14px", borderRadius: 12, border: `1px solid ${palette.border}`, background: tint(palette.text, 4), color: palette.text, fontFamily: sans, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
             Bank holidays
             <span aria-hidden="true" style={{ position: "relative", width: 42, height: 24, borderRadius: 99, background: showHolidays ? palette.gold : tint(palette.text, 16), transition: "background .15s ease" }}>
               <span style={{ position: "absolute", top: 3, left: showHolidays ? 21 : 3, width: 18, height: 18, borderRadius: 99, background: "#fff", transition: "left .15s ease" }} />
@@ -1115,7 +1146,7 @@ function FilterSheet({ onClose, impact, setImpact, ccys, setCcys, currencyOption
           </button>
         </div>
         <div style={{ padding: "12px 18px", paddingBottom: "calc(12px + env(safe-area-inset-bottom, 0px))", borderTop: `1px solid ${palette.border}` }}>
-          <button type="button" className="ec-ctl" onClick={onClose} style={{ width: "100%", minHeight: 48, borderRadius: 14, border: 0, cursor: "pointer", fontFamily: sans, fontSize: 15, fontWeight: 800, background: palette.gold, color: "#0b0b0b" }}>
+          <button type="button" className="ec-ctl" onClick={onClose} style={{ width: "100%", minHeight: 48, borderRadius: 14, border: 0, cursor: "pointer", fontFamily: sans, fontSize: 14, fontWeight: 800, background: palette.gold, color: "#0b0b0b" }}>
             Show {count} {count === 1 ? "event" : "events"}
           </button>
         </div>
@@ -1292,7 +1323,7 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, su
 
   const pill = (on) => ({
     display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 9, border: `1px solid ${on ? tint(palette.gold, 40) : "transparent"}`, cursor: "pointer",
-    fontSize: 12.5, fontWeight: 700, fontFamily: sans, whiteSpace: "nowrap", flexShrink: 0, background: on ? tint(palette.gold, 14) : "transparent", color: on ? palette.gold : palette.textMuted,
+    fontSize: 11.5, fontWeight: 700, fontFamily: sans, whiteSpace: "nowrap", flexShrink: 0, background: on ? tint(palette.gold, 14) : "transparent", color: on ? palette.gold : palette.textMuted,
     transition: "background .15s ease, color .15s ease",
   });
 
@@ -1313,7 +1344,7 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, su
         <Notice>
           No events match these filters. Try another date range, lower the importance, or press Reset.
           {upcoming && (
-            <div style={{ marginTop: 10, fontSize: 12.5 }}>
+            <div style={{ marginTop: 10, fontSize: 11.5 }}>
               Next scheduled for {ccys.join(", ")}: <b>{upcoming.title}</b> on {longDay(ymd(upcoming.ms, tz))}.
             </div>
           )}
@@ -1325,9 +1356,9 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, su
       return (
         <div key={g.day}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 18px 8px", ...(isDesktop ? {} : { background: tint(palette.text, 3) }) }}>
-            <span style={{ fontSize: 13, fontWeight: 800, color: palette.text }}>{longDay(g.day)}</span>
-            {g.day === todayS && <span style={{ fontSize: 10.5, fontWeight: 800, padding: "2px 8px", borderRadius: 99, background: tint(palette.gold, 18), color: palette.gold }}>Today</span>}
-            <span style={{ fontSize: 12, color: palette.textFaint }}>
+            <span style={{ fontSize: 12, fontWeight: 800, color: palette.text }}>{longDay(g.day)}</span>
+            {g.day === todayS && <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 99, background: tint(palette.gold, 18), color: palette.gold }}>Today</span>}
+            <span style={{ fontSize: 11, color: palette.textFaint }}>
               {items.length} {items.length === 1 ? "event" : "events"}
             </span>
           </div>
@@ -1355,10 +1386,10 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, su
     const hi = g.items.filter((e) => !e.holiday && e.impact >= 3).length;
     return (
       <section key={g.day}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "16px 2px 10px" }}>
-          <span style={{ fontSize: 16, fontWeight: 800, color: palette.text, letterSpacing: -0.2 }}>{shortDay(g.day)}</span>
-          {g.day === todayS && <span style={{ fontSize: 10.5, fontWeight: 800, padding: "2px 8px", borderRadius: 99, background: tint(palette.gold, 18), color: palette.gold }}>Today</span>}
-          <span style={{ marginLeft: "auto", fontSize: 12, color: palette.textFaint }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "11px 14px", borderTop: `1px solid ${palette.border}`, background: tint(palette.text, 3) }}>
+          <span style={{ fontSize: 13, fontWeight: 800, color: palette.text, letterSpacing: -0.2 }}>{shortDay(g.day)}</span>
+          {g.day === todayS && <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 99, background: tint(palette.gold, 18), color: palette.gold }}>Today</span>}
+          <span style={{ marginLeft: "auto", fontSize: 11, color: palette.textFaint }}>
             {g.items.length} {g.items.length === 1 ? "event" : "events"}
             {hi > 0 ? ` · ${hi} high` : ""}
           </span>
@@ -1372,7 +1403,7 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, su
   const feedReady = !((loading && all.length === 0) || syncing || failed || groups.length === 0);
   const filterCount = (ccys.length ? 1 : 0) + (cat !== "all" ? 1 : 0) + (tzSel !== "local" ? 1 : 0) + (showHolidays ? 0 : 1);
   const mpill = (on) => ({
-    display: "inline-flex", alignItems: "center", minHeight: 40, padding: "0 15px", borderRadius: 99, cursor: "pointer", flexShrink: 0, fontFamily: sans, fontSize: 13.5, fontWeight: 700, whiteSpace: "nowrap",
+    display: "inline-flex", alignItems: "center", minHeight: 40, padding: "0 15px", borderRadius: 99, cursor: "pointer", flexShrink: 0, fontFamily: sans, fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap",
     border: `1px solid ${on ? tint(palette.gold, 55) : palette.border}`, background: on ? tint(palette.gold, 16) : "transparent", color: on ? palette.gold : palette.textMuted,
   });
   const segs = [["all", "All", null], ["medium", "Medium+", AMBER], ["high", "High", palette.red]];
@@ -1380,15 +1411,15 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, su
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "4px 2px 12px" }}>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: -0.4, color: palette.text }}>Economic Calendar</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3, fontSize: 12, color: palette.textMuted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: -0.4, color: palette.text }}>Economic Calendar</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3, fontSize: 11, color: palette.textMuted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             <Clock size={12} aria-hidden="true" />
             <b style={{ color: palette.text, fontVariantNumeric: "tabular-nums" }}>{clockTime}</b>
             <span>{offsetLabel(now, tz)} · {tzName(tz)}</span>
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 34, padding: "0 11px", borderRadius: 99, border: `1px solid ${palette.border}`, fontSize: 12, fontWeight: 700, color: palette.textMuted }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 34, padding: "0 11px", borderRadius: 99, border: `1px solid ${palette.border}`, fontSize: 11, fontWeight: 700, color: palette.textMuted }}>
             <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: 99, background: open ? GOOD : palette.textFaint, boxShadow: open ? `0 0 0 3px ${tint(GOOD, 25)}` : "none" }} />
             {open ? "Open" : "Closed"}
           </span>
@@ -1398,6 +1429,8 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, su
         </div>
       </div>
 
+      <div style={{ border: `1px solid ${palette.border}`, borderRadius: 16, overflow: "hidden", background: palette.surface }}>
+      <div style={{ padding: 12 }}>
       <div className="ec-pills" role="tablist" aria-label="Date range" style={{ display: "flex", gap: 8, overflowX: "auto", margin: "0 -12px", padding: "0 12px 12px" }}>
         {RANGES.map((r) => (
           <button key={r.id} type="button" role="tab" aria-selected={rangeSel === r.id} onClick={() => pickRange(r.id)} style={mpill(rangeSel === r.id)}>{r.label}</button>
@@ -1407,7 +1440,7 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, su
       {rangeSel === "custom" && (
         <div style={{ display: "flex", gap: 8, alignItems: "center", paddingBottom: 12 }}>
           <input type="date" className="ec-ctl" aria-label="From date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} style={{ ...fieldBase, flex: 1, minHeight: 44, fontSize: 16 }} />
-          <span style={{ color: palette.textFaint, fontSize: 12 }}>to</span>
+          <span style={{ color: palette.textFaint, fontSize: 11 }}>to</span>
           <input type="date" className="ec-ctl" aria-label="To date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} style={{ ...fieldBase, flex: 1, minHeight: 44, fontSize: 16 }} />
         </div>
       )}
@@ -1419,7 +1452,7 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, su
         </label>
         <button type="button" className="ec-ctl" aria-label={`Filters${filterCount ? `, ${filterCount} active` : ""}`} onClick={() => setSheetOpen(true)} style={{ position: "relative", display: "grid", placeItems: "center", width: 44, height: 44, flexShrink: 0, borderRadius: 14, cursor: "pointer", border: `1px solid ${filterCount ? tint(palette.gold, 55) : palette.border}`, background: filterCount ? tint(palette.gold, 14) : tint(palette.text, 4), color: filterCount ? palette.gold : palette.textMuted }}>
           <SlidersHorizontal size={17} />
-          {filterCount > 0 && <span style={{ position: "absolute", top: -5, right: -5, minWidth: 18, height: 18, padding: "0 4px", borderRadius: 99, display: "grid", placeItems: "center", fontSize: 10.5, fontWeight: 800, background: palette.gold, color: "#0b0b0b" }}>{filterCount}</span>}
+          {filterCount > 0 && <span style={{ position: "absolute", top: -5, right: -5, minWidth: 18, height: 18, padding: "0 4px", borderRadius: 99, display: "grid", placeItems: "center", fontSize: 10, fontWeight: 800, background: palette.gold, color: "#0b0b0b" }}>{filterCount}</span>}
         </button>
       </div>
 
@@ -1427,7 +1460,7 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, su
         {segs.map(([id, label, dot]) => {
           const on = impact === id;
           return (
-            <button key={id} type="button" role="radio" aria-checked={on} className="ec-ctl" onClick={() => setImpact(id)} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, minHeight: 38, border: 0, borderRadius: 10, cursor: "pointer", fontFamily: sans, fontSize: 13, fontWeight: 800, background: on ? tint(dot || palette.text, dot ? 20 : 12) : "transparent", color: on ? palette.text : palette.textFaint }}>
+            <button key={id} type="button" role="radio" aria-checked={on} className="ec-ctl" onClick={() => setImpact(id)} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, minHeight: 38, border: 0, borderRadius: 10, cursor: "pointer", fontFamily: sans, fontSize: 12, fontWeight: 800, background: on ? tint(dot || palette.text, dot ? 20 : 12) : "transparent", color: on ? palette.text : palette.textFaint }}>
               {dot && <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 99, background: dot }} />}
               {label}
             </button>
@@ -1453,15 +1486,15 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, su
         </div>
       )}
 
-      {feedReady && next && <div style={{ marginTop: 12 }}><NextUpCard ev={next} now={now} tz={tz} onOpen={() => setOpenId(next.id)} /></div>}
+      </div>
+      {feedReady && next && <div style={{ padding: "0 12px 12px" }}><NextUpCard ev={next} now={now} tz={tz} onOpen={() => setOpenId(next.id)} /></div>}
 
       <div style={{ minHeight: 120 }}>
-        {feedReady ? mobileGroups : (
-          <div style={{ marginTop: 12, borderRadius: 18, border: `1px solid ${palette.border}`, background: palette.surface, overflow: "hidden" }}>{list}</div>
-        )}
+        {feedReady ? mobileGroups : <div style={{ borderTop: `1px solid ${palette.border}` }}>{list}</div>}
+      </div>
       </div>
 
-      <div style={{ padding: "10px 6px 6px", textAlign: "center", fontSize: 11.5, lineHeight: 1.6, color: palette.textFaint }}>
+      <div style={{ padding: "10px 6px 6px", textAlign: "center", fontSize: 10.5, lineHeight: 1.6, color: palette.textFaint }}>
         {filtered.length} of {inRange.length} events{own.updatedAt ? ` · ${updatedText(own.updatedAt, now)}` : ""}
         <br />
         Official data where available · forecasts from a public consensus feed
@@ -1499,12 +1532,12 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, su
           ))}
         </div>
       )}
-      {!isDesktop && view !== "sessions" ? mobileNews : (
+      {view === "sessions" ? <SessionsView now={now} tz={tz} isDesktop={isDesktop} events={all} /> : !isDesktop ? mobileNews : (
       <div style={{ background: palette.surface, border: `1px solid ${palette.border}`, borderRadius: 18, overflow: "hidden", boxShadow: palette.shadow }}>
         {/* page header */}
         {view !== "sessions" && <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "16px 18px 12px" }}>
-          <div style={{ fontSize: 17, fontWeight: 800, color: palette.text }}>Economic Calendar</div>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "5px 11px", borderRadius: 99, border: `1px solid ${palette.border}`, fontSize: 12, fontWeight: 700, color: palette.textMuted }}>
+          <div style={{ fontSize: 15.5, fontWeight: 800, color: palette.text }}>Economic Calendar</div>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "5px 11px", borderRadius: 99, border: `1px solid ${palette.border}`, fontSize: 11, fontWeight: 700, color: palette.textMuted }}>
             <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: 99, background: open ? palette.gold : palette.textFaint }} />
             {open ? "Market open" : "Market closed"}
           </span>
@@ -1533,7 +1566,7 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, su
         {rangeSel === "custom" && (
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", padding: "0 18px 12px" }}>
             <input type="date" className="ec-ctl" aria-label="From date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} style={fieldBase} />
-            <span style={{ color: palette.textFaint, fontSize: 12 }}>to</span>
+            <span style={{ color: palette.textFaint, fontSize: 11 }}>to</span>
             <input type="date" className="ec-ctl" aria-label="To date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} style={fieldBase} />
           </div>
         )}
@@ -1574,12 +1607,12 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, su
 
         {/* time zone, clock mode, search */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "0 18px 14px" }}>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 12.5, color: palette.textMuted, whiteSpace: "nowrap" }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 11.5, color: palette.textMuted, whiteSpace: "nowrap" }}>
             <Clock size={13} aria-hidden="true" />
             Current time <b style={{ color: palette.text, fontVariantNumeric: "tabular-nums" }}>{clockTime}</b>
             <span style={{ color: palette.textFaint }}>({offsetLabel(now, tz)})</span>
           </span>
-          <select className="ec-ctl" aria-label="Time zone" value={tzSel} onChange={(e) => pickTz(e.target.value)} style={{ ...fieldBase, padding: "6px 9px", fontSize: 12.5, maxWidth: "100%" }}>
+          <select className="ec-ctl" aria-label="Time zone" value={tzSel} onChange={(e) => pickTz(e.target.value)} style={{ ...fieldBase, padding: "6px 9px", fontSize: 11.5, maxWidth: "100%" }}>
             <option value="local">Your timezone — {localTz}</option>
             {ZONES.filter(([id]) => id !== localTz).map(([id, name]) => (
               <option key={id} value={id}>{name} — {id}</option>
@@ -1587,7 +1620,7 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, su
           </select>
           <div role="radiogroup" aria-label="Time display" style={{ display: "inline-flex", border: `1px solid ${palette.border}`, borderRadius: 9, overflow: "hidden" }}>
             {[["clock", "Clock"], ["countdown", "Countdown"]].map(([id, label]) => (
-              <button key={id} type="button" role="radio" aria-checked={mode === id} className="ec-ctl" onClick={() => setMode(id)} style={{ padding: "6px 11px", border: 0, cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: sans, background: mode === id ? tint(palette.text, 10) : "transparent", color: mode === id ? palette.text : palette.textFaint }}>
+              <button key={id} type="button" role="radio" aria-checked={mode === id} className="ec-ctl" onClick={() => setMode(id)} style={{ padding: "6px 11px", border: 0, cursor: "pointer", fontSize: 11, fontWeight: 700, fontFamily: sans, background: mode === id ? tint(palette.text, 10) : "transparent", color: mode === id ? palette.text : palette.textFaint }}>
                 {label}
               </button>
             ))}
@@ -1598,7 +1631,7 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, su
             aria-checked={showHolidays}
             className="ec-ctl"
             onClick={toggleHolidays}
-            style={{ ...fieldBase, display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 11px", fontSize: 12, fontWeight: 700, cursor: "pointer", color: showHolidays ? palette.gold : palette.textFaint, borderColor: showHolidays ? tint(palette.gold, 40) : palette.border }}
+            style={{ ...fieldBase, display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 11px", fontSize: 11, fontWeight: 700, cursor: "pointer", color: showHolidays ? palette.gold : palette.textFaint, borderColor: showHolidays ? tint(palette.gold, 40) : palette.border }}
           >
             <span style={{ display: "grid", placeItems: "center", width: 15, height: 15, borderRadius: 4, border: `1px solid ${showHolidays ? palette.gold : palette.border}`, background: showHolidays ? tint(palette.gold, 20) : "transparent" }}>
               {showHolidays && <Check size={11} />}
@@ -1608,12 +1641,12 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, su
           <div style={{ display: "flex", alignItems: "center", gap: 10, flex: "1 1 260px", justifyContent: isDesktop ? "flex-end" : "flex-start", flexWrap: "wrap" }}>
             <label style={{ position: "relative", flex: "1 1 180px", maxWidth: 280, minWidth: 150 }}>
               <Search size={14} aria-hidden="true" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: palette.textFaint }} />
-              <input className="ec-ctl" aria-label="Find an event" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Find an event..." style={{ ...fieldBase, width: "100%", padding: "7px 10px 7px 30px", fontSize: 12.5 }} />
+              <input className="ec-ctl" aria-label="Find an event" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Find an event..." style={{ ...fieldBase, width: "100%", padding: "7px 10px 7px 30px", fontSize: 11.5 }} />
             </label>
-            <span style={{ fontSize: 12, color: palette.textMuted, whiteSpace: "nowrap" }}>
+            <span style={{ fontSize: 11, color: palette.textMuted, whiteSpace: "nowrap" }}>
               Showing <b style={{ color: palette.text }}>{filtered.length}</b> of {inRange.length}
             </span>
-            <button type="button" className="ec-ctl" onClick={reset} style={{ border: 0, background: "transparent", color: palette.gold, fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: sans }}>
+            <button type="button" className="ec-ctl" onClick={reset} style={{ border: 0, background: "transparent", color: palette.gold, fontSize: 11, fontWeight: 800, cursor: "pointer", fontFamily: sans }}>
               Reset
             </button>
           </div>
@@ -1621,7 +1654,7 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, su
 
         {/* table */}
         {isDesktop && !failed && !syncing && (
-          <div style={{ display: "grid", gridTemplateColumns: COLS, gap: 10, padding: "9px 18px", fontSize: 11.5, color: palette.textFaint, fontWeight: 700, ...hairline }}>
+          <div style={{ display: "grid", gridTemplateColumns: COLS, gap: 10, padding: "9px 18px", fontSize: 10.5, color: palette.textFaint, fontWeight: 700, ...hairline }}>
             <span>Time</span>
             <span>Cur.</span>
             <span>Event</span>
@@ -1634,7 +1667,7 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, su
         <div style={{ ...hairline, minHeight: 120, paddingBottom: 4 }}>{list}</div>
 
         {/* footer */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", padding: "10px 18px", fontSize: 11.5, color: palette.textFaint, ...hairline }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", padding: "10px 18px", fontSize: 10.5, color: palette.textFaint, ...hairline }}>
           <span>
             Source: your own calendar · official data where available · forecasts from a public consensus feed{own.updatedAt ? ` · ${updatedText(own.updatedAt, now)}` : ""}
             {own.feed && own.feed.ok === false && (
