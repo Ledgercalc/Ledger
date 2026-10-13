@@ -12,7 +12,7 @@ import { computeGoalProgress } from "./lib/analytics.js";
 import { OnboardingAmbientBG } from "./components/onboarding.jsx";
 import { Avatar, PillGroup, SettingsSection, SettingsSubLabel } from "./components/ui.jsx";
 import { FX_CACHE_MS, FX_LIVE_STORAGE_KEY, fetchLiveFxRates } from "./data/currencies.js";
-import { ONBOARDING_SLIDES, TOUR_STEPS } from "./data/onboarding.js";
+import { ONBOARDING_SLIDES, TOUR_STEPS as ALL_TOUR_STEPS } from "./data/onboarding.js";
 import { buildWeekRecap, computeConsistencyScore, computeDisciplineGrade, computeDisciplineStreak, computeDisciplineStreakTrend, computeHeadlineInsight, computeInsights, computeJournalCompleteness, computeMonthComparison, computeNoteTagAnalysis, computeOverconfidenceCheck, computePerformanceMetrics, computeRevengeCostSplit, computeSessionWinRates, computeStatementData, filledJournalRows, generateThreeCurveProjection, journalMistakeFrequency } from "./lib/analytics.js";
 import { FMP_CACHE_MS, FMP_STORAGE_KEY, fetchEconomicCalendar, registerAlarmServiceWorker } from "./lib/calendar.js";
 import { ACCOUNTS_ACTIVE_KEY, ACCOUNTS_LIST_KEY, ALARM_CHECK_INTERVAL_MS, ALARM_STALE_WINDOW_MS, CONFIDENCE_OPTIONS, CS_STORAGE_KEY, CUSTOM_MOODS_STORAGE_KEY, CUSTOM_SETUPS_STORAGE_KEY, DEFAULT_CS_INPUTS, DEFAULT_JOURNAL_COL_WIDTHS, DEFAULT_NOTEPAD_FONT_SIZE, DEFAULT_SETTINGS, EDGE_PROJECTION_PERIODS, EDGE_STORAGE_KEY, EMOTIONS, FX_LAST_PAIR_KEY, LEGACY_EMOTIONS, GOALS_STORAGE_KEY, HIDDEN_DEFAULT_SETUPS_KEY, JOURNAL_COLS_STORAGE_KEY, JOURNAL_COLUMNS, JOURNAL_COL_MAX, JOURNAL_COL_MIN, JOURNAL_STORAGE_KEY, LINKED_FIRM_KEY, MAX_CUSTOM_MOODS, MAX_CUSTOM_SETUPS, MAX_JOURNAL_PHOTOS_PER_ROW, MAX_PLAYBOOK_RULES, MOBILE_NAV_PRIMARY_COUNT, NEWS_STORAGE_KEY, NOTEPAD_FONT_SIZES, NOTEPAD_STORAGE_KEY, OUTCOME_OPTIONS, PLAYBOOK_CHECKINS_KEY, PLAYBOOK_RULES_KEY, PLAYBOOK_STARTER_RULES, PS_STORAGE_KEY, RUNTIME, SETTINGS_STORAGE_KEY, SETUPS, STORAGE_BAL_KEY, STORAGE_KEY, TABS as BASE_TABS, THEME_STORAGE_KEY, TREND_OPTIONS, WEEK_MS, confidenceLabel, emotionMeta, outcomeLabel, scopedKey, sessionLabelFor, setupMeta } from "./lib/constants.js";
@@ -85,7 +85,6 @@ const ConvertTab = lazyTab(() => import("./tabs/ConvertTab.jsx"));
 const CurveTab = lazyTab(() => import("./tabs/CurveTab.jsx"));
 const InsightsTab = lazyTab(() => import("./tabs/InsightsTab.jsx"));
 const JournalTab = lazyTab(() => import("./tabs/JournalTab.jsx"));
-const SessionsTab = lazyTab(() => import("./tabs/SessionsTab.jsx"));
 const CommunityTab = lazyTab(() => import("./tabs/CommunityTab.jsx"));
 const BacktestTab = lazyTab(() => import("./tabs/BacktestTab.jsx"));
 const BrokerTab = lazyTab(() => import("./tabs/BrokerTab.jsx"));
@@ -93,22 +92,25 @@ const EconCalendarTab = lazyTab(() => import("./tabs/EconCalendarTab.jsx"));
 const TAB_PRELOAD = {
   risk: RiskTab.preload, propfirm: PropFirmTab.preload, fx: ConvertTab.preload,
   curve: CurveTab.preload, insights: InsightsTab.preload, journal: JournalTab.preload,
-  sessions: SessionsTab.preload, community: CommunityTab.preload,
+  community: CommunityTab.preload,
   backtest: BacktestTab.preload,
   broker: BrokerTab.preload,
   econ: EconCalendarTab.preload,
 };
 
+// The Sessions tab now lives inside Economic calendar, so its tour step is dropped.
+const TOUR_STEPS = ALL_TOUR_STEPS.filter((s) => s.tabId !== "sessions");
+
 // The tab list is finished here so it always matches this file, even if constants.js is out of date:
 // Curve now lives inside Journal and Notepad is removed, Broker goes right after Journal, Backtest goes last.
 const TABS = (() => {
-  const tabs = BASE_TABS.filter((t) => t.id !== "curve" && t.id !== "notepad");
+  const tabs = BASE_TABS.filter((t) => t.id !== "curve" && t.id !== "notepad" && t.id !== "sessions");
   if (!tabs.some((t) => t.id === "broker")) {
     const at = tabs.findIndex((t) => t.id === "journal");
     tabs.splice(at === -1 ? tabs.length : at + 1, 0, { id: "broker", label: "Broker", icon: Link2 });
   }
   if (!tabs.some((t) => t.id === "econ")) {
-    const at = tabs.findIndex((t) => t.id === "sessions");
+    const at = tabs.findIndex((t) => t.id === "broker");
     tabs.splice(at === -1 ? tabs.length : at + 1, 0, { id: "econ", label: "Economic calendar", icon: CalendarDays });
   }
   if (!tabs.some((t) => t.id === "backtest")) {
@@ -126,7 +128,6 @@ if (typeof window !== "undefined") {
     import("./tabs/CurveTab.jsx");
     import("./tabs/InsightsTab.jsx");
     import("./tabs/JournalTab.jsx");
-    import("./tabs/SessionsTab.jsx");
     import("./tabs/CommunityTab.jsx");
     import("./tabs/BacktestTab.jsx");
     import("./tabs/BrokerTab.jsx");
@@ -205,7 +206,6 @@ export default function TredziApp() {
   const [pfFilterInstant, setPfFilterInstant] = useState("all");
   const [pfFilterPhases, setPfFilterPhases] = useState("all");
   const [pfFilterPanelOpen, setPfFilterPanelOpen] = useState(false);
-  const [sessionsSubTab, setSessionsSubTab] = useState("sessions");
   const [theme, setTheme] = useState("dark");
   const [themeLoaded, setThemeLoaded] = useState(false);
 
@@ -386,6 +386,8 @@ const resetPropFirmWizard = () => {
       setJournalSubTab("log");
     } else if (activeTab === "notepad") {
       setActiveTab("journal");
+    } else if (activeTab === "sessions") {
+      setActiveTab("econ");
     } else if (activeTab === "fx") {
       // Convert now lives inside the Tools tab.
       setActiveTab("risk");
@@ -7243,9 +7245,6 @@ const hiddenTabIds = settings.hiddenTabs || [];
     body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><BacktestTab {...{ activeAccountId, isDesktop }} /></Suspense>;
   }
 
-  if (activeTab === "sessions") {
-    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><SessionsTab {...{ addNewsEvent, currentTime, deleteNewsEvent, econError, econEvents, econStatus, isDesktop, loadEconomicCalendar, newEventAlarm, newEventDate, newEventImpact, newEventName, newEventTime, newsEvents, newsLoadError, newsLoaded, notifPermission, persistSettings, renderSubNav, sessionsSubTab, setNewEventDate, setNewEventImpact, setNewEventName, setNewEventTime, setSessionsSubTab, settings, toggleNewEventAlarm }} /></Suspense>;
-  }
 
 
 
@@ -7625,7 +7624,7 @@ if (activeTab === "community") {
           const coachFixed = !tourActive && activeTab === "insights" && insightsSubTab === "coach";
           const coachFillStyle = coachFixed ? { flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column" } : null;
           // Tabs whose first element is the sticky sub-tab bar start flush at the top, so the bar never slides up on scroll.
-          const startsWithSubNav = ["risk", "journal", "sessions", "insights"].includes(activeTab);
+          const startsWithSubNav = ["risk", "journal", "insights"].includes(activeTab);
           return (
 <TabHost
               ref={tabHostRef}
@@ -8962,7 +8961,7 @@ if (activeTab === "community") {
             onChange={(v) => persistSettings({ ...settings, alarmLeadMinutes: v })}
           />
           <p className="text-xs -mt-2" style={{ color: palette.textFaint }}>
-            Currently rings {RUNTIME.ALARM_LEAD_MINUTES} minutes before a flagged event on the Sessions tab.
+            Currently rings {RUNTIME.ALARM_LEAD_MINUTES} minutes before a flagged event on the Economic calendar tab.
           </p>
         </SettingsSection>
 
