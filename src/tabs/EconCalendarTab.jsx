@@ -136,15 +136,20 @@ function impactOf(ev) {
   if (s.includes("low") || s === "1") return 1;
   return 0;
 }
+// Central-bank news is worded differently per bank ("Main Refinancing Rate", "Official Bank Rate", "Cash Rate", "... Speaks", "... Minutes"),
+// so it is recognised by the bank's name or by those phrases.
+const CB_RE = /\b(fed|fomc|ecb|boe|boj|rba|rbnz|snb|boc|pboc|mpc|governor|gov|chair|monetary policy|policy rate|funds rate|refinancing rate|overnight rate|deposit rate|cash rate|bank rate|rate decision|rate statement|summary of opinions|ocr|interest rate|press conference|minutes)\b/;
 function categoryOf(title) {
   const t = title.toLowerCase();
-  if (/(rate decision|ocr|cash rate|bank rate|press conference|fomc)/.test(t)) return "Central Bank";
-  if (/(cpi|ppi|pce|price)/.test(t)) return "Inflation";
-  if (/(payroll|unemployment|jobless|claims|earnings|jolts|job openings|employment)/.test(t)) return "Employment";
-  if (/(gdp|retail|industrial|production|pmi|manufacturing|services|trade balance)/.test(t)) return "Growth";
+  if (CB_RE.test(t)) return "Central Bank";
+  if (/(housing|home sales|home loans|new home|existing home|pending home|house price|building permits|building consents|mortgage|halifax|nationwide hpi|rics)/.test(t)) return "Housing";
+  if (/(payroll|unemployment|jobless|claims|earnings|jolts|job openings|employment|labour|labor|wage|jobs|adp|participation|claimant)/.test(t)) return "Employment";
+  if (/(cpi|ppi|pce|price|inflation|deflator)/.test(t)) return "Inflation";
+  if (/(confidence|sentiment|ifo|zew|tankan|michigan|uom|sentix|business climate|business conditions)/.test(t)) return "Sentiment";
+  if (/(gdp|retail|industrial|production|pmi|manufacturing|services|trade balance|current account|orders|factory|ism|output|sales|spending|income)/.test(t)) return "Growth";
   return "Other";
 }
-const CATEGORIES = ["Central Bank", "Inflation", "Employment", "Growth", "Holiday", "Other"];
+const CATEGORIES = ["Central Bank", "Inflation", "Employment", "Growth", "Sentiment", "Housing", "Holiday", "Other"];
 function normalize(ev, i) {
   if (!ev || typeof ev !== "object") return null;
   const ms = eventMs(ev);
@@ -248,7 +253,7 @@ function infoFor(ev) {
       why: "The tone and hints about future rate moves can move markets after the decision itself, often with sharp swings.",
       how: "There is no number to compare. Watch whether officials sound more cautious or more confident than expected.",
     };
-  if (/rate decision|ocr|cash rate|bank rate/.test(t))
+  if (/rate decision|\bocr\b|cash rate|bank rate|policy rate|funds rate|refinancing rate|overnight rate|deposit rate|interest rate/.test(t))
     return {
       what: `The ${bank} announces whether it raises, cuts or holds its main interest rate for ${cur}.`,
       why: "Interest rates are one of the biggest drivers of a currency over time. The statement and tone can matter as much as the rate itself.",
@@ -284,6 +289,42 @@ function infoFor(ev) {
     return { what: "The total amount spent in shops and online, a direct read on consumer demand.", why: "Consumer spending drives most of the economy, so it moves growth and rate expectations.", how: stronger };
   if (/industrial production/.test(t))
     return { what: "The output of factories, mines and utilities.", why: "It shows how strong the production side of the economy is.", how: stronger };
+  if (/speaks|speech|testifies/.test(t))
+    return {
+      what: `A scheduled public talk or testimony by an official from ${bank}.`,
+      why: "Officials often hint at the next rate move, and unscripted remarks can move the currency within seconds.",
+      how: "There is no number to compare. Listen for a change in tone about inflation, jobs or rate plans compared with what the market expects.",
+    };
+  if (/minutes/.test(t))
+    return {
+      what: `A written record of what ${bank} policymakers discussed at their last meeting.`,
+      why: "It shows how divided the committee was and how close it came to changing rates, which can shift rate expectations.",
+      how: "Look for hints about future rate moves. Hawkish wording (leaning to higher rates) tends to support the currency, dovish wording tends to weigh on it.",
+    };
+  if (/pmi|\bism\b/.test(t))
+    return {
+      what: "A survey of purchasing managers about business conditions. Above 50 means the sector is growing, below 50 means it is shrinking.",
+      why: "It is one of the earliest signals of how the economy is doing, published before most hard data.",
+      how: stronger,
+    };
+  if (/trade balance|current account/.test(t))
+    return {
+      what: "The gap between what the country sells abroad and what it buys. A surplus means it sells more than it buys.",
+      why: "Foreign buyers need the local currency to pay for exports, so a bigger surplus tends to support it.",
+      how: "A better balance than forecast usually supports the currency.",
+    };
+  if (/confidence|sentiment|ifo|zew|tankan|michigan|uom|sentix|business climate/.test(t))
+    return {
+      what: "A survey of how optimistic consumers or businesses feel about the economy.",
+      why: "Confident people spend and invest more, so these surveys give an early read on growth.",
+      how: stronger,
+    };
+  if (/housing|home sales|house price|building permits|building consents|mortgage|hpi/.test(t))
+    return {
+      what: "A measure of the housing market: sales, new building or prices.",
+      why: "Housing reacts strongly to interest rates, so it shows how rate changes are feeding through to the economy.",
+      how: stronger,
+    };
   return {
     what: `A scheduled economic release for ${cur}.`,
     why: "Releases like this can change expectations about growth, inflation and interest rates.",
@@ -928,6 +969,9 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase }) 
               <b style={{ color: AMBER, fontWeight: 700 }}> · Forecasts are unavailable right now (the provider is limiting requests). They return on their own.</b>
             )}
             {own.feed && own.feed.ok && own.feed.stale && <span> · Forecasts are from a saved copy (provider is limiting requests)</span>}
+            {!own.feed && own.status === "live" && own.events.length > 0 && (
+              <b style={{ color: AMBER, fontWeight: 700 }}> · Forecasts haven't loaded yet. If this stays, open your worker's /market/calendar/health to see why.</b>
+            )}
           </span>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
             Times in {tz} · {filtered.length} {filtered.length === 1 ? "event" : "events"}
