@@ -1,7 +1,6 @@
 import { pokeCrab } from "../lib/mascot.js";
 import { OnboardingTip } from "../components/onboarding.jsx";
-import { StatChip } from "../components/ui.jsx";
-import { computeDisciplineStreak, computeRevengeIds } from "../lib/analytics.js";
+import { computeRevengeIds } from "../lib/analytics.js";
 import { EMOTIONS, LEGACY_EMOTIONS, NOTE_TAGS, RUNTIME, SETUPS, emotionMeta } from "../lib/constants.js";
 import { MARKET_SESSIONS, sessionOpenAtUTCHour } from "../lib/sessions.js";
 import { CONFIDENCE_MAX, CONFIDENCE_MIN, confidenceWord } from "../lib/tradeInsights.js";
@@ -752,8 +751,6 @@ export default function CurveTab(props) {
     setExpandedTradeId,
     setPendingScreenshotDelete,
     setSelectedDay,
-    setShowDisciplineInfo,
-    setShowStreakInfo,
     setStatementPeriod,
     setTradeConfidence,
     setTradeDirection,
@@ -767,8 +764,6 @@ export default function CurveTab(props) {
     settings,
     shareError,
     shareImageFile,
-    showDisciplineInfo,
-    showStreakInfo,
     startEditTrade,
     startingBalance,
     submitTrade,
@@ -833,42 +828,9 @@ export default function CurveTab(props) {
     const losses = trades.filter((t) => t.pnl < 0);
     const netPnl = trades.reduce((s, t) => s + t.pnl, 0);
     const winRate = trades.length > 0 ? (wins.length / trades.length) * 100 : 0;
-    const avgWin = wins.length > 0 ? wins.reduce((s, t) => s + t.pnl, 0) / wins.length : 0;
-    const avgLoss = losses.length > 0 ? Math.abs(losses.reduce((s, t) => s + t.pnl, 0) / losses.length) : 0;
-
-    const grossWin = wins.reduce((s, t) => s + t.pnl, 0);
-    const grossLoss = Math.abs(losses.reduce((s, t) => s + t.pnl, 0));
-    const profitFactor = grossLoss > 0 ? grossWin / grossLoss : null;
-    const expectancy = trades.length > 0 ? netPnl / trades.length : 0;
-
-    let running = startBal;
-    let peak = startBal;
-    let maxDrawdown = 0;
-    trades.forEach((t, i) => {
-      running += t.pnl;
-      peak = Math.max(peak, running);
-      maxDrawdown = Math.max(maxDrawdown, peak - running);
-    });
-
-    let bestStreak = 0;
-    let worstStreak = 0;
-    let curStreak = 0;
-    trades.forEach((t) => {
-      if (t.pnl > 0) {
-        curStreak = curStreak > 0 ? curStreak + 1 : 1;
-      } else if (t.pnl < 0) {
-        curStreak = curStreak < 0 ? curStreak - 1 : -1;
-      } else {
-        curStreak = 0;
-      }
-      bestStreak = Math.max(bestStreak, curStreak);
-      worstStreak = Math.min(worstStreak, curStreak);
-    });
 
     // Memoised: these loop over every trade and used to re-run on every render of the tab.
     const revengeIds = useMemo(() => computeRevengeIds(trades), [trades]);
-    const { current: disciplineCurrent, best: disciplineBest, hasData: disciplineHasData } =
-      useMemo(() => computeDisciplineStreak(trades), [trades]);
 
     const tradesByDay = useMemo(() => {
       const map = {};
@@ -1244,6 +1206,20 @@ export default function CurveTab(props) {
               {trades.length} trade{trades.length === 1 ? "" : "s"}
               {startBal > 0 ? ` \u00b7 Balance $${fmt(startBal + netPnl, 0)}` : ""}
             </div>
+            <div style={{ marginTop: isDesktop ? "14px" : "10px", paddingTop: isDesktop ? "14px" : "10px", borderTop: `1px solid ${palette.border}` }}>
+              <div className="flex items-baseline justify-between" style={{ gap: "8px" }}>
+                <span style={{ color: palette.textMuted, fontSize: "12px" }}>Win rate</span>
+                <span style={{ fontFamily: mono, fontSize: isDesktop ? "16px" : "14px", fontWeight: 700, color: palette.text }}>
+                  {trades.length ? `${winRate.toFixed(1)}%` : "N/A"}
+                </span>
+              </div>
+              <div style={{ height: "4px", borderRadius: "999px", background: palette.field, margin: "7px 0 5px", overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${trades.length ? winRate : 0}%`, background: palette.green, borderRadius: "999px", transition: "width 0.3s ease" }} />
+              </div>
+              <div style={{ color: palette.textFaint, fontSize: isDesktop ? "12px" : "11px" }}>
+                {trades.length ? `${wins.length} win${wins.length === 1 ? "" : "s"} \u00b7 ${losses.length} loss${losses.length === 1 ? "" : "es"}` : "No trades yet"}
+              </div>
+            </div>
           </div>
           <ActiveTradePanel
             cardStyle={{ ...topCard(), padding: isDesktop ? "24px" : "16px" }}
@@ -1255,54 +1231,6 @@ export default function CurveTab(props) {
             error={liveError}
             isDesktop={isDesktop}
           />
-        </div>
-
-        <div className="mb-4">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-2">
-            <StatChip label="Win Rate" value={trades.length ? `${winRate.toFixed(1)}%` : "N/A"} />
-            <StatChip label="Avg Win / Loss" value={trades.length ? `$${fmt(avgWin, 0)} / $${fmt(avgLoss, 0)}` : "N/A"} />
-            <StatChip label="Max Drawdown" value={trades.length ? `$${fmt(maxDrawdown, 0)}` : "N/A"} />
-            <StatChip
-              label="Best / Worst Streak"
-              value={trades.length ? `+${bestStreak} / ${worstStreak}` : "N/A"}
-              onClick={() => setShowStreakInfo((v) => !v)}
-            />
-            <StatChip
-              label="Discipline Streak"
-              value={disciplineHasData ? `${disciplineCurrent} day${disciplineCurrent === 1 ? "" : "s"}` : "N/A"}
-              onClick={() => setShowDisciplineInfo((v) => !v)}
-            />
-            <StatChip
-              label="Best Discipline Streak"
-              value={disciplineHasData ? `${disciplineBest} day${disciplineBest === 1 ? "" : "s"}` : "N/A"}
-            />
-            <StatChip
-              label="Profit Factor"
-              value={
-                trades.length === 0 || grossWin + grossLoss === 0
-                  ? "N/A"
-                  : profitFactor === null
-                  ? "\u221e"
-                  : profitFactor.toFixed(2)
-              }
-            />
-            <StatChip
-              label="Expectancy"
-              value={trades.length ? `${expectancy >= 0 ? "+" : "-"}$${fmtMoney(expectancy)} / trade` : "N/A"}
-            />
-          </div>
-          {showStreakInfo && (
-            <p className="text-xs mt-2" style={{ color: palette.textFaint }}>
-              Streaks count consecutive wins (positive) or losses (negative).
-            </p>
-          )}
-          {showDisciplineInfo && (
-            <p className="text-xs mt-2" style={{ color: palette.textFaint }}>
-              Consecutive trading days with no revenge trade (opened within {RUNTIME.REVENGE_WINDOW_MINUTES} minutes of a
-              loss) tracks behavior, not P&amp;L. Profit factor is gross wins divided by gross losses; expectancy is your
-              average result per trade.
-            </p>
-          )}
         </div>
 
         {trades.length > 0 && (
