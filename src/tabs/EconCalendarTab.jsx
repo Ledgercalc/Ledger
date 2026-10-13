@@ -801,6 +801,15 @@ function SessionsView({ now, tz, isDesktop, events = [] }) {
           {overlapNow ? `${overlapNow.label} overlap for another ${span(overlapNow.end - now)}: highest volume and tightest spreads of the day.` : live ? `One session active right now.${nextOverlap ? ` Next overlap, ${nextOverlap.label}, in ${span(nextOverlap.start - now)}.` : ""}` : `Forex trades Monday to Friday. Sessions follow each market's local weekday and daylight-saving time.${nextOverlap ? ` First overlap: ${nextOverlap.label}.` : ""}`}
         </div>
         <div style={{ fontSize: 11, color: palette.textFaint, marginTop: 6, fontVariantNumeric: "tabular-nums" }}>Your time <b style={{ color: palette.text }}>{hm(now, tz)}</b> · {tz}</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 12 }}>
+          {data.map(({ s, st }) => (
+            <span key={s.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 99, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap", border: `1px solid ${st.open ? tint(s.color, 50) : palette.border}`, background: st.open ? tint(s.color, 16) : "transparent", color: st.open ? s.color : palette.textMuted }}>
+              <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: 99, background: s.color, opacity: st.open ? 1 : 0.5 }} />
+              {s.name}
+              <span style={{ fontWeight: 600, opacity: 0.8 }}>{st.open ? `${span(st.end - now)} left` : st.start ? `in ${span(st.start - now)}` : "closed"}</span>
+            </span>
+          ))}
+        </div>
       </div>
 
       <div style={sec}>
@@ -876,12 +885,12 @@ function SessionsView({ now, tz, isDesktop, events = [] }) {
         })}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "repeat(3, minmax(0, 1fr))" : "1fr", borderTop: `1px solid ${palette.border}` }}>
-        {data.map(({ s, st }, idx) => {
+      <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "repeat(3, minmax(0, 1fr))" : "1fr", gap: isDesktop ? 14 : 10, padding: isDesktop ? "16px 20px 20px" : 12, borderTop: `1px solid ${palette.border}` }}>
+        {data.map(({ s, st }) => {
           const on = st.open;
           const w = sessionWindows(s, now, -1, 8).find((x) => (on ? now >= x.start && now < x.end : x.start === st.start));
           return (
-            <div key={s.id} style={{ padding: isDesktop ? "16px 20px 16px 22px" : "14px 14px 14px 18px", background: on ? tint(s.color, 8) : "transparent", position: "relative", borderTop: !isDesktop && idx ? `1px solid ${palette.border}` : "none", borderLeft: isDesktop && idx ? `1px solid ${palette.border}` : "none" }}>
+            <div key={s.id} style={{ padding: isDesktop ? "16px 18px 16px 22px" : "14px 14px 14px 18px", background: on ? tint(s.color, 9) : tint(palette.text, 2.5), position: "relative", overflow: "hidden", borderRadius: 14, border: `1px solid ${on ? tint(s.color, 45) : palette.border}` }}>
               <div aria-hidden="true" style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: s.color, opacity: on ? 1 : 0.4 }} />
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
                 <div style={{ fontSize: 14, fontWeight: 800, color: palette.text }}>{s.name}</div>
@@ -1403,13 +1412,15 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, su
   const feedReady = !((loading && all.length === 0) || syncing || failed || groups.length === 0);
   const filterCount = (ccys.length ? 1 : 0) + (cat !== "all" ? 1 : 0) + (tzSel !== "local" ? 1 : 0) + (showHolidays ? 0 : 1);
   const mpill = (on) => ({
-    display: "inline-flex", alignItems: "center", minHeight: 40, padding: "0 15px", borderRadius: 99, cursor: "pointer", flexShrink: 0, fontFamily: sans, fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap",
-    border: `1px solid ${on ? tint(palette.gold, 55) : palette.border}`, background: on ? tint(palette.gold, 16) : "transparent", color: on ? palette.gold : palette.textMuted,
+    display: "inline-flex", alignItems: "center", justifyContent: "center", flex: "1 0 auto", minHeight: 36, padding: "0 14px", borderRadius: 10, cursor: "pointer", fontFamily: sans, fontSize: 12.5, fontWeight: 800, whiteSpace: "nowrap",
+    border: `1px solid ${on ? tint(palette.gold, 40) : "transparent"}`, background: on ? tint(palette.gold, 16) : "transparent", color: on ? palette.gold : palette.textMuted,
   });
   const segs = [["all", "All", null], ["medium", "Medium+", AMBER], ["high", "High", palette.red]];
   const mobileNews = (
     <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "4px 2px 12px" }}>
+
+      <div style={{ border: `1px solid ${palette.border}`, borderRadius: 16, overflow: "hidden", background: palette.surface, boxShadow: palette.shadow }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "14px 14px 12px" }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: -0.4, color: palette.text }}>Economic Calendar</div>
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3, fontSize: 11, color: palette.textMuted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -1428,10 +1439,8 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, su
           </button>
         </div>
       </div>
-
-      <div style={{ border: `1px solid ${palette.border}`, borderRadius: 16, overflow: "hidden", background: palette.surface }}>
       <div style={{ padding: 12 }}>
-      <div className="ec-pills" role="tablist" aria-label="Date range" style={{ display: "flex", gap: 8, overflowX: "auto", margin: "0 -12px", padding: "0 12px 12px" }}>
+      <div className="ec-pills" role="tablist" aria-label="Date range" style={{ display: "flex", gap: 4, overflowX: "auto", padding: 4, marginBottom: 10, borderRadius: 14, border: `1px solid ${palette.border}`, background: palette.field || tint(palette.text, 4) }}>
         {RANGES.map((r) => (
           <button key={r.id} type="button" role="tab" aria-selected={rangeSel === r.id} onClick={() => pickRange(r.id)} style={mpill(rangeSel === r.id)}>{r.label}</button>
         ))}
@@ -1514,7 +1523,7 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, su
   );
 
   return (
-    <div style={{ padding: isDesktop ? 0 : "0 12px" }}>
+    <div>
       <style>{`.ec-row:hover{background:${tint(palette.text, 4)}}
 .ec-row:focus-visible,.ec-pills button:focus-visible,.ec-ctl:focus-visible,.ec-opt:focus-visible{outline:2px solid ${palette.gold};outline-offset:1px}
 .ec-opt:hover{background:${tint(palette.text, 6)}}
@@ -1526,12 +1535,19 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, su
 @keyframes ec-in{from{opacity:0}to{opacity:1}}
 .ec-sheet{animation:ec-up .26s cubic-bezier(.22,1,.36,1)}.ec-fade{animation:ec-in .2s ease}`}</style>
       {renderSubNav ? renderSubNav([{ id: "news", label: "News" }, { id: "sessions", label: "Sessions" }], view, setView) : (
-        <div role="tablist" style={{ display: "flex", gap: 4, paddingBottom: 12 }}>
-          {[["news", "News"], ["sessions", "Sessions"]].map(([id, label]) => (
-            <button key={id} type="button" role="tab" aria-selected={view === id} onClick={() => setView(id)} style={pill(view === id)}>{label}</button>
-          ))}
+        <div role="tablist" aria-label="Economic calendar section" style={{ display: "flex", gap: 4, padding: 4, margin: isDesktop ? "0 0 14px" : "2px 0 12px", width: isDesktop ? "fit-content" : "auto", borderRadius: 14, border: `1px solid ${palette.border}`, background: palette.field || tint(palette.text, 4) }}>
+          {[["news", "News"], ["sessions", "Sessions"]].map(([id, label]) => {
+            const on = view === id;
+            return (
+              <button key={id} type="button" role="tab" aria-selected={on} className="ec-ctl" onClick={() => setView(id)} style={{ flex: isDesktop ? "0 0 auto" : 1, minHeight: isDesktop ? 34 : 40, padding: "0 20px", borderRadius: 10, cursor: "pointer", fontFamily: sans, fontSize: 12.5, fontWeight: 800, border: `1px solid ${on ? tint(palette.gold, 40) : "transparent"}`, background: on ? tint(palette.gold, 16) : "transparent", color: on ? palette.gold : palette.textMuted }}>
+                {label}
+              </button>
+            );
+          })}
         </div>
       )}
+      {/* Sub-tab bar above keeps the app's normal gutter (same spot as the other tabs); only the content goes wide on phones. */}
+      <div style={isDesktop ? undefined : { boxSizing: "border-box", width: "100vw", marginLeft: "calc(50% - 50vw)", padding: "0 10px" }}>
       {view === "sessions" ? <SessionsView now={now} tz={tz} isDesktop={isDesktop} events={all} /> : !isDesktop ? mobileNews : (
       <div style={{ background: palette.surface, border: `1px solid ${palette.border}`, borderRadius: 18, overflow: "hidden", boxShadow: palette.shadow }}>
         {/* page header */}
@@ -1688,6 +1704,7 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, su
         </>)}
       </div>
       )}
+      </div>
     </div>
   );
 }
