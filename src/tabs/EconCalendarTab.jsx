@@ -111,6 +111,8 @@ function normalize(ev, i) {
     forecast: ev.estimate ?? ev.forecast ?? ev.consensus,
     previous: ev.previous ?? ev.prior,
     unit: typeof ev.unit === "string" && ev.unit.length <= 4 ? ev.unit : "",
+    change: typeof ev.change === "number" ? ev.change : null,
+    status: ev.status || "",
   };
 }
 function fmtVal(v, unit) {
@@ -265,20 +267,32 @@ const colsFor = (showForecast) =>
 function EventRow({ ev, isNext, compact, now, rowRef, showForecast }) {
   const time = new Date(ev.ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   const accent = isNext ? { boxShadow: `inset 3px 0 0 ${palette.gold}`, background: tint(palette.gold, 7) } : null;
-  const val = (label, v, strong) => (
-    <div style={{ textAlign: compact ? "left" : "right", fontVariantNumeric: "tabular-nums", minWidth: 0 }}>
-      {compact && <div style={{ fontSize: 10.5, color: palette.textFaint, marginBottom: 1 }}>{label}</div>}
-      <div
-        style={{
-          fontSize: 13,
-          fontWeight: strong ? 800 : 600,
-          color: v == null || v === "" ? palette.textFaint : strong ? palette.text : palette.textMuted,
-        }}
-      >
-        {fmtVal(v, ev.unit)}
+  const val = (label, v, strong) => {
+    const empty = v == null || v === "";
+    const pending = strong && empty && ev.status === "pending";
+    const showChange = strong && !empty && ev.change != null;
+    return (
+      <div style={{ textAlign: compact ? "left" : "right", fontVariantNumeric: "tabular-nums", minWidth: 0 }}>
+        {compact && <div style={{ fontSize: 10.5, color: palette.textFaint, marginBottom: 1 }}>{label}</div>}
+        <div
+          style={{
+            fontSize: pending ? 12 : 13,
+            fontWeight: strong ? 800 : 600,
+            color: pending ? palette.gold : empty ? palette.textFaint : strong ? palette.text : palette.textMuted,
+          }}
+        >
+          {pending ? "Pending" : fmtVal(v, ev.unit)}
+        </div>
+        {showChange && (
+          <div title="Change vs previous" style={{ fontSize: 10.5, fontWeight: 700, color: palette.textFaint }}>
+            {ev.change > 0 ? "+" : ""}
+            {ev.change.toLocaleString(undefined, { maximumFractionDigits: 3 })}
+            {ev.unit === "K" ? "K" : ""}
+          </div>
+        )}
       </div>
-    </div>
-  );
+    );
+  };
 
   if (compact) {
     return (
@@ -407,7 +421,7 @@ const TICKER = [
 ];
 const hairline = { borderTop: `1px solid ${palette.border}` };
 
-export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, econEvents: fmpEvents, econStatus: fmpStatus = "idle", econError: fmpError = "", onRefresh }) {
+export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase }) {
   const [range, setRange] = useState("week");
   const [impact, setImpactState] = useState(() => loadPref("ec-impact", "medium"));
   const [ccys, setCcysState] = useState(() => loadPref("ec-ccys", []));
@@ -422,31 +436,36 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, ec
   const [feed, setFeed] = useState("gold");
   const [exchange, setExchange] = useState("US");
   const [now, setNow] = useState(() => Date.now());
-  const [own, setOwn] = useState({ events: [], status: apiBase ? "loading" : "off", error: "" });
+  const [busy, setBusy] = useState(false);
+  const [own, setOwn] = useState({ events: [], status: apiBase ? "loading" : "error", error: apiBase ? "" : "The calendar service address is missing." });
 
-  // Your own calendar from the worker (/market/calendar). Falls back to the FMP data if it is unavailable.
+  // Your own calendar: read from your worker's database (/market/calendar). No other source is used.
   const loadOwn = useRef(null);
   loadOwn.current = async () => {
     if (!apiBase) return;
-    setOwn((o) => ({ ...o, status: o.events.length ? o.status : "loading", error: "" }));
+    setBusy(true);
     try {
       const res = await fetch(`${apiBase}/market/calendar`);
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !Array.isArray(data.events)) throw new Error(data.error || "Couldn't load the calendar.");
-      setOwn({ events: data.events, status: "live", error: "" });
+      setOwn({ events: data.events, status: data.syncing ? "syncing" : "live", error: "" });
     } catch (err) {
       setOwn((o) => ({ events: o.events, status: o.events.length ? "live" : "error", error: err.message || "Couldn't load the calendar." }));
+    } finally {
+      setBusy(false);
     }
   };
+  const hasPending = own.events.some((e) => e.status === "pending");
   useEffect(() => {
     loadOwn.current();
-    const id = setInterval(() => loadOwn.current(), 5 * 60000);
+    // fast while the first sync runs or a release is waiting for its number, relaxed otherwise
+    const every = own.status === "syncing" ? 10000 : hasPending ? 15000 : 60000;
+    const id = setInterval(() => loadOwn.current(), every);
     return () => clearInterval(id);
-  }, [apiBase]);
-  const usingOwn = own.status === "live";
-  const econEvents = usingOwn ? own.events : fmpEvents;
-  const econStatus = usingOwn ? "live" : own.status === "loading" ? "loading" : fmpStatus;
-  const econError = usingOwn ? "" : own.error || fmpError;
+  }, [apiBase, own.status === "syncing", hasPending]);
+  const econEvents = own.events;
+  const econStatus = own.status;
+  const econError = own.error;
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 30000);
@@ -482,8 +501,8 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, ec
   }, [all, range, impact, ccys, today0]);
 
   const currencyOptions = useMemo(() => {
-    const extra = [...new Set(all.map((e) => e.ccy))].filter((c) => c && c !== "ALL" && !CCY_ORDER.includes(c)).sort();
-    return [...CCY_ORDER, ...extra];
+    const present = [...new Set(all.map((e) => e.ccy))].filter((c) => c && c !== "ALL");
+    return [...CCY_ORDER.filter((c) => present.includes(c)), ...present.filter((c) => !CCY_ORDER.includes(c)).sort()];
   }, [all]);
 
   const groups = useMemo(() => {
@@ -516,10 +535,9 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, ec
   const loading = econStatus === "loading";
   const showForecast = all.some((e) => e.forecast !== null && e.forecast !== undefined && e.forecast !== "");
   const failed = econStatus === "error" && all.length === 0;
-  const unusable = Array.isArray(econEvents) && econEvents.length > 0 && all.length === 0;
+  const syncing = econStatus === "syncing" && all.length === 0;
 
   const tickerCfg = useMemo(() => ({ ...base, symbols: TICKER, showSymbolLogo: true, displayMode: "regular" }), [base]);
-  const fallbackCfg = useMemo(() => ({ ...base, importanceFilter: "0,1", countryFilter: "us" }), [base]);
   const newsCfg = useMemo(() => ({ ...base, displayMode: "regular", ...NEWS_FEEDS.find((f) => f.id === feed).cfg }), [base, feed]);
   const moversCfg = useMemo(
     () => ({ ...base, exchange, dateRange: "1D", showChart: true, showSymbolLogo: true, showFloatingTooltip: false }),
@@ -532,9 +550,8 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, ec
       type="button"
       onClick={() => {
         loadOwn.current();
-        if (!usingOwn && onRefresh) onRefresh();
       }}
-      disabled={loading}
+      disabled={busy}
       aria-label="Refresh calendar"
       title="Refresh calendar"
       className="ec-seg"
@@ -547,31 +564,49 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, ec
         border: `1px solid ${palette.border}`,
         background: tint(palette.text, 5),
         color: palette.textMuted,
-        cursor: loading ? "default" : "pointer",
+        cursor: busy ? "default" : "pointer",
       }}
     >
-      <RefreshCw size={14} className={loading ? "ec-spin" : undefined} />
+      <RefreshCw size={14} className={busy ? "ec-spin" : undefined} />
     </button>
   );
 
   const list = (() => {
     if (loading && all.length === 0) return <Skeleton />;
-    if (failed || unusable) {
+    if (syncing) {
       return (
-        <div style={{ padding: "14px 16px" }}>
-          <div style={{ fontSize: 13, color: palette.textMuted, marginBottom: 10, lineHeight: 1.45 }}>
-            {failed
-              ? `${econError || "Couldn't load the calendar."} Showing the backup calendar instead.`
-              : "The calendar data came back in a format this view can't read, so the backup calendar is shown."}
-          </div>
-          <Widget name="events" config={fallbackCfg} height={isDesktop ? 520 : 480} />
+        <div style={{ padding: "36px 24px", textAlign: "center", color: palette.textMuted, fontSize: 13, lineHeight: 1.5 }}>
+          Setting up your calendar for the first time. The official release schedule is being loaded; this takes under a minute.
+        </div>
+      );
+    }
+    if (failed) {
+      return (
+        <div style={{ padding: "36px 24px", textAlign: "center", color: palette.textMuted, fontSize: 13, lineHeight: 1.5 }}>
+          <div style={{ marginBottom: 12 }}>{econError || "Couldn't load the calendar."}</div>
+          <button
+            type="button"
+            onClick={() => loadOwn.current()}
+            style={{
+              padding: "7px 14px",
+              borderRadius: 10,
+              border: `1px solid ${palette.border}`,
+              background: tint(palette.gold, 14),
+              color: palette.gold,
+              fontWeight: 800,
+              fontSize: 12.5,
+              cursor: "pointer",
+            }}
+          >
+            Try again
+          </button>
         </div>
       );
     }
     if (groups.length === 0) {
       return (
         <div style={{ padding: "36px 24px", textAlign: "center", color: palette.textMuted, fontSize: 13, lineHeight: 1.5 }}>
-          No releases match these filters. Try 7 days, lower the impact level, or add more currencies.
+          No releases match these filters. Try 7 days or lower the impact level.
         </div>
       );
     }
@@ -618,9 +653,11 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, ec
         <Segmented label="Date range" options={RANGE} value={range} onChange={setRange} />
         <Segmented label="Impact" options={IMPACT} value={impact} onChange={setImpact} />
       </div>
-      <div style={{ padding: "0 16px 10px" }}>
-        <CcyFilter options={currencyOptions} value={ccys} onChange={setCcys} />
-      </div>
+      {currencyOptions.length > 1 && (
+        <div style={{ padding: "0 16px 10px" }}>
+          <CcyFilter options={currencyOptions} value={ccys} onChange={setCcys} />
+        </div>
+      )}
       <div
         style={{
           display: "flex",
@@ -647,7 +684,7 @@ export default function EconCalendarTab({ theme = "dark", isDesktop, apiBase, ec
           <span style={{ fontSize: 13, color: palette.textMuted }}>No more releases in this view.</span>
         )}
       </div>
-      {isDesktop && !failed && !unusable && (
+      {isDesktop && !failed && !syncing && (
         <div
           style={{
             display: "grid",
