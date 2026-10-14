@@ -61,11 +61,11 @@ const btn = (primary, danger) => ({
 });
 const input = { width: "100%", minHeight: 40, padding: "8px 12px", borderRadius: 12, fontSize: 16, fontFamily: sans, background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, outline: "none" };
 
-function Signal({ label, value, hint }) {
+function Signal({ label, value, hint, big }) {
   const state = value === true ? "yes" : value === false ? "no" : "none";
   const color = state === "yes" ? GOOD : state === "no" ? BAD : palette.textFaint;
   return (
-    <div style={{ flex: "1 1 0", minWidth: 0, padding: "8px 10px", borderRadius: 12, background: tint(color, state === "none" ? 6 : 12), border: `1px solid ${tint(color, state === "none" ? 18 : 35)}` }}>
+    <div style={{ flex: "1 1 0", minWidth: 0, padding: big ? "11px 13px" : "8px 10px", borderRadius: 12, background: tint(color, state === "none" ? 6 : 12), border: `1px solid ${tint(color, state === "none" ? 18 : 35)}` }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, color, fontSize: 12, fontWeight: 800 }}>
         {state === "yes" ? <Check size={13} /> : state === "no" ? <X size={13} /> : <span style={{ width: 13, textAlign: "center" }}>-</span>}
         {state === "yes" ? "Yes" : state === "no" ? "Broken" : hint || "Not set"}
@@ -75,8 +75,8 @@ function Signal({ label, value, hint }) {
   );
 }
 
-function WeekStrip({ days }) {
-  const dot = (s, weekend) => ({ width: 11, height: 11, borderRadius: 99, background: s === "clean" ? GOOD : s === "broken" ? BAD : tint(palette.text, 12), opacity: weekend && s === "none" ? 0.4 : 1 });
+function WeekStrip({ days, big }) {
+  const dot = (s, weekend) => ({ width: big ? 14 : 11, height: big ? 14 : 11, borderRadius: 99, background: s === "clean" ? GOOD : s === "broken" ? BAD : tint(palette.text, 12), opacity: weekend && s === "none" ? 0.4 : 1 });
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 10, color: palette.textFaint, textAlign: "right", paddingTop: 15 }}>
@@ -96,17 +96,17 @@ function WeekStrip({ days }) {
   );
 }
 
-function PartnerCard({ p, busy, onNudge, onLeave, onBlock }) {
+function PartnerCard({ p, busy, onNudge, onLeave, onBlock, desktop, wide }) {
   const [menu, setMenu] = useState(false);
   const [ask, setAsk] = useState(null); // "leave" | "block"
   const [report, setReport] = useState(false);
   const since = new Date(p.since).toLocaleDateString([], { month: "short", day: "numeric" });
   return (
-    <div style={card}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <Avatar name={p.username} size={38} src={p.avatar || undefined} />
+    <div style={desktop ? { ...card, padding: "20px 22px", marginBottom: 0 } : card}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <Avatar name={p.username} size={desktop ? 44 : 38} src={p.avatar || undefined} />
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontSize: 14, fontWeight: 800, color: palette.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.username}</div>
+          <div style={{ fontSize: desktop ? 15.5 : 14, fontWeight: 800, color: palette.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.username}</div>
           <div style={{ fontSize: 11, color: palette.textFaint }}>Partners since {since}</div>
         </div>
         <button type="button" aria-label="Partnership options" aria-expanded={menu} onClick={() => { setMenu((m) => !m); setAsk(null); }} className={TAP}
@@ -145,50 +145,69 @@ function PartnerCard({ p, busy, onNudge, onLeave, onBlock }) {
         </div>
       )}
 
-      <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "14px 0 12px", padding: "11px 13px", borderRadius: 14, background: tint(p.streak.current > 0 ? palette.gold : palette.text, p.streak.current > 0 ? 10 : 4), border: `1px solid ${tint(p.streak.current > 0 ? palette.gold : palette.text, p.streak.current > 0 ? 30 : 10)}` }}>
-        <Flame size={22} style={{ color: p.streak.current > 0 ? palette.gold : palette.textFaint, flexShrink: 0 }} />
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 22, fontWeight: 800, fontFamily: mono, color: palette.text, lineHeight: 1 }}>
-            {p.streak.current}
-            <span style={{ fontSize: 12, fontWeight: 700, fontFamily: sans, color: palette.textMuted, marginLeft: 6 }}>{p.streak.current === 1 ? "day" : "days"} clean together</span>
+      {(() => {
+        const live = p.streak.current > 0;
+        const streakBox = (
+          <div style={{ display: "flex", alignItems: "center", gap: 12, margin: wide ? "0 0 16px" : "14px 0 12px", padding: desktop ? "14px 16px" : "11px 13px", borderRadius: 14, background: tint(live ? palette.gold : palette.text, live ? 10 : 4), border: `1px solid ${tint(live ? palette.gold : palette.text, live ? 30 : 10)}` }}>
+            <Flame size={desktop ? 26 : 22} style={{ color: live ? palette.gold : palette.textFaint, flexShrink: 0 }} />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: desktop ? 28 : 22, fontWeight: 800, fontFamily: mono, color: palette.text, lineHeight: 1 }}>
+                {p.streak.current}
+                <span style={{ fontSize: 12, fontWeight: 700, fontFamily: sans, color: palette.textMuted, marginLeft: 6 }}>{p.streak.current === 1 ? "day" : "days"} clean together</span>
+              </div>
+              <div style={{ fontSize: 11, color: palette.textFaint, marginTop: 4 }}>
+                {p.streak.best > 0 ? `Best together: ${p.streak.best} ${p.streak.best === 1 ? "day" : "days"}` : "A clean day is when you both stick to your own rules."}
+              </div>
+            </div>
           </div>
-          <div style={{ fontSize: 11, color: palette.textFaint, marginTop: 4 }}>
-            {p.streak.best > 0 ? `Best together: ${p.streak.best} ${p.streak.best === 1 ? "day" : "days"}` : "A clean day is when you both stick to your own rules."}
+        );
+        const signals = (
+          <>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: palette.textMuted, marginBottom: 6 }}>{p.username}'s day</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <Signal big={desktop} label="Checked in" value={p.today.checkin} hint="Not yet" />
+              <Signal big={desktop} label="Trade limit" value={p.today.trades} />
+              <Signal big={desktop} label="Loss limit" value={p.today.loss} />
+            </div>
+            {!p.today.shared && <div style={sub}>{p.username} hasn't shared anything yet today.</div>}
+          </>
+        );
+        const week = (
+          <div style={{ margin: wide ? "18px 0 0" : "14px 0 4px" }}>
+            <WeekStrip days={p.days} big={desktop} />
           </div>
-        </div>
-      </div>
-
-      <div style={{ fontSize: 11.5, fontWeight: 700, color: palette.textMuted, marginBottom: 6 }}>{p.username}'s day</div>
-      <div style={{ display: "flex", gap: 8 }}>
-        <Signal label="Checked in" value={p.today.checkin} hint="Not yet" />
-        <Signal label="Trade limit" value={p.today.trades} />
-        <Signal label="Loss limit" value={p.today.loss} />
-      </div>
-      {!p.today.shared && <div style={sub}>{p.username} hasn't shared anything yet today.</div>}
-
-      <div style={{ margin: "14px 0 4px" }}>
-        <WeekStrip days={p.days} />
-      </div>
-
-      <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${palette.border}` }}>
-        <div style={{ fontSize: 11.5, fontWeight: 700, color: palette.textMuted }}>Their commitment this week</div>
-        <div style={{ fontSize: 12.5, color: p.commit ? palette.text : palette.textFaint, marginTop: 3, lineHeight: 1.45 }}>{p.commit ? p.commit.text : "Nothing written yet."}</div>
-        {p.lastCommit && (
-          <div style={{ ...sub, color: p.lastCommit.kept === true ? GOOD : p.lastCommit.kept === false ? BAD : palette.textFaint }}>
-            Last week: "{p.lastCommit.text}" {p.lastCommit.kept === true ? "(kept)" : p.lastCommit.kept === false ? "(not kept)" : "(not reviewed yet)"}
+        );
+        const commit = (
+          <div style={wide ? undefined : { marginTop: 12, paddingTop: 12, borderTop: `1px solid ${palette.border}` }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: palette.textMuted }}>Their commitment this week</div>
+            <div style={{ fontSize: desktop ? 13.5 : 12.5, color: p.commit ? palette.text : palette.textFaint, marginTop: 3, lineHeight: 1.45 }}>{p.commit ? p.commit.text : "Nothing written yet."}</div>
+            {p.lastCommit && (
+              <div style={{ ...sub, color: p.lastCommit.kept === true ? GOOD : p.lastCommit.kept === false ? BAD : palette.textFaint }}>
+                Last week: "{p.lastCommit.text}" {p.lastCommit.kept === true ? "(kept)" : p.lastCommit.kept === false ? "(not kept)" : "(not reviewed yet)"}
+              </div>
+            )}
           </div>
-        )}
-      </div>
-
-      <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${palette.border}` }}>
-        <div style={{ fontSize: 11.5, fontWeight: 700, color: palette.textMuted, marginBottom: 8 }}>Send a nudge</div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          {NUDGES.map(([kind, text]) => (
-            <button key={kind} type="button" disabled={busy} onClick={() => onNudge(p, kind)} className={TAP}
-              style={{ ...btn(false), minHeight: 34, padding: "6px 12px", fontSize: 11.5 }}>{text}</button>
-          ))}
-        </div>
-      </div>
+        );
+        const nudges = (
+          <div style={{ marginTop: wide ? 20 : 12, paddingTop: wide ? 20 : 12, borderTop: `1px solid ${palette.border}` }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: palette.textMuted, marginBottom: 8 }}>Send a nudge</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {NUDGES.map(([kind, text]) => (
+                <button key={kind} type="button" disabled={busy} onClick={() => onNudge(p, kind)} className={TAP}
+                  style={{ ...btn(false), minHeight: 34, padding: "6px 12px", fontSize: 11.5 }}>{text}</button>
+              ))}
+            </div>
+          </div>
+        );
+        return wide ? (
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.15fr) minmax(0, 1fr)", gap: 28, marginTop: 18 }}>
+            <div style={{ minWidth: 0 }}>{streakBox}{signals}{week}</div>
+            <div style={{ minWidth: 0, borderLeft: `1px solid ${palette.border}`, paddingLeft: 28 }}>{commit}{nudges}</div>
+          </div>
+        ) : (
+          <>{streakBox}{signals}{week}{commit}{nudges}</>
+        );
+      })()}
     </div>
   );
 }
@@ -328,18 +347,21 @@ export default function PartnerTab({ isDesktop, session, communityUsername, trad
     try { await navigator.clipboard.writeText(data.code.code); say("Code copied."); } catch (e) { say("Couldn't copy. Select the code and copy it by hand.", true); }
   };
 
-  const wrap = { maxWidth: isDesktop ? 720 : undefined, margin: "0 auto", fontFamily: sans, paddingBottom: 8 };
+  const wrap = { maxWidth: isDesktop ? 1280 : undefined, margin: "0 auto", fontFamily: sans, paddingBottom: 8 };
+  const wrapNarrow = { ...wrap, maxWidth: isDesktop ? 560 : undefined };
+  const cardX = isDesktop ? { ...card, padding: "18px 20px", marginBottom: 0 } : card;
+  const stackD = isDesktop ? { display: "flex", flexDirection: "column", gap: 16, minWidth: 0 } : undefined;
 
   // ---- not ready states ----
   const title = (
-    <div style={{ padding: "2px 2px 12px" }}>
-      <div style={{ fontSize: isDesktop ? 20 : 18.5, fontWeight: 800, color: palette.text, letterSpacing: -0.2 }}>Partner</div>
-      <div style={{ fontSize: 12, color: palette.textMuted, marginTop: 3 }}>Stay on plan with someone who notices when you don't.</div>
+    <div style={{ padding: isDesktop ? "2px 2px 18px" : "2px 2px 12px" }}>
+      <div style={{ fontSize: isDesktop ? 24 : 18.5, fontWeight: 800, color: palette.text, letterSpacing: -0.3 }}>Partner</div>
+      <div style={{ fontSize: isDesktop ? 13 : 12, color: palette.textMuted, marginTop: 3 }}>Stay on plan with someone who notices when you don't.</div>
     </div>
   );
   if (!token) {
     return (
-      <div style={wrap}>
+      <div style={wrapNarrow}>
         {title}
         <div style={card}>
           <div style={h}>Sign in to find a partner</div>
@@ -350,7 +372,7 @@ export default function PartnerTab({ isDesktop, session, communityUsername, trad
   }
   if (loadError === "username" || (!hasName && !loading && !data)) {
     return (
-      <div style={wrap}>
+      <div style={wrapNarrow}>
         {title}
         <div style={card}>
           <div style={h}>Pick a username first</div>
@@ -362,7 +384,7 @@ export default function PartnerTab({ isDesktop, session, communityUsername, trad
   }
   if (loading && !data) {
     return (
-      <div style={wrap}>
+      <div style={wrapNarrow}>
         {title}
         <div style={{ ...card, color: palette.textFaint, fontSize: 12.5 }}>Loading...</div>
       </div>
@@ -370,7 +392,7 @@ export default function PartnerTab({ isDesktop, session, communityUsername, trad
   }
   if (!data) {
     return (
-      <div style={wrap}>
+      <div style={wrapNarrow}>
         {title}
         <div style={card}>
           <div style={h}>Couldn't load your partners</div>
@@ -386,17 +408,19 @@ export default function PartnerTab({ isDesktop, session, communityUsername, trad
 
   return (
     <div style={wrap}>
+      <style>{`.pt-banners:empty{display:none}`}</style>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
         {title}
-        <span style={{ marginTop: 4, padding: "5px 11px", borderRadius: 99, border: `1px solid ${palette.border}`, fontSize: 11, fontWeight: 700, color: palette.textMuted, whiteSpace: "nowrap" }}>{countLabel}</span>
+        <span style={{ marginTop: isDesktop ? 2 : 4, padding: isDesktop ? "6px 13px" : "5px 11px", borderRadius: 99, border: `1px solid ${palette.border}`, fontSize: 11, fontWeight: 700, color: palette.textMuted, whiteSpace: "nowrap" }}>{countLabel}</span>
       </div>
 
+      <div className="pt-banners" style={isDesktop ? { display: "flex", flexDirection: "column", gap: 16, marginBottom: 16 } : undefined}>
       {toast && (
-        <div role="status" style={{ ...card, padding: "10px 13px", marginBottom: 12, fontSize: 12.5, fontWeight: 600, color: toast.bad ? BAD : palette.text, borderColor: toast.bad ? tint(BAD, 40) : palette.border }}>{toast.text}</div>
+        <div role="status" style={{ ...cardX, padding: "10px 13px", marginBottom: isDesktop ? 0 : 12, fontSize: 12.5, fontWeight: 600, color: toast.bad ? BAD : palette.text, borderColor: toast.bad ? tint(BAD, 40) : palette.border }}>{toast.text}</div>
       )}
 
       {data.nudges.length > 0 && (
-        <div style={{ ...card, borderColor: tint(palette.gold, 40), background: tint(palette.gold, 7) }}>
+        <div style={{ ...cardX, borderColor: tint(palette.gold, 40), background: tint(palette.gold, 7) }}>
           {data.nudges.slice(0, 4).map((n) => (
             <div key={n.id} style={{ fontSize: 12.5, color: palette.text, marginBottom: 4 }}>
               <b>{n.username}</b> {n.kind === "left" ? NUDGE_TEXT.left : `says: ${NUDGE_TEXT[n.kind] || "Hey."}`}
@@ -407,7 +431,7 @@ export default function PartnerTab({ isDesktop, session, communityUsername, trad
       )}
 
       {data.reviewDue && (
-        <div style={card}>
+        <div style={cardX}>
           <div style={h}>Last week's commitment</div>
           <div style={{ fontSize: 13, color: palette.text, marginTop: 6, lineHeight: 1.45 }}>"{data.reviewDue.text}"</div>
           <div style={sub}>Did you keep it? Your partners will see your answer.</div>
@@ -418,19 +442,42 @@ export default function PartnerTab({ isDesktop, session, communityUsername, trad
         </div>
       )}
 
+      </div>
+
+      <div style={isDesktop ? { display: "grid", gridTemplateColumns: "minmax(0, 1fr) 380px", gap: 20, alignItems: "start" } : undefined}>
+      <div style={stackD}>
       {data.partners.length === 0 && (
-        <div style={{ ...card, textAlign: "center", padding: "22px 18px" }}>
-          <Users size={26} style={{ color: palette.gold }} />
+        <div style={{ ...card, marginBottom: isDesktop ? 0 : 12, textAlign: "center", padding: isDesktop ? "36px 28px" : "22px 18px" }}>
+          <Users size={isDesktop ? 32 : 26} style={{ color: palette.gold }} />
           <div style={{ ...h, marginTop: 8, fontSize: 14 }}>No partner yet</div>
-          <div style={{ ...sub, maxWidth: 340, margin: "5px auto 0" }}>Pair up with one trader you trust. You'll see each other's yes/no signs and build a clean streak together. Add someone below.</div>
+          <div style={{ ...sub, maxWidth: 340, margin: "5px auto 0" }}>Pair up with one trader you trust. You'll see each other's yes/no signs and build a clean streak together. Add someone {isDesktop ? "on the right" : "below"}.</div>
+          {isDesktop && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 380, margin: "24px auto 0", textAlign: "left" }}>
+              {[
+                ["1", "Invite someone", "By Community username or a one-time code."],
+                ["2", "Share yes or no", "You only see whether they stuck to their own rules each day."],
+                ["3", "Build a streak", "A clean day is when you both stick to your rules."],
+              ].map(([n, t, d]) => (
+                <div key={n} style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                  <span style={{ width: 24, height: 24, borderRadius: 99, flexShrink: 0, display: "grid", placeItems: "center", fontSize: 12, fontWeight: 800, color: palette.gold, background: tint(palette.gold, 14), border: `1px solid ${tint(palette.gold, 30)}` }}>{n}</span>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: palette.text }}>{t}</div>
+                    <div style={{ fontSize: 12, color: palette.textFaint, lineHeight: 1.45, marginTop: 1 }}>{d}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
-      {data.partners.map((p) => (
-        <PartnerCard key={p.linkId} p={p} busy={busy} onNudge={nudge} onLeave={leave} onBlock={block} />
-      ))}
+      <div style={isDesktop ? { display: "grid", gap: 16, gridTemplateColumns: data.partners.length === 1 ? "minmax(0, 1fr)" : "repeat(auto-fit, minmax(360px, 1fr))" } : undefined}>
+        {data.partners.map((p) => (
+          <PartnerCard key={p.linkId} p={p} busy={busy} onNudge={nudge} onLeave={leave} onBlock={block} desktop={isDesktop} wide={isDesktop && data.partners.length === 1} />
+        ))}
+      </div>
 
       {(data.incoming.length > 0 || data.outgoing.length > 0) && (
-        <div style={card}>
+        <div style={cardX}>
           <div style={h}>Invites</div>
           {data.incoming.map((inv) => (
             <div key={inv.linkId} style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10 }}>
@@ -450,8 +497,10 @@ export default function PartnerTab({ isDesktop, session, communityUsername, trad
         </div>
       )}
 
+      </div>
+      <aside style={stackD}>
       {/* my own day and what partners can see */}
-      <div style={card}>
+      <div style={cardX}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
           <div>
             <div style={h}>Your day</div>
@@ -478,7 +527,7 @@ export default function PartnerTab({ isDesktop, session, communityUsername, trad
       </div>
 
       {/* weekly commitment */}
-      <div style={card}>
+      <div style={cardX}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={h}>Your commitment this week</div>
           {data.myCommit && !editingCommit && (
@@ -503,7 +552,7 @@ export default function PartnerTab({ isDesktop, session, communityUsername, trad
       </div>
 
       {/* add a partner */}
-      <div style={card}>
+      <div style={cardX}>
         <div style={h}>Add a partner</div>
         {room <= 0 ? (
           <div style={sub}>
@@ -539,7 +588,7 @@ export default function PartnerTab({ isDesktop, session, communityUsername, trad
       </div>
 
       {data.blocked.length > 0 && (
-        <div style={card}>
+        <div style={cardX}>
           <button type="button" onClick={() => setShowBlocked((v) => !v)} aria-expanded={showBlocked} style={{ display: "flex", width: "100%", alignItems: "center", justifyContent: "space-between", background: "transparent", border: 0, padding: 0, cursor: "pointer", fontFamily: sans }}>
             <span style={h}>Blocked ({data.blocked.length})</span>
             <ChevronDown size={15} style={{ color: palette.textFaint, transform: showBlocked ? "rotate(180deg)" : "none" }} />
@@ -553,7 +602,10 @@ export default function PartnerTab({ isDesktop, session, communityUsername, trad
         </div>
       )}
 
-      <div style={{ ...sub, textAlign: "center", padding: "2px 12px 6px" }}>
+      </aside>
+      </div>
+
+      <div style={{ ...sub, textAlign: "center", padding: "2px 12px 6px", marginTop: isDesktop ? 20 : 0 }}>
         Partners never see your balance, P&amp;L, trades or notes. Turn sharing off above at any time.
       </div>
     </div>
