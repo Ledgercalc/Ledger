@@ -17,10 +17,11 @@ import { TAP, mono, palette, sans } from "../lib/theme.js";
    `ink()` pulls a colour toward the theme's text colour so small text stays readable in dark AND light themes. */
 const GOOD = "#10b981";
 const BAD = "#f43f5e";
+const onGold = () => palette.letterbox || "#fff"; // text on blue/gold buttons, same colour the other tabs use (read at render so theme switches apply)
 const WARN = "#f59e0b";
 const tint = (color, pct) => `color-mix(in srgb, ${color} ${pct}%, transparent)`;
 const ink = (color) => `color-mix(in srgb, ${color} 72%, ${palette.text})`;
-const wash = (color, a = 13, b = 3) => `linear-gradient(145deg, ${tint(color, a)}, ${tint(color, b)})`;
+const soft = (color, pct = 10) => `color-mix(in srgb, ${color} ${pct}%, ${palette.surface})`; // flat tinted fill, no gradient
 const pnlColor = (n) => (n > 0 ? GOOD : n < 0 ? BAD : palette.textMuted);
 
 const COMMIT_MAX = 140;
@@ -157,13 +158,12 @@ function coachInsights(list) {
 
 /* ---------- small building blocks ---------- */
 const sub = { fontSize: 11.5, color: palette.textFaint, lineHeight: 1.5, marginTop: 3 };
-const eyebrow = { fontSize: 10.5, fontWeight: 800, letterSpacing: 0.8, textTransform: "uppercase", color: palette.textFaint };
+const eyebrow = { fontFamily: mono, fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: palette.textFaint };
 const btn = (primary, danger) => ({
   minHeight: 38, padding: "8px 16px", borderRadius: 99, fontSize: 12.5, fontWeight: 700, fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap",
   border: `1px solid ${danger ? tint(BAD, 42) : primary ? palette.gold : palette.border}`,
   background: primary ? palette.gold : "transparent",
-  boxShadow: primary ? `0 1px 0 ${tint("#fff", 35)} inset, 0 4px 12px ${tint(palette.gold, 22)}` : "none",
-  color: primary ? "#111" : danger ? ink(BAD) : palette.textMuted,
+  color: primary ? onGold() : danger ? ink(BAD) : palette.textMuted,
 });
 const small = { minHeight: 34, padding: "6px 13px", fontSize: 12 };
 const field = { width: "100%", minHeight: 42, padding: "9px 13px", borderRadius: 13, fontSize: 16, fontFamily: sans, background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, outline: "none" };
@@ -171,13 +171,13 @@ const field = { width: "100%", minHeight: 42, padding: "9px 13px", borderRadius:
 function Card({ title, icon, aside, children, tone, style }) {
   return (
     <section style={{
-      backgroundColor: palette.surface, backgroundImage: tone ? wash(tone, 12, 3) : "none",
-      border: `1px solid ${tone ? tint(tone, 34) : palette.border}`, borderRadius: 18, padding: "16px 16px 15px", marginBottom: 14, boxShadow: palette.shadow, ...style,
+      background: tone ? soft(tone, 9) : palette.surface,
+      border: `1px solid ${tone ? tint(tone, 34) : palette.border}`, borderRadius: 16, padding: "16px 16px 15px", marginBottom: 14, boxShadow: palette.shadow, ...style,
     }}>
       {(title || aside) && (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}>
-            {icon && <span style={{ width: 28, height: 28, borderRadius: 10, display: "grid", placeItems: "center", flexShrink: 0, backgroundImage: wash(palette.gold, 22, 8), border: `1px solid ${tint(palette.gold, 26)}`, color: palette.gold }}>{icon}</span>}
+            {icon && <span style={{ width: 28, height: 28, borderRadius: 10, display: "grid", placeItems: "center", flexShrink: 0, background: soft(palette.gold, 12), color: palette.gold }}>{icon}</span>}
             <h3 style={{ margin: 0, fontSize: 13.5, fontWeight: 800, color: palette.text, letterSpacing: -0.1 }}>{title}</h3>
           </div>
           {aside}
@@ -192,7 +192,7 @@ function Switch({ on, onChange, label }) {
   return (
     <button type="button" role="switch" aria-checked={on} aria-label={label} onClick={() => onChange(!on)} className={TAP}
       style={{ position: "relative", width: 44, height: 26, borderRadius: 99, border: `1px solid ${on ? tint(palette.gold, 60) : palette.border}`, flexShrink: 0, cursor: "pointer", background: on ? palette.gold : tint(palette.text, 12), transition: "background .18s ease" }}>
-      <span style={{ position: "absolute", top: 2, left: on ? 20 : 2, width: 20, height: 20, borderRadius: 99, background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,.3)", transition: "left .18s ease" }} />
+      <span style={{ position: "absolute", top: 2, left: on ? 20 : 2, width: 20, height: 20, borderRadius: 99, background: "#fff", transition: "left .18s ease" }} />
     </button>
   );
 }
@@ -204,7 +204,7 @@ function Segmented({ value, onChange, options, full }) {
         const on = value === id;
         return (
           <button key={id} type="button" role="tab" aria-selected={on} onClick={() => onChange(id)} className={TAP}
-            style={{ position: "relative", flex: full ? 1 : "none", minHeight: 36, padding: "6px 20px", borderRadius: 11, border: `1px solid ${on ? palette.border : "transparent"}`, cursor: "pointer", fontFamily: sans, fontSize: 13, fontWeight: 800, background: on ? palette.surface : "transparent", color: on ? palette.text : palette.textFaint, boxShadow: on ? "0 2px 8px rgba(0,0,0,.18)" : "none", transition: "all .15s ease" }}>
+            style={{ position: "relative", flex: full ? 1 : "none", minHeight: 36, padding: "6px 20px", borderRadius: 11, border: `1px solid ${on ? palette.border : "transparent"}`, cursor: "pointer", fontFamily: sans, fontSize: 13, fontWeight: 800, background: on ? palette.surface : "transparent", color: on ? palette.text : palette.textFaint, transition: "all .15s ease" }}>
             {label}
             {dot && <span aria-hidden="true" style={{ position: "absolute", top: 6, right: 8, width: 8, height: 8, borderRadius: 99, background: WARN, boxShadow: `0 0 0 2px ${palette.surface}` }} />}
           </button>
@@ -216,7 +216,7 @@ function Segmented({ value, onChange, options, full }) {
 
 function Pill({ children, color, solid }) {
   const c = color || palette.textMuted;
-  return <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 99, fontSize: 10.5, fontWeight: 800, color: solid ? "#111" : ink(c), background: solid ? c : tint(c, 14), border: `1px solid ${tint(c, solid ? 0 : 26)}`, whiteSpace: "nowrap" }}>{children}</span>;
+  return <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 99, fontSize: 10.5, fontWeight: 800, color: solid ? onGold() : ink(c), background: solid ? c : tint(c, 14), border: `1px solid ${tint(c, solid ? 0 : 26)}`, whiteSpace: "nowrap" }}>{children}</span>;
 }
 
 function Chip({ children, onClick, on, color }) {
@@ -229,7 +229,7 @@ function Chip({ children, onClick, on, color }) {
 function Empty({ icon, title, text, children }) {
   return (
     <div style={{ textAlign: "center", padding: "22px 14px" }}>
-      <span style={{ width: 48, height: 48, borderRadius: 16, display: "inline-grid", placeItems: "center", backgroundImage: wash(palette.gold, 20, 6), border: `1px solid ${tint(palette.gold, 26)}`, color: palette.gold }}>{icon}</span>
+      <span style={{ width: 48, height: 48, borderRadius: 16, display: "inline-grid", placeItems: "center", background: soft(palette.gold, 12), color: palette.gold }}>{icon}</span>
       <div style={{ fontSize: 14.5, fontWeight: 800, color: palette.text, marginTop: 11 }}>{title}</div>
       <div style={{ ...sub, maxWidth: 340, margin: "5px auto 0" }}>{text}</div>
       {children}
@@ -266,7 +266,7 @@ function Signal({ label, value, hint, pending }) {
   const color = state === "yes" ? GOOD : state === "no" ? BAD : pending ? WARN : palette.textFaint;
   const strong = state !== "none" || pending;
   return (
-    <div style={{ flex: "1 1 0", minWidth: 0, padding: "10px 10px 9px", borderRadius: 14, backgroundColor: strong ? "transparent" : tint(palette.text, 3), backgroundImage: strong ? wash(color, 14, 4) : "none", border: `1px ${strong ? "solid" : "dashed"} ${tint(color, strong ? 32 : 24)}` }}>
+    <div style={{ flex: "1 1 0", minWidth: 0, padding: "10px 10px 9px", borderRadius: 14, background: strong ? soft(color, 10) : "transparent", border: `1px ${strong ? "solid" : "dashed"} ${tint(color, strong ? 32 : 24)}` }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, color: ink(color), fontSize: 12, fontWeight: 800 }}>
         <span style={{ width: 18, height: 18, borderRadius: 99, display: "grid", placeItems: "center", background: strong ? tint(color, 22) : tint(palette.text, 8), flexShrink: 0 }}>
           {state === "yes" ? <Check size={11} strokeWidth={3} /> : state === "no" ? <X size={11} strokeWidth={3} /> : <span style={{ width: 6, height: 2, borderRadius: 2, background: "currentColor" }} />}
@@ -281,9 +281,8 @@ function Signal({ label, value, hint, pending }) {
 function WeekStrip({ days, today }) {
   const cell = (s, weekend) => ({
     width: 22, height: 22, borderRadius: 8,
-    background: s === "clean" ? `linear-gradient(145deg, ${GOOD}, ${tint(GOOD, 70)})` : s === "broken" ? `linear-gradient(145deg, ${BAD}, ${tint(BAD, 70)})` : tint(palette.text, 9),
-    boxShadow: s === "clean" ? `0 2px 8px ${tint(GOOD, 30)}` : s === "broken" ? `0 2px 8px ${tint(BAD, 30)}` : "none",
-    opacity: weekend && s === "none" ? 0.4 : 1,
+    background: s === "clean" ? GOOD : s === "broken" ? BAD : tint(palette.text, 9),
+        opacity: weekend && s === "none" ? 0.4 : 1,
   });
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -322,7 +321,7 @@ function PartnerCard({ p, busy, today, onNudge, onLeave, onBlock }) {
   const bothClean = p.days.filter((d) => d.me === "clean" && d.them === "clean").length;
   return (
     <Card style={{ padding: 0, overflow: "hidden", marginBottom: 0 }}>
-      <div style={{ padding: "16px 16px 0", backgroundImage: wash(tone, 10, 0) }}>
+      <div style={{ padding: "16px 16px 0", background: soft(tone, 10) }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{ position: "relative", display: "inline-flex", flexShrink: 0 }}>
             <span style={{ padding: 2.5, borderRadius: 99, border: `2px solid ${tone}`, display: "inline-flex" }}>
@@ -361,7 +360,7 @@ function PartnerCard({ p, busy, today, onNudge, onLeave, onBlock }) {
           </div>
         )}
         {ask === "block" && (
-          <div style={{ marginTop: 12, padding: 13, borderRadius: 14, backgroundImage: wash(BAD, 10, 3), border: `1px solid ${tint(BAD, 30)}` }}>
+          <div style={{ marginTop: 12, padding: 13, borderRadius: 14, background: soft(BAD, 10), border: `1px solid ${tint(BAD, 30)}` }}>
             <div style={{ fontSize: 13, color: palette.text, fontWeight: 800 }}>Block {p.username}?</div>
             <div style={sub}>This ends the partnership and stops any invites, codes, nudges or coaching between you. They won't be told you blocked them. You can unblock later.</div>
             <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 11, fontSize: 12.5, color: palette.textMuted, cursor: "pointer" }}>
@@ -375,7 +374,7 @@ function PartnerCard({ p, busy, today, onNudge, onLeave, onBlock }) {
         )}
 
         <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-          <div title="Days you were both clean" style={{ flex: "1.2 1 0", minWidth: 0, display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 14, backgroundImage: live ? wash(palette.gold, 22, 6) : "none", backgroundColor: live ? "transparent" : tint(palette.text, 4), border: `1px solid ${live ? tint(palette.gold, 40) : palette.border}` }}>
+          <div title="Days you were both clean" style={{ flex: "1.2 1 0", minWidth: 0, display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 14, background: live ? soft(palette.gold, 12) : soft(palette.text, 5), border: `1px solid ${live ? tint(palette.gold, 40) : palette.border}` }}>
             <Flame size={22} style={{ color: live ? palette.gold : palette.textFaint, flexShrink: 0 }} />
             <div style={{ minWidth: 0 }}>
               <div style={{ fontFamily: mono, fontSize: 20, fontWeight: 800, color: palette.text, lineHeight: 1 }}>{p.streak.current}</div>
@@ -441,7 +440,7 @@ function TodayStrip({ share, setShare, mine, partners, isDesktop }) {
   const clean = partners.filter((p) => p.today.shared && ![p.today.checkin, p.today.trades, p.today.loss].some((v) => v === false) && [p.today.checkin, p.today.trades, p.today.loss].some((v) => v === true)).length;
   const hints = { checkin: "Check in on your Trade plan", trades: "Set max trades per day in Settings", loss: "Set a daily loss limit in Settings" };
   return (
-    <Card style={{ padding: 0, overflow: "hidden", backgroundImage: wash(tone, 11, 2) }}>
+    <Card style={{ padding: 0, overflow: "hidden", background: soft(tone, 11) }}>
       <div style={{ padding: isDesktop ? "18px 20px" : "16px" }}>
         <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "minmax(0, 1.15fr) minmax(0, 1.5fr)" : "1fr", gap: isDesktop ? 24 : 16, alignItems: "center" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
@@ -627,10 +626,10 @@ function PartnersPanel({ ctx, data }) {
             </div>
             <div style={sub}>Share a one-time code in any chat. Whoever enters it becomes your partner straight away. It lasts 48 hours.</div>
             {data.code ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 11, flexWrap: "wrap", padding: "10px 12px", borderRadius: 14, background: tint(palette.text, 4), border: `1px dashed ${tint(palette.gold, 45)}` }}>
-                <span style={{ fontFamily: mono, fontSize: 21, fontWeight: 800, letterSpacing: 3, color: palette.text, flex: 1 }}>{data.code.code}</span>
-                <button type="button" onClick={copyCode} style={{ ...btn(false), ...small }}><Copy size={12} style={{ verticalAlign: "-1px", marginRight: 5 }} />Copy</button>
-                <button type="button" disabled={busy} onClick={makeCode} style={{ ...btn(false), ...small }}>New</button>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 11 }}>
+                <span style={{ fontFamily: mono, fontSize: 19, fontWeight: 800, letterSpacing: 3, color: palette.text }}>{data.code.code}</span>
+                <button type="button" aria-label="Copy code" onClick={copyCode} className={TAP} style={{ width: 34, height: 34, display: "grid", placeItems: "center", background: "transparent", border: 0, padding: 0, cursor: "pointer", color: palette.textMuted }}><Copy size={16} /></button>
+                <button type="button" disabled={busy} onClick={makeCode} style={{ marginLeft: "auto", background: "transparent", border: 0, padding: "6px 4px", cursor: "pointer", fontFamily: sans, fontSize: 12, fontWeight: 700, color: palette.gold }}>New code</button>
               </div>
             ) : (
               <button type="button" disabled={busy} onClick={makeCode} style={{ ...btn(false), marginTop: 11 }}>Make a code</button>
@@ -733,7 +732,7 @@ function TradeDetail({ ctx, id, onBack, onUnshared }) {
   const meta = [["Setup", t.setup], ["Emotion", t.emotion], ["Session", t.session], ["Confidence", t.confidence]].filter((m) => m[1]);
   return (
     <Card style={{ padding: 0, overflow: "hidden" }}>
-      <div style={{ padding: "14px 16px 16px", backgroundImage: wash(c, 14, 2) }}>
+      <div style={{ padding: "14px 16px 16px", background: soft(c, 12) }}>
         {back}
         <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
           <Avatar name={d.owner.username} size={36} src={d.owner.avatar || undefined} />
@@ -912,7 +911,7 @@ function BarList({ rows }) {
             <span style={{ fontFamily: mono, fontWeight: 800, color: ink(pnlColor(r.net)), flexShrink: 0 }}>{money(r.net)}</span>
           </div>
           <div style={{ height: 6, borderRadius: 99, background: tint(palette.text, 8), marginTop: 5, overflow: "hidden" }}>
-            <div style={{ width: `${Math.max(4, (Math.abs(r.net) / max) * 100)}%`, height: "100%", borderRadius: 99, background: `linear-gradient(90deg, ${tint(pnlColor(r.net), 70)}, ${pnlColor(r.net)})` }} />
+            <div style={{ width: `${Math.max(4, (Math.abs(r.net) / max) * 100)}%`, height: "100%", borderRadius: 99, background: pnlColor(r.net) }} />
           </div>
         </div>
       ))}
@@ -935,7 +934,7 @@ function MenteePane({ ctx, link, trades, startFilter, onBack, onOpen }) {
   const pf = stats.pf === Infinity ? "∞" : stats.pf.toFixed(2);
   return (
     <Card style={{ padding: 0, overflow: "hidden" }}>
-      <div style={{ padding: "14px 16px 15px", backgroundImage: wash(palette.gold, 14, 2) }}>
+      <div style={{ padding: "14px 16px 15px", background: soft(palette.gold, 12) }}>
         <button type="button" onClick={onBack} style={{ ...btn(false), ...small, marginBottom: 12 }}>{isDesktop ? <X size={13} style={{ verticalAlign: "-2px" }} /> : <><ChevronLeft size={14} style={{ verticalAlign: "-3px" }} /> Back</>}</button>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <Avatar name={link.username} size={44} src={link.avatar || undefined} />
@@ -964,7 +963,7 @@ function MenteePane({ ctx, link, trades, startFilter, onBack, onOpen }) {
                 <div style={{ ...eyebrow, display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}><Lightbulb size={12} /> Coaching insights</div>
                 <div style={{ display: "grid", gap: 7 }}>
                   {insights.map((i) => (
-                    <div key={i.text} style={{ display: "flex", gap: 9, alignItems: "flex-start", padding: "10px 12px", borderRadius: 13, backgroundImage: wash(i.tone, 12, 3), border: `1px solid ${tint(i.tone, 28)}`, fontSize: 12.5, color: palette.text, lineHeight: 1.5 }}>
+                    <div key={i.text} style={{ display: "flex", gap: 9, alignItems: "flex-start", padding: "10px 12px", borderRadius: 13, background: soft(i.tone, 12), border: `1px solid ${tint(i.tone, 28)}`, fontSize: 12.5, color: palette.text, lineHeight: 1.5 }}>
                       {i.tone === GOOD ? <TrendingUp size={15} style={{ color: ink(i.tone), flexShrink: 0, marginTop: 2 }} /> : i.tone === BAD ? <TrendingDown size={15} style={{ color: ink(i.tone), flexShrink: 0, marginTop: 2 }} /> : <AlertTriangle size={15} style={{ color: ink(i.tone), flexShrink: 0, marginTop: 2 }} />}
                       <span>{i.text}</span>
                     </div>
@@ -1079,7 +1078,7 @@ function MentorPanel({ ctx }) {
   const lists = (
     <div style={{ minWidth: 0 }}>
       <Card style={{ padding: 0, overflow: "hidden" }}>
-        <div style={{ display: "flex", gap: 8, padding: 14, backgroundImage: wash(palette.gold, 12, 2) }}>
+        <div style={{ display: "flex", gap: 8, padding: 14, background: soft(palette.gold, 12) }}>
           {tiles.map(([label, value, color, hint]) => <StatTile key={label} label={label} value={value} color={color} hint={hint} />)}
         </div>
       </Card>
@@ -1138,11 +1137,11 @@ function MentorPanel({ ctx }) {
                 <span style={{ fontFamily: mono, fontWeight: 800, color: palette.text }}>{withFeedback} of {m.shared.length}</span>
               </div>
               <div style={{ height: 7, borderRadius: 99, background: tint(palette.text, 8), marginTop: 6, overflow: "hidden" }}>
-                <div style={{ width: `${(withFeedback / m.shared.length) * 100}%`, height: "100%", borderRadius: 99, background: `linear-gradient(90deg, ${tint(GOOD, 70)}, ${GOOD})`, transition: "width .4s ease" }} />
+                <div style={{ width: `${(withFeedback / m.shared.length) * 100}%`, height: "100%", borderRadius: 99, background: GOOD, transition: "width .4s ease" }} />
               </div>
             </>
           )}
-          <div style={{ display: "flex", gap: 9, alignItems: "flex-start", marginTop: m.shared.length ? 12 : 0, padding: "10px 12px", borderRadius: 13, backgroundImage: wash(palette.gold, 12, 3), border: `1px solid ${tint(palette.gold, 28)}`, fontSize: 12.5, color: palette.text, lineHeight: 1.5 }}>
+          <div style={{ display: "flex", gap: 9, alignItems: "flex-start", marginTop: m.shared.length ? 12 : 0, padding: "10px 12px", borderRadius: 13, background: soft(palette.gold, 12), border: `1px solid ${tint(palette.gold, 28)}`, fontSize: 12.5, color: palette.text, lineHeight: 1.5 }}>
             <Lightbulb size={15} style={{ color: palette.gold, flexShrink: 0, marginTop: 2 }} /><span>{tip}</span>
           </div>
           {m.shared.length > 0 && <div style={{ ...eyebrow, margin: "16px 0 0" }}>Shared by you</div>}
@@ -1305,7 +1304,7 @@ export default function PartnerTab({ isDesktop, session, communityUsername, trad
   const header = (right) => (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", padding: "2px 2px 14px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <span style={{ width: 40, height: 40, borderRadius: 13, display: "grid", placeItems: "center", flexShrink: 0, backgroundImage: wash(palette.gold, 28, 8), border: `1px solid ${tint(palette.gold, 34)}`, color: palette.gold }}><Users size={19} /></span>
+        <span style={{ width: 40, height: 40, borderRadius: 13, display: "grid", placeItems: "center", flexShrink: 0, background: soft(palette.gold, 12), color: palette.gold }}><Users size={19} /></span>
         <div>
           <div style={{ fontSize: isDesktop ? 20 : 18.5, fontWeight: 800, color: palette.text, letterSpacing: -0.3 }}>Partner</div>
           <div style={{ fontSize: 12, color: palette.textMuted, marginTop: 2 }}>Stay on plan with someone who notices when you don't.</div>
@@ -1337,7 +1336,7 @@ export default function PartnerTab({ isDesktop, session, communityUsername, trad
     <div style={wrap}>
       {header(isDesktop ? <Segmented value={view} onChange={setView} options={[["partners", "Partners"], ["mentor", "Mentor", commentDot]]} /> : null)}
       {!isDesktop && <div style={{ marginBottom: 14 }}><Segmented full value={view} onChange={setView} options={[["partners", "Partners"], ["mentor", "Mentor", commentDot]]} /></div>}
-      {toast && <div role="status" style={{ marginBottom: 14, padding: "11px 14px", borderRadius: 14, fontSize: 13, fontWeight: 700, backgroundColor: palette.surface, backgroundImage: toast.bad ? wash(BAD, 12, 3) : wash(GOOD, 10, 2), color: toast.bad ? ink(BAD) : palette.text, border: `1px solid ${tint(toast.bad ? BAD : GOOD, 38)}` }}>{toast.text}</div>}
+      {toast && <div role="status" style={{ marginBottom: 14, padding: "11px 14px", borderRadius: 14, fontSize: 13, fontWeight: 700, background: toast.bad ? soft(BAD, 9) : soft(GOOD, 8), color: toast.bad ? ink(BAD) : palette.text, border: `1px solid ${tint(toast.bad ? BAD : GOOD, 38)}` }}>{toast.text}</div>}
       {view === "partners" ? <PartnersPanel ctx={ctx} data={data} /> : <MentorPanel ctx={ctx} />}
     </div>
   );
