@@ -1,4 +1,4 @@
-import { AlertTriangle, Camera, Check, ChevronDown, ChevronLeft, Copy, Flame, Inbox, Lightbulb, Lock, MessageCircle, Pencil, Plus, Send, Share2, ShieldAlert, Sparkles, StickyNote, Target, TrendingDown, TrendingUp, Trash2, Users, X } from "lucide-react";
+import { AlertTriangle, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Flame, Inbox, Lightbulb, Lock, MessageCircle, Pencil, Plus, Send, Share2, ShieldAlert, Sparkles, StickyNote, Target, TrendingDown, TrendingUp, Trash2, Users, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { COMMUNITY_API_BASE } from "../api/community.js";
 import { Avatar } from "../components/ui.jsx";
@@ -23,6 +23,12 @@ const tint = (color, pct) => `color-mix(in srgb, ${color} ${pct}%, transparent)`
 const ink = (color) => `color-mix(in srgb, ${color} 72%, ${palette.text})`;
 const soft = (color, pct = 10) => `color-mix(in srgb, ${color} ${pct}%, ${palette.surface})`; // flat tinted fill, no gradient
 const pnlColor = (n) => (n > 0 ? GOOD : n < 0 ? BAD : palette.textMuted);
+
+// Bigger tap targets on touch screens (phones/tablets); desktop keeps the compact sizes.
+const TOUCH = typeof window !== "undefined" && !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
+const QUICK_KEY = "tredzi.mentorQuickReplies";
+const readSavedReplies = () => { try { const v = JSON.parse(localStorage.getItem(QUICK_KEY) || "[]"); return Array.isArray(v) ? v.filter((x) => typeof x === "string") : []; } catch (e) { return []; } };
+const writeSavedReplies = (list) => { try { localStorage.setItem(QUICK_KEY, JSON.stringify(list)); } catch (e) { /* storage unavailable */ } };
 
 const COMMIT_MAX = 140;
 const NUDGES = [
@@ -123,7 +129,27 @@ function tradeStats(list) {
     avgWin: wins.length ? gross / wins.length : 0,
     avgLoss: losses.length ? lost / losses.length : 0,
     pf: lost > 0 ? gross / lost : gross > 0 ? Infinity : 0,
+    best: n ? Math.max(...list.map((t) => t.pnl)) : 0,
+    worst: n ? Math.min(...list.map((t) => t.pnl)) : 0,
+    expectancy: n ? (gross - lost) / n : 0,
   };
+}
+// how many of the newest trades in a row were losses
+function lossRun(list) {
+  const sorted = [...list].sort((a, b) => b.ts - a.ts);
+  let n = 0;
+  for (const t of sorted) { if (t.pnl < 0) n += 1; else break; }
+  return n;
+}
+// trades opened within 30 minutes of a loss (a common sign of revenge trading)
+function quickReentries(list) {
+  const sorted = [...list].sort((a, b) => a.ts - b.ts);
+  let n = 0;
+  for (let i = 1; i < sorted.length; i += 1) {
+    const gap = sorted[i].ts - sorted[i - 1].ts;
+    if (sorted[i - 1].pnl < 0 && gap > 0 && gap <= 30 * 60 * 1000) n += 1;
+  }
+  return n;
 }
 function groupTrades(list, key) {
   const map = {};
@@ -153,19 +179,23 @@ function coachInsights(list) {
   if (s.avgLoss > 0 && s.avgWin > 0 && s.avgLoss > s.avgWin * 1.25) out.push({ tone: BAD, text: "Average loss is bigger than average win. Look at stop placement and early exits." });
   else if (s.avgWin > s.avgLoss * 1.5 && s.winRate < 50) out.push({ tone: GOOD, text: "Wins are much bigger than losses. A low win rate is still profitable here." });
   if (s.winRate >= 60 && s.net < 0) out.push({ tone: WARN, text: "High win rate but net negative. A few big losers are erasing the wins." });
-  return out.slice(0, 3);
+  const run = lossRun(list);
+  if (run >= 3) out.unshift({ tone: BAD, text: `The last ${run} trades were all losses. Suggest a break and smaller size before the next one.` });
+  const quick = quickReentries(list);
+  if (quick >= 2) out.push({ tone: WARN, text: `${plural(quick, "trade")} taken within 30 minutes of a loss. Check for revenge trading.` });
+  return out.slice(0, 4);
 }
 
 /* ---------- small building blocks ---------- */
 const sub = { fontSize: 11.5, color: palette.textFaint, lineHeight: 1.5, marginTop: 3 };
 const eyebrow = { fontFamily: mono, fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: palette.textFaint };
 const btn = (primary, danger) => ({
-  minHeight: 38, padding: "8px 16px", borderRadius: 99, fontSize: 12.5, fontWeight: 700, fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap",
+  minHeight: TOUCH ? 44 : 38, padding: "8px 16px", borderRadius: 99, fontSize: 12.5, fontWeight: 700, fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap",
   border: `1px solid ${danger ? tint(BAD, 42) : primary ? palette.gold : palette.border}`,
   background: primary ? palette.gold : "transparent",
   color: primary ? onGold() : danger ? ink(BAD) : palette.textMuted,
 });
-const small = { minHeight: 34, padding: "6px 13px", fontSize: 12 };
+const small = { minHeight: TOUCH ? 40 : 34, padding: "6px 13px", fontSize: 12 };
 const field = { width: "100%", minHeight: 42, padding: "9px 13px", borderRadius: 13, fontSize: 16, fontFamily: sans, background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, outline: "none" };
 
 function Card({ title, icon, aside, children, tone, style }) {
@@ -204,7 +234,7 @@ function Segmented({ value, onChange, options, full }) {
         const on = value === id;
         return (
           <button key={id} type="button" role="tab" aria-selected={on} onClick={() => onChange(id)} className={TAP}
-            style={{ position: "relative", flex: full ? 1 : "none", minHeight: 36, padding: "6px 20px", borderRadius: 11, border: `1px solid ${on ? palette.border : "transparent"}`, cursor: "pointer", fontFamily: sans, fontSize: 13, fontWeight: 800, background: on ? palette.surface : "transparent", color: on ? palette.text : palette.textFaint, transition: "all .15s ease" }}>
+            style={{ position: "relative", flex: full ? 1 : "none", minHeight: TOUCH ? 42 : 36, padding: "6px 20px", borderRadius: 11, border: `1px solid ${on ? palette.border : "transparent"}`, cursor: "pointer", fontFamily: sans, fontSize: 13, fontWeight: 800, background: on ? palette.surface : "transparent", color: on ? palette.text : palette.textFaint, transition: "all .15s ease" }}>
             {label}
             {dot && <span aria-hidden="true" style={{ position: "absolute", top: 6, right: 8, width: 8, height: 8, borderRadius: 99, background: WARN, boxShadow: `0 0 0 2px ${palette.surface}` }} />}
           </button>
@@ -222,7 +252,61 @@ function Pill({ children, color, solid }) {
 function Chip({ children, onClick, on, color }) {
   const c = color || palette.gold;
   return (
-    <button type="button" onClick={onClick} className={TAP} style={{ flexShrink: 0, minHeight: 32, padding: "5px 12px", borderRadius: 99, fontSize: 12, fontWeight: 700, fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap", border: `1px solid ${on ? tint(c, 55) : palette.border}`, background: on ? tint(c, 16) : "transparent", color: on ? ink(c) : palette.textMuted }}>{children}</button>
+    <button type="button" onClick={onClick} className={TAP} style={{ flexShrink: 0, minHeight: TOUCH ? 38 : 32, padding: "5px 12px", borderRadius: 99, fontSize: 12, fontWeight: 700, fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap", border: `1px solid ${on ? tint(c, 55) : palette.border}`, background: on ? tint(c, 16) : "transparent", color: on ? ink(c) : palette.textMuted }}>{children}</button>
+  );
+}
+
+// Icon-only back / close button: no text, no border.
+function BackButton({ onClick, close, label, style }) {
+  const Icon = close ? X : ChevronLeft;
+  return (
+    <button type="button" onClick={onClick} aria-label={label || (close ? "Close" : "Back")} className={TAP}
+      style={{ width: 40, height: 40, marginLeft: close ? 0 : -8, borderRadius: 99, border: 0, padding: 0, background: "transparent", color: palette.text, display: "grid", placeItems: "center", cursor: "pointer", flexShrink: 0, ...style }}>
+      <Icon size={close ? 20 : 24} strokeWidth={2.4} />
+    </button>
+  );
+}
+
+// Two-tap button so a destructive action can't happen by accident on a phone.
+function ConfirmButton({ label = "Remove", disabled, onConfirm }) {
+  const [armed, setArmed] = useState(false);
+  const timer = useRef(null);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  const click = () => {
+    if (armed) { clearTimeout(timer.current); setArmed(false); onConfirm(); return; }
+    setArmed(true);
+    timer.current = setTimeout(() => setArmed(false), 3000);
+  };
+  return (
+    <button type="button" disabled={disabled} onClick={click} style={{ ...btn(false, true), ...small, ...(armed ? { background: BAD, borderColor: BAD, color: "#fff" } : null) }}>{armed ? "Tap to confirm" : label}</button>
+  );
+}
+
+// A reply the mentor saved on this device, with its own remove button.
+function SavedReply({ text, onUse, onRemove }) {
+  const h = TOUCH ? 38 : 32;
+  return (
+    <span style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", borderRadius: 99, border: `1px solid ${tint(palette.gold, 40)}`, background: tint(palette.gold, 10) }}>
+      <button type="button" onClick={onUse} className={TAP} style={{ minHeight: h, padding: "5px 4px 5px 12px", border: 0, background: "transparent", color: ink(palette.gold), fontFamily: sans, fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", maxWidth: 190, overflow: "hidden", textOverflow: "ellipsis" }}>{text}</button>
+      <button type="button" onClick={onRemove} aria-label="Remove saved reply" className={TAP} style={{ width: 30, height: h, border: 0, background: "transparent", color: palette.textFaint, display: "grid", placeItems: "center", cursor: "pointer" }}><X size={12} /></button>
+    </span>
+  );
+}
+
+// the newest trades as little squares, oldest on the left, so a mentor sees the run at a glance
+function FormStrip({ list }) {
+  const last = [...list].sort((a, b) => b.ts - a.ts).slice(0, 12).reverse();
+  if (last.length < 2) return null;
+  return (
+    <div style={{ marginTop: 14 }}>
+      <div style={{ ...eyebrow, marginBottom: 8 }}>Last {last.length} trades</div>
+      <div style={{ display: "flex", gap: 5 }}>
+        {last.map((t) => (
+          <span key={t.id} title={`${t.pair || "Trade"} ${money(t.pnl)}`} style={{ flex: "1 1 0", maxWidth: 26, height: 26, borderRadius: 8, display: "grid", placeItems: "center", fontFamily: mono, fontSize: 10, fontWeight: 800, color: t.pnl === 0 ? palette.textFaint : "#fff", background: t.pnl > 0 ? GOOD : t.pnl < 0 ? BAD : tint(palette.text, 12) }}>{t.pnl > 0 ? "W" : t.pnl < 0 ? "L" : "-"}</span>
+        ))}
+      </div>
+      <div style={{ ...sub, marginTop: 6 }}>Oldest on the left, newest on the right.</div>
+    </div>
   );
 }
 
@@ -583,9 +667,12 @@ function PartnersPanel({ ctx, data }) {
     </div>
   );
 
+  // On a phone with no partner yet, "Add a partner" comes before the weekly commitment.
+  const firstAdd = !isDesktop && data.partners.length === 0;
   const right = (
-    <div style={{ minWidth: 0 }}>
+    <div style={{ minWidth: 0, display: "flex", flexDirection: "column" }}>
       <Card
+        style={{ order: firstAdd ? 2 : 1 }}
         title="Your commitment this week"
         icon={<Target size={14} />}
         aside={data.myCommit && !editingCommit ? <button type="button" aria-label="Edit commitment" onClick={() => { setCommitText(data.myCommit.text); setEditingCommit(true); }} style={{ ...btn(false), minHeight: 32, padding: "4px 11px" }}><Pencil size={13} /></button> : null}
@@ -607,7 +694,7 @@ function PartnersPanel({ ctx, data }) {
         )}
       </Card>
 
-      <Card title="Add a partner" icon={<Plus size={14} />} aside={<Pill>{data.partners.length}/{data.limit}</Pill>}>
+      <Card style={{ order: firstAdd ? 1 : 2 }} title="Add a partner" icon={<Plus size={14} />} aside={<Pill>{data.partners.length}/{data.limit}</Pill>}>
         {room <= 0 ? (
           <div style={sub}>
             Your {data.limit} partner {data.limit === 1 ? "spot is" : "spots are"} filled.
@@ -643,7 +730,7 @@ function PartnersPanel({ ctx, data }) {
       </Card>
 
       {data.blocked.length > 0 && (
-        <Card>
+        <Card style={{ order: 3 }}>
           <button type="button" onClick={() => setShowBlocked((v) => !v)} aria-expanded={showBlocked} style={{ display: "flex", width: "100%", alignItems: "center", justifyContent: "space-between", background: "transparent", border: 0, padding: 0, cursor: "pointer", fontFamily: sans }}>
             <span style={{ fontSize: 13.5, fontWeight: 800, color: palette.text }}>Blocked ({data.blocked.length})</span>
             <ChevronDown size={15} style={{ color: palette.textFaint, transform: showBlocked ? "rotate(180deg)" : "none" }} />
@@ -656,7 +743,7 @@ function PartnersPanel({ ctx, data }) {
           ))}
         </Card>
       )}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "center", gap: 7, ...sub, textAlign: "left", padding: "0 10px 6px" }}>
+      <div style={{ order: 4, display: "flex", alignItems: "flex-start", justifyContent: "center", gap: 7, ...sub, textAlign: "left", padding: "0 10px 6px" }}>
         <Lock size={12} style={{ flexShrink: 0, marginTop: 2 }} />
         <span>Partners never see your balance, P&amp;L, trades or notes. Turn sharing off above at any time.</span>
       </div>
@@ -699,20 +786,22 @@ function TradeRow({ t, onOpen, review, right }) {
   );
 }
 
-function QuickReplies({ items, onPick }) {
+function QuickReplies({ items, onPick, saved = [], onRemoveSaved }) {
   return (
     <div style={{ display: "flex", gap: 7, overflowX: "auto", scrollbarWidth: "none", margin: "0 -2px", padding: "2px 2px 2px" }}>
+      {saved.map((text, i) => <SavedReply key={`s${i}`} text={text} onUse={() => onPick(text)} onRemove={() => onRemoveSaved && onRemoveSaved(i)} />)}
       {items.map(([label, text]) => <Chip key={label} onClick={() => onPick(text)}>{label}</Chip>)}
     </div>
   );
 }
 
-function TradeDetail({ ctx, id, onBack, onUnshared }) {
+function TradeDetail({ ctx, id, onBack, onUnshared, next, onNext, onCommented }) {
   const { token, run, isDesktop } = ctx;
   const [d, setD] = useState(null);
   const [err, setErr] = useState("");
   const [text, setText] = useState("");
   const [zoom, setZoom] = useState(null);
+  const [saved, setSaved] = useState(readSavedReplies);
   const load = useCallback(async () => {
     try { setD(await api(token, `/mentors/trade?id=${encodeURIComponent(id)}`)); setErr(""); } catch (e) { setErr(e.message); }
   }, [token, id]);
@@ -720,11 +809,18 @@ function TradeDetail({ ctx, id, onBack, onUnshared }) {
   const send = async () => {
     if (!text.trim()) return;
     const r = await run(() => api(token, "/mentors/comment", { method: "POST", body: { id, text } }));
-    if (r) { setText(""); load(); }
+    if (r) { setText(""); load(); if (onCommented) onCommented(id); }
   };
+  const saveReply = () => {
+    const t = text.trim().slice(0, 120);
+    if (!t || saved.includes(t) || saved.length >= 8) return;
+    const nextList = [t, ...saved];
+    setSaved(nextList); writeSavedReplies(nextList);
+  };
+  const removeSaved = (i) => { const nextList = saved.filter((_, k) => k !== i); setSaved(nextList); writeSavedReplies(nextList); };
   const unshare = async () => { const r = await run(() => api(token, "/mentors/unshare", { method: "POST", body: { id } }), "Trade unshared."); if (r) onUnshared(); };
   const pick = (t) => setText((cur) => `${cur ? `${cur} ` : ""}${t}`.slice(0, 300));
-  const back = !isDesktop || onBack ? <button type="button" onClick={onBack} style={{ ...btn(false), ...small, marginBottom: 12 }}><ChevronLeft size={14} style={{ verticalAlign: "-3px" }} /> Back</button> : null;
+  const back = !isDesktop || onBack ? <BackButton onClick={onBack} style={{ marginBottom: 4 }} /> : null;
   if (err) return <Card>{back}<div style={{ fontSize: 13, color: ink(BAD) }}>{err}</div></Card>;
   if (!d) return <Card>{back}<div style={{ fontSize: 13, color: palette.textFaint }}>Loading...</div></Card>;
   const t = d.trade;
@@ -732,8 +828,11 @@ function TradeDetail({ ctx, id, onBack, onUnshared }) {
   const meta = [["Setup", t.setup], ["Emotion", t.emotion], ["Session", t.session], ["Confidence", t.confidence]].filter((m) => m[1]);
   return (
     <Card style={{ padding: 0, overflow: "hidden" }}>
-      <div style={{ padding: "14px 16px 16px", background: soft(c, 12) }}>
-        {back}
+      <div style={{ padding: "10px 16px 16px", background: soft(c, 12) }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+          {back}
+          {!d.mine && next && <button type="button" onClick={onNext} style={{ ...btn(false), ...small, marginBottom: 4 }}>Next to review <ChevronRight size={14} style={{ verticalAlign: "-3px" }} /></button>}
+        </div>
         <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
           <Avatar name={d.owner.username} size={36} src={d.owner.avatar || undefined} />
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -790,12 +889,17 @@ function TradeDetail({ ctx, id, onBack, onUnshared }) {
             </div>
           ))}
           <div style={{ marginTop: 14 }}>
-            <QuickReplies items={d.mine ? MENTEE_QUICK : MENTOR_QUICK} onPick={pick} />
+            <QuickReplies items={d.mine ? MENTEE_QUICK : MENTOR_QUICK} onPick={pick} saved={d.mine ? [] : saved} onRemoveSaved={removeSaved} />
             <div style={{ display: "flex", gap: 8, marginTop: 9, alignItems: "flex-end" }}>
               <textarea value={text} maxLength={300} rows={2} onChange={(e) => setText(e.target.value)} placeholder={d.mine ? "Ask your mentor something" : "Write feedback"} style={{ ...field, resize: "none", minHeight: 58 }} />
               <button type="button" aria-label="Send comment" disabled={!text.trim()} onClick={send} style={{ ...btn(true), width: 46, height: 46, padding: 0, display: "grid", placeItems: "center", opacity: text.trim() ? 1 : 0.5 }}><Send size={16} /></button>
             </div>
-            <div style={{ fontSize: 10.5, color: palette.textFaint, textAlign: "right", marginTop: 4 }}>{text.length}/300</div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 4, gap: 8 }}>
+              {!d.mine && text.trim().length >= 8 && !saved.includes(text.trim().slice(0, 120)) && saved.length < 8
+                ? <button type="button" onClick={saveReply} style={{ background: "transparent", border: 0, padding: "6px 0", cursor: "pointer", fontFamily: sans, fontSize: 12, fontWeight: 700, color: palette.gold }}>Save as quick reply</button>
+                : <span />}
+              <span style={{ fontSize: 10.5, color: palette.textFaint }}>{text.length}/300</span>
+            </div>
           </div>
         </div>
         {d.mine && <button type="button" onClick={unshare} style={{ ...btn(false, true), ...small, marginTop: 10 }}><Trash2 size={13} style={{ verticalAlign: "-2px", marginRight: 5 }} />Stop sharing this trade</button>}
@@ -836,10 +940,17 @@ function TradePicker({ ctx, mdata, onDone, onBack }) {
     onDone();
   };
   return (
-    <Card title="Share trades with your mentors" icon={<Share2 size={13} />} aside={<button type="button" onClick={onBack} style={{ ...btn(false), minHeight: 32, padding: "4px 11px" }}>{isDesktop ? <X size={13} /> : <><ChevronLeft size={13} style={{ verticalAlign: "-2px" }} /> Back</>}</button>}>
+    <Card title={isDesktop ? "Share trades with your mentors" : undefined} icon={isDesktop ? <Share2 size={13} /> : undefined} aside={isDesktop ? <BackButton close onClick={onBack} style={{ marginRight: -8 }} /> : undefined}>
+      {!isDesktop && (
+        <div style={{ display: "flex", alignItems: "center", gap: 4, margin: "-8px 0 8px" }}>
+          <BackButton onClick={onBack} />
+          <span style={{ fontSize: 15, fontWeight: 800, color: palette.text }}>Share with your mentors</span>
+        </div>
+      )}
       <div style={{ ...sub, marginTop: -4 }}>Your mentors will see the result, note and up to 2 screenshots of each trade you pick. Nothing else about your account. You can stop sharing any trade later.</div>
       {list.length > 0 && (
         <div style={{ display: "flex", gap: 7, overflowX: "auto", scrollbarWidth: "none", marginTop: 12 }}>
+          <Chip onClick={() => quick(() => true)}>Select all</Chip>
           <Chip onClick={() => quick((t) => t.pnl < 0)} color={BAD}>Recent losses</Chip>
           <Chip onClick={() => quick((t) => (tradeScreenshots(t) || []).length > 0)}>With screenshots</Chip>
           <Chip onClick={() => quick((t) => !!String(t.note || "").trim())}>With notes</Chip>
@@ -864,7 +975,7 @@ function TradePicker({ ctx, mdata, onDone, onBack }) {
           );
         })}
       </div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 14, gap: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 14, gap: 10, ...(isDesktop ? null : { position: "sticky", bottom: 0, zIndex: 3, padding: "12px 0 4px", background: palette.surface, borderTop: `1px solid ${palette.border}` }) }}>
         <span style={{ fontSize: 11.5, color: palette.textFaint }}>{working || `${count} selected · room for ${Math.max(0, room)} more`}</span>
         <button type="button" disabled={!!working || count === 0} onClick={go} style={{ ...btn(true), opacity: working || count === 0 ? 0.55 : 1 }}>Share {count || ""}</button>
       </div>
@@ -920,7 +1031,7 @@ function BarList({ rows }) {
 }
 
 function MenteePane({ ctx, link, trades, startFilter, onBack, onOpen }) {
-  const { isDesktop } = ctx;
+  const { isDesktop, say } = ctx;
   const [filter, setFilter] = useState(startFilter || "all");
   const [by, setBy] = useState("");
   const list = useMemo(() => trades || [], [trades]);
@@ -932,10 +1043,19 @@ function MenteePane({ ctx, link, trades, startFilter, onBack, onOpen }) {
   const open = list.filter((t) => !hasFeedback(t)).length;
   const shown = list.filter((t) => (filter === "review" ? !hasFeedback(t) : filter === "loss" ? t.pnl < 0 : filter === "win" ? t.pnl > 0 : true));
   const pf = stats.pf === Infinity ? "∞" : stats.pf.toFixed(2);
+  const copySummary = async () => {
+    const lines = [
+      `${link.username}: ${plural(stats.n, "shared trade")}, ${stats.wins}W ${stats.losses}L`,
+      `Net ${money(stats.net)} | Win rate ${Math.round(stats.winRate)}% | Profit factor ${pf}`,
+      `Avg win ${Math.round(stats.avgWin)} | Avg loss ${Math.round(stats.avgLoss)} | Per trade ${money(Math.round(stats.expectancy))}`,
+      ...insights.map((i) => `- ${i.text}`),
+    ];
+    try { await navigator.clipboard.writeText(lines.join("\n")); say("Summary copied."); } catch (e) { say("Couldn't copy the summary.", true); }
+  };
   return (
     <Card style={{ padding: 0, overflow: "hidden" }}>
-      <div style={{ padding: "14px 16px 15px", background: soft(palette.gold, 12) }}>
-        <button type="button" onClick={onBack} style={{ ...btn(false), ...small, marginBottom: 12 }}>{isDesktop ? <X size={13} style={{ verticalAlign: "-2px" }} /> : <><ChevronLeft size={14} style={{ verticalAlign: "-3px" }} /> Back</>}</button>
+      <div style={{ padding: "10px 16px 15px", background: soft(palette.gold, 12) }}>
+        <BackButton onClick={onBack} close={isDesktop} style={{ marginBottom: 4 }} />
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <Avatar name={link.username} size={44} src={link.avatar || undefined} />
           <div style={{ minWidth: 0, flex: 1 }}>
@@ -956,7 +1076,10 @@ function MenteePane({ ctx, link, trades, startFilter, onBack, onOpen }) {
               <StatTile label="Win rate" value={`${Math.round(stats.winRate)}%`} hint={`of ${plural(stats.n, "trade")}`} />
               <StatTile label="Profit factor" value={pf} color={stats.pf >= 1 ? GOOD : BAD} hint={stats.pf >= 1 ? "wins outweigh losses" : "losses outweigh wins"} />
               <StatTile label="Avg win / loss" value={`${stats.avgWin ? Math.round(stats.avgWin) : 0} / ${stats.avgLoss ? Math.round(stats.avgLoss) : 0}`} hint="in $" />
+              <StatTile label="Per trade" value={money(Math.round(stats.expectancy))} color={pnlColor(stats.expectancy)} hint="average result" />
+              <StatTile label="Best / worst" value={`${Math.round(stats.best)} / ${Math.round(stats.worst)}`} hint="single trades, in $" />
             </div>
+            <FormStrip list={list} />
 
             {insights.length > 0 && (
               <div style={{ marginTop: 14 }}>
@@ -989,6 +1112,7 @@ function MenteePane({ ctx, link, trades, startFilter, onBack, onOpen }) {
               {shown.length === 0 && <div style={{ ...sub, marginTop: 12 }}>{filter === "review" ? "You're all caught up. Every shared trade has feedback." : "No trades in this filter."}</div>}
               {shown.map((t) => <TradeRow key={t.id} t={t} review onOpen={() => onOpen(t)} />)}
             </div>
+            <button type="button" onClick={copySummary} style={{ ...btn(false), ...small, marginTop: 16, display: "inline-flex", alignItems: "center", gap: 7 }}><Copy size={13} /> Copy session summary</button>
           </>
         )}
         <PrivateNotes key={link.linkId} storageKey={`tredzi.mentorNotes.${link.linkId}`} />
@@ -1025,6 +1149,7 @@ function MentorPanel({ ctx }) {
   const [mentorName, setMentorName] = useState("");
   const [menteeName, setMenteeName] = useState("");
   const [menteeTrades, setMenteeTrades] = useState(null);
+  const [doneIds, setDoneIds] = useState({}); // trades I just left feedback on, so the queue updates right away
 
   const load = useCallback(async () => {
     try { setM(await api(token, "/mentors")); setErr(""); } catch (e) { setErr(e.message); }
@@ -1035,13 +1160,14 @@ function MentorPanel({ ctx }) {
     return () => clearInterval(id);
   }, [load]);
 
-  const menteeLink = sel && sel.kind === "mentee" ? sel.linkId : null;
+  const menteeLink = sel && sel.kind === "mentee" ? sel.linkId : sel && sel.kind === "trade" && sel.back && sel.back.kind === "mentee" ? sel.back.linkId : null;
   useEffect(() => {
     if (!menteeLink) { setMenteeTrades(null); return; }
     setMenteeTrades(null);
     api(token, `/mentors/trades?linkId=${encodeURIComponent(menteeLink)}`).then((r) => setMenteeTrades(r.trades)).catch((e) => { say(e.message, true); setSel(null); });
   }, [menteeLink, token, say]);
 
+  const viewTrades = menteeTrades ? menteeTrades.map((t) => (doneIds[t.id] ? { ...t, feedback: Math.max(1, t.feedback || 0), comments: Math.max(1, t.comments || 0) } : t)) : null;
   const act = async (fn, okText) => { const r = await run(fn, okText); await load(); return r; };
   const askMentor = async () => { const r = await act(() => api(token, "/mentors/invite", { method: "POST", body: { username: mentorName, role: "mentor" } })); if (r) { setMentorName(""); say(r.accepted ? "You're connected." : "Request sent."); } };
   const inviteMentee = async () => { const r = await act(() => api(token, "/mentors/invite", { method: "POST", body: { username: menteeName, role: "mentee" } })); if (r) { setMenteeName(""); say(r.accepted ? "You're connected." : "Invite sent."); } };
@@ -1111,7 +1237,7 @@ function MentorPanel({ ctx }) {
         {m.mentors.length === 0 && m.pending.filter((p) => p.as === "mentor").length === 0 && <div style={{ ...sub, marginTop: -4 }}>A mentor is a Creator who can look at the trades you choose to share and leave comments. Ask someone you trust.</div>}
         {m.mentors.map((l) => (
           <PersonRow key={l.linkId} avatar={l.avatar} name={l.username} sub={`Mentor since ${dateText(l.since)}`}>
-            <button type="button" disabled={busy} onClick={() => leave(l)} style={{ ...btn(false, true), ...small }}>Remove</button>
+            <ConfirmButton disabled={busy} onConfirm={() => leave(l)} />
           </PersonRow>
         ))}
         {m.pending.filter((p) => p.as === "mentor").map((p) => (
@@ -1156,7 +1282,7 @@ function MentorPanel({ ctx }) {
             <PersonRow key={l.linkId} avatar={l.avatar} name={l.username} onClick={() => openMentee(l)}
               sub={`${plural(l.shared, "shared trade")}${l.last ? ` · ${ago(l.last)}` : ""}${l.shared > 0 && l.net !== undefined ? ` · ${money(l.net)}` : ""}`}>
               {l.open > 0 && <Pill color={WARN}>{l.open} new</Pill>}
-              <button type="button" disabled={busy} onClick={() => leave(l)} style={{ ...btn(false, true), ...small }}>Remove</button>
+              <ConfirmButton disabled={busy} onConfirm={() => leave(l)} />
             </PersonRow>
           ))}
           {m.pending.filter((p) => p.as === "mentee").map((p) => (
@@ -1183,9 +1309,13 @@ function MentorPanel({ ctx }) {
 
   let pane = null;
   if (sel && sel.kind === "pick") pane = <TradePicker ctx={ctx} mdata={m} onDone={() => { setSel(null); load(); }} onBack={() => setSel(null)} />;
-  else if (sel && sel.kind === "trade") pane = <TradeDetail key={sel.id} ctx={ctx} id={sel.id} onBack={backToList} onUnshared={() => { setSel(null); load(); }} />;
+  else if (sel && sel.kind === "trade") {
+    const parent = sel.back && sel.back.kind === "mentee" ? sel.back : null;
+    const nextTrade = parent && viewTrades ? viewTrades.find((t) => String(t.id) !== String(sel.id) && !hasFeedback(t)) : null;
+    pane = <TradeDetail key={sel.id} ctx={ctx} id={sel.id} onBack={backToList} onUnshared={() => { setSel(null); load(); }} next={nextTrade} onNext={() => nextTrade && setSel({ kind: "trade", id: nextTrade.id, back: parent })} onCommented={(tid) => setDoneIds((d) => ({ ...d, [tid]: true }))} />;
+  }
   else if (sel && sel.kind === "mentee") {
-    pane = <MenteePane key={sel.linkId} ctx={ctx} link={sel} trades={menteeTrades} startFilter={sel.filter} onBack={() => setSel(null)} onOpen={(t) => setSel({ kind: "trade", id: t.id, back: sel })} />;
+    pane = <MenteePane key={sel.linkId} ctx={ctx} link={sel} trades={viewTrades} startFilter={sel.filter} onBack={() => setSel(null)} onOpen={(t) => setSel({ kind: "trade", id: t.id, back: sel })} />;
   } else if (isDesktop) {
     pane = (
       <Card>
@@ -1335,8 +1465,8 @@ export default function PartnerTab({ isDesktop, session, communityUsername, trad
   return (
     <div style={wrap}>
       {header(isDesktop ? <Segmented value={view} onChange={setView} options={[["partners", "Partners"], ["mentor", "Mentor", commentDot]]} /> : null)}
-      {!isDesktop && <div style={{ marginBottom: 14 }}><Segmented full value={view} onChange={setView} options={[["partners", "Partners"], ["mentor", "Mentor", commentDot]]} /></div>}
-      {toast && <div role="status" style={{ marginBottom: 14, padding: "11px 14px", borderRadius: 14, fontSize: 13, fontWeight: 700, background: toast.bad ? soft(BAD, 9) : soft(GOOD, 8), color: toast.bad ? ink(BAD) : palette.text, border: `1px solid ${tint(toast.bad ? BAD : GOOD, 38)}` }}>{toast.text}</div>}
+      {!isDesktop && <div style={{ position: "sticky", top: 0, zIndex: 5, margin: "0 -12px 12px", padding: "6px 12px 8px", background: palette.bg }}><Segmented full value={view} onChange={setView} options={[["partners", "Partners"], ["mentor", "Mentor", commentDot]]} /></div>}
+      {toast && <div role="status" style={{ ...(isDesktop ? { marginBottom: 14 } : { position: "fixed", left: 12, right: 12, bottom: "calc(88px + env(safe-area-inset-bottom, 0px))", zIndex: 80, boxShadow: "0 8px 24px rgba(0,0,0,0.28)" }), padding: "12px 14px", borderRadius: 14, fontSize: 13, fontWeight: 700, background: toast.bad ? soft(BAD, 9) : soft(GOOD, 8), color: toast.bad ? ink(BAD) : palette.text, border: `1px solid ${tint(toast.bad ? BAD : GOOD, 38)}` }}>{toast.text}</div>}
       {view === "partners" ? <PartnersPanel ctx={ctx} data={data} /> : <MentorPanel ctx={ctx} />}
     </div>
   );
