@@ -1,4 +1,4 @@
-import { AlertTriangle, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Flame, Inbox, Lightbulb, Lock, MessageCircle, Pencil, Plus, Send, Share2, ShieldAlert, Sparkles, StickyNote, Target, TrendingDown, TrendingUp, Trash2, Users, X } from "lucide-react";
+import { AlertTriangle, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, Copy, Flame, Inbox, Lightbulb, Lock, MessageCircle, Pencil, Play, Plus, RefreshCw, Send, Share2, ShieldAlert, Sparkles, StickyNote, Target, TrendingDown, TrendingUp, Trash2, Users, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { COMMUNITY_API_BASE } from "../api/community.js";
 import { Avatar } from "../components/ui.jsx";
@@ -54,6 +54,47 @@ const MENTOR_QUICK = [
   ["Good patience", "Good patience here. Let the winners run."],
   ["Skip setup", "I'd skip this setup until you've tested it more."],
 ];
+const MENTOR_SETS = {
+  Praise: [
+    ["Followed plan", "Clean entry and you followed your plan."],
+    ["Good patience", "Good patience here. Let the winners run."],
+    ["Great exit", "Great exit. You took what the market gave you."],
+    ["Well sized", "Risk was well sized for this setup. Keep it there."],
+    ["Clean execution", "Clean execution from start to finish."],
+  ],
+  Fix: [
+    ["Entry early", "Entry was early. Wait for confirmation before you click."],
+    ["Risk too big", "Risk was too big for this setup. Size down until it's proven."],
+    ["Moved stop", "You moved the stop. Keep it fixed once the trade is live."],
+    ["Cut early", "You cut this early. Trust your target if the setup is still valid."],
+    ["Chasing", "This looks like chasing. Wait for the pullback next time."],
+    ["Skip setup", "I'd skip this setup until you've tested it more."],
+  ],
+  Ask: [
+    ["What was the plan?", "What was your plan going into this trade?"],
+    ["Walk me through", "Walk me through your entry. What did you see?"],
+    ["How did it feel?", "What were you feeling when you took this?"],
+    ["Where was the stop?", "Where was your stop and why there?"],
+    ["Change anything?", "What would you change if you saw this setup again?"],
+  ],
+};
+const REVIEW_ITEMS = [["plan", "following the plan"], ["entry", "entry timing"], ["risk", "position size"], ["exit", "exit and stop management"]];
+const DAY_MS = 86400000;
+const ptCss = () => `
+@keyframes ptIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes ptSpin{to{transform:rotate(360deg)}}
+@keyframes ptPulse{0%,100%{opacity:.5}50%{opacity:1}}
+@keyframes ptToast{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.pt-card{animation:ptIn .32s ease both}
+.pt-card:nth-child(2){animation-delay:.04s}.pt-card:nth-child(3){animation-delay:.08s}.pt-card:nth-child(4){animation-delay:.12s}.pt-card:nth-child(n+5){animation-delay:.16s}
+.pt-toast{animation:ptToast .22s ease both}
+.pt-skel{animation:ptPulse 1.3s ease-in-out infinite}
+.pt-wrap button{transition:transform .12s ease,background .15s ease,border-color .15s ease,opacity .15s ease}
+.pt-wrap button:not(:disabled):active{transform:scale(.97)}
+.pt-wrap button:focus-visible,.pt-wrap input:focus-visible,.pt-wrap textarea:focus-visible{outline:2px solid ${palette.gold};outline-offset:2px}
+@media (prefers-reduced-motion:reduce){.pt-card,.pt-skel,.pt-toast{animation:none}.pt-wrap button{transition:none}}
+`;
+
 const MENTEE_QUICK = [
   ["Entry too early?", "Was my entry too early?"],
   ["Held long enough?", "Should I have held this longer?"],
@@ -134,6 +175,13 @@ function tradeStats(list) {
     expectancy: n ? (gross - lost) / n : 0,
   };
 }
+function weekCompare(list) {
+  const now = Date.now();
+  const cur = list.filter((t) => now - t.ts < 7 * DAY_MS);
+  const prev = list.filter((t) => now - t.ts >= 7 * DAY_MS && now - t.ts < 14 * DAY_MS);
+  return { cur: tradeStats(cur), prev: tradeStats(prev) };
+}
+const withDay = (list) => list.map((t) => ({ ...t, day: new Date(t.ts).toLocaleDateString([], { weekday: "long" }) }));
 // how many of the newest trades in a row were losses
 function lossRun(list) {
   const sorted = [...list].sort((a, b) => b.ts - a.ts);
@@ -200,7 +248,7 @@ const field = { width: "100%", minHeight: 42, padding: "9px 13px", borderRadius:
 
 function Card({ title, icon, aside, children, tone, style }) {
   return (
-    <section style={{
+    <section className="pt-card" style={{
       background: tone ? soft(tone, 9) : palette.surface,
       border: `1px solid ${tone ? tint(tone, 34) : palette.border}`, borderRadius: 16, padding: "16px 16px 15px", marginBottom: 14, boxShadow: palette.shadow, ...style,
     }}>
@@ -306,6 +354,153 @@ function FormStrip({ list }) {
         ))}
       </div>
       <div style={{ ...sub, marginTop: 6 }}>Oldest on the left, newest on the right.</div>
+    </div>
+  );
+}
+
+function Skel({ h = 14, w = "100%", r = 8, style }) {
+  return <div className="pt-skel" style={{ height: h, width: w, borderRadius: r, background: tint(palette.text, 9), ...style }} />;
+}
+function SkelCard({ rows = 2 }) {
+  return (
+    <Card>
+      <Skel h={15} w="38%" r={6} />
+      {Array.from({ length: rows }).map((_, i) => <Skel key={i} h={46} r={13} style={{ marginTop: 10 }} />)}
+    </Card>
+  );
+}
+
+// cumulative result of the shared trades, oldest to newest
+function EquityChart({ list }) {
+  const pts = [...list].sort((a, b) => a.ts - b.ts);
+  if (pts.length < 3) return null;
+  let run = 0;
+  const ys = [0, ...pts.map((t) => (run += t.pnl))];
+  const lo = Math.min(...ys);
+  const hi = Math.max(...ys);
+  const span = hi - lo || 1;
+  const W = 300, H = 72, P = 4;
+  const x = (i) => P + (i / (ys.length - 1)) * (W - 2 * P);
+  const y = (v) => P + (1 - (v - lo) / span) * (H - 2 * P);
+  const line = ys.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(" ");
+  const end = ys[ys.length - 1];
+  const col = end >= 0 ? GOOD : BAD;
+  const area = `${line} L${x(ys.length - 1).toFixed(1)} ${H - P} L${x(0).toFixed(1)} ${H - P} Z`;
+  return (
+    <div style={{ marginTop: 14, padding: "12px 12px 8px", borderRadius: 14, background: tint(palette.text, 4), border: `1px solid ${palette.border}` }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
+        <span style={eyebrow}>Equity of shared trades</span>
+        <span style={{ fontFamily: mono, fontSize: 13, fontWeight: 800, color: ink(col) }}>{money(Math.round(end))}</span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={72} preserveAspectRatio="none" role="img" aria-label={`Equity curve ending at ${money(Math.round(end))}`} style={{ display: "block", marginTop: 8 }}>
+        {lo < 0 && hi > 0 && <line x1={P} x2={W - P} y1={y(0)} y2={y(0)} stroke={tint(palette.text, 22)} strokeWidth="1" strokeDasharray="3 4" vectorEffect="non-scaling-stroke" />}
+        <path d={area} fill={tint(col, 14)} stroke="none" />
+        <path d={line} fill="none" stroke={col} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+      </svg>
+    </div>
+  );
+}
+
+// this week against last week
+function Trend({ list }) {
+  const { cur, prev } = weekCompare(list);
+  if (cur.n === 0 && prev.n === 0) return null;
+  const col = (label, st) => (
+    <div style={{ flex: "1 1 0", minWidth: 0, padding: "10px 12px", borderRadius: 13, background: tint(palette.text, 4), border: `1px solid ${palette.border}` }}>
+      <div style={{ ...eyebrow, fontSize: 9.5 }}>{label}</div>
+      <div style={{ fontFamily: mono, fontSize: 16, fontWeight: 800, marginTop: 4, color: st.n ? ink(pnlColor(st.net)) : palette.textFaint, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{st.n ? money(Math.round(st.net)) : "No trades"}</div>
+      <div style={{ fontSize: 10.5, color: palette.textFaint, marginTop: 2 }}>{st.n ? `${plural(st.n, "trade")} · ${Math.round(st.winRate)}% wins` : "nothing shared"}</div>
+    </div>
+  );
+  const delta = cur.net - prev.net;
+  return (
+    <div style={{ marginTop: 14 }}>
+      <div style={{ ...eyebrow, marginBottom: 8 }}>Week over week</div>
+      <div style={{ display: "flex", gap: 8 }}>{col("This week", cur)}{col("Last week", prev)}</div>
+      {cur.n > 0 && prev.n > 0 && (
+        <div style={{ ...sub, display: "flex", alignItems: "center", gap: 6 }}>
+          {delta >= 0 ? <TrendingUp size={13} style={{ color: ink(GOOD) }} /> : <TrendingDown size={13} style={{ color: ink(BAD) }} />}
+          <span>{delta >= 0 ? "Up" : "Down"} {money(Math.round(Math.abs(delta))).replace(/^[+-]/, "")} on last week.</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// tick the things you saw, tap once, and a ready-made sentence lands in the reply box
+function QuickReview({ onInsert }) {
+  const [open, setOpen] = useState(false);
+  const [r, setR] = useState({});
+  const goods = REVIEW_ITEMS.filter(([k]) => r[k] === "good").map((x) => x[1]);
+  const bads = REVIEW_ITEMS.filter(([k]) => r[k] === "bad").map((x) => x[1]);
+  const mark = (k, v) => setR((c) => ({ ...c, [k]: c[k] === v ? undefined : v }));
+  const insert = () => {
+    const parts = [];
+    if (goods.length) parts.push(`Good: ${goods.join(", ")}.`);
+    if (bads.length) parts.push(`Work on: ${bads.join(", ")}.`);
+    if (!parts.length) return;
+    onInsert(parts.join(" "));
+    setR({}); setOpen(false);
+  };
+  const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+  const dot = (k, v, color, Icon) => {
+    const on = r[k] === v;
+    return <button type="button" aria-label={`${v === "good" ? "Good" : "Needs work"}: ${k}`} aria-pressed={on} onClick={() => mark(k, v)} className={TAP} style={{ width: 44, height: TOUCH ? 40 : 34, borderRadius: 12, display: "grid", placeItems: "center", cursor: "pointer", border: `1px solid ${on ? tint(color, 55) : palette.border}`, background: on ? tint(color, 20) : "transparent", color: on ? ink(color) : palette.textFaint }}><Icon size={16} strokeWidth={2.6} /></button>;
+  };
+  return (
+    <div style={{ borderRadius: 14, border: `1px solid ${palette.border}`, background: tint(palette.text, 3), overflow: "hidden", marginBottom: 10 }}>
+      <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} className={TAP} style={{ display: "flex", width: "100%", alignItems: "center", gap: 9, padding: "11px 13px", background: "transparent", border: 0, cursor: "pointer", fontFamily: sans, textAlign: "left" }}>
+        <ClipboardCheck size={14} style={{ color: palette.gold }} />
+        <span style={{ flex: 1, fontSize: 13, fontWeight: 800, color: palette.text }}>Quick review</span>
+        <ChevronDown size={15} style={{ color: palette.textFaint, transform: open ? "rotate(180deg)" : "none", transition: "transform .15s ease" }} />
+      </button>
+      {open && (
+        <div style={{ padding: "0 13px 13px" }}>
+          {REVIEW_ITEMS.map(([k, label]) => (
+            <div key={k} style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
+              <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: palette.text, fontWeight: 600 }}>{cap(label)}</span>
+              {dot(k, "good", GOOD, Check)}
+              {dot(k, "bad", BAD, X)}
+            </div>
+          ))}
+          <button type="button" disabled={!goods.length && !bads.length} onClick={insert} style={{ ...btn(true), ...small, marginTop: 12, opacity: goods.length || bads.length ? 1 : 0.5 }}>Add to reply</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// homework for the next session, kept on this device
+function ActionItems({ storageKey }) {
+  const read = () => { try { const v = JSON.parse(localStorage.getItem(storageKey) || "[]"); return Array.isArray(v) ? v : []; } catch (e) { return []; } };
+  const [items, setItems] = useState(read);
+  const [text, setText] = useState("");
+  const save = (next) => { setItems(next); try { if (next.length) localStorage.setItem(storageKey, JSON.stringify(next)); else localStorage.removeItem(storageKey); } catch (e) { /* storage unavailable */ } };
+  const add = () => { const t = text.trim().slice(0, 120); if (!t || items.length >= 12) return; save([...items, { t, done: false }]); setText(""); };
+  const left = items.filter((i) => !i.done).length;
+  return (
+    <div style={{ marginTop: 14, borderRadius: 14, border: `1px solid ${palette.border}`, background: tint(palette.text, 3), padding: "12px 13px 13px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+        <ClipboardCheck size={14} style={{ color: palette.gold }} />
+        <span style={{ flex: 1, fontSize: 13, fontWeight: 800, color: palette.text }}>Homework for next session</span>
+        {items.length > 0 && <Pill color={left ? WARN : GOOD}>{left ? `${left} open` : "all done"}</Pill>}
+      </div>
+      {items.map((it, i) => (
+        <div key={`${i}-${it.t}`} style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
+          <button type="button" role="checkbox" aria-checked={it.done} aria-label={it.t} onClick={() => save(items.map((x, k) => (k === i ? { ...x, done: !x.done } : x)))} className={TAP} style={{ width: 40, height: 40, background: "transparent", border: 0, padding: 0, cursor: "pointer", display: "grid", placeItems: "center", flexShrink: 0 }}>
+            <span style={{ width: 20, height: 20, borderRadius: 7, display: "grid", placeItems: "center", border: `2px solid ${it.done ? GOOD : tint(palette.text, 30)}`, background: it.done ? GOOD : "transparent", color: "#fff" }}>{it.done && <Check size={13} strokeWidth={3.2} />}</span>
+          </button>
+          <span style={{ flex: 1, minWidth: 0, fontSize: 13, lineHeight: 1.4, color: it.done ? palette.textFaint : palette.text, textDecoration: it.done ? "line-through" : "none", overflowWrap: "anywhere" }}>{it.t}</span>
+          <button type="button" aria-label="Remove item" onClick={() => save(items.filter((_, k) => k !== i))} className={TAP} style={{ width: 36, height: 40, background: "transparent", border: 0, padding: 0, cursor: "pointer", color: palette.textFaint, display: "grid", placeItems: "center", flexShrink: 0 }}><X size={14} /></button>
+        </div>
+      ))}
+      {items.length < 12 && (
+        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+          <input value={text} maxLength={120} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} placeholder="e.g. Journal every loss this week" style={field} />
+          <button type="button" disabled={!text.trim()} onClick={add} style={btn(false)}>Add</button>
+        </div>
+      )}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, ...sub }}><Lock size={11} /> Only you can see this. Saved on this device.</div>
     </div>
   );
 }
@@ -774,12 +969,13 @@ function TradeRow({ t, onOpen, review, right }) {
           </span>
           <span style={{ display: "block", fontSize: 11, color: palette.textFaint, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{meta}</span>
         </span>
-        <span style={{ textAlign: "right", flexShrink: 0, paddingRight: right ? 0 : 12 }}>
+        <span style={{ textAlign: "right", flexShrink: 0, paddingRight: right || onOpen ? 0 : 12 }}>
           <span style={{ display: "block", fontFamily: mono, fontSize: 13.5, fontWeight: 800, color: ink(c) }}>{money(t.pnl)}</span>
           <span style={{ display: "block", marginTop: 4 }}>
             {needs ? <Pill color={WARN}>Needs review</Pill> : t.comments > 0 ? <Pill>{plural(t.comments, "comment")}</Pill> : null}
           </span>
         </span>
+        {onOpen && !right && <ChevronRight size={16} style={{ color: palette.textFaint, marginRight: 8, flexShrink: 0 }} />}
       </button>
       {right}
     </div>
@@ -802,6 +998,7 @@ function TradeDetail({ ctx, id, onBack, onUnshared, next, onNext, onCommented })
   const [text, setText] = useState("");
   const [zoom, setZoom] = useState(null);
   const [saved, setSaved] = useState(readSavedReplies);
+  const [set, setSet] = useState("Praise");
   const load = useCallback(async () => {
     try { setD(await api(token, `/mentors/trade?id=${encodeURIComponent(id)}`)); setErr(""); } catch (e) { setErr(e.message); }
   }, [token, id]);
@@ -822,7 +1019,7 @@ function TradeDetail({ ctx, id, onBack, onUnshared, next, onNext, onCommented })
   const pick = (t) => setText((cur) => `${cur ? `${cur} ` : ""}${t}`.slice(0, 300));
   const back = !isDesktop || onBack ? <BackButton onClick={onBack} style={{ marginBottom: 4 }} /> : null;
   if (err) return <Card>{back}<div style={{ fontSize: 13, color: ink(BAD) }}>{err}</div></Card>;
-  if (!d) return <Card>{back}<div style={{ fontSize: 13, color: palette.textFaint }}>Loading...</div></Card>;
+  if (!d) return <Card>{back}<Skel h={22} w="55%" r={7} /><Skel h={70} r={14} style={{ marginTop: 14 }} /><Skel h={120} r={14} style={{ marginTop: 10 }} /></Card>;
   const t = d.trade;
   const c = pnlColor(t.pnl);
   const meta = [["Setup", t.setup], ["Emotion", t.emotion], ["Session", t.session], ["Confidence", t.confidence]].filter((m) => m[1]);
@@ -889,7 +1086,13 @@ function TradeDetail({ ctx, id, onBack, onUnshared, next, onNext, onCommented })
             </div>
           ))}
           <div style={{ marginTop: 14 }}>
-            <QuickReplies items={d.mine ? MENTEE_QUICK : MENTOR_QUICK} onPick={pick} saved={d.mine ? [] : saved} onRemoveSaved={removeSaved} />
+            {!d.mine && <QuickReview onInsert={pick} />}
+            {!d.mine && (
+              <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                {Object.keys(MENTOR_SETS).map((k) => <Chip key={k} on={set === k} color={k === "Praise" ? GOOD : k === "Fix" ? BAD : undefined} onClick={() => setSet(k)}>{k}</Chip>)}
+              </div>
+            )}
+            <QuickReplies items={d.mine ? MENTEE_QUICK : MENTOR_SETS[set]} onPick={pick} saved={d.mine ? [] : saved} onRemoveSaved={removeSaved} />
             <div style={{ display: "flex", gap: 8, marginTop: 9, alignItems: "flex-end" }}>
               <textarea value={text} maxLength={300} rows={2} onChange={(e) => setText(e.target.value)} placeholder={d.mine ? "Ask your mentor something" : "Write feedback"} style={{ ...field, resize: "none", minHeight: 58 }} />
               <button type="button" aria-label="Send comment" disabled={!text.trim()} onClick={send} style={{ ...btn(true), width: 46, height: 46, padding: 0, display: "grid", placeItems: "center", opacity: text.trim() ? 1 : 0.5 }}><Send size={16} /></button>
@@ -1037,12 +1240,16 @@ function MenteePane({ ctx, link, trades, startFilter, onBack, onOpen }) {
   const list = useMemo(() => trades || [], [trades]);
   const stats = useMemo(() => tradeStats(list), [list]);
   const insights = useMemo(() => coachInsights(list), [list]);
-  const groups = useMemo(() => ({ setup: groupTrades(list, "setup"), emotion: groupTrades(list, "emotion"), session: groupTrades(list, "session") }), [list]);
-  const tabs = [["setup", "Setup"], ["emotion", "Emotion"], ["session", "Session"]].filter(([k]) => groups[k].length > 0);
+  const groups = useMemo(() => ({ setup: groupTrades(list, "setup"), emotion: groupTrades(list, "emotion"), session: groupTrades(list, "session"), day: groupTrades(withDay(list), "day") }), [list]);
+  const tabs = [["setup", "Setup"], ["emotion", "Emotion"], ["session", "Session"], ["day", "Day"]].filter(([k]) => groups[k].length > 0);
   const tab = tabs.find(([k]) => k === by) ? by : tabs[0] && tabs[0][0];
   const open = list.filter((t) => !hasFeedback(t)).length;
   const shown = list.filter((t) => (filter === "review" ? !hasFeedback(t) : filter === "loss" ? t.pnl < 0 : filter === "win" ? t.pnl > 0 : true));
   const pf = stats.pf === Infinity ? "∞" : stats.pf.toFixed(2);
+  const startReview = () => {
+    const t = [...list].sort((a, b) => a.ts - b.ts).find((x) => !hasFeedback(x));
+    if (t) onOpen(t);
+  };
   const copySummary = async () => {
     const lines = [
       `${link.username}: ${plural(stats.n, "shared trade")}, ${stats.wins}W ${stats.losses}L`,
@@ -1064,10 +1271,18 @@ function MenteePane({ ctx, link, trades, startFilter, onBack, onOpen }) {
           </div>
           {open > 0 && <Pill color={WARN}>{open} to review</Pill>}
         </div>
+        {trades && open > 0 && (
+          <button type="button" onClick={startReview} style={{ ...btn(true), width: "100%", marginTop: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}><Play size={14} fill="currentColor" /> Start reviewing, oldest first</button>
+        )}
       </div>
 
       <div style={{ padding: "14px 16px 16px" }}>
-        {!trades && <div style={sub}>Loading...</div>}
+        {!trades && (
+          <div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>{[0, 1, 2, 3].map((i) => <Skel key={i} h={72} r={14} />)}</div>
+            <Skel h={72} r={14} style={{ marginTop: 14 }} />
+          </div>
+        )}
         {trades && list.length === 0 && <Empty icon={<Inbox size={22} />} title="Nothing shared yet" text={`${link.username} hasn't shared any trades. When they do, you'll get stats, patterns and a review queue here.`} />}
         {trades && list.length > 0 && (
           <>
@@ -1079,6 +1294,8 @@ function MenteePane({ ctx, link, trades, startFilter, onBack, onOpen }) {
               <StatTile label="Per trade" value={money(Math.round(stats.expectancy))} color={pnlColor(stats.expectancy)} hint="average result" />
               <StatTile label="Best / worst" value={`${Math.round(stats.best)} / ${Math.round(stats.worst)}`} hint="single trades, in $" />
             </div>
+            <EquityChart list={list} />
+            <Trend list={list} />
             <FormStrip list={list} />
 
             {insights.length > 0 && (
@@ -1116,6 +1333,7 @@ function MenteePane({ ctx, link, trades, startFilter, onBack, onOpen }) {
           </>
         )}
         <PrivateNotes key={link.linkId} storageKey={`tredzi.mentorNotes.${link.linkId}`} />
+        <ActionItems key={`a${link.linkId}`} storageKey={`tredzi.mentorActions.${link.linkId}`} />
       </div>
     </Card>
   );
@@ -1149,6 +1367,7 @@ function MentorPanel({ ctx }) {
   const [mentorName, setMentorName] = useState("");
   const [menteeName, setMenteeName] = useState("");
   const [menteeTrades, setMenteeTrades] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [doneIds, setDoneIds] = useState({}); // trades I just left feedback on, so the queue updates right away
 
   const load = useCallback(async () => {
@@ -1168,6 +1387,7 @@ function MentorPanel({ ctx }) {
   }, [menteeLink, token, say]);
 
   const viewTrades = menteeTrades ? menteeTrades.map((t) => (doneIds[t.id] ? { ...t, feedback: Math.max(1, t.feedback || 0), comments: Math.max(1, t.comments || 0) } : t)) : null;
+  const refresh = async () => { setRefreshing(true); await load(); setTimeout(() => setRefreshing(false), 450); };
   const act = async (fn, okText) => { const r = await run(fn, okText); await load(); return r; };
   const askMentor = async () => { const r = await act(() => api(token, "/mentors/invite", { method: "POST", body: { username: mentorName, role: "mentor" } })); if (r) { setMentorName(""); say(r.accepted ? "You're connected." : "Request sent."); } };
   const inviteMentee = async () => { const r = await act(() => api(token, "/mentors/invite", { method: "POST", body: { username: menteeName, role: "mentee" } })); if (r) { setMenteeName(""); say(r.accepted ? "You're connected." : "Invite sent."); } };
@@ -1175,7 +1395,7 @@ function MentorPanel({ ctx }) {
   const leave = (l) => act(() => api(token, "/mentors/leave", { method: "POST", body: { linkId: l.linkId } }), "Done.");
 
   if (err && !m) return <Card title="Couldn't load Mentor"><div style={sub}>{err}</div><button type="button" onClick={load} style={{ ...btn(true), marginTop: 12 }}>Try again</button></Card>;
-  if (!m) return <Card><div style={{ fontSize: 13, color: palette.textFaint }}>Loading...</div></Card>;
+  if (!m) return <div><Card><div style={{ display: "flex", gap: 8 }}>{[0, 1, 2].map((i) => <Skel key={i} h={78} r={14} style={{ flex: 1 }} />)}</div></Card><SkelCard rows={2} /><SkelCard rows={3} /></div>;
 
   const hasMentors = m.mentors.length > 0;
   const grid = isDesktop ? { display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.25fr)", gap: 18, alignItems: "start" } : {};
@@ -1203,6 +1423,10 @@ function MentorPanel({ ctx }) {
 
   const lists = (
     <div style={{ minWidth: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "-2px 2px 8px" }}>
+        <span style={eyebrow}>{m.creator ? "Coaching dashboard" : "My coaching"}</span>
+        <button type="button" onClick={refresh} aria-label="Refresh" className={TAP} style={{ width: 36, height: 36, borderRadius: 99, border: 0, background: "transparent", color: palette.textMuted, display: "grid", placeItems: "center", cursor: "pointer" }}><RefreshCw size={15} style={{ animation: refreshing ? "ptSpin .8s linear infinite" : "none" }} /></button>
+      </div>
       <Card style={{ padding: 0, overflow: "hidden" }}>
         <div style={{ display: "flex", gap: 8, padding: 14, background: soft(palette.gold, 12) }}>
           {tiles.map(([label, value, color, hint]) => <StatTile key={label} label={label} value={value} color={color} hint={hint} />)}
@@ -1278,10 +1502,11 @@ function MentorPanel({ ctx }) {
       {m.creator ? (
         <Card title="Your mentees" icon={<Users size={13} />} aside={<Pill color={palette.gold}>Creator</Pill>}>
           {m.mentees.length === 0 && <div style={{ ...sub, marginTop: -4 }}>Invite a trader you want to coach. You'll only ever see the trades they choose to share.</div>}
-          {m.mentees.map((l) => (
+          {[...m.mentees].sort((a, b) => (b.open || 0) - (a.open || 0) || (b.last || 0) - (a.last || 0)).map((l) => (
             <PersonRow key={l.linkId} avatar={l.avatar} name={l.username} onClick={() => openMentee(l)}
               sub={`${plural(l.shared, "shared trade")}${l.last ? ` · ${ago(l.last)}` : ""}${l.shared > 0 && l.net !== undefined ? ` · ${money(l.net)}` : ""}`}>
               {l.open > 0 && <Pill color={WARN}>{l.open} new</Pill>}
+              {!(l.open > 0) && l.shared > 0 && l.last && Date.now() - l.last > 7 * DAY_MS && <Pill>Quiet 7d+</Pill>}
               <ConfirmButton disabled={busy} onConfirm={() => leave(l)} />
             </PersonRow>
           ))}
@@ -1311,7 +1536,7 @@ function MentorPanel({ ctx }) {
   if (sel && sel.kind === "pick") pane = <TradePicker ctx={ctx} mdata={m} onDone={() => { setSel(null); load(); }} onBack={() => setSel(null)} />;
   else if (sel && sel.kind === "trade") {
     const parent = sel.back && sel.back.kind === "mentee" ? sel.back : null;
-    const nextTrade = parent && viewTrades ? viewTrades.find((t) => String(t.id) !== String(sel.id) && !hasFeedback(t)) : null;
+    const nextTrade = parent && viewTrades ? [...viewTrades].sort((a, b) => a.ts - b.ts).find((t) => String(t.id) !== String(sel.id) && !hasFeedback(t)) : null;
     pane = <TradeDetail key={sel.id} ctx={ctx} id={sel.id} onBack={backToList} onUnshared={() => { setSel(null); load(); }} next={nextTrade} onNext={() => nextTrade && setSel({ kind: "trade", id: nextTrade.id, back: parent })} onCommented={(tid) => setDoneIds((d) => ({ ...d, [tid]: true }))} />;
   }
   else if (sel && sel.kind === "mentee") {
@@ -1463,10 +1688,11 @@ export default function PartnerTab({ isDesktop, session, communityUsername, trad
 
   const commentDot = data.nudges.some((n) => n.kind === "comment");
   return (
-    <div style={wrap}>
+    <div className="pt-wrap" style={wrap}>
+      <style>{ptCss()}</style>
       {header(isDesktop ? <Segmented value={view} onChange={setView} options={[["partners", "Partners"], ["mentor", "Mentor", commentDot]]} /> : null)}
       {!isDesktop && <div style={{ position: "sticky", top: 0, zIndex: 5, margin: "0 -12px 12px", padding: "6px 12px 8px", background: palette.bg }}><Segmented full value={view} onChange={setView} options={[["partners", "Partners"], ["mentor", "Mentor", commentDot]]} /></div>}
-      {toast && <div role="status" style={{ ...(isDesktop ? { marginBottom: 14 } : { position: "fixed", left: 12, right: 12, bottom: "calc(88px + env(safe-area-inset-bottom, 0px))", zIndex: 80, boxShadow: "0 8px 24px rgba(0,0,0,0.28)" }), padding: "12px 14px", borderRadius: 14, fontSize: 13, fontWeight: 700, background: toast.bad ? soft(BAD, 9) : soft(GOOD, 8), color: toast.bad ? ink(BAD) : palette.text, border: `1px solid ${tint(toast.bad ? BAD : GOOD, 38)}` }}>{toast.text}</div>}
+      {toast && <div role="status" className="pt-toast" style={{ ...(isDesktop ? { marginBottom: 14 } : { position: "fixed", left: 12, right: 12, bottom: "calc(88px + env(safe-area-inset-bottom, 0px))", zIndex: 80, boxShadow: "0 8px 24px rgba(0,0,0,0.28)" }), padding: "12px 14px", borderRadius: 14, fontSize: 13, fontWeight: 700, background: toast.bad ? soft(BAD, 9) : soft(GOOD, 8), color: toast.bad ? ink(BAD) : palette.text, border: `1px solid ${tint(toast.bad ? BAD : GOOD, 38)}` }}>{toast.text}</div>}
       {view === "partners" ? <PartnersPanel ctx={ctx} data={data} /> : <MentorPanel ctx={ctx} />}
     </div>
   );
