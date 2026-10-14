@@ -2,7 +2,6 @@ import { startCloudSync, stopCloudSync } from "./lib/cloudSync.js";
 import { COMMUNITY_API_BASE, COMMUNITY_AVATAR_KEY, COMMUNITY_JOIN_REQUESTS_KEY, COMMUNITY_MEMBERSHIPS_KEY, COMMUNITY_MESSAGE_POLL_MS, COMMUNITY_ONBOARDING_KEY, COMMUNITY_SESSION_KEY, COMMUNITY_USERNAME_KEY, communityApi } from "./api/community.js";
 import { pokeCrab } from "./lib/mascot.js";
 import { PlanLockCard, PlanSettingsCard, PlansHost } from "./components/PlansModal.jsx";
-import MobileDock from "./components/MobileDock.jsx";
 import SessionSnapshot from "./components/SessionSnapshot.jsx";
 import TabHost from "./components/TabHost.jsx";
 import { PlanName } from "./components/PlanBadge.jsx";
@@ -26,7 +25,7 @@ import { bySession, byConfidence, tradesAsJournalRows } from "./lib/tradeInsight
 import { drawShareCard } from "./lib/shareCard.js";
 import { DARK_PALETTE, LIGHT_PALETTE, TAP, THEME_TRANSITION, TREDZI_LOGO_SRC, VOID_PALETTE, display, mono, palette, sans } from "./lib/theme.js";
 import { formatCountdown, formatMinSec, nextOccurrenceMs } from "./lib/time.js";
-import { AlertTriangle, ArrowLeftRight, CalendarDays, Link2, Bell, Building2, Camera, CandlestickChart, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, Flame, Heart, LayoutGrid, Lightbulb, LogOut, MessageCircle, Moon, Newspaper, Palette, Pencil, Plus, RotateCcw, Scale, Search, Send, Settings, Share2, ShieldAlert, Sparkles, Sun, Table2, Tags, Trash2, Upload, Users, X , Activity, TrendingDown, TrendingUp, UserCheck } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, CalendarDays, Link2, Bell, Building2, Camera, CandlestickChart, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, Flame, Heart, LayoutGrid, Lightbulb, LogOut, Menu, MessageCircle, Moon, Newspaper, Palette, Pencil, Plus, RotateCcw, Scale, Search, Send, Settings, Share2, ShieldAlert, Sparkles, Sun, Table2, Tags, Trash2, Upload, Users, X , Activity, TrendingDown, TrendingUp, UserCheck } from "lucide-react";
 import React, { Suspense, lazy, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import "./typography.css";
 
@@ -184,6 +183,7 @@ export default function TredziApp() {
   const [settingsSearchQuery, setSettingsSearchQuery] = useState("");
   const [pulseOpen, setPulseOpen] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [navDrawerOpen, setNavDrawerOpen] = useState(false);
 
   const [accounts, setAccounts] = useState([]);
   const [accountsLoaded, setAccountsLoaded] = useState(false);
@@ -7076,7 +7076,7 @@ const persistNotepadNotes = async (next) => {
 
   // Scroll-aware bottom nav (mobile only): hides on scroll-down, reappears on
   // scroll-up or near the top — matches the Facebook / X app-shell behavior.
-  const MOBILE_NAV_SPACE = "calc(84px + env(safe-area-inset-bottom, 0px))";
+  const MOBILE_NAV_SPACE = "calc(16px + env(safe-area-inset-bottom, 0px))";
   const crabRest = (() => {
     const k = dayKeyFromDate(new Date());
     const today = trades.filter((t) => dayKeyFromTs(t.ts) === k);
@@ -7586,17 +7586,17 @@ if (activeTab === "community") {
               </div>
             ) : (
               <div className="flex items-center gap-2.5">
-                <span
-                  className="flex items-center justify-center rounded-xl flex-shrink-0"
-                  style={{
-                    width: "34px",
-                    height: "34px",
-                    background: palette.gold,
-                    boxShadow: `0 3px 10px ${palette.gold}44`,
-                  }}
+                <button
+                  type="button"
+                  onClick={() => setNavDrawerOpen(true)}
+                  aria-label="Open navigation menu"
+                  aria-expanded={navDrawerOpen}
+                  data-tour-id="nav-menu-btn"
+                  className={`flex items-center justify-center rounded-xl flex-shrink-0 ${TAP}`}
+                  style={{ width: "38px", height: "38px", background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, boxShadow: palette.shadow, transition: `${THEME_TRANSITION}, transform 0.15s ease` }}
                 >
-                  <ActiveTabIcon size={17} style={{ color: palette.letterbox }} strokeWidth={2.2} />
-                </span>
+                  <Menu size={19} strokeWidth={2.2} />
+                </button>
                 <div>
 <h1
   style={{
@@ -7615,6 +7615,7 @@ if (activeTab === "community") {
               </div>
             )}
           </div>
+          {isDesktop && (
           <div className="flex items-center gap-2 flex-shrink-0">
             <button
               type="button"
@@ -7653,6 +7654,7 @@ if (activeTab === "community") {
               <Settings size={17} />
             </button>
           </div>
+          )}
         </header>
         )}
 
@@ -7698,17 +7700,6 @@ if (activeTab === "community") {
         </div>
 
 
-        {!isDesktop && (
-          <MobileDock
-            ref={mobileDockRef}
-            tabs={[...mobileNavPrimaryTabs, ...mobileNavOverflowTabs]}
-            activeId={activeTab}
-            onSelect={goToTabFromDock}
-            onPreload={(id) => TAB_PRELOAD[id]?.()?.catch?.(() => {})}
-            forceHidden={dockCovered}
-            themeKey={`${palette.surface}${palette.gold}${palette.border}`}
-          />
-        )}
         {isDesktop && (
         <nav
           className={isDesktop ? "flex flex-col order-first" : "flex items-stretch"}
@@ -7928,6 +7919,183 @@ if (activeTab === "community") {
         </nav>
         )}
       </div>
+
+      {!isDesktop && navDrawerOpen && (
+        <div className="fixed inset-0" style={{ zIndex: 80 }} role="dialog" aria-modal="true" aria-label="Navigation">
+          <style>{`@keyframes ledgerDrawerIn{from{transform:translateX(-100%)}to{transform:translateX(0)}}@keyframes ledgerDrawerFade{from{opacity:0}to{opacity:1}}`}</style>
+          <div
+            onClick={() => setNavDrawerOpen(false)}
+            style={{ position: "absolute", inset: 0, background: "rgba(5,7,12,0.6)", backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)", animation: "ledgerDrawerFade 0.2s ease" }}
+          />
+          <aside
+            style={{
+              position: "absolute", top: 0, bottom: 0, left: 0, width: "min(300px, 84vw)",
+              display: "flex", flexDirection: "column", overflowY: "auto",
+              background: palette.surface, borderRight: `1px solid ${palette.border}`,
+              boxShadow: "8px 0 32px rgba(0,0,0,0.35)",
+              paddingTop: "env(safe-area-inset-top, 0px)", paddingBottom: "env(safe-area-inset-bottom, 0px)",
+              animation: "ledgerDrawerIn 0.26s cubic-bezier(0.22, 1, 0.36, 1)", fontFamily: sans,
+            }}
+          >
+            <div className="flex items-center justify-between px-5 pt-5 pb-3">
+              <span className="uppercase" style={{ color: palette.textFaint, letterSpacing: "0.14em", fontSize: "10px", fontWeight: 700 }}>
+                Navigate
+              </span>
+              <button
+                type="button"
+                onClick={() => setNavDrawerOpen(false)}
+                aria-label="Close navigation menu"
+                className={`flex items-center justify-center rounded-full ${TAP}`}
+                style={{ width: "30px", height: "30px", color: palette.textFaint, background: palette.field, border: `1px solid ${palette.border}` }}
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-1 px-4">
+              {navTabs.map((tab) => {
+                const Icon = tab.icon;
+                const active = dockTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    data-tour-id={`tab-${tab.id}`}
+                    aria-current={active ? "page" : undefined}
+                    onPointerDown={() => { try { TAB_PRELOAD[tab.id]?.().catch(() => {}); } catch (e) { /* ignore */ } }}
+                    onClick={() => { goToTab(tab.id); setNavDrawerOpen(false); }}
+                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 text-left ${TAP}`}
+                    style={{
+                      color: active ? palette.goldBright : palette.text,
+                      background: active ? `${palette.gold}16` : "transparent",
+                      border: `1px solid ${active ? `${palette.gold}3A` : "transparent"}`,
+                      borderRadius: "10px",
+                      fontSize: "14.5px", fontWeight: 600, letterSpacing: "0.02em",
+                      transition: "background 0.15s ease, color 0.15s ease",
+                    }}
+                  >
+                    <Icon size={18} strokeWidth={active ? 2.4 : 1.8} className="flex-shrink-0" />
+                    <span className="whitespace-nowrap">{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div style={{ flex: "1 1 auto", minHeight: "16px" }} />
+
+            {(() => {
+            const pulseTodayKey = dayKeyFromDate(new Date());
+            const pulseTodayTrades = trades.filter((t) => dayKeyFromTs(t.ts) === pulseTodayKey);
+            const pulseTodayNet = pulseTodayTrades.reduce((s, t) => s + t.pnl, 0);
+            const { current: pulseStreak } = computeDisciplineStreak(trades);
+            const pulseHasTrades = trades.length > 0;
+            const pulseIsProfitable = pulseTodayTrades.length > 0 && pulseTodayNet > 0;
+	    const pulseFlameActive = pulseIsProfitable || pulseStreak > 0;
+            return (
+              <button
+                type="button"
+                onClick={() => { setNavDrawerOpen(false); setPulseOpen(true); }}
+                className={`mx-4 mb-3 rounded-xl px-3.5 py-3 text-left ${TAP}`}
+                style={{
+                  background: `${palette.gold}12`,
+                  border: `1px solid ${palette.gold}2A`,
+                  boxShadow: palette.shadow,
+                  cursor: "pointer",
+                }}
+              >
+                <div
+                  className="flex items-center justify-between mb-2"
+                  style={{ fontFamily: mono, fontSize: "10px", color: palette.gold, letterSpacing: "0.08em", fontWeight: 700 }}
+                >
+                  <span className="flex items-center gap-1.5">
+                      <LiveFlame size={30} active={pulseFlameActive} dimColor={palette.textFaint} style={{ margin: "-10px -3px -8px -3px" }} />
+                    TODAY'S PULSE
+                  </span>
+                  <ChevronRight size={12} style={{ color: palette.gold, opacity: 0.7 }} />
+                </div>
+                {pulseHasTrades ? (
+                  <>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span style={{ fontSize: "11px", color: palette.textFaint }}>Net today</span>
+                      <span
+                        style={{
+                          fontFamily: mono,
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          color: pulseTodayTrades.length
+                            ? pulseTodayNet >= 0
+                              ? palette.green
+                              : palette.red
+                            : palette.textFaint,
+                        }}
+                      >
+                        {pulseTodayTrades.length ? `${pulseTodayNet >= 0 ? "+" : "-"}$${fmtMoney(pulseTodayNet)}` : "No trades yet"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span style={{ fontSize: "11px", color: palette.textFaint }}>Discipline streak</span>
+                      <span
+                        style={{
+                          fontFamily: mono,
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          color: pulseStreak > 0 ? palette.gold : palette.textFaint,
+                        }}
+                      >
+                        {pulseStreak} day{pulseStreak === 1 ? "" : "s"}
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ fontSize: "11px", color: palette.textFaint }}>
+                    Log your first trade to start tracking your pulse.
+                  </div>
+                )}
+              </button>
+            );
+          })()}
+
+            <div className="px-4 pt-3 pb-4 flex flex-col gap-2.5" style={{ borderTop: `1px solid ${palette.border}` }}>
+              <span className="uppercase px-1" style={{ color: palette.textFaint, letterSpacing: "0.14em", fontSize: "10px", fontWeight: 700 }}>
+                Theme
+              </span>
+              <div className="flex items-center gap-1 p-1 rounded-xl" role="group" aria-label="Theme" style={{ background: palette.field, border: `1px solid ${palette.border}` }}>
+                {[
+                  { id: "dark", label: "Night" },
+                  { id: "light", label: "Light" },
+                  { id: "void", label: "Void" },
+                  { id: "auto", label: "Auto" },
+                ].map((opt) => {
+                  const on = (settings.themeMode || theme) === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => setThemeMode(opt.id)}
+                      className={`flex-1 rounded-lg py-2 ${TAP}`}
+                      style={{ background: on ? palette.gold : "transparent", color: on ? palette.letterbox : palette.textMuted, fontSize: "12px", fontWeight: 600, transition: "background 0.15s ease, color 0.15s ease" }}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                type="button"
+                data-tour-id="settings-btn"
+                onClick={() => { setNavDrawerOpen(false); setSettingsOpen(true); }}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 text-left ${TAP}`}
+                style={{ color: palette.text, background: "transparent", border: `1px solid ${palette.border}`, borderRadius: "10px", fontSize: "14.5px", fontWeight: 600, letterSpacing: "0.02em" }}
+              >
+                <Settings size={18} strokeWidth={1.8} className="flex-shrink-0" />
+                <span className="flex-1">Settings</span>
+                <ChevronRight size={14} strokeWidth={2.2} style={{ color: palette.textFaint }} />
+              </button>
+            </div>
+          </aside>
+        </div>
+      )}
 
       <canvas ref={shareCanvasRef} style={{ display: "none" }} />
 
