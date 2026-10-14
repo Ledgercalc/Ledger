@@ -3,10 +3,27 @@ import { Suspense, useEffect, useRef } from "react";
 import { Field, PillGroup, Readout, RuleRow, StatChip } from "../components/ui.jsx";
 import { computeQualifyingTradingDays } from "../lib/analytics.js";
 import { EDGE_PROJECTION_PERIODS, PROFIT_TARGET_OPTIONS } from "../lib/constants.js";
-import { fmt, num } from "../lib/format.js";
+import { dayKeyFromDate, dayKeyFromTs, fmt, num } from "../lib/format.js";
 import { TAP, mono, palette } from "../lib/theme.js";
 import { ArrowLeftRight, Pencil, Scale, Target } from "lucide-react";
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+
+// A number the journal fills in, shown where the manual input would be.
+function SyncedValue({ label, value, hint }) {
+  return (
+    <div className="mb-4">
+      <div style={{ color: palette.textMuted, fontSize: "12px", marginBottom: "6px" }}>{label}</div>
+      <div
+        className="flex items-center justify-between rounded-lg px-3"
+        style={{ background: palette.field, border: `1px solid ${palette.border}`, minHeight: "44px" }}
+      >
+        <span style={{ fontFamily: mono, fontSize: "15px", color: palette.text, fontVariantNumeric: "tabular-nums" }}>{value}</span>
+        <span style={{ fontSize: "11px", color: palette.gold }}>From journal</span>
+      </div>
+      {hint && <div style={{ color: palette.textFaint, fontSize: "11px", marginTop: "5px" }}>{hint}</div>}
+    </div>
+  );
+}
 
 export default function RiskTab(props) {
   const {
@@ -20,6 +37,7 @@ export default function RiskTab(props) {
     linkedFirm,
     ps,
     renderSubNav,
+    restartChallenge,
     riskSubTab,
     setCs,
     setEdge,
@@ -162,15 +180,31 @@ const edgeCurveData = Array.from({ length: EDGE_CURVE_POINTS + 1 }, (_, i) => {
     const lots = stopPips > 0 && valPerPip > 0 ? riskAmt / (stopPips * valPerPip) : 0;
 
     const hasStart = cs.startBal !== "";
-    const hasBoth = hasStart && cs.currentBal !== "";
+    // Journal sync: once a firm plan is applied, the challenge fills in from the trades logged since then.
+    const syncOn = !!linkedFirm && cs.syncJournal !== false && hasStart;
+    const syncSince = (linkedFirm && linkedFirm.linkedAt) || 0;
+    const challengeTrades = syncOn ? [...trades].filter((t) => t.ts >= syncSince).sort((a, b) => a.ts - b.ts) : trades;
+    const journalStart = num(cs.startBal);
+    let journalNet = 0;
+    let journalPeak = journalStart;
+    const journalDays = {};
+    challengeTrades.forEach((t) => {
+      journalNet += t.pnl;
+      journalPeak = Math.max(journalPeak, journalStart + journalNet);
+      const k = dayKeyFromTs(t.ts);
+      journalDays[k] = (journalDays[k] || 0) + t.pnl;
+    });
+    const journalToday = journalDays[dayKeyFromDate(new Date())] || 0;
+    const journalBestDay = Math.max(0, ...Object.values(journalDays));
+    const hasBoth = hasStart && (syncOn || cs.currentBal !== "");
     const hasTarget = cs.targetPct !== "instant";
 
     const startBal = num(cs.startBal);
-    const currentBal = num(cs.currentBal);
+    const currentBal = syncOn ? journalStart + journalNet : num(cs.currentBal);
     const targetPct = hasTarget ? num(cs.targetPct) : 0;
     const dailyLossPct = num(cs.dailyLossPct);
-    const todayLoss = num(cs.todayLoss);
-    const bestDay = num(cs.bestDay);
+    const todayLoss = syncOn ? Math.max(0, -journalToday) : num(cs.todayLoss);
+    const bestDay = syncOn ? journalBestDay : num(cs.bestDay);
     const rule = num(cs.rule);
     const maxDrawdownPct = num(cs.maxDrawdownPct) || 4;
     const ddMode = cs.ddMode === "static" ? "static" : "trail";
@@ -188,7 +222,9 @@ const edgeCurveData = Array.from({ length: EDGE_CURVE_POINTS + 1 }, (_, i) => {
     const peakBalance = hasBoth
       ? ddMode === "static"
         ? startBal
-        : Math.max(startBal, currentBal)
+        : syncOn
+          ? Math.max(startBal, journalPeak)
+          : Math.max(startBal, currentBal)
       : startBal;
     const maxDrawdownAllowed = peakBalance * (maxDrawdownPct / 100);
     const floorBalance = peakBalance - maxDrawdownAllowed;
@@ -272,7 +308,9 @@ const edgeCurveData = Array.from({ length: EDGE_CURVE_POINTS + 1 }, (_, i) => {
                       : "No profit target required for this challenge type"
                     : "Enter starting & current balance below"
                   : hasBoth
-                  ? undefined
+                  ? syncOn
+                    ? `Live from ${challengeTrades.length} journal trade${challengeTrades.length === 1 ? "" : "s"}`
+                    : undefined
                   : "Enter starting & current balance below"
               }
               statLeft={
@@ -423,9 +461,71 @@ rightContent={
             <span className="block mt-2 mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
               Account
             </span>
+            {linkedFirm && (
+              <div
+                className="rounded-lg p-3 mb-4"
+                style={{ background: palette.surface, border: `1px solid ${syncOn ? palette.gold : palette.border}`, boxShadow: palette.shadow }}
+              >
+                <div className="flex items-start justify-between" style={{ gap: "12px" }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ color: palette.text, fontSize: "13px", fontWeight: 600 }}>
+                      Journal sync {syncOn ? "is on" : "is off"}
+                    </div>
+                    <div style={{ color: palette.textFaint, fontSize: "12px", marginTop: "2px", lineHeight: 1.45 }}>
+                      {!hasStart
+                        ? "Enter a starting balance and your journal trades will fill in the rest."
+                        : syncOn
+                          ? `${challengeTrades.length} trade${challengeTrades.length === 1 ? "" : "s"} logged since ${
+                              syncSince ? new Date(syncSince).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" }) : "you started"
+                            }. Balance, loss today and best day update from them.`
+                          : "Balance, loss today and best day are entered by hand."}
+                    </div>
+                  </div>
+                  {hasStart && (
+                    <button
+                      type="button"
+                      className={`px-3 py-1.5 rounded-full ${TAP}`}
+                      onClick={() =>
+                        setCs({
+                          ...cs,
+                          syncJournal: !syncOn,
+                          currentBal: syncOn && cs.currentBal === "" ? String(Math.round(currentBal * 100) / 100) : cs.currentBal,
+                        })
+                      }
+                      style={{
+                        flexShrink: 0,
+                        background: syncOn ? palette.field : palette.gold,
+                        color: syncOn ? palette.textMuted : palette.letterbox,
+                        border: `1px solid ${syncOn ? palette.border : palette.gold}`,
+                        fontSize: "12px",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {syncOn ? "Turn off" : "Turn on"}
+                    </button>
+                  )}
+                </div>
+                {syncOn && restartChallenge && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm("Restart challenge tracking from now? Trades logged before this moment will stop counting toward it.")) restartChallenge();
+                    }}
+                    className={TAP}
+                    style={{ marginTop: "8px", background: "transparent", border: 0, padding: 0, color: palette.gold, fontSize: "12px", fontWeight: 600 }}
+                  >
+                    Restart from today
+                  </button>
+                )}
+              </div>
+            )}
             <div className="lg:grid lg:grid-cols-2 lg:gap-4">
               <Field isDesktop={isDesktop} label="Starting Balance" value={cs.startBal} suffix="$" placeholder="10000" onChange={(e) => setCs({ ...cs, startBal: e.target.value })} />
-              <Field isDesktop={isDesktop} label="Current Balance" value={cs.currentBal} suffix="$" placeholder="10650" onChange={(e) => setCs({ ...cs, currentBal: e.target.value })} />
+              {syncOn ? (
+                <SyncedValue label="Current Balance" value={`$${fmt(currentBal)}`} hint={`${journalNet >= 0 ? "+" : "-"}$${fmt(Math.abs(journalNet))} since tracking started`} />
+              ) : (
+                <Field isDesktop={isDesktop} label="Current Balance" value={cs.currentBal} suffix="$" placeholder="10650" onChange={(e) => setCs({ ...cs, currentBal: e.target.value })} />
+              )}
             </div>
 
             <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
@@ -478,7 +578,11 @@ rightContent={
             </span>
             <PillGroup options={[2, 3, 4, 5, 6]} value={cs.dailyLossPct} onChange={(v) => setCs({ ...cs, dailyLossPct: v })} />
            <div className="lg:grid lg:grid-cols-2 lg:gap-4">
-            <Field isDesktop={isDesktop}  label="Loss Today" value={cs.todayLoss} suffix="$" placeholder="0" onChange={(e) => setCs({ ...cs, todayLoss: e.target.value })} />
+            {syncOn ? (
+              <SyncedValue label="Loss Today" value={`$${fmt(todayLoss)}`} hint={journalToday > 0 ? "You are green today" : undefined} />
+            ) : (
+              <Field isDesktop={isDesktop}  label="Loss Today" value={cs.todayLoss} suffix="$" placeholder="0" onChange={(e) => setCs({ ...cs, todayLoss: e.target.value })} />
+            )}
            </div>
             <span className="block mb-1.5 uppercase" style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}>
               Max Drawdown
@@ -525,7 +629,11 @@ rightContent={
             </span>
             <PillGroup options={[0, 15, 20, 25, 30, 40]} value={cs.rule} onChange={(v) => setCs({ ...cs, rule: v })} />
            <div className="lg:grid lg:grid-cols-2 lg:gap-4">
-            <Field isDesktop={isDesktop}  label="Best Single Day Profit" value={cs.bestDay} suffix="$" placeholder="800" onChange={(e) => setCs({ ...cs, bestDay: e.target.value })} />
+            {syncOn ? (
+              <SyncedValue label="Best Single Day Profit" value={`$${fmt(bestDay)}`} />
+            ) : (
+              <Field isDesktop={isDesktop}  label="Best Single Day Profit" value={cs.bestDay} suffix="$" placeholder="800" onChange={(e) => setCs({ ...cs, bestDay: e.target.value })} />
+            )}
            </div>
 
                        {(() => {
@@ -538,7 +646,7 @@ rightContent={
                   </p>
                 );
               }
-              const tracker = computeQualifyingTradingDays(trades, startBal, cs.minDayGainPct);
+              const tracker = computeQualifyingTradingDays(challengeTrades, startBal, cs.minDayGainPct);
               const pct = Math.min(100, (tracker.qualifyingDays / minDaysTarget) * 100);
               const met = tracker.qualifyingDays >= minDaysTarget;
               const remaining = Math.max(0, minDaysTarget - tracker.qualifyingDays);
@@ -589,7 +697,7 @@ rightContent={
   const minTradesTarget = num(cs.minTrades);
   if (minTradesTarget <= 0) return null;
 
-  const completedTrades = trades.length;
+  const completedTrades = challengeTrades.length;
   const pct = Math.min(100, (completedTrades / minTradesTarget) * 100);
   const met = completedTrades >= minTradesTarget;
   const remaining = Math.max(0, minTradesTarget - completedTrades);
