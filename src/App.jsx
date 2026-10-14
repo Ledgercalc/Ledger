@@ -4870,8 +4870,8 @@ if (!isSignal && !communityMsgText.trim()) return;
     <div className="flex flex-col h-full" style={{ background: palette.bg }}>
       <div className="sticky top-0 z-10 flex items-center gap-3 px-5" style={{ height: "56px", borderBottom: `1px solid ${palette.border}`, background: `${palette.bg}F2`, backdropFilter: "blur(10px)" }}>
         {!isDesktop && (
-          <button type="button" onClick={() => setCommunityMobileFeedOpen(false)} onMouseEnter={(e) => { e.currentTarget.style.background = palette.field; }} onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }} className={`flex items-center justify-center rounded-full flex-shrink-0 ${TAP}`} style={{ width: "32px", height: "32px", color: palette.text, marginLeft: "-6px", transition: "background 0.15s ease" }} aria-label="Back to groups">
-            <ChevronLeft size={19} />
+          <button type="button" onClick={() => setCommunityMobileFeedOpen(false)} onMouseEnter={(e) => { e.currentTarget.style.background = palette.field; }} onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }} className={`flex items-center justify-center rounded-full flex-shrink-0 ${TAP}`} style={{ width: "40px", height: "40px", color: palette.text, marginLeft: "-10px", transition: "background 0.15s ease" }} aria-label="Back to groups">
+            <ChevronLeft size={24} strokeWidth={2.4} />
           </button>
         )}
         <div className="flex-1 min-w-0 flex items-center gap-2">
@@ -5735,10 +5735,11 @@ const selectInsightsSubTab = (id) => {
               <button
                 type="button"
                 onClick={() => { setAuthScreenStep("choice"); setAuthError(""); }}
-                className={`flex items-center gap-1 mb-4 ${TAP}`}
-                style={{ color: palette.textFaint, fontFamily: mono, fontSize: "12px", background: "transparent" }}
+                className={`flex items-center justify-center rounded-full mb-3 ${TAP}`}
+                style={{ width: "40px", height: "40px", marginLeft: "-10px", color: palette.textMuted, background: "transparent", border: "none" }}
+                aria-label="Back"
               >
-                <ChevronLeft size={14} /> Back
+                <ChevronLeft size={24} strokeWidth={2.4} />
               </button>
 
               <div
@@ -8045,10 +8046,10 @@ if (activeTab === "community") {
             type="button"
             onClick={() => setSettingsMobileSection(null)}
             className={`flex items-center justify-center rounded-full flex-shrink-0 ${TAP}`}
-            style={{ width: "34px", height: "34px", color: palette.textMuted, background: palette.field, border: `1px solid ${palette.border}` }}
+            style={{ width: "40px", height: "40px", marginLeft: "-8px", color: palette.text, background: "transparent", border: "none" }}
             aria-label="Back to Settings"
           >
-            <ChevronLeft size={18} />
+            <ChevronLeft size={24} strokeWidth={2.4} />
           </button>
         ) : (
           <span
@@ -10556,8 +10557,8 @@ const isOwner = membership?.role === "owner" || !!myMember?.isOwner;
         </p>
         <div className="flex items-center gap-2">
           {tourStep > 0 && (
-            <button type="button" onClick={() => goToTourStep(tourStep - 1)} className={`px-3 py-2 rounded-lg ${TAP}`} style={{ background: "transparent", border: `1px solid ${palette.border}`, color: palette.textMuted, fontFamily: mono, fontSize: "12.5px" }}>
-              Back
+            <button type="button" onClick={() => goToTourStep(tourStep - 1)} className={`flex items-center justify-center rounded-full ${TAP}`} style={{ width: "40px", height: "40px", background: "transparent", border: "none", color: palette.textMuted }} aria-label="Previous step">
+              <ChevronLeft size={22} strokeWidth={2.4} />
             </button>
           )}
           <button type="button" onClick={() => endTour(true)} className={`px-3 py-2 rounded-lg ${TAP}`} style={{ background: "transparent", color: palette.textFaint, fontFamily: mono, fontSize: "12.5px" }}>
