@@ -26,7 +26,7 @@ import { bySession, byConfidence, tradesAsJournalRows } from "./lib/tradeInsight
 import { drawShareCard } from "./lib/shareCard.js";
 import { DARK_PALETTE, LIGHT_PALETTE, TAP, THEME_TRANSITION, TREDZI_LOGO_SRC, VOID_PALETTE, display, mono, palette, sans } from "./lib/theme.js";
 import { formatCountdown, formatMinSec, nextOccurrenceMs } from "./lib/time.js";
-import { AlertTriangle, ArrowLeftRight, CalendarDays, Link2, Bell, Building2, Camera, CandlestickChart, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, Flame, Heart, LayoutGrid, Lightbulb, LogOut, MessageCircle, Moon, Newspaper, Palette, Pencil, Plus, RotateCcw, Scale, Search, Send, Settings, Share2, ShieldAlert, Sparkles, Sun, Table2, Tags, Trash2, Upload, Users, X , Activity, TrendingDown, TrendingUp } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, CalendarDays, Link2, Bell, Building2, Camera, CandlestickChart, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, Flame, Heart, LayoutGrid, Lightbulb, LogOut, MessageCircle, Moon, Newspaper, Palette, Pencil, Plus, RotateCcw, Scale, Search, Send, Settings, Share2, ShieldAlert, Sparkles, Sun, Table2, Tags, Trash2, Upload, Users, X , Activity, TrendingDown, TrendingUp, UserCheck } from "lucide-react";
 import React, { Suspense, lazy, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import "./typography.css";
 
@@ -89,6 +89,7 @@ const CommunityTab = lazyTab(() => import("./tabs/CommunityTab.jsx"));
 const BacktestTab = lazyTab(() => import("./tabs/BacktestTab.jsx"));
 const BrokerTab = lazyTab(() => import("./tabs/BrokerTab.jsx"));
 const EconCalendarTab = lazyTab(() => import("./tabs/EconCalendarTab.jsx"));
+const PartnerTab = lazyTab(() => import("./tabs/PartnerTab.jsx"));
 const TAB_PRELOAD = {
   risk: RiskTab.preload, propfirm: PropFirmTab.preload, fx: ConvertTab.preload,
   curve: CurveTab.preload, insights: InsightsTab.preload, journal: JournalTab.preload,
@@ -113,6 +114,10 @@ const TABS = (() => {
     const at = tabs.findIndex((t) => t.id === "broker");
     tabs.splice(at === -1 ? tabs.length : at + 1, 0, { id: "econ", label: "Economic calendar", icon: CalendarDays });
   }
+  if (!tabs.some((t) => t.id === "partner")) {
+    const at = tabs.findIndex((t) => t.id === "community");
+    tabs.splice(at === -1 ? tabs.length : at + 1, 0, { id: "partner", label: "Partner", icon: UserCheck });
+  }
   if (!tabs.some((t) => t.id === "backtest")) {
     tabs.push({ id: "backtest", label: "Backtest", icon: CandlestickChart });
   }
@@ -132,6 +137,7 @@ if (typeof window !== "undefined") {
     import("./tabs/BacktestTab.jsx");
     import("./tabs/BrokerTab.jsx");
     import("./tabs/EconCalendarTab.jsx");
+    import("./tabs/PartnerTab.jsx");
   };
   (window.requestIdleCallback || ((fn) => setTimeout(fn, 1500)))(warm);
 }
@@ -323,6 +329,7 @@ const resetPropFirmWizard = () => {
       minTradingDays: plan.minTradingDays != null ? String(plan.minTradingDays) : "0",
       minTrades: plan.minTrades != null ? String(plan.minTrades) : "0",
       minDayGainPct: plan.minDayGainPct != null ? String(plan.minDayGainPct) : "0",
+      minTradeGainPct: plan.minTradeGainPct != null ? String(plan.minTradeGainPct) : "0",
       profitSplitPct: plan.profitSplitPct != null ? String(plan.profitSplitPct) : cs.profitSplitPct,
       syncJournal: true,
     });
@@ -7241,7 +7248,7 @@ const hiddenTabIds = settings.hiddenTabs || [];
   let body = null;
 
   if (activeTab === "risk") {
-    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><RiskTab {...{ ConvertTab, convertProps: { fx, fxRatesDate, fxRatesStatus, isDesktop, liveFxRates, persistSettings, setFx, settings }, applyPreset, cs, edge, edgeProjectionPeriodIdx, isDesktop, linkedFirm, ps, renderSubNav, restartChallenge, riskSubTab, setCs, setEdge, setEdgeProjectionPeriodIdx, setPs, setRiskSubTab, settings, threeCurveResult, trades }} /></Suspense>;
+    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><RiskTab {...{ ConvertTab, convertProps: { fx, fxRatesDate, fxRatesStatus, isDesktop, liveFxRates, persistSettings, setFx, settings }, applyPreset, cs, edge, edgeProjectionPeriodIdx, goToPropFirm: () => setActiveTab("propfirm"), isDesktop, linkedFirm, ps, renderSubNav, restartChallenge, riskSubTab, setCs, setEdge, setEdgeProjectionPeriodIdx, setPs, setRiskSubTab, settings, threeCurveResult, trades }} /></Suspense>;
   }
 
     if (activeTab === "propfirm") {
@@ -7274,6 +7281,10 @@ const hiddenTabIds = settings.hiddenTabs || [];
 
 
 
+
+if (activeTab === "partner") {
+    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><PartnerTab {...{ isDesktop, session, communityUsername, trades, settings, persistSettings, playbookCheckins, goToCommunity: () => setActiveTab("community") }} /></Suspense>;
+  }
 
 if (activeTab === "community") {
     body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><CommunityTab {...{ REACTION_EMOJIS, activeGroupId, addingGroup, advanceStory, answerGroupQuestion, askGroupQuestion, authorHasUnseen, avatarForAuthor, bioDraft, bioEditing, bioSaving, cancelStoryDraft, claimCommunityUsername, closeProfileBack, closeStoryViewer, commentDrafts, communityApiError, communityAvatar, communityAvatarUploading, communityChatSubView, communityFeedSubView, communityLobbyTab, communityMessagesEndRef, communityMobileFeedOpen, communityMsgText, communityPanelTab, communitySearch, communityUsername, communityUsernameBusy, communityUsernameDraft, communityUsernameError, createCommunityGroup, createCommunityPost, createFeedPost, createProfilePost, createStickerPack, createVaultItem, creatingGroup, deleteCommunityPost, deleteFeedComment, deleteFeedPost, deleteGroupQuestion, deleteProfileComment, deleteProfilePost, deleteSticker, deleteStickerPack, deleteStory, deleteVaultItem, deleteWallEntry, feedComments, feedCommentsLoading, feedCommentsOpenId, feedImageInputRef, feedImageUploading, fetchStickerPacks, followBusy, followListData, followListLoading, followListOpen, followListQuery, getCommunityMemberStats, globalFeed, globalFeedLoaded, groupAvatarMap, groupCodeError, groupFeed, groupFeedLoaded, groupInfo, groupMembersList, groupMessages, groupMessagesLoaded, groupPosts, groupPostsLoaded, groupQuestions, groupQuestionsLoaded, groupVault, groupVaultLoaded, groupWall, groupWallLoaded, handleCommunityAvatarChange, handleFeedImageChange, handlePostImageChange, handleProfilePostImageChange, handleStickerFileChange, handleStoryImageChange, isAuthorOnline, isDesktop, joinCodeError, joinCodeInput, joinGroupByCode, joiningGroup, leaderboardMetric, lightboxPost, likeGlobalFeedPost, likeProfilePost, likedFeedIds, loadGlobalFeed, loadMoreProfilePosts, myFeedReactions, myGroups, myStoryReactions, myWallIds, newFeedImage, newFeedPnl, newFeedText, newGroupCode, newGroupDesc, newGroupName, newGroupPublic, newGroupTags, newPostImage, newPostText, newQuestionText, newVaultText, newVaultTitle, newVaultUrl, newWallText, openCommunityMemberProfile, openFollowList, openGlobalFeedComments, openMyProfile, openSignalThread, openStoryComposer, openStoryViewerFor, openThreadId, pinCommunityMessage, pingTyping, pinnedMessageId, postFeedComment, postImageInputRef, postImageUploading, postProfileComment, postStory, postWallEntry, profileAvatarInputRef, profileCommentDraft, profileCommentInputRef, profileCommentSending, profileComments, profileCommentsLoading, profileComposerOpen, profileData, profileEmojiOpen, profileError, profileLoading, profileOpen, profilePostImage, profilePostImageInputRef, profilePostImageUploading, profilePostMenuOpen, profilePostOpen, profilePostSubmitting, profilePostText, profilePosts, profilePostsLoaded, profilePostsNext, profileSubTab, profileView, qaOpenId, qaReplyDrafts, reactionPickerFor, relateWallEntry, relatedWallIds, renderCommunitySearch, renderGlobalFeed, replyingTo, saveProfileBio, searchCommunity, sendCommunityMessage, sendSticker, sendThreadReply, setActiveGroupId, setAddingGroup, setBioDraft, setBioEditing, setCommentDrafts, setCommunityChatSubView, setCommunityFeedSubView, setCommunityLobbyTab, setCommunityMobileFeedOpen, setCommunityMsgText, setCommunityOpenTabDropdown, setCommunityPanelTab, setCommunitySearch, setCommunityUsernameDraft, setCommunityUsernameError, setFollowListOpen, setFollowListQuery, setGroupCodeError, setGroupManageOpen, setGroupManageTab, setJoinCodeError, setJoinCodeInput, setLeaderboardMetric, setLightboxPost, setManageDescDraft, setManageMsg, setManageNameDraft, setNewFeedImage, setNewFeedPnl, setNewFeedText, setNewGroupCode, setNewGroupDesc, setNewGroupName, setNewGroupPublic, setNewGroupTags, setNewPostImage, setNewPostText, setNewQuestionText, setNewVaultText, setNewVaultTitle, setNewVaultUrl, setNewWallText, setOpenThreadId, setPendingDeleteMsg, setProfileCommentDraft, setProfileComposerOpen, setProfileEmojiOpen, setProfilePostImage, setProfilePostMenuOpen, setProfilePostOpen, setProfilePostText, setProfileSubTab, setQaOpenId, setQaReplyDrafts, setReactionPickerFor, setReplyingTo, setSignalComposerOpen, setSignalDirection, setSignalEntry, setSignalPair, setSignalSL, setSignalStatsOpen, setSignalTP, setStickerActivePackId, setStickerManageMode, setStickerNewPackName, setStickerPickerOpen, setStoryCaption, setStoryPaused, setStoryViewer, setThreadDraft, shadowSignalToTrade, signalComposerOpen, signalDirection, signalEntry, signalPair, signalSL, signalStatsOpen, signalTP, stickerActivePackId, stickerError, stickerFileInputRef, stickerManageMode, stickerNewPackName, stickerPacks, stickerPacksLoaded, stickerPickerOpen, stickerUploading, storiesByAuthor, storyAuthorOrder, storyCaption, storyDraft, storyImageInputRef, storyPosting, storyProgressPct, storyViewer, threadDraft, threadLoading, threadReplies, toggleFeedComments, toggleFeedReaction, toggleFollowMember, toggleMessageReaction, toggleStoryReaction, typingUsers, unpinCommunityMessage, uploadProfilePostImage }} /></Suspense>;
