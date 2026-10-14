@@ -193,7 +193,7 @@ export default function TredziApp() {
   const [riskSubTab, setRiskSubTab] = useState("challenge");
   const [edgeProjectionPeriodIdx, setEdgeProjectionPeriodIdx] = useState(1);
   const [pfFirmId, setPfFirmId] = useState(null);
-  const [linkedFirm, setLinkedFirm] = useState(null); // { firmName, planLabel } once applied from the Prop Firm tab
+  const [linkedFirm, setLinkedFirm] = useState(null); // { firmName, planLabel, linkedAt } once applied from the Prop Firm tab
   const [pfPlanId, setPfPlanId] = useState(null);
   const [pfSizeAmount, setPfSizeAmount] = useState(null);
   const [pfPhaseIdx, setPfPhaseIdx] = useState(0);
@@ -324,8 +324,10 @@ const resetPropFirmWizard = () => {
       minTrades: plan.minTrades != null ? String(plan.minTrades) : "0",
       minDayGainPct: plan.minDayGainPct != null ? String(plan.minDayGainPct) : "0",
       profitSplitPct: plan.profitSplitPct != null ? String(plan.profitSplitPct) : cs.profitSplitPct,
+      syncJournal: true,
     });
-    const newLinkedFirm = { firmName: firm.name, planLabel: plan.label };
+    // linkedAt: only trades logged from this moment count toward the challenge.
+    const newLinkedFirm = { firmName: firm.name, planLabel: plan.label, linkedAt: Date.now() };
     setLinkedFirm(newLinkedFirm);
     if (activeAccountId) {
       window.storage
@@ -334,6 +336,16 @@ const resetPropFirmWizard = () => {
     }
     setActiveTab("risk");
     setRiskSubTab("challenge");
+  };
+
+  // Restart challenge tracking from now (older trades stop counting toward the challenge).
+  const restartChallenge = () => {
+    if (!linkedFirm) return;
+    const next = { ...linkedFirm, linkedAt: Date.now() };
+    setLinkedFirm(next);
+    if (activeAccountId) {
+      window.storage.set(scopedKey(LINKED_FIRM_KEY, activeAccountId), JSON.stringify(next), false).catch(() => {});
+    }
   };
 
   const [fx, setFx] = useState({ amount: "100", from: "USD", to: "BDT", customRate: "" });
@@ -378,6 +390,21 @@ const resetPropFirmWizard = () => {
 
   const [journalSubTab, setJournalSubTab] = useState("log");
   const [logSheetOpen, setLogSheetOpen] = useState(false);
+  const [econSubTab, setEconSubTabState] = useState(() => {
+    try {
+      return window.localStorage.getItem("ec-subtab") === "sessions" ? "sessions" : "news";
+    } catch (e) {
+      return "news";
+    }
+  });
+  const setEconSubTab = (v) => {
+    setEconSubTabState(v);
+    try {
+      window.localStorage.setItem("ec-subtab", v);
+    } catch (e) {
+      // storage unavailable
+    }
+  };
   // The Curve tab now lives inside Journal and Notepad has been removed. Anything that still points at the
   // old ids (saved landing tab, shared links) is redirected to Journal here.
   useEffect(() => {
@@ -7214,7 +7241,7 @@ const hiddenTabIds = settings.hiddenTabs || [];
   let body = null;
 
   if (activeTab === "risk") {
-    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><RiskTab {...{ ConvertTab, convertProps: { fx, fxRatesDate, fxRatesStatus, isDesktop, liveFxRates, persistSettings, setFx, settings }, applyPreset, cs, edge, edgeProjectionPeriodIdx, isDesktop, linkedFirm, ps, renderSubNav, riskSubTab, setCs, setEdge, setEdgeProjectionPeriodIdx, setPs, setRiskSubTab, settings, threeCurveResult, trades }} /></Suspense>;
+    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><RiskTab {...{ ConvertTab, convertProps: { fx, fxRatesDate, fxRatesStatus, isDesktop, liveFxRates, persistSettings, setFx, settings }, applyPreset, cs, edge, edgeProjectionPeriodIdx, isDesktop, linkedFirm, ps, renderSubNav, restartChallenge, riskSubTab, setCs, setEdge, setEdgeProjectionPeriodIdx, setPs, setRiskSubTab, settings, threeCurveResult, trades }} /></Suspense>;
   }
 
     if (activeTab === "propfirm") {
@@ -7238,7 +7265,7 @@ const hiddenTabIds = settings.hiddenTabs || [];
   }
 
   if (activeTab === "econ") {
-    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><EconCalendarTab {...{ theme, isDesktop }} apiBase={COMMUNITY_API_BASE} /></Suspense>;
+    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><EconCalendarTab {...{ theme, isDesktop, renderSubNav }} subTab={econSubTab} setSubTab={setEconSubTab} apiBase={COMMUNITY_API_BASE} /></Suspense>;
   }
 
   if (activeTab === "backtest") {
@@ -7624,7 +7651,7 @@ if (activeTab === "community") {
           const coachFixed = !tourActive && activeTab === "insights" && insightsSubTab === "coach";
           const coachFillStyle = coachFixed ? { flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column" } : null;
           // Tabs whose first element is the sticky sub-tab bar start flush at the top, so the bar never slides up on scroll.
-          const startsWithSubNav = ["risk", "journal", "insights"].includes(activeTab);
+          const startsWithSubNav = ["risk", "journal", "insights", "econ"].includes(activeTab);
           return (
 <TabHost
               ref={tabHostRef}
