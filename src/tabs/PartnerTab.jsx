@@ -1,5 +1,5 @@
-import { AlertTriangle, Award, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, Copy, Flame, Inbox, Lightbulb, Lock, MessageCircle, Pencil, Play, Plus, RefreshCw, Send, Share2, ShieldAlert, Sparkles, Star, StickyNote, Target, TrendingDown, TrendingUp, Trash2, Users, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, ArrowUpRight, Award, Calendar, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, Clock, Copy, Download, Flame, Inbox, Lightbulb, Lock, MessageCircle, Mic, Pause, Pencil, Play, Plus, RefreshCw, Repeat, Send, Share2, ShieldAlert, Sparkles, Square, Star, StickyNote, Target, TrendingDown, TrendingUp, Trash2, Users, X } from "lucide-react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { COMMUNITY_API_BASE } from "../api/community.js";
 import { Avatar } from "../components/ui.jsx";
 import { dayKeyFromDate, dayKeyFromTs, num } from "../lib/format.js";
@@ -44,6 +44,10 @@ const NUDGE_TEXT = {
   check_in: "says: Where's your check-in?",
   left: "ended the connection.",
   comment: "commented on a shared trade.",
+  break: "is taking a break.",
+  review: "rated one of your trades.",
+  goal: "set you a goal.",
+  session: "shared their session notes.",
 };
 // one-tap starters so a mentor can give useful feedback in seconds, and a mentee knows what to ask
 const MENTOR_QUICK = [
@@ -99,7 +103,9 @@ const ptCss = () => `
 .pt-group:focus-within{border-color:${palette.gold}}
 .pt-group input,.pt-group textarea{flex:1;min-width:0;background:transparent;border:0;outline:0;color:${palette.text};font-family:inherit;font-size:16px;padding:12px 14px}
 .pt-group input:focus-visible,.pt-group textarea:focus-visible{outline:0}
-@media (prefers-reduced-motion:reduce){.pt-fold,.pt-chev{transition:none}}
+@keyframes pt-wave{0%,100%{transform:scaleY(.45)}50%{transform:scaleY(1)}}
+.pt-wave{display:block;transform-origin:center;animation:pt-wave .9s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){.pt-fold,.pt-chev{transition:none}.pt-wave{animation:none}}
 `;
 
 const MENTEE_QUICK = [
@@ -108,7 +114,7 @@ const MENTEE_QUICK = [
   ["Size right?", "Was my position size right for this setup?"],
   ["Your take", "What would you have done differently here?"],
 ];
-const DEFAULT_SHARE = { on: true, checkin: true, trades: true, loss: true };
+const DEFAULT_SHARE = { on: true, checkin: true, trades: true, loss: true, ready: true };
 const money = (n) => `${n < 0 ? "-" : "+"}$${Math.abs(n).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 const dateText = (ts) => new Date(ts).toLocaleDateString([], { month: "short", day: "numeric" });
 const ago = (ts) => {
@@ -217,6 +223,37 @@ function groupTrades(list, key) {
   return Object.values(map).sort((a, b) => a.net - b.net);
 }
 const hasFeedback = (t) => (t.feedback !== undefined ? t.feedback > 0 : t.comments > 0);
+// losses piling up late in the day: the latest hour from which at least 65% of the losses fall
+function lateLosses(list) {
+  const losses = list.filter((t) => t.pnl < 0);
+  if (losses.length < 4) return null;
+  let best = null;
+  for (const h of [12, 13, 14, 15, 16, 17, 18]) {
+    const after = losses.filter((t) => new Date(t.ts).getHours() >= h).length;
+    const trades = list.filter((t) => new Date(t.ts).getHours() >= h).length;
+    if (after / losses.length >= 0.65 && trades / list.length <= 0.8) best = { h, pct: Math.round((after / losses.length) * 100) };
+  }
+  return best;
+}
+// a weekday that has been net negative several weeks in a row (this week only counts once it has trades)
+function weekdayNegative(list) {
+  const thisWeek = weekStartOf(dayKeyFromDate(new Date()));
+  let best = null;
+  for (let d = 1; d <= 5; d += 1) {
+    const sums = {};
+    list.forEach((t) => { if (new Date(t.ts).getDay() === d) { const w = weekStartOf(dayKeyFromTs(t.ts)); sums[w] = (sums[w] || 0) + t.pnl; } });
+    let run = 0;
+    let w = thisWeek;
+    for (let i = 0; i < 8; i += 1) {
+      const net = sums[w];
+      if (net === undefined) { if (i === 0) { w = addDaysKey(w, -7); continue; } break; }
+      if (net < 0) run += 1; else break;
+      w = addDaysKey(w, -7);
+    }
+    if (run >= 3 && (!best || run > best.run)) best = { d, run };
+  }
+  return best;
+}
 function coachInsights(list) {
   const s = tradeStats(list);
   const out = [];
@@ -231,14 +268,18 @@ function coachInsights(list) {
       if (g && g.n / s.losses >= 0.5) { out.push({ tone: BAD, text: `${Math.round((g.n / s.losses) * 100)}% of their losses are tagged "${g.label}". Worth a conversation.` }); break; }
     }
   }
+  const late = lateLosses(list);
+  if (late) out.push({ tone: BAD, icon: "clock", text: `${late.pct}% of losses happen after ${late.h > 12 ? late.h - 12 : late.h} PM (your time).` });
+  const wd = weekdayNegative(list);
+  if (wd) out.push({ tone: BAD, icon: "calendar", text: `${WEEKDAYS[wd.d]}s are net negative, ${wd.run} weeks in a row.` });
   if (s.avgLoss > 0 && s.avgWin > 0 && s.avgLoss > s.avgWin * 1.25) out.push({ tone: BAD, text: "Average loss is bigger than average win. Look at stop placement and early exits." });
   else if (s.avgWin > s.avgLoss * 1.5 && s.winRate < 50) out.push({ tone: GOOD, text: "Wins are much bigger than losses. A low win rate is still profitable here." });
   if (s.winRate >= 60 && s.net < 0) out.push({ tone: WARN, text: "High win rate but net negative. A few big losers are erasing the wins." });
   const run = lossRun(list);
   if (run >= 3) out.unshift({ tone: BAD, text: `The last ${run} trades were all losses. Suggest a break and smaller size before the next one.` });
   const quick = quickReentries(list);
-  if (quick >= 2) out.push({ tone: WARN, text: `${plural(quick, "trade")} taken within 30 minutes of a loss. Check for revenge trading.` });
-  return out.slice(0, 4);
+  if (quick >= 2) out.push({ tone: WARN, icon: "repeat", text: `${plural(quick, "trade")} taken within 30 minutes of a loss. Check for revenge trading.` });
+  return out.slice(0, 5);
 }
 
 /* ---------- small building blocks ---------- */
@@ -461,41 +502,6 @@ function QuickReview({ onInsert }) {
   );
 }
 
-// homework for the next session, kept on this device
-function ActionItems({ storageKey }) {
-  const read = () => { try { const v = JSON.parse(localStorage.getItem(storageKey) || "[]"); return Array.isArray(v) ? v : []; } catch (e) { return []; } };
-  const [items, setItems] = useState(read);
-  const [text, setText] = useState("");
-  const save = (next) => { setItems(next); try { if (next.length) localStorage.setItem(storageKey, JSON.stringify(next)); else localStorage.removeItem(storageKey); } catch (e) { /* storage unavailable */ } };
-  const add = () => { const t = text.trim().slice(0, 120); if (!t || items.length >= 12) return; save([...items, { t, done: false }]); setText(""); };
-  const left = items.filter((i) => !i.done).length;
-  return (
-    <div style={{ marginTop: 14, borderRadius: 14, border: `1px solid ${palette.border}`, background: tint(palette.text, 3), padding: "12px 13px 13px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-        <ClipboardCheck size={14} style={{ color: palette.gold }} />
-        <span style={{ flex: 1, fontSize: 13, fontWeight: 800, color: palette.text }}>Homework for next session</span>
-        {items.length > 0 && <Pill color={left ? WARN : GOOD}>{left ? `${left} open` : "all done"}</Pill>}
-      </div>
-      {items.map((it, i) => (
-        <div key={`${i}-${it.t}`} style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
-          <button type="button" role="checkbox" aria-checked={it.done} aria-label={it.t} onClick={() => save(items.map((x, k) => (k === i ? { ...x, done: !x.done } : x)))} className={TAP} style={{ width: 40, height: 40, background: "transparent", border: 0, padding: 0, cursor: "pointer", display: "grid", placeItems: "center", flexShrink: 0 }}>
-            <span style={{ width: 20, height: 20, borderRadius: 7, display: "grid", placeItems: "center", border: `2px solid ${it.done ? GOOD : tint(palette.text, 30)}`, background: it.done ? GOOD : "transparent", color: "#fff" }}>{it.done && <Check size={13} strokeWidth={3.2} />}</span>
-          </button>
-          <span style={{ flex: 1, minWidth: 0, fontSize: 13, lineHeight: 1.4, color: it.done ? palette.textFaint : palette.text, textDecoration: it.done ? "line-through" : "none", overflowWrap: "anywhere" }}>{it.t}</span>
-          <button type="button" aria-label="Remove item" onClick={() => save(items.filter((_, k) => k !== i))} className={TAP} style={{ width: 36, height: 40, background: "transparent", border: 0, padding: 0, cursor: "pointer", color: palette.textFaint, display: "grid", placeItems: "center", flexShrink: 0 }}><X size={14} /></button>
-        </div>
-      ))}
-      {items.length < 12 && (
-        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-          <input value={text} maxLength={120} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} placeholder="e.g. Journal every loss this week" style={field} />
-          <button type="button" disabled={!text.trim()} onClick={add} style={btn(false)}>Add</button>
-        </div>
-      )}
-      <div style={{ display: "flex", alignItems: "center", gap: 6, ...sub }}><Lock size={11} /> Only you can see this. Saved on this device.</div>
-    </div>
-  );
-}
-
 // the things worth raising in the next session, picked from the shared trades
 function SessionPrep({ list, stars, homeworkOpen, onOpen }) {
   if (list.length < 3) return null;
@@ -605,12 +611,698 @@ function WeekStrip({ days, today }) {
   );
 }
 
+/* ================= accountability + coaching building blocks ================= */
+const addDaysKey = (key, n) => { const d = new Date(`${key}T12:00:00`); d.setDate(d.getDate() + n); return dayKeyFromDate(d); };
+const weekStartOf = (key) => { const d = new Date(`${key}T12:00:00`); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return dayKeyFromDate(d); };
+const isWeekendKey = (key) => { const w = new Date(`${key}T12:00:00`).getDay(); return w === 0 || w === 6; };
+const spanDays = (a, b) => Math.round((Date.parse(`${b}T12:00:00`) - Date.parse(`${a}T12:00:00`)) / DAY_MS);
+const keyText = (key) => dateText(Date.parse(`${key}T12:00:00`));
+const clock = (ts) => new Date(ts).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+const mmss = (ms) => { const s = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+const PAUSE_AFTER = 3; // losses in a row before the pause banner shows
+const PAUSE_KEY = "tredzi.pause";
+const RITUAL_KEY = "tredzi.ritual";
+const readPause = () => { try { const v = JSON.parse(localStorage.getItem(PAUSE_KEY) || "{}"); return { until: Number(v.until) || 0, dismissed: Number(v.dismissed) || 0 }; } catch (e) { return { until: 0, dismissed: 0 }; } };
+const writePause = (v) => { try { localStorage.setItem(PAUSE_KEY, JSON.stringify(v)); } catch (e) { /* storage unavailable */ } };
+const readRitual = (day) => {
+  try { const v = JSON.parse(localStorage.getItem(RITUAL_KEY) || "{}"); if (v && v.day === day) return { day, read: !!v.read, done: !!v.done, at: Number(v.at) || 0 }; } catch (e) { /* ignore */ }
+  return { day, read: false, done: false, at: 0 };
+};
+const writeRitual = (v) => { try { localStorage.setItem(RITUAL_KEY, JSON.stringify(v)); } catch (e) { /* storage unavailable */ } };
+
+// A tick box drawn the same way everywhere in this tab. `auto` boxes can't be tapped; they reflect a setting.
+function Tick({ on, auto }) {
+  return <span aria-hidden="true" style={{ width: 20, height: 20, borderRadius: 7, display: "grid", placeItems: "center", flexShrink: 0, border: `2px solid ${on ? GOOD : tint(palette.text, auto ? 20 : 30)}`, background: on ? GOOD : "transparent", color: "#fff" }}>{on && <Check size={13} strokeWidth={3.2} />}</span>;
+}
+
+/* ---------- pre-session ritual ---------- */
+function RitualCard({ ctx }) {
+  const { ritual, updateRitual, ritualRows, share } = ctx;
+  const all = ritualRows.every((r) => r.on);
+  return (
+    <Card title="Before you trade today" icon={<ClipboardCheck size={14} />}
+      aside={ritual.done ? <Pill color={GOOD}><Check size={11} strokeWidth={3} /> Ready</Pill> : <Pill color={WARN}>Not yet</Pill>}>
+      {ritual.done ? (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ fontSize: 13, color: palette.text, lineHeight: 1.5 }}>Plan confirmed{ritual.at ? ` at ${clock(ritual.at)}` : ""}. Trade well.</div>
+          <button type="button" onClick={() => updateRitual({ done: false, at: 0 })} style={{ ...btn(false), ...small }}>Edit</button>
+        </div>
+      ) : (
+        <>
+          {ritualRows.map((r) => {
+            const inner = (
+              <>
+                <Tick on={r.on} auto={r.auto} />
+                <span style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
+                  <span style={{ display: "block", fontSize: 13.5, fontWeight: 600, color: palette.text }}>{r.label}</span>
+                  {r.auto && !r.on && <span style={{ display: "block", fontSize: 11, color: palette.textFaint, marginTop: 1 }}>{r.hint}</span>}
+                </span>
+              </>
+            );
+            const st = { display: "flex", alignItems: "center", gap: 11, width: "100%", minHeight: TOUCH ? 46 : 40, padding: "4px 2px", background: "transparent", border: 0, fontFamily: sans };
+            return r.auto
+              ? <div key={r.key} style={st}>{inner}</div>
+              : <button key={r.key} type="button" role="checkbox" aria-checked={r.on} onClick={() => updateRitual({ read: !ritual.read })} className={TAP} style={{ ...st, cursor: "pointer" }}>{inner}</button>;
+          })}
+          <button type="button" disabled={!all} onClick={() => updateRitual({ done: true, at: Date.now() })} style={{ ...btn(true), width: "100%", marginTop: 10, opacity: all ? 1 : 0.5 }}>Confirm plan</button>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, ...sub }}><Lock size={11} /> {share.on && share.ready ? "Partners see one tick: ready or not yet." : "Sharing is off, so only you see this."}</div>
+        </>
+      )}
+    </Card>
+  );
+}
+
+/* ---------- pause pact ---------- */
+function PauseBanner({ run, paused, until, hasPartners, sharing, onPause, onKeep, onEnd }) {
+  if (paused) {
+    return (
+      <Card style={{ background: soft(WARN, 9), border: `1px solid ${tint(WARN, 38)}` }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <Pause size={20} style={{ color: ink(WARN), flexShrink: 0 }} />
+          <div style={{ flex: "1 1 200px", minWidth: 0 }}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: palette.text }}>On a break until {clock(until)}</div>
+            <div style={sub}>Step away from the charts. Come back with smaller size.</div>
+          </div>
+          <button type="button" onClick={onEnd} style={{ ...btn(false), ...small }}>End break</button>
+        </div>
+      </Card>
+    );
+  }
+  return (
+    <Card style={{ background: soft(WARN, 9), border: `1px solid ${tint(WARN, 38)}` }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+        <Pause size={20} style={{ color: ink(WARN), flexShrink: 0, marginTop: 1 }} />
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 800, color: palette.text, lineHeight: 1.45 }}>{run} losses in a row. Take a break and come back with smaller size.</div>
+          <div style={sub}>{hasPartners && sharing ? "Your partners get a quiet \"taking a break\" note if you pause." : "Only you see this."}</div>
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+        <button type="button" onClick={onPause} style={btn(true)}>Pause 1 hour</button>
+        <button type="button" onClick={onKeep} style={btn(false)}>Keep going</button>
+      </div>
+    </Card>
+  );
+}
+
+/* ---------- weekly report card ---------- */
+function roundRect(g, x, y, w, h, r) {
+  g.beginPath();
+  g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r);
+  g.closePath();
+}
+function drawReportImage({ title, name, streak, rules, commit }) {
+  return new Promise((resolve) => {
+    try {
+      const W = 1080, H = 640;
+      const c = document.createElement("canvas");
+      c.width = W; c.height = H;
+      const g = c.getContext("2d");
+      const gold = /^#[0-9a-f]{3,8}$/i.test(String(palette.gold)) ? palette.gold : "#d4a93a";
+      const face = "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
+      g.fillStyle = "#101216"; g.fillRect(0, 0, W, H);
+      g.fillStyle = gold; g.fillRect(0, 0, W, 10);
+      g.fillStyle = "#f4f4f5"; g.font = `700 58px ${face}`; g.fillText(title, 64, 130);
+      g.fillStyle = "#9ca3af"; g.font = `500 30px ${face}`; g.fillText(name ? `${name} on Tredzi` : "Tredzi", 64, 184);
+      [[String(streak), "day streak", "#f4f4f5"], [rules, "rules kept", "#f4f4f5"], [commit, "commitment", commit === "Kept" ? "#34d399" : commit === "Missed" ? "#fb7185" : "#f4f4f5"]].forEach(([v, l, col], i) => {
+        const x = 64 + i * 322;
+        g.fillStyle = "#1a1d23"; roundRect(g, x, 244, 292, 250, 28); g.fill();
+        g.fillStyle = col; g.font = `800 ${v.length > 5 ? 64 : 92}px ui-monospace, Menlo, Consolas, monospace`; g.textAlign = "center"; g.fillText(v, x + 146, 392);
+        g.fillStyle = "#9ca3af"; g.font = `600 28px ${face}`; g.fillText(l, x + 146, 446);
+        g.textAlign = "left";
+      });
+      g.fillStyle = "#6b7280"; g.font = `500 24px ${face}`; g.fillText("Yes/no signs only. No balances, P&L or trades.", 64, 580);
+      c.toBlob((b) => resolve(b), "image/png");
+    } catch (e) { resolve(null); }
+  });
+}
+function ReportCard({ ctx, data, order }) {
+  const { today, dayState, ownStreak, say, username } = ctx;
+  const week = weekStartOf(today);
+  let kept = 0, tracked = 0;
+  for (let i = 0; i < 5; i += 1) {
+    const k = addDaysKey(week, i);
+    if (k > today) break;
+    const s = dayState(k);
+    if (s !== "none") { tracked += 1; if (s === "kept") kept += 1; }
+  }
+  const c = data.myCommit;
+  const commit = !c ? "None" : c.kept === true ? "Kept" : c.kept === false ? "Missed" : "Pending";
+  const rules = tracked ? `${kept}/${tracked}` : "-";
+  const title = `Week of ${keyText(week)}`;
+  const line = `${title}: ${ownStreak}-day clean streak, ${rules} rules kept, commitment ${commit.toLowerCase()}.`;
+  const share = async () => {
+    try {
+      if (navigator.share) { await navigator.share({ title, text: line }); return; }
+      await navigator.clipboard.writeText(line); say("Copied to your clipboard.");
+    } catch (e) { if (!e || e.name !== "AbortError") say("Couldn't share that.", true); }
+  };
+  const save = async () => {
+    const blob = await drawReportImage({ title, name: username, streak: ownStreak, rules, commit });
+    if (!blob) { say("Couldn't make the image.", true); return; }
+    const file = new File([blob], `tredzi-${week}.png`, { type: "image/png" });
+    try {
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title }); return; }
+    } catch (e) { if (e && e.name === "AbortError") return; }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = file.name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    say("Image saved.");
+  };
+  return (
+    <Card style={{ order }} title={title} icon={<Award size={14} />}>
+      <div style={{ display: "flex", gap: 8 }}>
+        <StatTile label="Day streak" value={ownStreak} hint={ownStreak === 1 ? "day clean" : "days clean"} color={ownStreak > 0 ? palette.gold : undefined} />
+        <StatTile label="Rules kept" value={rules} hint="days this week" color={tracked && kept === tracked ? GOOD : undefined} />
+        <StatTile label="Commitment" value={commit} color={commit === "Kept" ? GOOD : commit === "Missed" ? BAD : undefined} />
+      </div>
+      <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+        <button type="button" onClick={share} style={{ ...btn(true), ...small, display: "inline-flex", alignItems: "center", gap: 7 }}><Share2 size={14} /> Share</button>
+        <button type="button" onClick={save} style={{ ...btn(false), ...small, display: "inline-flex", alignItems: "center", gap: 7 }}><Download size={14} /> Save image</button>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, ...sub }}><Lock size={11} /> The image shows yes/no signs only. No balance, P&amp;L or trades.</div>
+    </Card>
+  );
+}
+
+/* ---------- rule-break heatmap ---------- */
+function RuleHeatmapCard({ ctx }) {
+  const { today, dayState } = ctx;
+  const start = addDaysKey(weekStartOf(today), -28);
+  let kept = 0, broken = 0;
+  const rows = [0, 1, 2, 3, 4].map((w) => [0, 1, 2, 3, 4, 5, 6].map((d) => {
+    const key = addDaysKey(start, w * 7 + d);
+    const state = key > today ? "future" : dayState(key);
+    if (state === "kept") kept += 1; else if (state === "broken") broken += 1;
+    return { key, state };
+  }));
+  const fill = (s) => (s === "kept" ? GOOD : s === "broken" ? BAD : tint(palette.text, s === "future" ? 4 : 9));
+  const word = { kept: "rules kept", broken: "rule broken", none: "no data", future: "not yet" };
+  return (
+    <Card title="Last 5 weeks" icon={<Calendar size={14} />} aside={<span style={{ fontSize: 11.5, color: palette.textFaint }}>{kept + broken > 0 ? `${kept} kept · ${broken} broken` : "no data yet"}</span>}>
+      <div style={{ display: "grid", gridTemplateColumns: "28px repeat(7, minmax(0, 1fr))", gap: 5, maxWidth: 420, alignItems: "center", fontSize: 11, color: palette.textFaint }}>
+        <span />
+        {["M", "T", "W", "T", "F", "S", "S"].map((l, i) => <span key={i} style={{ textAlign: "center" }}>{l}</span>)}
+        {rows.map((row, w) => (
+          <Fragment key={w}>
+            <span>W{w + 1}</span>
+            {row.map((c) => (
+              <span key={c.key} role="img" aria-label={`${keyText(c.key)}: ${word[c.state]}`} title={`${keyText(c.key)}: ${word[c.state]}`}
+                style={{ display: "block", aspectRatio: "1", borderRadius: 6, background: fill(c.state), boxShadow: c.key === today ? `0 0 0 2px ${palette.gold}` : "none" }} />
+            ))}
+          </Fragment>
+        ))}
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 14, marginTop: 12, fontSize: 11.5, color: palette.textMuted }}>
+        {[["kept", "Rules kept"], ["broken", "Rule broken"], ["none", "No data"]].map(([k, label]) => (
+          <span key={k} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span aria-hidden="true" style={{ width: 11, height: 11, borderRadius: 4, background: fill(k) }} />{label}</span>
+        ))}
+      </div>
+      <div style={sub}>Worked out on this device from your check-ins, max trades and loss limit. W5 is this week.</div>
+    </Card>
+  );
+}
+
+/* ---------- rubric score per trade ---------- */
+const RUBRIC = [["plan", "Plan"], ["entry", "Entry"], ["risk", "Risk"], ["exit", "Exit"]];
+function Dots({ value, onChange, label }) {
+  return (
+    <span role="group" aria-label={label} style={{ display: "inline-flex", gap: 2 }}>
+      {[1, 2, 3, 4, 5].map((n) => {
+        const on = n <= value;
+        const dot = <span style={{ width: 14, height: 14, borderRadius: 99, display: "block", border: `1.5px solid ${on ? palette.gold : tint(palette.text, 35)}`, background: on ? palette.gold : "transparent" }} />;
+        return onChange
+          ? <button key={n} type="button" aria-label={`${label} ${n} of 5`} aria-pressed={value === n} onClick={() => onChange(value === n ? 0 : n)} className={TAP} style={{ width: TOUCH ? 34 : 28, height: TOUCH ? 38 : 30, background: "transparent", border: 0, padding: 0, display: "grid", placeItems: "center", cursor: "pointer" }}>{dot}</button>
+          : <span key={n} style={{ padding: "0 3px", display: "grid", placeItems: "center" }}>{dot}</span>;
+      })}
+    </span>
+  );
+}
+function Spark({ values }) {
+  return (
+    <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 38 }} aria-label={`Scores: ${values.join(", ")}`} role="img">
+      {values.map((v, i) => <span key={i} style={{ width: 16, height: Math.max(6, (v / 5) * 36), borderRadius: 3, background: i === values.length - 1 ? palette.gold : tint(palette.text, 26) }} />)}
+    </div>
+  );
+}
+function RubricBlock({ d, ctx, onSaved }) {
+  const { token, run } = ctx;
+  const base = d.rubric || { plan: 0, entry: 0, risk: 0, exit: 0 };
+  const [sc, setSc] = useState(base);
+  const [focus, setFocus] = useState("entry");
+  const mentor = !d.mine;
+  const changed = RUBRIC.some(([k]) => (sc[k] || 0) !== (base[k] || 0));
+  const series = (d.trend && d.trend[focus]) || [];
+  if (!mentor && !d.rubric) return null;
+  const save = async () => { const r = await run(() => api(token, "/mentors/rubric", { method: "POST", body: { id: d.trade.id, scores: sc } }), "Rating saved."); if (r) onSaved(); };
+  return (
+    <div style={{ marginTop: 16, borderRadius: 14, border: `1px solid ${palette.border}`, background: tint(palette.text, 3), padding: "12px 14px 14px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 800, color: palette.text }}><Star size={14} style={{ color: palette.gold }} /> {mentor ? "Rate this trade" : "Your mentor's rating"}</div>
+      {RUBRIC.map(([k, label]) => (
+        <div key={k} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 6 }}>
+          <span style={{ fontSize: 13, color: palette.text, fontWeight: 600 }}>{label}</span>
+          <Dots value={sc[k] || 0} label={label} onChange={mentor ? (v) => setSc((c) => ({ ...c, [k]: v })) : undefined} />
+        </div>
+      ))}
+      {mentor && <button type="button" disabled={!changed} onClick={save} style={{ ...btn(true), ...small, width: "100%", marginTop: 10, opacity: changed ? 1 : 0.5 }}>Save rating</button>}
+      {series.length >= 2 && (
+        <div style={{ borderTop: `1px solid ${palette.border}`, marginTop: 12, paddingTop: 11 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+            <span style={{ fontSize: 12, color: palette.textMuted, fontWeight: 600 }}>{RUBRIC.find((x) => x[0] === focus)[1]}, last {series.length} trades</span>
+            <span style={{ display: "flex", gap: 5 }}>{RUBRIC.map(([k, label]) => <Chip key={k} on={focus === k} onClick={() => setFocus(k)}>{label}</Chip>)}</span>
+          </div>
+          <Spark values={series} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------- voice notes ---------- */
+function VoiceBubble({ src, ms, tone }) {
+  const audio = useRef(null);
+  const [playing, setPlaying] = useState(false);
+  const [pos, setPos] = useState(0);
+  useEffect(() => () => { if (audio.current) { audio.current.pause(); audio.current = null; } }, []);
+  const toggle = () => {
+    if (!audio.current) {
+      const a = new Audio(src);
+      a.addEventListener("timeupdate", () => setPos(a.duration && isFinite(a.duration) ? a.currentTime / a.duration : (a.currentTime * 1000) / (ms || 30000)));
+      a.addEventListener("ended", () => { setPlaying(false); setPos(0); });
+      a.addEventListener("pause", () => setPlaying(false));
+      a.addEventListener("play", () => setPlaying(true));
+      audio.current = a;
+    }
+    if (audio.current.paused) audio.current.play().catch(() => setPlaying(false)); else audio.current.pause();
+  };
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 170 }}>
+      <button type="button" onClick={toggle} aria-label={playing ? "Pause voice note" : "Play voice note"} className={TAP} style={{ width: 34, height: 34, borderRadius: 99, border: 0, flexShrink: 0, display: "grid", placeItems: "center", cursor: "pointer", background: tone || palette.gold, color: onGold() }}>
+        {playing ? <Pause size={15} fill="currentColor" /> : <Play size={15} fill="currentColor" />}
+      </button>
+      <div style={{ flex: 1, height: 6, borderRadius: 99, background: tint(palette.text, 12), overflow: "hidden" }}><div style={{ width: `${Math.min(100, pos * 100)}%`, height: "100%", background: palette.gold, transition: "width .2s linear" }} /></div>
+      <span style={{ fontFamily: mono, fontSize: 11, color: palette.textMuted }}>{mmss(ms)}</span>
+    </div>
+  );
+}
+const VOICE_MAX_MS = 30000;
+function VoiceRecorder({ onSend, onClose, busy }) {
+  const [phase, setPhase] = useState("idle"); // idle | recording | review
+  const [elapsed, setElapsed] = useState(0);
+  const [clip, setClip] = useState(null);
+  const [err, setErr] = useState("");
+  const rec = useRef(null);
+  const stream = useRef(null);
+  const chunks = useRef([]);
+  const started = useRef(0);
+  const timer = useRef(null);
+  const cancelled = useRef(false);
+  const release = () => { clearInterval(timer.current); if (stream.current) { stream.current.getTracks().forEach((t) => t.stop()); stream.current = null; } };
+  useEffect(() => () => { cancelled.current = true; release(); if (rec.current && rec.current.state !== "inactive") { try { rec.current.stop(); } catch (e) { /* ignore */ } } }, []);
+  const stop = () => { if (rec.current && rec.current.state !== "inactive") rec.current.stop(); };
+  const start = async () => {
+    setErr("");
+    if (!navigator.mediaDevices || !window.MediaRecorder) { setErr("This browser can't record audio."); return; }
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.current = s;
+      const type = ["audio/webm;codecs=opus", "audio/mp4", "audio/webm"].find((t) => window.MediaRecorder.isTypeSupported && window.MediaRecorder.isTypeSupported(t));
+      const r = new window.MediaRecorder(s, { ...(type ? { mimeType: type } : null), audioBitsPerSecond: 24000 });
+      chunks.current = [];
+      r.ondataavailable = (e) => { if (e.data && e.data.size) chunks.current.push(e.data); };
+      r.onstop = () => {
+        const ms = Math.min(VOICE_MAX_MS, Date.now() - started.current);
+        release();
+        if (cancelled.current) return;
+        const blob = new Blob(chunks.current, { type: r.mimeType || type || "audio/webm" });
+        const fr = new FileReader();
+        fr.onload = () => {
+          const url = String(fr.result || "");
+          if (url.length > 440000) { setErr("That one came out too big. Try a shorter note."); setPhase("idle"); return; }
+          setClip({ url, ms: Math.max(1000, ms) }); setPhase("review");
+        };
+        fr.readAsDataURL(blob);
+      };
+      rec.current = r;
+      started.current = Date.now();
+      r.start();
+      setElapsed(0); setPhase("recording");
+      timer.current = setInterval(() => {
+        const e = Date.now() - started.current;
+        setElapsed(e);
+        if (e >= VOICE_MAX_MS) stop();
+      }, 200);
+    } catch (e) { release(); setErr("Couldn't use the microphone. Check the browser's permission."); }
+  };
+  const bars = [8, 16, 24, 12, 20, 26, 10, 18, 6, 22, 14];
+  return (
+    <div style={{ marginBottom: 10, padding: "10px 12px", borderRadius: 16, border: `1px solid ${palette.border}`, background: tint(palette.text, 3) }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        {phase === "idle" && (
+          <>
+            <button type="button" onClick={start} aria-label="Start recording" className={TAP} style={{ width: 38, height: 38, borderRadius: 99, border: `1px solid ${palette.border}`, background: "transparent", color: palette.text, display: "grid", placeItems: "center", cursor: "pointer", flexShrink: 0 }}><Mic size={18} /></button>
+            <span style={{ flex: 1, fontSize: 12.5, color: palette.textMuted }}>Tap the mic to record up to 30 seconds.</span>
+          </>
+        )}
+        {phase === "recording" && (
+          <>
+            <button type="button" onClick={stop} aria-label="Stop recording" className={TAP} style={{ width: 38, height: 38, borderRadius: 99, border: 0, background: BAD, color: "#fff", display: "grid", placeItems: "center", cursor: "pointer", flexShrink: 0 }}><Square size={14} fill="currentColor" /></button>
+            <span aria-hidden="true" style={{ display: "flex", alignItems: "center", gap: 3, flex: 1, height: 28 }}>{bars.map((h, i) => <i key={i} className="pt-wave" style={{ width: 3, height: h, background: palette.textMuted, animationDelay: `${i * 0.09}s` }} />)}</span>
+            <span style={{ fontFamily: mono, fontSize: 12, color: palette.textMuted }}>{mmss(elapsed)} / {mmss(VOICE_MAX_MS)}</span>
+          </>
+        )}
+        {phase === "review" && clip && (
+          <>
+            <div style={{ flex: 1, minWidth: 0 }}><VoiceBubble src={clip.url} ms={clip.ms} /></div>
+            <button type="button" onClick={() => { setClip(null); setPhase("idle"); }} aria-label="Discard recording" className={TAP} style={{ width: 36, height: 36, background: "transparent", border: 0, color: palette.textFaint, display: "grid", placeItems: "center", cursor: "pointer" }}><Trash2 size={16} /></button>
+            <button type="button" disabled={busy} onClick={() => onSend(clip.url, clip.ms)} aria-label="Send voice note" className={TAP} style={{ ...btn(true), width: 40, height: 40, minHeight: 40, padding: 0, borderRadius: 13, display: "grid", placeItems: "center", flexShrink: 0, opacity: busy ? 0.5 : 1 }}><Send size={16} /></button>
+          </>
+        )}
+        {phase !== "recording" && <button type="button" onClick={onClose} aria-label="Close voice note" className={TAP} style={{ width: 32, height: 36, background: "transparent", border: 0, color: palette.textFaint, display: "grid", placeItems: "center", cursor: "pointer" }}><X size={15} /></button>}
+      </div>
+      {err && <div style={{ fontSize: 12, color: ink(BAD), marginTop: 8 }}>{err}</div>}
+    </div>
+  );
+}
+
+/* ---------- goals with deadlines ---------- */
+const GOAL_TYPES = [
+  { kind: "max_after_losses", label: "Stop after losses", unit: "losses", def: 2, text: (v) => `No trades after ${v} ${v === 1 ? "loss" : "losses"} in a day` },
+  { kind: "max_trades", label: "Max trades", unit: "a day", def: 3, text: (v) => `Max ${v} ${v === 1 ? "trade" : "trades"} a day` },
+  { kind: "cooldown", label: "Wait after a loss", unit: "min", def: 30, text: (v) => `Wait ${v} min after a loss` },
+  { kind: "max_loss", label: "Cap each loss", unit: "$", def: 50, text: (v) => `Loss under $${v} per trade` },
+];
+const goalText = (g) => { const t = GOAL_TYPES.find((x) => x.kind === g.kind); return t ? t.text(g.value) : g.kind; };
+function goalBroken(g, day) {
+  const v = Number(g.value);
+  if (g.kind === "max_trades") return day.length > v;
+  if (g.kind === "max_loss") return day.some((t) => t.pnl < -v);
+  if (g.kind === "max_after_losses") { let losses = 0; for (const t of day) { if (losses >= v) return true; if (t.pnl < 0) losses += 1; } return false; }
+  if (g.kind === "cooldown") { for (let i = 1; i < day.length; i += 1) if (day[i - 1].pnl < 0 && day[i].ts - day[i - 1].ts < v * 60000) return true; return false; }
+  return false;
+}
+// Only shared trades are checked. A day with nothing shared counts as kept.
+function goalProgress(g, list, today) {
+  const total = Math.max(1, spanDays(g.start, g.end) + 1);
+  const byDay = {};
+  list.forEach((t) => { const k = dayKeyFromTs(t.ts); if (k >= g.start && k <= g.end) (byDay[k] = byDay[k] || []).push(t); });
+  const last = g.end < today ? g.end : today;
+  let elapsed = 0, slips = 0;
+  for (let k = g.start; k <= last && elapsed < 40; k = addDaysKey(k, 1)) {
+    elapsed += 1;
+    if (goalBroken(g, (byDay[k] || []).sort((a, b) => a.ts - b.ts))) slips += 1;
+  }
+  return { total, elapsed, slips, kept: elapsed - slips, over: today > g.end, left: Math.max(0, spanDays(today, g.end)) };
+}
+function GoalList({ goals, list, today, onRemove, busy }) {
+  const shown = goals.filter((g) => g.end >= addDaysKey(today, -14));
+  if (!shown.length) return null;
+  return (
+    <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
+      {shown.map((g) => {
+        const p = goalProgress(g, list, today);
+        const tone = p.over ? (p.slips === 0 ? GOOD : BAD) : p.slips === 0 ? GOOD : p.slips <= 2 ? WARN : BAD;
+        const label = p.over ? (p.slips === 0 ? "Met" : `Ended, ${plural(p.slips, "slip")}`) : p.slips === 0 ? "On track" : p.slips <= 2 ? plural(p.slips, "slip") : "Off track";
+        return (
+          <div key={g.id} style={{ padding: "11px 12px", borderRadius: 13, background: tint(palette.text, 3), border: `1px solid ${palette.border}` }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: palette.text, minWidth: 0 }}>{goalText(g)}</span>
+              <Pill color={tone}>{label}</Pill>
+            </div>
+            <div style={{ height: 7, borderRadius: 99, background: tint(palette.text, 8), marginTop: 9, overflow: "hidden" }}><div style={{ width: `${(p.kept / p.total) * 100}%`, height: "100%", borderRadius: 99, background: tone, transition: "width .4s ease" }} /></div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 6 }}>
+              <span style={{ fontSize: 11.5, color: palette.textFaint }}>{p.kept} of {p.total} days kept · {p.over ? `ended ${keyText(g.end)}` : p.left === 0 ? "last day" : `${plural(p.left, "day")} left`}</span>
+              {onRemove && <ConfirmButton disabled={busy} onConfirm={() => onRemove(g)} />}
+            </div>
+          </div>
+        );
+      })}
+      <div style={{ ...sub, marginTop: 0 }}>Checked from shared trades.</div>
+    </div>
+  );
+}
+function GoalsPanel({ ctx, link, goals, list, onChanged }) {
+  const { token, run, today, busy } = ctx;
+  const [open, setOpen] = useState(false);
+  const [kind, setKind] = useState("max_after_losses");
+  const type = GOAL_TYPES.find((x) => x.kind === kind);
+  const [val, setVal] = useState(String(GOAL_TYPES[0].def));
+  const [days, setDays] = useState(14);
+  const pickKind = (k) => { setKind(k); setVal(String(GOAL_TYPES.find((x) => x.kind === k).def)); };
+  const add = async () => {
+    const r = await run(() => api(token, "/mentors/goal", { method: "POST", body: { linkId: link.linkId, kind, value: Number(val), days, day: today } }), "Goal set.");
+    if (r) { setOpen(false); onChanged(); }
+  };
+  const remove = async (g) => { const r = await run(() => api(token, "/mentors/goal/delete", { method: "POST", body: { id: g.id } }), "Goal removed."); if (r) onChanged(); };
+  return (
+    <div style={{ marginTop: 16, paddingTop: 15, borderTop: `1px solid ${palette.border}` }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+        <span style={{ ...eyebrow, display: "flex", alignItems: "center", gap: 6 }}><Target size={12} /> Goals</span>
+        <DropChip open={open} onClick={() => setOpen((v) => !v)} color={palette.gold}>Set a goal</DropChip>
+      </div>
+      <Fold open={open}>
+        <div style={{ paddingTop: 10 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{GOAL_TYPES.map((x) => <Chip key={x.kind} on={kind === x.kind} onClick={() => pickKind(x.kind)}>{x.label}</Chip>)}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+            <input type="number" inputMode="numeric" min="1" value={val} onChange={(e) => setVal(e.target.value)} aria-label="Goal number" style={{ ...field, width: 96 }} />
+            <span style={{ fontSize: 12.5, color: palette.textMuted }}>{type.unit}</span>
+            <span style={{ flex: 1 }} />
+            {[[7, "1 week"], [14, "2 weeks"], [28, "4 weeks"]].map(([n, label]) => <Chip key={n} on={days === n} onClick={() => setDays(n)}>{label}</Chip>)}
+          </div>
+          <button type="button" disabled={busy || !(Number(val) > 0)} onClick={add} style={{ ...btn(true), width: "100%", marginTop: 10, opacity: busy || !(Number(val) > 0) ? 0.55 : 1 }}>Set goal: {type.text(Number(val) || 0)}</button>
+        </div>
+      </Fold>
+      {goals.length === 0 && !open && <div style={sub}>No goals yet. Pick one rule, give it a deadline, and the app checks it against the trades they share.</div>}
+      <GoalList goals={goals} list={list} today={today} onRemove={remove} busy={busy} />
+    </div>
+  );
+}
+
+/* ---------- session notes ---------- */
+function SessionNotes({ ctx, link, sessions, onChanged }) {
+  const { token, run, today, busy } = ctx;
+  const todays = sessions.find((s) => s.day === today);
+  const [recap, setRecap] = useState(todays ? todays.recap : "");
+  const [hw, setHw] = useState(todays ? todays.homework : []);
+  const [visible, setVisible] = useState(todays ? todays.visible : true);
+  const [text, setText] = useState("");
+  const [past, setPast] = useState(false);
+  const earlier = sessions.filter((s) => !todays || s.id !== todays.id);
+  const addHw = () => { const t = text.trim().slice(0, 100); if (!t || hw.length >= 5) return; setHw([...hw, { t, done: false }]); setText(""); };
+  const save = async () => {
+    const r = await run(() => api(token, "/mentors/session", { method: "POST", body: { linkId: link.linkId, id: todays ? todays.id : undefined, day: today, recap, homework: hw, visible } }), visible ? "Session notes saved. They can see them." : "Session notes saved. Only you can see them.");
+    if (r) onChanged();
+  };
+  const remove = async (s) => { const r = await run(() => api(token, "/mentors/session/delete", { method: "POST", body: { id: s.id } }), "Deleted."); if (r) onChanged(); };
+  const hwDone = (s) => `${s.homework.filter((h) => h.done).length}/${s.homework.length} done`;
+  return (
+    <div style={{ marginTop: 14, borderRadius: 14, border: `1px solid ${palette.border}`, background: tint(palette.text, 3), padding: "12px 13px 13px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+        <ClipboardCheck size={14} style={{ color: palette.gold }} />
+        <span style={{ flex: 1, fontSize: 13, fontWeight: 800, color: palette.text }}>Session notes · Recap, {dateText(Date.now())}</span>
+      </div>
+      <textarea value={recap} maxLength={600} rows={3} onChange={(e) => setRecap(e.target.value)} placeholder="What you covered, what clicked, what to watch next time..." style={{ ...field, resize: "vertical", minHeight: 76, marginTop: 10 }} />
+      <div style={{ ...eyebrow, marginTop: 12 }}>Homework</div>
+      {hw.map((it, i) => (
+        <div key={`${i}-${it.t}`} style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 6 }}>
+          <Tick on={it.done} auto />
+          <span style={{ flex: 1, minWidth: 0, fontSize: 13, lineHeight: 1.4, color: it.done ? palette.textFaint : palette.text, textDecoration: it.done ? "line-through" : "none", overflowWrap: "anywhere" }}>{it.t}</span>
+          <button type="button" aria-label="Remove item" onClick={() => setHw(hw.filter((_, k) => k !== i))} className={TAP} style={{ width: 34, height: 36, background: "transparent", border: 0, padding: 0, cursor: "pointer", color: palette.textFaint, display: "grid", placeItems: "center" }}><X size={14} /></button>
+        </div>
+      ))}
+      {hw.length < 5 && (
+        <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+          <input value={text} maxLength={100} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addHw()} placeholder="e.g. Journal every loss" style={field} />
+          <button type="button" disabled={!text.trim()} onClick={addHw} style={btn(false)}>Add</button>
+        </div>
+      )}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 12 }}>
+        <span style={{ fontSize: 12.5, fontWeight: 700, color: palette.text }}>Visible to mentee</span>
+        <Switch on={visible} onChange={setVisible} label="Visible to mentee" />
+      </div>
+      <button type="button" disabled={busy || (!recap.trim() && hw.length === 0)} onClick={save} style={{ ...btn(true), width: "100%", marginTop: 12, opacity: busy || (!recap.trim() && hw.length === 0) ? 0.55 : 1 }}>{todays ? "Update notes" : "Save notes"}</button>
+      {earlier.length > 0 && (
+        <div style={{ marginTop: 12 }}>
+          <DropChip open={past} onClick={() => setPast((v) => !v)} count={earlier.length}>Earlier sessions</DropChip>
+          <Fold open={past}>
+            <div style={{ paddingTop: 8 }}>
+              {earlier.map((s) => (
+                <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, padding: "9px 11px", borderRadius: 12, background: palette.surface, border: `1px solid ${palette.border}` }}>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: palette.text }}>{keyText(s.day)} · {s.visible ? "Visible" : "Private"}{s.homework.length ? ` · ${hwDone(s)}` : ""}</span>
+                    {s.recap && <span style={{ display: "block", fontSize: 11.5, color: palette.textFaint, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.recap}</span>}
+                  </span>
+                  <ConfirmButton label="Delete" disabled={busy} onConfirm={() => remove(s)} />
+                </div>
+              ))}
+            </div>
+          </Fold>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------- before and after mentorship ---------- */
+function mentorshipImpact(list, since) {
+  if (!since) return null;
+  const now = Date.now();
+  const afterFrom = Math.max(since, now - 14 * DAY_MS);
+  const before = list.filter((t) => t.ts >= since - 14 * DAY_MS && t.ts < since);
+  const after = list.filter((t) => t.ts >= afterFrom);
+  const fresh = since > now - 14 * DAY_MS;
+  if (before.length < 3 || after.length < 3) return { ready: false, nb: before.length, na: after.length };
+  const b = tradeStats(before);
+  const a = tradeStats(after);
+  const wins = [a.winRate > b.winRate, a.pf > b.pf, a.avgLoss < b.avgLoss, a.expectancy > b.expectancy].filter(Boolean).length;
+  return { ready: true, b, a, wins, fresh };
+}
+function ImpactCard({ list, since }) {
+  const r = useMemo(() => mentorshipImpact(list, since), [list, since]);
+  if (!r) return null;
+  const pf = (v) => (v === Infinity ? "∞" : v.toFixed(1));
+  const tile = (label, value, hint) => (
+    <div style={{ padding: "10px 8px", borderRadius: 13, background: tint(palette.text, 4), border: `1px solid ${palette.border}`, textAlign: "center", minWidth: 0 }}>
+      {label && <div style={{ fontSize: 11.5, fontWeight: 600, color: palette.textMuted }}>{label}</div>}
+      <div style={{ fontFamily: mono, fontSize: 20, fontWeight: 800, color: palette.text, marginTop: label ? 4 : 0 }}>{value}</div>
+      <div style={{ fontSize: 11, color: palette.textFaint, marginTop: 2 }}>{hint}</div>
+    </div>
+  );
+  return (
+    <div style={{ marginTop: 16 }}>
+      <div style={{ ...eyebrow, display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}><TrendingUp size={12} /> Mentorship impact</div>
+      {!r.ready ? (
+        <div style={{ ...sub, marginTop: 0 }}>Needs at least 3 shared trades in the 2 weeks before the mentorship started and 3 since. So far: {r.nb} before, {r.na} after.</div>
+      ) : (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            {tile("2 weeks before", `${Math.round(r.b.winRate)}%`, "win rate")}
+            {tile(r.fresh ? "Since the start" : "Last 2 weeks", `${Math.round(r.a.winRate)}%`, "win rate")}
+            {tile("", pf(r.b.pf), "profit factor")}
+            {tile("", pf(r.a.pf), "profit factor")}
+          </div>
+          <div style={{ fontSize: 12.5, color: palette.textMuted, marginTop: 10, textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+            {r.wins >= 2 ? <ArrowUpRight size={14} style={{ color: ink(GOOD) }} /> : <TrendingDown size={14} style={{ color: ink(WARN) }} />}
+            <span>Improved on {r.wins} of 4 measures</span>
+          </div>
+          <div style={{ ...sub, textAlign: "center" }}>Also counted: average loss ({money(-Math.round(r.b.avgLoss)).replace("+", "")} to {money(-Math.round(r.a.avgLoss)).replace("+", "")}) and result per trade ({money(Math.round(r.b.expectancy))} to {money(Math.round(r.a.expectancy))}). Shared trades only.</div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ---------- mentor profile ---------- */
+function MentorProfileCard({ p, busy, onAsk }) {
+  return (
+    <div style={{ marginTop: 8, padding: 14, borderRadius: 16, background: tint(palette.text, 3), border: `1px solid ${palette.border}` }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <Avatar name={p.username} size={44} src={p.avatar || undefined} />
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 14.5, fontWeight: 800, color: palette.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.username}</div>
+          <div style={{ fontSize: 12, color: palette.textMuted, marginTop: 2 }}>Creator mentor</div>
+        </div>
+      </div>
+      {p.bio && <div style={{ fontSize: 13, color: palette.text, lineHeight: 1.5, marginTop: 10, overflowWrap: "anywhere" }}>{p.bio}</div>}
+      {p.tags.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>{p.tags.map((t) => <Pill key={t} color={palette.gold}>{t}</Pill>)}</div>}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 12 }}>
+        <span style={{ fontSize: 12.5, color: palette.textMuted }}>{plural(p.coached, "trader")} coached</span>
+        {onAsk && <button type="button" disabled={busy} onClick={() => onAsk(p.username)} style={{ ...btn(true), ...small }}>Ask to mentor</button>}
+      </div>
+    </div>
+  );
+}
+function MentorDirectory({ ctx, onAsk }) {
+  const { token, busy } = ctx;
+  const [list, setList] = useState(null);
+  const [err, setErr] = useState("");
+  useEffect(() => { api(token, "/mentors/directory").then((r) => setList(r.mentors || [])).catch((e) => setErr(e.message)); }, [token]);
+  if (err) return <div style={{ ...sub, color: ink(BAD) }}>{err}</div>;
+  if (!list) return <Skel h={110} r={16} style={{ marginTop: 8 }} />;
+  if (!list.length) return <div style={sub}>No mentors are listing themselves yet. You can still ask someone by username.</div>;
+  return <div>{list.map((p) => <MentorProfileCard key={p.username} p={p} busy={busy} onAsk={onAsk} />)}</div>;
+}
+const TAG_IDEAS = ["Scalping", "Day trading", "Swing", "New York session", "London session", "Forex", "Gold", "Indices", "Crypto", "Risk management", "Psychology"];
+function ProfileEditor({ ctx, m, onSaved }) {
+  const { token, run, busy, username } = ctx;
+  const p = m.profile;
+  const [bio, setBio] = useState(p ? p.bio : "");
+  const [tags, setTags] = useState(p ? p.tags : []);
+  const [text, setText] = useState("");
+  const [open, setOpen] = useState(p ? p.open : true);
+  const addTag = (t) => { const v = String(t).trim().slice(0, 24); if (!v || tags.length >= 4 || tags.some((x) => x.toLowerCase() === v.toLowerCase())) return; setTags([...tags, v]); setText(""); };
+  const save = async () => { const r = await run(() => api(token, "/mentors/profile", { method: "POST", body: { bio, tags, open } }), open ? "Profile saved. Traders can find you." : "Profile saved. You're hidden from the list."); if (r) onSaved(); };
+  return (
+    <Card title="Your mentor profile" icon={<Award size={13} />}>
+      <div style={{ ...sub, marginTop: -4 }}>Traders looking for a mentor see this and can ask you. You still approve every request.</div>
+      <textarea value={bio} maxLength={160} rows={2} onChange={(e) => setBio(e.target.value)} placeholder="Who you help and how you coach" style={{ ...field, resize: "none", minHeight: 64, marginTop: 11 }} />
+      <div style={{ fontSize: 11, color: palette.textFaint, marginTop: 4 }}>{bio.length}/160</div>
+      <div style={{ ...eyebrow, margin: "10px 0 8px" }}>Tags ({tags.length}/4)</div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+        {tags.map((t) => <Chip key={t} on onClick={() => setTags(tags.filter((x) => x !== t))}>{t} ×</Chip>)}
+        {tags.length < 4 && TAG_IDEAS.filter((t) => !tags.includes(t)).slice(0, 6).map((t) => <Chip key={t} onClick={() => addTag(t)}>+ {t}</Chip>)}
+      </div>
+      {tags.length < 4 && (
+        <div style={{ marginTop: 10 }}>
+          <InputGroup value={text} onChange={(e) => setText(e.target.value)} onEnter={() => addTag(text)} placeholder="Your own tag"
+            button={<button type="button" disabled={!text.trim()} onClick={() => addTag(text)} style={{ ...btn(false), minHeight: 38, opacity: text.trim() ? 1 : 0.55 }}>Add</button>} />
+        </div>
+      )}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 14 }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: palette.text }}>Open to new mentees</span>
+        <Switch on={open} onChange={setOpen} label="Open to new mentees" />
+      </div>
+      <div style={{ ...eyebrow, margin: "14px 0 0" }}>How it looks</div>
+      <MentorProfileCard p={{ username: username || "You", avatar: null, bio, tags, coached: m.mentees.length }} />
+      <button type="button" disabled={busy} onClick={save} style={{ ...btn(true), width: "100%", marginTop: 12, opacity: busy ? 0.55 : 1 }}>Save profile</button>
+    </Card>
+  );
+}
+
+/* ---------- what a mentee sees from their mentors ---------- */
+function MyCoaching({ ctx, m, onReload }) {
+  const { token, run, today } = ctx;
+  const sessions = (m.sessions || []).slice(0, 2);
+  const goals = m.goals || [];
+  const since = m.mentors.reduce((a, x) => (x.since ? Math.min(a, x.since) : a), Infinity);
+  const tick = async (s, i, done) => { const r = await run(() => api(token, "/mentors/session/tick", { method: "POST", body: { id: s.id, index: i, done } })); if (r) onReload(); };
+  return (
+    <Card title="From your mentors" icon={<Sparkles size={13} />}>
+      {sessions.length === 0 && goals.length === 0 && <div style={{ ...sub, marginTop: -4 }}>Session notes, homework and goals your mentor sets will show up here.</div>}
+      {sessions.map((s) => (
+        <div key={s.id} style={{ marginTop: 6, padding: "12px 13px", borderRadius: 14, background: tint(palette.text, 3), border: `1px solid ${palette.border}` }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: palette.text }}>Recap, {keyText(s.day)} <span style={{ fontWeight: 500, color: palette.textFaint }}>· {s.mentor}</span></div>
+          {s.recap && <div style={{ fontSize: 13, color: palette.text, lineHeight: 1.55, marginTop: 6, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{s.recap}</div>}
+          {s.homework.length > 0 && <div style={{ ...eyebrow, marginTop: 10 }}>Homework</div>}
+          {s.homework.map((h, i) => (
+            <button key={`${i}-${h.t}`} type="button" role="checkbox" aria-checked={h.done} onClick={() => tick(s, i, !h.done)} className={TAP} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", minHeight: TOUCH ? 44 : 36, textAlign: "left", background: "transparent", border: 0, padding: "2px 0", cursor: "pointer", fontFamily: sans }}>
+              <Tick on={h.done} />
+              <span style={{ flex: 1, minWidth: 0, fontSize: 13, lineHeight: 1.4, color: h.done ? palette.textFaint : palette.text, textDecoration: h.done ? "line-through" : "none", overflowWrap: "anywhere" }}>{h.t}</span>
+            </button>
+          ))}
+        </div>
+      ))}
+      {goals.length > 0 && (
+        <div style={{ marginTop: 14 }}>
+          <div style={{ ...eyebrow, display: "flex", alignItems: "center", gap: 6 }}><Target size={12} /> Goals</div>
+          <GoalList goals={goals} list={m.shared} today={today} />
+        </div>
+      )}
+      <ImpactCard list={m.shared} since={Number.isFinite(since) ? since : 0} />
+    </Card>
+  );
+}
+
 /* ---------- a partner ---------- */
 function PartnerCard({ p, busy, today, onNudge, onLeave, onBlock }) {
   const [menu, setMenu] = useState(false);
   const [ask, setAsk] = useState(null);
   const [report, setReport] = useState(false);
   const t = p.today;
+  const onBreak = !!t.pausedUntil && t.pausedUntil > Date.now();
   const vals = [t.checkin, t.trades, t.loss];
   const broken = t.shared && vals.some((v) => v === false);
   const clean = t.shared && !broken && vals.some((v) => v === true);
@@ -678,13 +1370,19 @@ function PartnerCard({ p, busy, today, onNudge, onLeave, onBlock }) {
           <StatTile label="This week" value={bothClean} hint="clean together" color={bothClean > 0 ? GOOD : undefined} />
         </div>
 
-        <div style={{ ...eyebrow, margin: "16px 0 8px" }}>{p.username}'s day</div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, margin: "16px 0 8px" }}>
+          <div style={eyebrow}>{p.username}'s day</div>
+          <span style={{ display: "inline-flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            {onBreak && <Pill color={WARN}><Pause size={10} strokeWidth={3} /> Taking a break</Pill>}
+            {t.ready === true ? <Pill color={GOOD}><Check size={10} strokeWidth={3} /> Ready</Pill> : <Pill>Not ready yet</Pill>}
+          </span>
+        </div>
         <div style={{ display: "flex", gap: 8 }}>
           <Signal label="Checked in" value={t.checkin} hint="Not yet" pending />
           <Signal label="Trade limit" value={t.trades} />
           <Signal label="Loss limit" value={t.loss} />
         </div>
-        {!t.shared && <div style={sub}>{p.username} hasn't shared anything yet today.</div>}
+        {!t.shared && t.ready !== true && !onBreak && <div style={sub}>{p.username} hasn't shared anything yet today.</div>}
         <div style={{ ...eyebrow, margin: "16px 0 10px" }}>Last 7 days</div>
         <div style={{ paddingBottom: 16 }}>
           <WeekStrip days={p.days} today={today} />
@@ -779,6 +1477,13 @@ function TodayStrip({ share, setShare, mine, partners, isDesktop }) {
               <Switch on={share.on && share[key]} onChange={(v) => setShare({ [key]: v })} label={`Share: ${label}`} />
             </div>
           ))}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 13, opacity: share.on ? 1 : 0.5 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, color: palette.text, fontWeight: 600 }}>Ready to trade tick</div>
+              <div style={{ fontSize: 11, color: palette.textFaint }}>Shows once you confirm your plan above</div>
+            </div>
+            <Switch on={share.on && share.ready} onChange={(v) => setShare({ ready: v })} label="Share: ready to trade tick" />
+          </div>
         </div>
       )}
     </Card>
@@ -872,6 +1577,7 @@ function PartnersPanel({ ctx, data }) {
           ))}
         </Card>
       )}
+      <RuleHeatmapCard ctx={ctx} />
     </div>
   );
 
@@ -902,7 +1608,9 @@ function PartnersPanel({ ctx, data }) {
         )}
       </Card>
 
-      <Card style={{ order: firstAdd ? 1 : 2 }} title="Add a partner" icon={<Plus size={14} />} aside={<Pill>{data.partners.length}/{data.limit}</Pill>}>
+      <ReportCard ctx={ctx} data={data} order={firstAdd ? 3 : 2} />
+
+      <Card style={{ order: firstAdd ? 1 : 3 }} title="Add a partner" icon={<Plus size={14} />} aside={<Pill>{data.partners.length}/{data.limit}</Pill>}>
         {room <= 0 ? (
           <div style={sub}>
             Your {data.limit} partner {data.limit === 1 ? "spot is" : "spots are"} filled.
@@ -936,7 +1644,7 @@ function PartnersPanel({ ctx, data }) {
       </Card>
 
       {data.blocked.length > 0 && (
-        <Card style={{ order: 3 }}>
+        <Card style={{ order: 5 }}>
           <button type="button" onClick={() => setShowBlocked((v) => !v)} aria-expanded={showBlocked} style={{ display: "flex", width: "100%", alignItems: "center", justifyContent: "space-between", background: "transparent", border: 0, padding: 0, cursor: "pointer", fontFamily: sans }}>
             <span style={{ fontSize: 13.5, fontWeight: 800, color: palette.text }}>Blocked ({data.blocked.length})</span>
             <ChevronDown size={15} style={{ color: palette.textFaint, transform: showBlocked ? "rotate(180deg)" : "none" }} />
@@ -949,7 +1657,7 @@ function PartnersPanel({ ctx, data }) {
           ))}
         </Card>
       )}
-      <div style={{ order: 4, display: "flex", alignItems: "flex-start", justifyContent: "center", gap: 7, ...sub, textAlign: "left", padding: "0 10px 6px" }}>
+      <div style={{ order: 6, display: "flex", alignItems: "flex-start", justifyContent: "center", gap: 7, ...sub, textAlign: "left", padding: "0 10px 6px" }}>
         <Lock size={12} style={{ flexShrink: 0, marginTop: 2 }} />
         <span>Partners never see your balance, P&amp;L, trades or notes. Turn sharing off above at any time.</span>
       </div>
@@ -959,6 +1667,7 @@ function PartnersPanel({ ctx, data }) {
   return (
     <div>
       <TodayStrip share={share} setShare={setShare} mine={mine} partners={data.partners} isDesktop={isDesktop} />
+      <RitualCard ctx={ctx} />
       <div style={grid}>{left}{right}</div>
     </div>
   );
@@ -995,7 +1704,8 @@ function TradeRow({ t, onOpen, review, right, starred }) {
 }
 
 function TradeDetail({ ctx, id, onBack, onUnshared, next, onNext, onCommented }) {
-  const { token, run, isDesktop } = ctx;
+  const { token, run, isDesktop, busy } = ctx;
+  const [voiceOpen, setVoiceOpen] = useState(false);
   const [d, setD] = useState(null);
   const [err, setErr] = useState("");
   const [text, setText] = useState("");
@@ -1012,6 +1722,10 @@ function TradeDetail({ ctx, id, onBack, onUnshared, next, onNext, onCommented })
     if (!text.trim()) return;
     const r = await run(() => api(token, "/mentors/comment", { method: "POST", body: { id, text } }));
     if (r) { setText(""); load(); if (onCommented) onCommented(id); }
+  };
+  const sendVoice = async (audio, ms) => {
+    const r = await run(() => api(token, "/mentors/voice", { method: "POST", body: { id, audio, ms } }), "Voice note sent.");
+    if (r) { setVoiceOpen(false); load(); if (onCommented) onCommented(id); }
   };
   const saveReply = () => {
     const t = text.trim().slice(0, 120);
@@ -1096,6 +1810,8 @@ function TradeDetail({ ctx, id, onBack, onUnshared, next, onNext, onCommented })
           </div>
         )}
 
+        <RubricBlock d={d} ctx={ctx} onSaved={load} />
+
         <div style={{ marginTop: 18, paddingTop: 16, borderTop: `1px solid ${palette.border}`, flex: "1 1 auto", display: "flex", flexDirection: "column" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 800, color: palette.text }}>
             <MessageCircle size={15} style={{ color: palette.gold }} /> Feedback {d.comments.length > 0 && <Pill>{d.comments.length}</Pill>}
@@ -1106,7 +1822,8 @@ function TradeDetail({ ctx, id, onBack, onUnshared, next, onNext, onCommented })
               <Avatar name={cm.username} size={28} src={cm.avatar || undefined} />
               <div style={{ maxWidth: "84%", minWidth: 0, padding: "10px 13px", borderRadius: cm.mine ? "18px 18px 5px 18px" : "18px 18px 18px 5px", background: cm.mine ? tint(palette.gold, 14) : tint(palette.text, 6), border: `1px solid ${cm.mine ? tint(palette.gold, 28) : palette.border}` }}>
                 <div style={{ fontSize: 11.5, color: palette.textFaint }}><b style={{ color: palette.text }}>{cm.mine ? "You" : cm.username}</b> · {dateText(cm.ts)}</div>
-                <div style={{ fontSize: 13.5, color: palette.text, marginTop: 3, lineHeight: 1.5, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{cm.text}</div>
+                {cm.audio && <div style={{ marginTop: 7 }}><VoiceBubble src={cm.audio} ms={cm.ms} /></div>}
+                {cm.text && <div style={{ fontSize: 13.5, color: palette.text, marginTop: 3, lineHeight: 1.5, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{cm.text}</div>}
               </div>
             </div>
           ))}
@@ -1114,7 +1831,7 @@ function TradeDetail({ ctx, id, onBack, onUnshared, next, onNext, onCommented })
           <div style={{ marginTop: "auto", paddingTop: 16 }}>
             <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
               {trays.map(([k, col]) => <DropChip key={k} open={tray === k} color={col} onClick={() => toggleTray(k)} count={k === "Saved" ? saved.length : 0}>{k}</DropChip>)}
-              {mentor && (<><span style={{ flex: 1 }} /><DropChip open={tray === "Checklist"} color={palette.gold} onClick={() => toggleTray("Checklist")}>Checklist</DropChip></>)}
+              {mentor && (<><Chip on={voiceOpen} onClick={() => setVoiceOpen((v) => !v)}><Mic size={13} style={{ verticalAlign: "-2px", marginRight: 5 }} />Voice</Chip><span style={{ flex: 1 }} /><DropChip open={tray === "Checklist"} color={palette.gold} onClick={() => toggleTray("Checklist")}>Checklist</DropChip></>)}
             </div>
             <Fold open={!!tray}>
               <div style={{ paddingTop: 10 }}>
@@ -1127,6 +1844,7 @@ function TradeDetail({ ctx, id, onBack, onUnshared, next, onNext, onCommented })
                       : null}
               </div>
             </Fold>
+            {mentor && voiceOpen && <div style={{ marginTop: 10 }}><VoiceRecorder busy={busy} onSend={sendVoice} onClose={() => setVoiceOpen(false)} /></div>}
             <div className="pt-group" style={{ alignItems: "flex-end", padding: "2px 6px 6px 0", marginTop: 10 }}>
               <textarea value={text} maxLength={300} rows={2} onChange={(e) => setText(e.target.value)} placeholder={d.mine ? "Ask your mentor something" : "Write feedback"} style={{ resize: "none", minHeight: 58 }} />
               <button type="button" aria-label="Send comment" disabled={!text.trim()} onClick={send} className={TAP} style={{ ...btn(true), width: 40, height: 40, minHeight: 40, padding: 0, borderRadius: 13, display: "grid", placeItems: "center", opacity: text.trim() ? 1 : 0.45, flexShrink: 0 }}><Send size={16} /></button>
@@ -1267,7 +1985,7 @@ function BarList({ rows }) {
   );
 }
 
-function MenteePane({ ctx, link, trades, startFilter, onBack, onOpen }) {
+function MenteePane({ ctx, link, trades, startFilter, onBack, onOpen, info, onReload }) {
   const { isDesktop, say } = ctx;
   const [filter, setFilter] = useState(startFilter || "all");
   const [by, setBy] = useState("");
@@ -1281,8 +1999,8 @@ function MenteePane({ ctx, link, trades, startFilter, onBack, onOpen }) {
   const open = list.filter((t) => !hasFeedback(t)).length;
   const flagged = list.filter((t) => stars.includes(String(t.id)));
   const shown = list.filter((t) => (filter === "star" ? stars.includes(String(t.id)) : filter === "review" ? !hasFeedback(t) : filter === "loss" ? t.pnl < 0 : filter === "win" ? t.pnl > 0 : true));
-  let homeworkOpen = 0;
-  try { const v = JSON.parse(localStorage.getItem(`tredzi.mentorActions.${link.linkId}`) || "[]"); homeworkOpen = Array.isArray(v) ? v.filter((x) => x && !x.done).length : 0; } catch (e) { /* ignore */ }
+  const sessionList = (info && info.sessions) || [];
+  const homeworkOpen = sessionList.length ? sessionList[0].homework.filter((h) => !h.done).length : 0;
   const pf = stats.pf === Infinity ? "∞" : stats.pf.toFixed(2);
   const startReview = () => {
     const t = [...list].sort((a, b) => a.ts - b.ts).find((x) => !hasFeedback(x));
@@ -1337,17 +2055,22 @@ function MenteePane({ ctx, link, trades, startFilter, onBack, onOpen }) {
 
             {insights.length > 0 && (
               <div style={{ marginTop: 14 }}>
-                <div style={{ ...eyebrow, display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}><Lightbulb size={12} /> Coaching insights</div>
+                <div style={{ ...eyebrow, display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}><Lightbulb size={12} /> Worth a conversation</div>
                 <div style={{ display: "grid", gap: 7 }}>
                   {insights.map((i) => (
                     <div key={i.text} style={{ display: "flex", gap: 9, alignItems: "flex-start", padding: "10px 12px", borderRadius: 13, background: tint(palette.text, 3), border: `1px solid ${palette.border}`, fontSize: 12.5, color: palette.text, lineHeight: 1.5 }}>
-                      {i.tone === GOOD ? <TrendingUp size={15} style={{ color: ink(i.tone), flexShrink: 0, marginTop: 2 }} /> : i.tone === BAD ? <TrendingDown size={15} style={{ color: ink(i.tone), flexShrink: 0, marginTop: 2 }} /> : <AlertTriangle size={15} style={{ color: ink(i.tone), flexShrink: 0, marginTop: 2 }} />}
+                      {(() => {
+                        const Icon = i.icon === "clock" ? Clock : i.icon === "calendar" ? Calendar : i.icon === "repeat" ? Repeat : i.tone === GOOD ? TrendingUp : i.tone === BAD ? TrendingDown : AlertTriangle;
+                        return <Icon size={15} style={{ color: ink(i.tone), flexShrink: 0, marginTop: 2 }} />;
+                      })()}
                       <span>{i.text}</span>
                     </div>
                   ))}
                 </div>
               </div>
             )}
+
+            <ImpactCard list={list} since={info ? info.since : 0} />
 
             {tab && (
               <div style={{ marginTop: 16 }}>
@@ -1370,7 +2093,8 @@ function MenteePane({ ctx, link, trades, startFilter, onBack, onOpen }) {
           </>
         )}
         <PrivateNotes key={link.linkId} storageKey={`tredzi.mentorNotes.${link.linkId}`} />
-        <ActionItems key={`a${link.linkId}`} storageKey={`tredzi.mentorActions.${link.linkId}`} />
+        {info && <GoalsPanel key={`g${link.linkId}`} ctx={ctx} link={link} goals={info.goals || []} list={list} onChanged={onReload} />}
+        {info && <SessionNotes key={`n${link.linkId}`} ctx={ctx} link={link} sessions={info.sessions || []} onChanged={onReload} />}
       </div>
     </Card>
   );
@@ -1402,8 +2126,10 @@ function MentorPanel({ ctx }) {
   const [err, setErr] = useState("");
   const [sel, setSel] = useState(null); // null | {kind:"pick"} | {kind:"mentee", linkId, username, avatar, filter?} | {kind:"trade", id, back}
   const [mentorName, setMentorName] = useState("");
+  const [browse, setBrowse] = useState(false);
   const [menteeName, setMenteeName] = useState("");
-  const [menteeTrades, setMenteeTrades] = useState(null);
+  const [menteeInfo, setMenteeInfo] = useState(null);
+  const menteeTrades = menteeInfo ? menteeInfo.trades : null;
   const [doneIds, setDoneIds] = useState({}); // trades I just left feedback on, so the queue updates right away
 
   const load = useCallback(async () => {
@@ -1417,9 +2143,9 @@ function MentorPanel({ ctx }) {
 
   const menteeLink = sel && sel.kind === "mentee" ? sel.linkId : sel && sel.kind === "trade" && sel.back && sel.back.kind === "mentee" ? sel.back.linkId : null;
   useEffect(() => {
-    if (!menteeLink) { setMenteeTrades(null); return; }
-    setMenteeTrades(null);
-    api(token, `/mentors/trades?linkId=${encodeURIComponent(menteeLink)}`).then((r) => setMenteeTrades(r.trades)).catch((e) => { say(e.message, true); setSel(null); });
+    if (!menteeLink) { setMenteeInfo(null); return; }
+    setMenteeInfo(null);
+    api(token, `/mentors/trades?linkId=${encodeURIComponent(menteeLink)}`).then((r) => setMenteeInfo(r)).catch((e) => { say(e.message, true); setSel(null); });
   }, [menteeLink, token, say]);
   useEffect(() => {
     if (!token) return undefined;
@@ -1428,9 +2154,14 @@ function MentorPanel({ ctx }) {
     return () => clearInterval(id);
   }, [token, load]);
 
+  const reloadMentee = useCallback(() => {
+    if (!menteeLink) return;
+    api(token, `/mentors/trades?linkId=${encodeURIComponent(menteeLink)}`).then((r) => setMenteeInfo(r)).catch(() => {});
+  }, [menteeLink, token]);
   const viewTrades = menteeTrades ? menteeTrades.map((t) => (doneIds[t.id] ? { ...t, feedback: Math.max(1, t.feedback || 0), comments: Math.max(1, t.comments || 0) } : t)) : null;
   const act = async (fn, okText) => { const r = await run(fn, okText); await load(); return r; };
   const askMentor = async () => { const r = await act(() => api(token, "/mentors/invite", { method: "POST", body: { username: mentorName, role: "mentor" } })); if (r) { setMentorName(""); say(r.accepted ? "You're connected." : "Request sent."); } };
+  const askMentorBy = async (name) => { const r = await act(() => api(token, "/mentors/invite", { method: "POST", body: { username: name, role: "mentor" } })); if (r) { setBrowse(false); say(r.accepted ? "You're connected." : "Request sent."); } };
   const inviteMentee = async () => { const r = await act(() => api(token, "/mentors/invite", { method: "POST", body: { username: menteeName, role: "mentee" } })); if (r) { setMenteeName(""); say(r.accepted ? "You're connected." : "Invite sent."); } };
   const respond = (inv, accept) => act(() => api(token, "/mentors/respond", { method: "POST", body: { linkId: inv.linkId, accept } }), accept ? "Connected." : "Declined.");
   const leave = (l) => act(() => api(token, "/mentors/leave", { method: "POST", body: { linkId: l.linkId } }), "Done.");
@@ -1508,6 +2239,8 @@ function MentorPanel({ ctx }) {
           <div style={{ marginTop: 12 }}>
             <InputGroup value={mentorName} onChange={(e) => setMentorName(e.target.value)} onEnter={() => mentorName.trim() && askMentor()} placeholder="Mentor's username"
               button={<button type="button" disabled={busy || !mentorName.trim()} onClick={askMentor} style={{ ...btn(true), minHeight: 38, opacity: busy || !mentorName.trim() ? 0.55 : 1 }}>Ask</button>} />
+            <div style={{ marginTop: 10 }}><DropChip open={browse} onClick={() => setBrowse((v) => !v)} color={palette.gold}>Browse mentors</DropChip></div>
+            <Fold open={browse}>{browse && <MentorDirectory ctx={ctx} onAsk={askMentorBy} />}</Fold>
           </div>
         )}
       </Card>
@@ -1532,6 +2265,8 @@ function MentorPanel({ ctx }) {
           {m.shared.map((t) => <TradeRow key={t.id} t={t} onOpen={() => setSel({ kind: "trade", id: t.id })} />)}
         </Card>
       )}
+
+      {hasMentors && <MyCoaching ctx={ctx} m={m} onReload={load} />}
 
       {m.creator ? (
         <Card title="Your mentees" icon={<Users size={13} />} aside={<Pill color={palette.gold}>Creator</Pill>}>
@@ -1563,6 +2298,7 @@ function MentorPanel({ ctx }) {
           <button type="button" onClick={() => openPlans("Coaching other traders is part of the Creator plan.")} style={{ ...btn(true), marginTop: 12 }}>See Creator plan</button>
         </Card>
       )}
+      {m.creator && <ProfileEditor key={m.profile ? "p1" : "p0"} ctx={ctx} m={m} onSaved={load} />}
     </div>
   );
 
@@ -1578,7 +2314,7 @@ function MentorPanel({ ctx }) {
     }} />;
   }
   else if (sel && sel.kind === "mentee") {
-    pane = <MenteePane key={sel.linkId} ctx={ctx} link={sel} trades={viewTrades} startFilter={sel.filter} onBack={() => setSel(null)} onOpen={(t) => setSel({ kind: "trade", id: t.id, back: sel })} />;
+    pane = <MenteePane key={sel.linkId} ctx={ctx} link={sel} trades={viewTrades} info={menteeInfo} onReload={reloadMentee} startFilter={sel.filter} onBack={() => setSel(null)} onOpen={(t) => setSel({ kind: "trade", id: t.id, back: sel })} />;
   } else if (isDesktop) {
     pane = (
       <Card>
@@ -1652,11 +2388,68 @@ export default function PartnerTab({ isDesktop, session, communityUsername, trad
       loss: lossLimit > 0 ? loss < lossLimit : null,
     };
   }, [trades, settings.maxTradesPerDay, settings.dailyLossLimit, playbookCheckins, today]);
+  // one day's verdict for the heatmap, report card and streak: kept, broken, or none (nothing to judge)
+  const dayState = useCallback((key) => {
+    const maxTrades = num(settings.maxTradesPerDay);
+    const lossLimit = num(settings.dailyLossLimit);
+    const ds = trades.filter((t) => dayKeyFromTs(t.ts) === key);
+    const check = playbookCheckins.find((c) => c.date === key);
+    if (!ds.length && !check) return "none";
+    const loss = Math.abs(ds.filter((t) => t.pnl < 0).reduce((sum, t) => sum + t.pnl, 0));
+    const vals = [check ? isCleanCheckin(check) : null, maxTrades > 0 && ds.length ? ds.length <= maxTrades : null, lossLimit > 0 && ds.length ? loss < lossLimit : null];
+    if (vals.some((v) => v === false)) return "broken";
+    return vals.some((v) => v === true) ? "kept" : "none";
+  }, [trades, settings.maxTradesPerDay, settings.dailyLossLimit, playbookCheckins]);
+  const ownStreak = useMemo(() => {
+    let n = 0;
+    for (let i = 0; i < 60; i += 1) {
+      const k = addDaysKey(today, -i);
+      if (isWeekendKey(k)) continue;
+      const st = dayState(k);
+      if (st === "kept") n += 1;
+      else if (st === "none" && i === 0) continue;
+      else break;
+    }
+    return n;
+  }, [today, dayState]);
+
+  // pre-session ritual: a tick box for reading the plan, plus two that follow the Settings
+  const [ritual, setRitual] = useState(() => readRitual(dayKeyFromDate(new Date())));
+  useEffect(() => { setRitual((r) => (r.day === today ? r : readRitual(today))); }, [today]);
+  const updateRitual = (patch) => setRitual((r) => { const next = { ...r, ...patch, day: today }; writeRitual(next); return next; });
+  const ritualRows = [
+    { key: "read", label: "I read my plan", on: ritual.read, auto: false },
+    { key: "max", label: "Max trades set", on: num(settings.maxTradesPerDay) > 0, auto: true, hint: "Set max trades per day in Settings" },
+    { key: "loss", label: "Loss limit set", on: num(settings.dailyLossLimit) > 0, auto: true, hint: "Set a daily loss limit in Settings" },
+  ];
+
+  // pause pact: after a run of losses today, offer a one-hour break and tell partners quietly
+  const [pause, setPause] = useState(readPause);
+  const [clockTick, setClockTick] = useState(() => Date.now());
+  useEffect(() => { const id = setInterval(() => setClockTick(Date.now()), 20000); return () => clearInterval(id); }, []);
+  const todaysTrades = useMemo(() => trades.filter((t) => dayKeyFromTs(t.ts) === today), [trades, today]);
+  const runToday = useMemo(() => lossRun(todaysTrades), [todaysTrades]);
+  const lastTradeTs = todaysTrades.reduce((m, t) => Math.max(m, t.ts), 0);
+  const paused = pause.until > clockTick;
+  const showPact = runToday >= PAUSE_AFTER && !paused && pause.dismissed !== lastTradeTs;
+  const tellPartners = (minutes) => {
+    if (!token || !share.on) return;
+    api(token, "/partners/pause", { method: "POST", body: { day: today, minutes } }).then(() => load(true)).catch(() => {});
+  };
+  const startPause = () => {
+    const next = { until: Date.now() + 3600000, dismissed: lastTradeTs };
+    writePause(next); setPause(next); setClockTick(Date.now()); tellPartners(60);
+    say(`Break started. Back around ${clock(next.until)}.`);
+  };
+  const endPause = () => { const next = { until: 0, dismissed: lastTradeTs }; writePause(next); setPause(next); tellPartners(0); };
+  const keepGoing = () => { const next = { ...pause, dismissed: lastTradeTs }; writePause(next); setPause(next); };
+
   const outgoing = useMemo(() => ({
     checkin: share.on && share.checkin ? mine.checkin : null,
     trades: share.on && share.trades ? mine.trades : null,
     loss: share.on && share.loss ? mine.loss : null,
-  }), [mine, share.on, share.checkin, share.trades, share.loss]);
+    ready: share.on && share.ready && ritual.done ? true : null,
+  }), [mine, share.on, share.checkin, share.trades, share.loss, share.ready, ritual.done]);
 
   const partnerCount = data ? data.partners.length : 0;
   const lastSent = useRef("");
@@ -1688,7 +2481,8 @@ export default function PartnerTab({ isDesktop, session, communityUsername, trad
   }, [load, say]);
   const reload = (opts) => { if (opts && opts.clearNudges) setData((d) => (d ? { ...d, nudges: [] } : d)); else load(true); };
 
-  const ctx = { token, isDesktop, busy, run, say, reload, today, trades, share, mine, setShare, goToCommunity };
+  const username = (data && data.me && data.me.username) || communityUsername || "";
+  const ctx = { token, isDesktop, busy, run, say, reload, today, trades, share, mine, setShare, goToCommunity, dayState, ownStreak, ritual, updateRitual, ritualRows, username };
   // The page around a tab adds its own side padding, so pull out of it to leave only a small gutter.
   const wrap = isDesktop
     ? { margin: "0 -14px", fontFamily: sans, paddingBottom: 8 }
@@ -1730,6 +2524,7 @@ export default function PartnerTab({ isDesktop, session, communityUsername, trad
       {header(isDesktop ? <Segmented value={view} onChange={setView} options={[["partners", "Partners"], ["mentor", "Mentor", commentDot]]} /> : null)}
       {!isDesktop && <div style={{ position: "sticky", top: 0, zIndex: 5, margin: "0 -12px 12px", padding: "6px 12px 8px", background: palette.bg }}><Segmented full value={view} onChange={setView} options={[["partners", "Partners"], ["mentor", "Mentor", commentDot]]} /></div>}
       {toast && <div role="status" style={{ ...(isDesktop ? { marginBottom: 14 } : { position: "fixed", left: 12, right: 12, bottom: "calc(88px + env(safe-area-inset-bottom, 0px))", zIndex: 80, boxShadow: "0 4px 16px rgba(0,0,0,0.18)" }), padding: "12px 14px", borderRadius: 14, fontSize: 13, fontWeight: 700, background: toast.bad ? soft(BAD, 9) : soft(GOOD, 8), color: toast.bad ? ink(BAD) : palette.text, border: `1px solid ${tint(toast.bad ? BAD : GOOD, 38)}` }}>{toast.text}</div>}
+      {(paused || showPact) && <PauseBanner run={runToday} paused={paused} until={pause.until} hasPartners={partnerCount > 0} sharing={share.on} onPause={startPause} onKeep={keepGoing} onEnd={endPause} />}
       {view === "partners" ? <PartnersPanel ctx={ctx} data={data} /> : <MentorPanel ctx={ctx} />}
     </div>
   );
