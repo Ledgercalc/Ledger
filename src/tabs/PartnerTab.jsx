@@ -86,6 +86,20 @@ const writeStars = (list) => { try { localStorage.setItem(STAR_KEY, JSON.stringi
 const ptCss = () => `
 .pt-wrap button{-webkit-tap-highlight-color:transparent}
 .pt-wrap button:focus-visible,.pt-wrap input:focus-visible,.pt-wrap textarea:focus-visible{outline:2px solid ${palette.gold};outline-offset:2px}
+.pt-col{display:flex;flex-direction:column;gap:14px;min-width:0}
+.pt-col>.pt-card{margin-bottom:0 !important}
+.pt-col>.pt-card:last-child{flex:1 1 auto}
+.pt-pane{display:flex;flex-direction:column;min-width:0}
+.pt-pane>.pt-card{flex:1 1 auto;margin-bottom:0 !important}
+.pt-fold{display:grid;grid-template-rows:0fr;transition:grid-template-rows .24s ease}
+.pt-fold.open{grid-template-rows:1fr}
+.pt-fold>div{overflow:hidden;min-height:0}
+.pt-chev{transition:transform .2s ease;flex-shrink:0}
+.pt-group{display:flex;align-items:center;border:1px solid ${palette.border};border-radius:16px;background:${palette.field};transition:border-color .15s ease}
+.pt-group:focus-within{border-color:${palette.gold}}
+.pt-group input,.pt-group textarea{flex:1;min-width:0;background:transparent;border:0;outline:0;color:${palette.text};font-family:inherit;font-size:16px;padding:12px 14px}
+.pt-group input:focus-visible,.pt-group textarea:focus-visible{outline:0}
+@media (prefers-reduced-motion:reduce){.pt-fold,.pt-chev{transition:none}}
 `;
 
 const MENTEE_QUICK = [
@@ -229,7 +243,7 @@ function coachInsights(list) {
 
 /* ---------- small building blocks ---------- */
 const sub = { fontSize: 11.5, color: palette.textFaint, lineHeight: 1.5, marginTop: 3 };
-const eyebrow = { fontFamily: mono, fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: palette.textFaint };
+const eyebrow = { fontFamily: sans, fontSize: 12, fontWeight: 700, color: palette.textMuted };
 const btn = (primary, danger) => ({
   minHeight: TOUCH ? 44 : 38, padding: "8px 16px", borderRadius: 99, fontSize: 12.5, fontWeight: 700, fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap",
   border: `1px solid ${danger ? tint(BAD, 42) : primary ? palette.gold : palette.border}`,
@@ -243,13 +257,13 @@ function Card({ title, icon, aside, children, tone, style }) {
   return (
     <section className="pt-card" style={{
       background: palette.surface,
-      border: `1px solid ${palette.border}`, borderRadius: 16, padding: "16px 16px 15px", marginBottom: 14, ...style,
+      border: `1px solid ${palette.border}`, borderRadius: 20, padding: "18px 18px 18px", marginBottom: 14, boxShadow: palette.shadow, ...style,
     }}>
       {(title || aside) && (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}>
-            {icon && <span style={{ width: 28, height: 28, borderRadius: 10, display: "grid", placeItems: "center", flexShrink: 0, background: tint(palette.text, 6), color: palette.textMuted }}>{icon}</span>}
-            <h3 style={{ margin: 0, fontSize: 13.5, fontWeight: 800, color: palette.text, letterSpacing: -0.1 }}>{title}</h3>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+            {icon && <span style={{ width: 32, height: 32, borderRadius: 11, display: "grid", placeItems: "center", flexShrink: 0, background: tint(palette.gold, 13), color: palette.gold }}>{icon}</span>}
+            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: palette.text, letterSpacing: -0.2 }}>{title}</h3>
           </div>
           {aside}
         </div>
@@ -293,7 +307,50 @@ function Pill({ children, color, solid }) {
 function Chip({ children, onClick, on, color }) {
   const c = color || palette.gold;
   return (
-    <button type="button" onClick={onClick} className={TAP} style={{ flexShrink: 0, minHeight: TOUCH ? 38 : 32, padding: "5px 12px", borderRadius: 99, fontSize: 12, fontWeight: 700, fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap", border: `1px solid ${on ? tint(c, 55) : palette.border}`, background: on ? tint(c, 16) : "transparent", color: on ? ink(c) : palette.textMuted }}>{children}</button>
+    <button type="button" onClick={onClick} className={TAP} style={{ flexShrink: 0, minHeight: TOUCH ? 38 : 32, padding: "5px 13px", borderRadius: 99, fontSize: 12.5, fontWeight: 700, fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap", border: `1px solid ${on ? tint(c, 55) : palette.border}`, background: on ? tint(c, 16) : "transparent", color: on ? ink(c) : palette.textMuted }}>{children}</button>
+  );
+}
+
+// A chip that opens a panel below it: shows a small down arrow that turns up when open.
+function DropChip({ children, open, onClick, color, count }) {
+  const c = color || palette.gold;
+  return (
+    <button type="button" onClick={onClick} aria-expanded={open} className={TAP}
+      style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 6, minHeight: TOUCH ? 40 : 34, padding: "5px 11px 5px 14px", borderRadius: 99, fontSize: 12.5, fontWeight: 800, fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap", border: `1px solid ${open ? tint(c, 55) : palette.border}`, background: open ? tint(c, 16) : "transparent", color: open ? ink(c) : palette.textMuted, transition: "background .15s ease, border-color .15s ease" }}>
+      {children}
+      {count > 0 && <span style={{ fontSize: 10.5, fontWeight: 800, padding: "1px 6px", borderRadius: 99, background: tint(c, 20), color: ink(c) }}>{count}</span>}
+      <ChevronDown size={15} strokeWidth={2.6} className="pt-chev" style={{ transform: open ? "rotate(180deg)" : "none" }} />
+    </button>
+  );
+}
+
+// Content that slides open and closed.
+function Fold({ open, children }) {
+  return <div className={`pt-fold${open ? " open" : ""}`} aria-hidden={!open}><div>{children}</div></div>;
+}
+
+// One rounded box holding the text field and its action button, so they read as a single control.
+function InputGroup({ value, onChange, onEnter, placeholder, button, mono: isMono, upper, disabled }) {
+  return (
+    <div className="pt-group">
+      <input value={value} onChange={onChange} onKeyDown={(e) => e.key === "Enter" && onEnter && onEnter()} placeholder={placeholder} autoCapitalize={upper ? "characters" : "none"} autoCorrect="off" style={isMono ? { fontFamily: mono, letterSpacing: 2 } : undefined} />
+      <span style={{ padding: 5, display: "flex" }}>{button}</span>
+    </div>
+  );
+}
+
+// A row of summary numbers in one container, separated by hairlines.
+function StatStrip({ items }) {
+  return (
+    <div style={{ display: "flex" }}>
+      {items.map(([label, value, color, hint], i) => (
+        <div key={label} style={{ flex: "1 1 0", minWidth: 0, padding: "16px 16px 15px", borderLeft: i ? `1px solid ${palette.border}` : 0 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: palette.textMuted }}>{label}</div>
+          <div style={{ fontFamily: mono, fontSize: 26, fontWeight: 800, letterSpacing: -0.8, lineHeight: 1, marginTop: 8, color: color ? ink(color) : palette.text }}>{value}</div>
+          {hint && <div style={{ fontSize: 11.5, color: palette.textFaint, marginTop: 7, lineHeight: 1.35 }}>{hint}</div>}
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -319,7 +376,7 @@ function ConfirmButton({ label = "Remove", disabled, onConfirm }) {
     timer.current = setTimeout(() => setArmed(false), 3000);
   };
   return (
-    <button type="button" disabled={disabled} onClick={click} style={{ ...btn(false, true), ...small, ...(armed ? { background: BAD, borderColor: BAD, color: "#fff" } : null) }}>{armed ? "Tap to confirm" : label}</button>
+    <button type="button" disabled={disabled} onClick={click} style={{ ...btn(false, true), ...small, border: `1px solid ${armed ? BAD : "transparent"}`, background: armed ? BAD : tint(BAD, 9), ...(armed ? { color: "#fff" } : null) }}>{armed ? "Tap to confirm" : label}</button>
   );
 }
 
@@ -352,7 +409,7 @@ function Trend({ list }) {
   if (cur.n === 0 && prev.n === 0) return null;
   const col = (label, st) => (
     <div style={{ flex: "1 1 0", minWidth: 0, padding: "10px 12px", borderRadius: 13, background: tint(palette.text, 4), border: `1px solid ${palette.border}` }}>
-      <div style={{ ...eyebrow, fontSize: 9.5 }}>{label}</div>
+      <div style={{ ...eyebrow, fontSize: 11.5 }}>{label}</div>
       <div style={{ fontFamily: mono, fontSize: 16, fontWeight: 800, marginTop: 4, color: st.n ? ink(pnlColor(st.net)) : palette.textFaint, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{st.n ? money(Math.round(st.net)) : "No trades"}</div>
       <div style={{ fontSize: 10.5, color: palette.textFaint, marginTop: 2 }}>{st.n ? `${plural(st.n, "trade")} · ${Math.round(st.winRate)}% wins` : "nothing shared"}</div>
     </div>
@@ -482,7 +539,7 @@ function Empty({ icon, title, text, children }) {
 function StatTile({ label, value, color, hint }) {
   return (
     <div style={{ flex: "1 1 0", minWidth: 0, padding: "11px 12px", borderRadius: 14, background: tint(palette.text, 4), border: `1px solid ${palette.border}` }}>
-      <div style={{ ...eyebrow, fontSize: 9.5 }}>{label}</div>
+      <div style={{ ...eyebrow, fontSize: 11.5 }}>{label}</div>
       <div style={{ fontFamily: mono, fontSize: 18, fontWeight: 800, color: color ? ink(color) : palette.text, marginTop: 4, letterSpacing: -0.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{value}</div>
       {hint && <div style={{ fontSize: 10.5, color: palette.textFaint, marginTop: 1 }}>{hint}</div>}
     </div>
@@ -855,12 +912,10 @@ function PartnersPanel({ ctx, data }) {
         ) : (
           <>
             <div style={{ ...eyebrow, marginBottom: 8 }}>By username</div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input value={inviteName} onChange={(e) => setInviteName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && invite()} placeholder="Community username" autoCapitalize="none" autoCorrect="off" style={field} />
-              <button type="button" disabled={busy || !inviteName.trim()} onClick={invite} style={btn(true)}>Invite</button>
-            </div>
+            <InputGroup value={inviteName} onChange={(e) => setInviteName(e.target.value)} onEnter={invite} placeholder="Community username"
+              button={<button type="button" disabled={busy || !inviteName.trim()} onClick={invite} style={{ ...btn(true), minHeight: 38, opacity: busy || !inviteName.trim() ? 0.55 : 1 }}>Invite</button>} />
             <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "16px 0" }}>
-              <span style={{ flex: 1, height: 1, background: palette.border }} /><span style={{ ...eyebrow, fontSize: 9.5 }}>or use a code</span><span style={{ flex: 1, height: 1, background: palette.border }} />
+              <span style={{ flex: 1, height: 1, background: palette.border }} /><span style={{ ...eyebrow, fontSize: 11.5 }}>or use a code</span><span style={{ flex: 1, height: 1, background: palette.border }} />
             </div>
             <div style={sub}>Share a one-time code in any chat. Whoever enters it becomes your partner straight away. It lasts 48 hours.</div>
             {data.code ? (
@@ -872,9 +927,9 @@ function PartnersPanel({ ctx, data }) {
             ) : (
               <button type="button" disabled={busy} onClick={makeCode} style={{ ...btn(false), marginTop: 11 }}>Make a code</button>
             )}
-            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-              <input value={redeemCode} onChange={(e) => setRedeemCode(e.target.value.toUpperCase())} onKeyDown={(e) => e.key === "Enter" && redeem()} placeholder="Enter a code" autoCapitalize="characters" autoCorrect="off" style={{ ...field, fontFamily: mono, letterSpacing: 2 }} />
-              <button type="button" disabled={busy || redeemCode.trim().length < 6} onClick={redeem} style={btn(false)}>Join</button>
+            <div style={{ marginTop: 12 }}>
+              <InputGroup mono upper value={redeemCode} onChange={(e) => setRedeemCode(e.target.value.toUpperCase())} onEnter={redeem} placeholder="Enter a code"
+                button={<button type="button" disabled={busy || redeemCode.trim().length < 6} onClick={redeem} style={{ ...btn(true), minHeight: 38, opacity: busy || redeemCode.trim().length < 6 ? 0.55 : 1 }}>Join</button>} />
             </div>
           </>
         )}
@@ -939,15 +994,6 @@ function TradeRow({ t, onOpen, review, right, starred }) {
   );
 }
 
-function QuickReplies({ items, onPick, saved = [], onRemoveSaved }) {
-  return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-      {saved.map((text, i) => <SavedReply key={`s${i}`} text={text} onUse={() => onPick(text)} onRemove={() => onRemoveSaved && onRemoveSaved(i)} />)}
-      {items.map(([label, text]) => <Chip key={label} onClick={() => onPick(text)}>{label}</Chip>)}
-    </div>
-  );
-}
-
 function TradeDetail({ ctx, id, onBack, onUnshared, next, onNext, onCommented }) {
   const { token, run, isDesktop } = ctx;
   const [d, setD] = useState(null);
@@ -955,9 +1001,9 @@ function TradeDetail({ ctx, id, onBack, onUnshared, next, onNext, onCommented })
   const [text, setText] = useState("");
   const [zoom, setZoom] = useState(null);
   const [saved, setSaved] = useState(readSavedReplies);
-  const [set, setSet] = useState("Praise");
+  const [tray, setTray] = useState(null); // which quick-reply tray is open: Praise | Fix | Ask | Saved | Checklist | Quick questions
+  const lastTray = useRef(null);
   const [starred, setStarred] = useState(() => readStars().includes(String(id)));
-  const [showReview, setShowReview] = useState(false);
   const load = useCallback(async () => {
     try { setD(await api(token, `/mentors/trade?id=${encodeURIComponent(id)}`)); setErr(""); } catch (e) { setErr(e.message); }
   }, [token, id]);
@@ -989,48 +1035,57 @@ function TradeDetail({ ctx, id, onBack, onUnshared, next, onNext, onCommented })
   const t = d.trade;
   const c = pnlColor(t.pnl);
   const meta = [["Setup", t.setup], ["Emotion", t.emotion], ["Session", t.session], ["Confidence", t.confidence]].filter((m) => m[1]);
+  const mentor = !d.mine;
+  // Each tray is a button with a down arrow. Tapping it opens its tags underneath.
+  const trays = mentor
+    ? [["Praise", GOOD, MENTOR_SETS.Praise], ["Fix", WARN, MENTOR_SETS.Fix], ["Ask", palette.gold, MENTOR_SETS.Ask], ...(saved.length ? [["Saved", palette.gold, null]] : [])]
+    : [["Quick questions", palette.gold, MENTEE_QUICK]];
+  if (tray) lastTray.current = tray;
+  const shown = tray || lastTray.current;
+  const shownTray = trays.find((x) => x[0] === shown);
+  const toggleTray = (k) => setTray((cur) => (cur === k ? null : k));
+  const choose = (text) => { pick(text); setTray(null); };
+  const trayColor = shown === "Checklist" ? palette.gold : shownTray ? shownTray[1] : palette.gold;
   return (
-    <Card style={{ padding: 0, overflow: "hidden" }}>
-      <div style={{ padding: "10px 16px 16px", borderBottom: `1px solid ${palette.border}` }}>
+    <Card style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+      <div style={{ padding: "10px 18px 18px", borderBottom: `1px solid ${palette.border}`, background: soft(c, 6) }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
           {back}
-          {!d.mine && (
+          {mentor && (
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
               <button type="button" onClick={toggleStar} aria-pressed={starred} aria-label={starred ? "Remove flag" : "Flag to discuss"} className={TAP} style={{ width: 40, height: 40, borderRadius: 99, display: "grid", placeItems: "center", cursor: "pointer", border: `1px solid ${starred ? tint(palette.gold, 55) : palette.border}`, background: starred ? tint(palette.gold, 16) : "transparent", color: starred ? palette.gold : palette.textMuted }}><Star size={17} fill={starred ? "currentColor" : "none"} /></button>
               {next && <button type="button" onClick={onNext} style={{ ...btn(false), ...small }}>Next to review <ChevronRight size={14} style={{ verticalAlign: "-3px" }} /></button>}
             </div>
           )}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
-          <Avatar name={d.owner.username} size={36} src={d.owner.avatar || undefined} />
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <Avatar name={d.owner.username} size={42} src={d.owner.avatar || undefined} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 16, fontWeight: 800, color: palette.text }}>{t.pair || "Trade"}</span>
-              {t.direction && <span style={{ fontSize: 11.5, fontWeight: 600, color: palette.textFaint }}>{t.direction}</span>}
+              <span style={{ fontSize: 17, fontWeight: 800, color: palette.text, letterSpacing: -0.2 }}>{t.pair || "Trade"}</span>
+              {t.direction && <Pill color={t.direction.toLowerCase().startsWith("s") ? BAD : GOOD}>{t.direction}</Pill>}
             </div>
-            <div style={{ fontSize: 11.5, color: palette.textFaint, marginTop: 2 }}>{d.mine ? "Shared by you" : `Shared by ${d.owner.username}`} · {dateText(t.ts)}</div>
+            <div style={{ fontSize: 12, color: palette.textFaint, marginTop: 3 }}>{d.mine ? "Shared by you" : `Shared by ${d.owner.username}`} · {dateText(t.ts)}</div>
           </div>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontFamily: mono, fontSize: 21, fontWeight: 800, color: ink(c), letterSpacing: -0.4 }}>{money(t.pnl)}</div>
-          </div>
+          <div style={{ fontFamily: mono, fontSize: 24, fontWeight: 800, color: ink(c), letterSpacing: -0.6 }}>{money(t.pnl)}</div>
         </div>
       </div>
 
-      <div style={{ padding: "14px 16px 16px" }}>
+      <div style={{ padding: "16px 18px 18px", flex: "1 1 auto", display: "flex", flexDirection: "column" }}>
         {meta.length > 0 && (
-          <div style={{ borderRadius: 14, border: `1px solid ${palette.border}`, background: tint(palette.text, 3) }}>
-            {meta.map(([k, v], i) => (
-              <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "10px 14px", borderTop: i ? `1px solid ${palette.border}` : 0, fontSize: 13 }}>
-                <span style={{ color: palette.textMuted }}>{k}</span>
-                <span style={{ color: palette.text, fontWeight: 700, textAlign: "right", minWidth: 0, overflowWrap: "anywhere" }}>{v}</span>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 8 }}>
+            {meta.map(([k, v]) => (
+              <div key={k} style={{ padding: "10px 13px", borderRadius: 14, background: tint(palette.text, 4), border: `1px solid ${palette.border}`, minWidth: 0 }}>
+                <div style={{ fontSize: 11.5, fontWeight: 600, color: palette.textFaint }}>{k}</div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: palette.text, marginTop: 3, overflowWrap: "anywhere" }}>{v}</div>
               </div>
             ))}
           </div>
         )}
         {t.note && (
-          <div style={{ marginTop: 12 }}>
-            <div style={{ ...eyebrow, display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}><StickyNote size={12} /> Trader's note</div>
-            <div style={{ fontSize: 13, color: palette.text, lineHeight: 1.6, whiteSpace: "pre-wrap", overflowWrap: "anywhere", padding: "11px 14px", borderRadius: 14, border: `1px solid ${palette.border}`, background: tint(palette.text, 3) }}>{t.note}</div>
+          <div style={{ marginTop: 14 }}>
+            <div style={{ ...eyebrow, display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}><StickyNote size={13} /> Trader's note</div>
+            <div style={{ fontSize: 13.5, color: palette.text, lineHeight: 1.6, whiteSpace: "pre-wrap", overflowWrap: "anywhere", padding: "12px 14px", borderRadius: 14, border: `1px solid ${palette.border}`, background: tint(palette.text, 3) }}>{t.note}</div>
           </div>
         )}
         {t.shots.length > 0 && (
@@ -1041,43 +1096,50 @@ function TradeDetail({ ctx, id, onBack, onUnshared, next, onNext, onCommented })
           </div>
         )}
 
-        <div style={{ marginTop: 18, paddingTop: 15, borderTop: `1px solid ${palette.border}` }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, fontWeight: 800, color: palette.text, marginBottom: 6 }}>
-            <MessageCircle size={14} style={{ color: palette.gold }} /> Feedback {d.comments.length > 0 && <Pill>{d.comments.length}</Pill>}
+        <div style={{ marginTop: 18, paddingTop: 16, borderTop: `1px solid ${palette.border}`, flex: "1 1 auto", display: "flex", flexDirection: "column" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 800, color: palette.text }}>
+            <MessageCircle size={15} style={{ color: palette.gold }} /> Feedback {d.comments.length > 0 && <Pill>{d.comments.length}</Pill>}
           </div>
-          {d.comments.length === 0 && <div style={sub}>{d.mine ? "Your mentor hasn't replied yet. You can ask a question below." : "No feedback yet. Be the first to reply."}</div>}
+          {d.comments.length === 0 && <div style={{ ...sub, marginTop: 8 }}>{d.mine ? "Your mentor hasn't replied yet. You can ask a question below." : "No feedback yet. Be the first to reply."}</div>}
           {d.comments.map((cm) => (
-            <div key={cm.id} style={{ display: "flex", gap: 9, marginTop: 11, flexDirection: cm.mine ? "row-reverse" : "row" }}>
+            <div key={cm.id} style={{ display: "flex", gap: 9, marginTop: 12, flexDirection: cm.mine ? "row-reverse" : "row", alignItems: "flex-end" }}>
               <Avatar name={cm.username} size={28} src={cm.avatar || undefined} />
-              <div style={{ flex: "1 1 0", minWidth: 0, padding: "10px 12px", borderRadius: cm.mine ? "14px 4px 14px 14px" : "4px 14px 14px 14px", background: cm.mine ? tint(palette.gold, 14) : tint(palette.text, 6), border: `1px solid ${cm.mine ? tint(palette.gold, 28) : palette.border}` }}>
-                <div style={{ fontSize: 11, color: palette.textFaint }}><b style={{ color: palette.text }}>{cm.mine ? "You" : cm.username}</b> · {dateText(cm.ts)}</div>
-                <div style={{ fontSize: 13, color: palette.text, marginTop: 3, lineHeight: 1.5, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{cm.text}</div>
+              <div style={{ maxWidth: "84%", minWidth: 0, padding: "10px 13px", borderRadius: cm.mine ? "18px 18px 5px 18px" : "18px 18px 18px 5px", background: cm.mine ? tint(palette.gold, 14) : tint(palette.text, 6), border: `1px solid ${cm.mine ? tint(palette.gold, 28) : palette.border}` }}>
+                <div style={{ fontSize: 11.5, color: palette.textFaint }}><b style={{ color: palette.text }}>{cm.mine ? "You" : cm.username}</b> · {dateText(cm.ts)}</div>
+                <div style={{ fontSize: 13.5, color: palette.text, marginTop: 3, lineHeight: 1.5, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{cm.text}</div>
               </div>
             </div>
           ))}
-          <div style={{ marginTop: 14 }}>
-            {!d.mine && (
-              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                {Object.keys(MENTOR_SETS).map((k) => <Chip key={k} on={set === k} onClick={() => setSet(k)}>{k}</Chip>)}
-                <span style={{ flex: 1 }} />
-                <Chip on={showReview} onClick={() => setShowReview((v) => !v)}>Checklist</Chip>
-              </div>
-            )}
-            {!d.mine && showReview && <QuickReview onInsert={(t) => { pick(t); setShowReview(false); }} />}
-            <QuickReplies items={d.mine ? MENTEE_QUICK : MENTOR_SETS[set]} onPick={pick} saved={d.mine ? [] : saved} onRemoveSaved={removeSaved} />
-            <div style={{ display: "flex", gap: 8, marginTop: 9, alignItems: "flex-end" }}>
-              <textarea value={text} maxLength={300} rows={2} onChange={(e) => setText(e.target.value)} placeholder={d.mine ? "Ask your mentor something" : "Write feedback"} style={{ ...field, resize: "none", minHeight: 58 }} />
-              <button type="button" aria-label="Send comment" disabled={!text.trim()} onClick={send} style={{ ...btn(true), width: 46, height: 46, padding: 0, display: "grid", placeItems: "center", opacity: text.trim() ? 1 : 0.5 }}><Send size={16} /></button>
+
+          <div style={{ marginTop: "auto", paddingTop: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+              {trays.map(([k, col]) => <DropChip key={k} open={tray === k} color={col} onClick={() => toggleTray(k)} count={k === "Saved" ? saved.length : 0}>{k}</DropChip>)}
+              {mentor && (<><span style={{ flex: 1 }} /><DropChip open={tray === "Checklist"} color={palette.gold} onClick={() => toggleTray("Checklist")}>Checklist</DropChip></>)}
             </div>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 4, gap: 8 }}>
-              {!d.mine && text.trim().length >= 8 && !saved.includes(text.trim().slice(0, 120)) && saved.length < 8
-                ? <button type="button" onClick={saveReply} style={{ background: "transparent", border: 0, padding: "6px 0", cursor: "pointer", fontFamily: sans, fontSize: 12, fontWeight: 700, color: palette.gold }}>Save as quick reply</button>
+            <Fold open={!!tray}>
+              <div style={{ paddingTop: 10 }}>
+                {shown === "Checklist" && mentor
+                  ? <QuickReview onInsert={(x) => choose(x)} />
+                  : shown === "Saved"
+                    ? <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{saved.map((text, i) => <SavedReply key={`s${i}`} text={text} onUse={() => choose(text)} onRemove={() => removeSaved(i)} />)}</div>
+                    : shownTray && shownTray[2]
+                      ? <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{shownTray[2].map(([label, text]) => <Chip key={label} color={trayColor} onClick={() => choose(text)}>{label}</Chip>)}</div>
+                      : null}
+              </div>
+            </Fold>
+            <div className="pt-group" style={{ alignItems: "flex-end", padding: "2px 6px 6px 0", marginTop: 10 }}>
+              <textarea value={text} maxLength={300} rows={2} onChange={(e) => setText(e.target.value)} placeholder={d.mine ? "Ask your mentor something" : "Write feedback"} style={{ resize: "none", minHeight: 58 }} />
+              <button type="button" aria-label="Send comment" disabled={!text.trim()} onClick={send} className={TAP} style={{ ...btn(true), width: 40, height: 40, minHeight: 40, padding: 0, borderRadius: 13, display: "grid", placeItems: "center", opacity: text.trim() ? 1 : 0.45, flexShrink: 0 }}><Send size={16} /></button>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 4, gap: 8, minHeight: 22 }}>
+              {mentor && text.trim().length >= 8 && !saved.includes(text.trim().slice(0, 120)) && saved.length < 8
+                ? <button type="button" onClick={saveReply} style={{ background: "transparent", border: 0, padding: "4px 0", cursor: "pointer", fontFamily: sans, fontSize: 12, fontWeight: 700, color: palette.gold }}>Save as quick reply</button>
                 : <span />}
-              {text.length > 0 && <span style={{ fontSize: 10.5, color: palette.textFaint }}>{text.length}/300</span>}
+              {text.length > 0 && <span style={{ fontSize: 11, color: palette.textFaint }}>{text.length}/300</span>}
             </div>
           </div>
         </div>
-        {d.mine && <button type="button" onClick={unshare} style={{ ...btn(false, true), ...small, marginTop: 10 }}><Trash2 size={13} style={{ verticalAlign: "-2px", marginRight: 5 }} />Stop sharing this trade</button>}
+        {d.mine && <button type="button" onClick={unshare} style={{ ...btn(false, true), ...small, marginTop: 10, alignSelf: "flex-start" }}><Trash2 size={13} style={{ verticalAlign: "-2px", marginRight: 5 }} />Stop sharing this trade</button>}
       </div>
     </Card>
   );
@@ -1317,7 +1379,7 @@ function MenteePane({ ctx, link, trades, startFilter, onBack, onOpen }) {
 function PersonRow({ avatar, name, sub: subText, onClick, children }) {
   const inner = (
     <>
-      <Avatar name={name} size={36} src={avatar || undefined} />
+      <Avatar name={name} size={40} src={avatar || undefined} />
       <span style={{ flex: 1, minWidth: 0 }}>
         <span style={{ display: "block", fontSize: 13.5, fontWeight: 800, color: palette.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
         {subText && <span style={{ display: "block", fontSize: 11.5, color: palette.textFaint, marginTop: 2 }}>{subText}</span>}
@@ -1325,7 +1387,7 @@ function PersonRow({ avatar, name, sub: subText, onClick, children }) {
     </>
   );
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8, padding: "10px 12px", borderRadius: 14, background: tint(palette.text, 3), border: `1px solid ${palette.border}` }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8, padding: "11px 12px 11px 13px", borderRadius: 16, background: tint(palette.text, 3), border: `1px solid ${palette.border}` }}>
       {onClick
         ? <button type="button" onClick={onClick} className={TAP} style={{ display: "flex", alignItems: "center", gap: 11, flex: 1, minWidth: 0, textAlign: "left", background: "transparent", border: 0, padding: 0, cursor: "pointer", fontFamily: sans }}>{inner}</button>
         : <div style={{ display: "flex", alignItems: "center", gap: 11, flex: 1, minWidth: 0 }}>{inner}</div>}
@@ -1377,7 +1439,7 @@ function MentorPanel({ ctx }) {
   if (!m) return <div><Card><div style={{ display: "flex", gap: 8 }}>{[0, 1, 2].map((i) => <Skel key={i} h={78} r={14} style={{ flex: 1 }} />)}</div></Card><SkelCard rows={2} /><SkelCard rows={3} /></div>;
 
   const hasMentors = m.mentors.length > 0;
-  const grid = isDesktop ? { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 18, alignItems: "start" } : {};
+  const grid = isDesktop ? { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 18, alignItems: "stretch" } : {};
   const backToList = () => setSel(sel && sel.back ? sel.back : null);
 
   // dashboard numbers
@@ -1401,11 +1463,9 @@ function MentorPanel({ ctx }) {
         : "Every shared trade has feedback. Share your next one to keep the momentum.";
 
   const lists = (
-    <div style={{ minWidth: 0 }}>
-      <Card style={{ padding: 0, overflow: "hidden" }}>
-        <div style={{ display: "flex", gap: 8, padding: 14 }}>
-          {tiles.map(([label, value, color, hint]) => <StatTile key={label} label={label} value={value} color={color} hint={hint} />)}
-        </div>
+    <div className="pt-col">
+      <Card style={{ padding: 0, overflow: "hidden", flex: "0 0 auto" }}>
+        <StatStrip items={tiles} />
       </Card>
 
       {m.invites.length > 0 && (
@@ -1445,9 +1505,9 @@ function MentorPanel({ ctx }) {
           </div>
         ))}
         {m.mentors.length + m.pending.filter((p) => p.as === "mentor").length < m.limits.mentors && (
-          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-            <input value={mentorName} onChange={(e) => setMentorName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && mentorName.trim() && askMentor()} placeholder="Mentor's username" autoCapitalize="none" autoCorrect="off" style={field} />
-            <button type="button" disabled={busy || !mentorName.trim()} onClick={askMentor} style={btn(true)}>Ask</button>
+          <div style={{ marginTop: 12 }}>
+            <InputGroup value={mentorName} onChange={(e) => setMentorName(e.target.value)} onEnter={() => mentorName.trim() && askMentor()} placeholder="Mentor's username"
+              button={<button type="button" disabled={busy || !mentorName.trim()} onClick={askMentor} style={{ ...btn(true), minHeight: 38, opacity: busy || !mentorName.trim() ? 0.55 : 1 }}>Ask</button>} />
           </div>
         )}
       </Card>
@@ -1491,9 +1551,9 @@ function MentorPanel({ ctx }) {
             </div>
           ))}
           {m.mentees.length < m.limits.mentees && (
-            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-              <input value={menteeName} onChange={(e) => setMenteeName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && menteeName.trim() && inviteMentee()} placeholder="Mentee's username" autoCapitalize="none" autoCorrect="off" style={field} />
-              <button type="button" disabled={busy || !menteeName.trim()} onClick={inviteMentee} style={btn(true)}>Invite</button>
+            <div style={{ marginTop: 12 }}>
+              <InputGroup value={menteeName} onChange={(e) => setMenteeName(e.target.value)} onEnter={() => menteeName.trim() && inviteMentee()} placeholder="Mentee's username"
+                button={<button type="button" disabled={busy || !menteeName.trim()} onClick={inviteMentee} style={{ ...btn(true), minHeight: 38, opacity: busy || !menteeName.trim() ? 0.55 : 1 }}>Invite</button>} />
             </div>
           )}
         </Card>
@@ -1528,7 +1588,7 @@ function MentorPanel({ ctx }) {
   }
 
   if (!isDesktop) return <div>{pane || lists}</div>;
-  return <div style={grid}>{lists}<div style={{ minWidth: 0, position: "sticky", top: 12 }}>{pane}</div></div>;
+  return <div style={grid}>{lists}<div className="pt-pane">{pane}</div></div>;
 }
 
 /* ================= the tab ================= */
