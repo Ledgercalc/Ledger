@@ -111,6 +111,12 @@ const ptCss = () => `
 .pt-card:nth-child(2){animation-delay:.04s}.pt-card:nth-child(3){animation-delay:.08s}.pt-card:nth-child(4){animation-delay:.12s}.pt-card:nth-child(n+5){animation-delay:.16s}
 .pt-toast{animation:ptToast .22s ease both}
 .pt-skel{animation:ptPulse 1.3s ease-in-out infinite}
+.pt-hs{overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;touch-action:pan-x pan-y;max-width:100%}
+.pt-hs::-webkit-scrollbar{display:none}
+.pt-hs>*{flex-shrink:0}
+.pt-hs[data-drag="1"]{cursor:grabbing}
+.pt-hs[data-drag="1"] *{user-select:none;pointer-events:none}
+.pt-wrap button{-webkit-tap-highlight-color:transparent}
 .pt-wrap button{transition:transform .12s ease,background .15s ease,border-color .15s ease,opacity .15s ease}
 .pt-wrap button:not(:disabled):active{transform:scale(.97)}
 .pt-wrap button:focus-visible,.pt-wrap input:focus-visible,.pt-wrap textarea:focus-visible{outline:2px solid ${palette.gold};outline-offset:2px}
@@ -396,7 +402,6 @@ function FormStrip({ list }) {
           <span key={t.id} title={`${t.pair || "Trade"} ${money(t.pnl)}`} style={{ flex: "1 1 0", maxWidth: 26, height: 26, borderRadius: 8, display: "grid", placeItems: "center", fontFamily: mono, fontSize: 10, fontWeight: 800, color: t.pnl === 0 ? palette.textFaint : "#fff", background: t.pnl > 0 ? GOOD : t.pnl < 0 ? BAD : tint(palette.text, 12) }}>{t.pnl > 0 ? "W" : t.pnl < 0 ? "L" : "-"}</span>
         ))}
       </div>
-      <div style={{ ...sub, marginTop: 6 }}>Oldest on the left, newest on the right.</div>
     </div>
   );
 }
@@ -472,7 +477,6 @@ function Trend({ list }) {
 
 // tick the things you saw, tap once, and a ready-made sentence lands in the reply box
 function QuickReview({ onInsert }) {
-  const [open, setOpen] = useState(false);
   const [r, setR] = useState({});
   const goods = REVIEW_ITEMS.filter(([k]) => r[k] === "good").map((x) => x[1]);
   const bads = REVIEW_ITEMS.filter(([k]) => r[k] === "bad").map((x) => x[1]);
@@ -481,34 +485,24 @@ function QuickReview({ onInsert }) {
     const parts = [];
     if (goods.length) parts.push(`Good: ${goods.join(", ")}.`);
     if (bads.length) parts.push(`Work on: ${bads.join(", ")}.`);
-    if (!parts.length) return;
-    onInsert(parts.join(" "));
-    setR({}); setOpen(false);
+    if (parts.length) onInsert(parts.join(" "));
   };
   const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
   const dot = (k, v, color, Icon) => {
     const on = r[k] === v;
-    return <button type="button" aria-label={`${v === "good" ? "Good" : "Needs work"}: ${k}`} aria-pressed={on} onClick={() => mark(k, v)} className={TAP} style={{ width: 44, height: TOUCH ? 40 : 34, borderRadius: 12, display: "grid", placeItems: "center", cursor: "pointer", border: `1px solid ${on ? tint(color, 55) : palette.border}`, background: on ? tint(color, 20) : "transparent", color: on ? ink(color) : palette.textFaint }}><Icon size={16} strokeWidth={2.6} /></button>;
+    return <button type="button" aria-label={`${v === "good" ? "Good" : "Needs work"}: ${k}`} aria-pressed={on} onClick={() => mark(k, v)} className={TAP} style={{ width: 46, height: TOUCH ? 40 : 34, borderRadius: 12, display: "grid", placeItems: "center", cursor: "pointer", border: `1px solid ${on ? tint(color, 55) : palette.border}`, background: on ? tint(color, 20) : "transparent", color: on ? ink(color) : palette.textFaint }}><Icon size={16} strokeWidth={2.6} /></button>;
   };
+  const any = goods.length + bads.length > 0;
   return (
-    <div style={{ borderRadius: 14, border: `1px solid ${palette.border}`, background: tint(palette.text, 3), overflow: "hidden", marginBottom: 10 }}>
-      <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} className={TAP} style={{ display: "flex", width: "100%", alignItems: "center", gap: 9, padding: "11px 13px", background: "transparent", border: 0, cursor: "pointer", fontFamily: sans, textAlign: "left" }}>
-        <ClipboardCheck size={14} style={{ color: palette.gold }} />
-        <span style={{ flex: 1, fontSize: 13, fontWeight: 800, color: palette.text }}>Quick review</span>
-        <ChevronDown size={15} style={{ color: palette.textFaint, transform: open ? "rotate(180deg)" : "none", transition: "transform .15s ease" }} />
-      </button>
-      {open && (
-        <div style={{ padding: "0 13px 13px" }}>
-          {REVIEW_ITEMS.map(([k, label]) => (
-            <div key={k} style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
-              <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: palette.text, fontWeight: 600 }}>{cap(label)}</span>
-              {dot(k, "good", GOOD, Check)}
-              {dot(k, "bad", BAD, X)}
-            </div>
-          ))}
-          <button type="button" disabled={!goods.length && !bads.length} onClick={insert} style={{ ...btn(true), ...small, marginTop: 12, opacity: goods.length || bads.length ? 1 : 0.5 }}>Add to reply</button>
+    <div style={{ borderRadius: 14, border: `1px solid ${palette.border}`, background: tint(palette.text, 3), padding: "6px 13px 13px", marginBottom: 10 }}>
+      {REVIEW_ITEMS.map(([k, label]) => (
+        <div key={k} style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
+          <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: palette.text, fontWeight: 600 }}>{cap(label)}</span>
+          {dot(k, "good", GOOD, Check)}
+          {dot(k, "bad", BAD, X)}
         </div>
-      )}
+      ))}
+      <button type="button" disabled={!any} onClick={insert} style={{ ...btn(true), ...small, width: "100%", marginTop: 12, opacity: any ? 1 : 0.5 }}>Add to reply</button>
     </div>
   );
 }
@@ -621,7 +615,7 @@ function DisciplineScore({ list }) {
         <div style={{ minWidth: 0 }}>
           <div style={eyebrow}>Discipline score</div>
           <div style={{ fontSize: 16, fontWeight: 800, color: ink(color), marginTop: 3 }}>{label}</div>
-          <div style={{ fontSize: 11, color: palette.textFaint, marginTop: 2, lineHeight: 1.4 }}>An estimate from the shared trades. Use it to start a conversation.</div>
+          <div style={{ fontSize: 11, color: palette.textFaint, marginTop: 2, lineHeight: 1.4 }}>Estimate from shared trades</div>
         </div>
       </div>
       <div style={{ display: "grid", gap: 9, marginTop: 13 }}>
@@ -664,6 +658,58 @@ function SessionPrep({ list, stars, homeworkOpen, onOpen }) {
   );
 }
 const t_ = (t) => `${t.pair || "Trade"} ${money(t.pnl)} on ${dateText(t.ts)}`;
+
+// A row that scrolls sideways by touch swipe, by mouse drag, or with shift+wheel, and fades where more is hidden.
+function HScroll({ children, style }) {
+  const ref = useRef(null);
+  const drag = useRef(null);
+  const moved = useRef(false);
+  const [edge, setEdge] = useState({ l: false, r: false });
+  const measure = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    const l = el.scrollLeft > 4;
+    const r = el.scrollLeft + el.clientWidth < el.scrollWidth - 4;
+    setEdge((prev) => (prev.l === l && prev.r === r ? prev : { l, r }));
+  }, []);
+  useEffect(() => { measure(); });
+  useEffect(() => {
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [measure]);
+  const down = (e) => {
+    const el = ref.current;
+    if (!el || e.pointerType !== "mouse" || e.button !== 0 || el.scrollWidth <= el.clientWidth) return;
+    drag.current = { x: e.clientX, left: el.scrollLeft };
+    moved.current = false;
+    const onMove = (ev) => {
+      if (!drag.current) return;
+      const dx = ev.clientX - drag.current.x;
+      if (!moved.current && Math.abs(dx) > 5) { moved.current = true; el.setAttribute("data-drag", "1"); }
+      if (moved.current) el.scrollLeft = drag.current.left - dx;
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      el.removeAttribute("data-drag");
+      drag.current = null;
+      setTimeout(() => { moved.current = false; }, 0);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+  const fade = 24;
+  const mask = edge.l || edge.r
+    ? `linear-gradient(90deg, ${edge.l ? `transparent 0, #000 ${fade}px` : "#000 0"}, ${edge.r ? `#000 calc(100% - ${fade}px), transparent 100%` : "#000 100%"})`
+    : undefined;
+  return (
+    <div ref={ref} className="pt-hs" onScroll={measure} onPointerDown={down}
+      onClickCapture={(e) => { if (moved.current) { e.preventDefault(); e.stopPropagation(); } }}
+      style={{ display: "flex", gap: 7, cursor: TOUCH ? undefined : "grab", WebkitMaskImage: mask, maskImage: mask, ...style }}>
+      {children}
+    </div>
+  );
+}
 
 function Empty({ icon, title, text, children }) {
   return (
@@ -813,14 +859,8 @@ function PartnerCard({ p, busy, today, onNudge, onLeave, onBlock }) {
         )}
 
         <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-          <div title="Days you were both clean" style={{ flex: "1.2 1 0", minWidth: 0, display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 14, background: live ? soft(palette.gold, 12) : soft(palette.text, 5), border: `1px solid ${live ? tint(palette.gold, 40) : palette.border}` }}>
-            <Flame size={22} style={{ color: live ? palette.gold : palette.textFaint, flexShrink: 0 }} />
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontFamily: mono, fontSize: 20, fontWeight: 800, color: palette.text, lineHeight: 1 }}>{p.streak.current}</div>
-              <div style={{ fontSize: 10.5, color: palette.textFaint, marginTop: 3 }}>day streak</div>
-            </div>
-          </div>
-          <StatTile label="Best" value={p.streak.best} hint={p.streak.best === 1 ? "day" : "days"} />
+          <StatTile label="Streak" value={p.streak.current} hint={p.streak.current === 1 ? "day clean" : "days clean"} color={live ? palette.gold : undefined} />
+                    <StatTile label="Best" value={p.streak.best} hint={p.streak.best === 1 ? "day" : "days"} />
           <StatTile label="This week" value={bothClean} hint="clean together" color={bothClean > 0 ? GOOD : undefined} />
         </div>
         <Milestone streak={p.streak} />
@@ -853,11 +893,11 @@ function PartnerCard({ p, busy, today, onNudge, onLeave, onBlock }) {
         )}
       </div>
 
-      <div style={{ display: "flex", gap: 8, overflowX: "auto", scrollbarWidth: "none", padding: "12px 16px 14px", borderTop: `1px solid ${palette.border}` }}>
+      <HScroll style={{ gap: 8, padding: "12px 16px 14px", borderTop: `1px solid ${palette.border}` }}>
         {NUDGES.map(([kind, text]) => (
           <button key={kind} type="button" disabled={busy} onClick={() => onNudge(p, kind)} className={TAP} style={{ ...btn(false), ...small, fontSize: 12 }}>{text}</button>
         ))}
-      </div>
+      </HScroll>
     </Card>
   );
 }
@@ -1159,10 +1199,10 @@ function TradeRow({ t, onOpen, review, right, starred }) {
 
 function QuickReplies({ items, onPick, saved = [], onRemoveSaved }) {
   return (
-    <div style={{ display: "flex", gap: 7, overflowX: "auto", scrollbarWidth: "none", margin: "0 -2px", padding: "2px 2px 2px" }}>
+    <HScroll style={{ margin: "0 -2px", padding: "2px 2px" }}>
       {saved.map((text, i) => <SavedReply key={`s${i}`} text={text} onUse={() => onPick(text)} onRemove={() => onRemoveSaved && onRemoveSaved(i)} />)}
       {items.map(([label, text]) => <Chip key={label} onClick={() => onPick(text)}>{label}</Chip>)}
-    </div>
+    </HScroll>
   );
 }
 
@@ -1175,6 +1215,7 @@ function TradeDetail({ ctx, id, onBack, onUnshared, next, onNext, onCommented })
   const [saved, setSaved] = useState(readSavedReplies);
   const [set, setSet] = useState("Praise");
   const [starred, setStarred] = useState(() => readStars().includes(String(id)));
+  const [showReview, setShowReview] = useState(false);
   const load = useCallback(async () => {
     try { setD(await api(token, `/mentors/trade?id=${encodeURIComponent(id)}`)); setErr(""); } catch (e) { setErr(e.message); }
   }, [token, id]);
@@ -1229,14 +1270,13 @@ function TradeDetail({ ctx, id, onBack, onUnshared, next, onNext, onCommented })
           </div>
           <div style={{ textAlign: "right" }}>
             <div style={{ fontFamily: mono, fontSize: 21, fontWeight: 800, color: ink(c), letterSpacing: -0.4 }}>{money(t.pnl)}</div>
-            <div style={{ fontSize: 10.5, fontWeight: 700, color: ink(c) }}>{t.pnl > 0 ? "Winner" : t.pnl < 0 ? "Loser" : "Break-even"}</div>
           </div>
         </div>
       </div>
 
       <div style={{ padding: "14px 16px 16px" }}>
         {meta.length > 0 && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 8 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>
             {meta.map(([k, v]) => (
               <div key={k} style={{ padding: "9px 11px", borderRadius: 12, background: tint(palette.text, 4), border: `1px solid ${palette.border}` }}>
                 <div style={{ ...eyebrow, fontSize: 9.5 }}>{k}</div>
@@ -1267,19 +1307,21 @@ function TradeDetail({ ctx, id, onBack, onUnshared, next, onNext, onCommented })
           {d.comments.map((cm) => (
             <div key={cm.id} style={{ display: "flex", gap: 9, marginTop: 11, flexDirection: cm.mine ? "row-reverse" : "row" }}>
               <Avatar name={cm.username} size={28} src={cm.avatar || undefined} />
-              <div style={{ maxWidth: "84%", minWidth: 0, padding: "9px 12px", borderRadius: cm.mine ? "14px 4px 14px 14px" : "4px 14px 14px 14px", background: cm.mine ? tint(palette.gold, 14) : tint(palette.text, 6), border: `1px solid ${cm.mine ? tint(palette.gold, 28) : palette.border}` }}>
+              <div style={{ flex: "1 1 0", minWidth: 0, padding: "10px 12px", borderRadius: cm.mine ? "14px 4px 14px 14px" : "4px 14px 14px 14px", background: cm.mine ? tint(palette.gold, 14) : tint(palette.text, 6), border: `1px solid ${cm.mine ? tint(palette.gold, 28) : palette.border}` }}>
                 <div style={{ fontSize: 11, color: palette.textFaint }}><b style={{ color: palette.text }}>{cm.mine ? "You" : cm.username}</b> · {dateText(cm.ts)}</div>
                 <div style={{ fontSize: 13, color: palette.text, marginTop: 3, lineHeight: 1.5, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{cm.text}</div>
               </div>
             </div>
           ))}
           <div style={{ marginTop: 14 }}>
-            {!d.mine && <QuickReview onInsert={pick} />}
             {!d.mine && (
-              <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
                 {Object.keys(MENTOR_SETS).map((k) => <Chip key={k} on={set === k} color={k === "Praise" ? GOOD : k === "Fix" ? BAD : undefined} onClick={() => setSet(k)}>{k}</Chip>)}
+                <span style={{ flex: 1 }} />
+                <Chip on={showReview} onClick={() => setShowReview((v) => !v)}><ClipboardCheck size={12} style={{ verticalAlign: "-2px", marginRight: 5 }} />Checklist</Chip>
               </div>
             )}
+            {!d.mine && showReview && <QuickReview onInsert={(t) => { pick(t); setShowReview(false); }} />}
             <QuickReplies items={d.mine ? MENTEE_QUICK : MENTOR_SETS[set]} onPick={pick} saved={d.mine ? [] : saved} onRemoveSaved={removeSaved} />
             <div style={{ display: "flex", gap: 8, marginTop: 9, alignItems: "flex-end" }}>
               <textarea value={text} maxLength={300} rows={2} onChange={(e) => setText(e.target.value)} placeholder={d.mine ? "Ask your mentor something" : "Write feedback"} style={{ ...field, resize: "none", minHeight: 58 }} />
@@ -1289,7 +1331,7 @@ function TradeDetail({ ctx, id, onBack, onUnshared, next, onNext, onCommented })
               {!d.mine && text.trim().length >= 8 && !saved.includes(text.trim().slice(0, 120)) && saved.length < 8
                 ? <button type="button" onClick={saveReply} style={{ background: "transparent", border: 0, padding: "6px 0", cursor: "pointer", fontFamily: sans, fontSize: 12, fontWeight: 700, color: palette.gold }}>Save as quick reply</button>
                 : <span />}
-              <span style={{ fontSize: 10.5, color: palette.textFaint }}>{text.length}/300</span>
+              {text.length > 0 && <span style={{ fontSize: 10.5, color: palette.textFaint }}>{text.length}/300</span>}
             </div>
           </div>
         </div>
@@ -1340,13 +1382,13 @@ function TradePicker({ ctx, mdata, onDone, onBack }) {
       )}
       <div style={{ ...sub, marginTop: -4 }}>Your mentors will see the result, note and up to 2 screenshots of each trade you pick. Nothing else about your account. You can stop sharing any trade later.</div>
       {list.length > 0 && (
-        <div style={{ display: "flex", gap: 7, overflowX: "auto", scrollbarWidth: "none", marginTop: 12 }}>
+        <HScroll style={{ marginTop: 12 }}>
           <Chip onClick={() => quick(() => true)}>Select all</Chip>
           <Chip onClick={() => quick((t) => t.pnl < 0)} color={BAD}>Recent losses</Chip>
           <Chip onClick={() => quick((t) => (tradeScreenshots(t) || []).length > 0)}>With screenshots</Chip>
           <Chip onClick={() => quick((t) => !!String(t.note || "").trim())}>With notes</Chip>
           {count > 0 && <Chip onClick={() => setPicked({})}>Clear</Chip>}
-        </div>
+        </HScroll>
       )}
       {list.length === 0 && <div style={{ ...sub, marginTop: 12 }}>You haven't logged any trades yet.</div>}
       <div style={{ marginTop: 6, maxHeight: isDesktop ? 420 : "none", overflowY: "auto" }}>
@@ -1462,10 +1504,9 @@ function MenteePane({ ctx, link, trades, startFilter, onBack, onOpen }) {
             <div style={{ fontSize: 16, fontWeight: 800, color: palette.text }}>{link.username}</div>
             <div style={{ fontSize: 11.5, color: palette.textFaint, marginTop: 2 }}>{trades ? `${plural(list.length, "shared trade")}${open > 0 ? ` · ${open} to review` : " · all reviewed"}` : "Loading..."}</div>
           </div>
-          {open > 0 && <Pill color={WARN}>{open} to review</Pill>}
         </div>
         {trades && open > 0 && (
-          <button type="button" onClick={startReview} style={{ ...btn(true), width: "100%", marginTop: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}><Play size={14} fill="currentColor" /> Start reviewing, oldest first</button>
+          <button type="button" onClick={startReview} style={{ ...btn(true), width: "100%", marginTop: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}><Play size={14} fill="currentColor" /> Start reviewing · {open} left</button>
         )}
       </div>
 
@@ -1518,9 +1559,9 @@ function MenteePane({ ctx, link, trades, startFilter, onBack, onOpen }) {
             )}
 
             <div style={{ marginTop: 18, paddingTop: 15, borderTop: `1px solid ${palette.border}` }}>
-              <div style={{ display: "flex", gap: 7, overflowX: "auto", scrollbarWidth: "none" }}>
+              <HScroll>
                 {[["all", `All ${list.length}`], ["review", `To review ${open}`], ["loss", `Losses ${stats.losses}`], ["win", `Wins ${stats.wins}`], ...(flagged.length ? [["star", `Flagged ${flagged.length}`]] : [])].map(([k, label]) => <Chip key={k} on={filter === k} color={k === "review" ? WARN : k === "loss" ? BAD : k === "win" ? GOOD : undefined} onClick={() => setFilter(k)}>{label}</Chip>)}
-              </div>
+              </HScroll>
               {shown.length === 0 && <div style={{ ...sub, marginTop: 12 }}>{filter === "review" ? "You're all caught up. Every shared trade has feedback." : "No trades in this filter."}</div>}
               {shown.map((t) => <TradeRow key={t.id} t={t} review starred={stars.includes(String(t.id))} onOpen={() => onOpen(t)} />)}
             </div>
@@ -1563,10 +1604,11 @@ function MentorPanel({ ctx }) {
   const [menteeName, setMenteeName] = useState("");
   const [menteeTrades, setMenteeTrades] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [updated, setUpdated] = useState(0);
   const [doneIds, setDoneIds] = useState({}); // trades I just left feedback on, so the queue updates right away
 
   const load = useCallback(async () => {
-    try { setM(await api(token, "/mentors")); setErr(""); } catch (e) { setErr(e.message); }
+    try { setM(await api(token, "/mentors")); setUpdated(Date.now()); setErr(""); } catch (e) { setErr(e.message); }
   }, [token]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
@@ -1619,7 +1661,7 @@ function MentorPanel({ ctx }) {
   const lists = (
     <div style={{ minWidth: 0 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "-2px 2px 8px" }}>
-        <span style={eyebrow}>{m.creator ? "Coaching dashboard" : "My coaching"}</span>
+        <span style={{ fontSize: 11, color: palette.textFaint }}>{updated ? `Updated ${new Date(updated).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}</span>
         <button type="button" onClick={refresh} aria-label="Refresh" className={TAP} style={{ width: 36, height: 36, borderRadius: 99, border: 0, background: "transparent", color: palette.textMuted, display: "grid", placeItems: "center", cursor: "pointer" }}><RefreshCw size={15} style={{ animation: refreshing ? "ptSpin .8s linear infinite" : "none" }} /></button>
       </div>
       <Card style={{ padding: 0, overflow: "hidden" }}>
@@ -1643,7 +1685,6 @@ function MentorPanel({ ctx }) {
 
       {m.creator && queue.length > 0 && (
         <Card title="Review queue" icon={<Inbox size={14} />} tone={WARN} aside={<Pill color={WARN}>{toReview}</Pill>}>
-          <div style={{ ...sub, marginTop: -4 }}>Shared trades that haven't had any feedback from you yet.</div>
           {queue.map((l) => (
             <PersonRow key={l.linkId} avatar={l.avatar} name={l.username} sub={`${plural(l.open, "trade")} to review${l.last ? ` · last shared ${ago(l.last)}` : ""}`} onClick={() => openMentee(l, "review")}>
               <Pill color={WARN}>{l.open}</Pill>
