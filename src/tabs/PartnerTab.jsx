@@ -80,47 +80,12 @@ const MENTOR_SETS = {
 };
 const REVIEW_ITEMS = [["plan", "following the plan"], ["entry", "entry timing"], ["risk", "position size"], ["exit", "exit and stop management"]];
 const DAY_MS = 86400000;
-const MILESTONES = [3, 7, 14, 30, 60, 100];
-const PROMPTS = [
-  "What rule was hardest to keep this week, and why?",
-  "Which trade today would you take again? Which wouldn't you?",
-  "What are you doing differently before the open this week?",
-  "When did you last feel the urge to break a rule? What happened next?",
-  "What's one thing you'll stop doing this week?",
-  "How did you feel after your last loss, and what did you do next?",
-  "What does a perfect trading day look like for you?",
-  "Which setup are you most confident in right now, and what's your evidence?",
-  "What did you learn from your biggest mistake this month?",
-  "What's your plan if you hit your loss limit before lunch tomorrow?",
-  "What's one win from this week that isn't about money?",
-  "What would you tell a friend who made the trade you just made?",
-  "Are you sleeping, eating and taking breaks well enough to trade well?",
-  "What's the one habit that would improve your results the most?",
-];
 const STAR_KEY = "tredzi.mentorStars";
 const readStars = () => { try { const v = JSON.parse(localStorage.getItem(STAR_KEY) || "[]"); return Array.isArray(v) ? v.map(String) : []; } catch (e) { return []; } };
 const writeStars = (list) => { try { localStorage.setItem(STAR_KEY, JSON.stringify(list)); } catch (e) { /* storage unavailable */ } };
 const ptCss = () => `
-@keyframes ptIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-@keyframes ptSpin{to{transform:rotate(360deg)}}
-@keyframes ptPulse{0%,100%{opacity:.5}50%{opacity:1}}
-@keyframes ptToast{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
-@keyframes ptFall{0%{transform:translate3d(0,-20px,0) rotate(0);opacity:1}100%{transform:translate3d(var(--dx),105vh,0) rotate(var(--rot));opacity:0}}
-.pt-confetti span{position:fixed;top:0;width:8px;height:13px;border-radius:2px;animation:ptFall var(--dur) cubic-bezier(.2,.6,.4,1) var(--del) forwards}
-.pt-card{animation:ptIn .32s ease both}
-.pt-card:nth-child(2){animation-delay:.04s}.pt-card:nth-child(3){animation-delay:.08s}.pt-card:nth-child(4){animation-delay:.12s}.pt-card:nth-child(n+5){animation-delay:.16s}
-.pt-toast{animation:ptToast .22s ease both}
-.pt-skel{animation:ptPulse 1.3s ease-in-out infinite}
-.pt-hs{overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;touch-action:pan-x pan-y;max-width:100%}
-.pt-hs::-webkit-scrollbar{display:none}
-.pt-hs>*{flex-shrink:0}
-.pt-hs[data-drag="1"]{cursor:grabbing}
-.pt-hs[data-drag="1"] *{user-select:none;pointer-events:none}
 .pt-wrap button{-webkit-tap-highlight-color:transparent}
-.pt-wrap button{transition:transform .12s ease,background .15s ease,border-color .15s ease,opacity .15s ease}
-.pt-wrap button:not(:disabled):active{transform:scale(.97)}
 .pt-wrap button:focus-visible,.pt-wrap input:focus-visible,.pt-wrap textarea:focus-visible{outline:2px solid ${palette.gold};outline-offset:2px}
-@media (prefers-reduced-motion:reduce){.pt-confetti{display:none}.pt-card,.pt-skel,.pt-toast{animation:none}.pt-wrap button{transition:none}}
 `;
 
 const MENTEE_QUICK = [
@@ -227,27 +192,6 @@ function quickReentries(list) {
   }
   return n;
 }
-// A rough read on how disciplined the shared trades look. Four checks, each worth a quarter.
-function disciplineScore(list) {
-  if (list.length < 5) return null;
-  const st = tradeStats(list);
-  const clamp = (v) => Math.max(0, Math.min(1, v));
-  const avgW = Math.abs(st.avgWin);
-  const avgL = Math.abs(st.avgLoss);
-  const worst = Math.abs(Math.min(0, st.worst));
-  const lossControl = avgL === 0 ? 1 : avgW === 0 ? 0 : clamp(1 - (avgL / avgW - 1) / 1.5);
-  const calm = st.losses > 0 ? clamp(1 - (quickReentries(list) / st.losses) * 2) : 1;
-  const tilt = clamp(1 - Math.max(0, lossRun(list) - 1) * 0.3);
-  const blow = avgL > 0 ? clamp(1 - (worst / avgL - 2) / 2) : 1;
-  const parts = [
-    ["Loss control", lossControl, "Average loss compared with average win"],
-    ["Calm after losses", calm, "Trades taken within 30 minutes of a loss"],
-    ["No tilt streak", tilt, "Losing run among the latest trades"],
-    ["No blow-up trade", blow, "Worst loss compared with a typical loss"],
-  ];
-  const score = Math.round((parts.reduce((a, x) => a + x[1], 0) / parts.length) * 100);
-  return { score, parts };
-}
 function groupTrades(list, key) {
   const map = {};
   list.forEach((t) => {
@@ -298,13 +242,13 @@ const field = { width: "100%", minHeight: 42, padding: "9px 13px", borderRadius:
 function Card({ title, icon, aside, children, tone, style }) {
   return (
     <section className="pt-card" style={{
-      background: tone ? soft(tone, 9) : palette.surface,
-      border: `1px solid ${tone ? tint(tone, 34) : palette.border}`, borderRadius: 16, padding: "16px 16px 15px", marginBottom: 14, boxShadow: palette.shadow, ...style,
+      background: palette.surface,
+      border: `1px solid ${palette.border}`, borderRadius: 16, padding: "16px 16px 15px", marginBottom: 14, ...style,
     }}>
       {(title || aside) && (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}>
-            {icon && <span style={{ width: 28, height: 28, borderRadius: 10, display: "grid", placeItems: "center", flexShrink: 0, background: soft(palette.gold, 12), color: palette.gold }}>{icon}</span>}
+            {icon && <span style={{ width: 28, height: 28, borderRadius: 10, display: "grid", placeItems: "center", flexShrink: 0, background: tint(palette.text, 6), color: palette.textMuted }}>{icon}</span>}
             <h3 style={{ margin: 0, fontSize: 13.5, fontWeight: 800, color: palette.text, letterSpacing: -0.1 }}>{title}</h3>
           </div>
           {aside}
@@ -383,26 +327,10 @@ function ConfirmButton({ label = "Remove", disabled, onConfirm }) {
 function SavedReply({ text, onUse, onRemove }) {
   const h = TOUCH ? 38 : 32;
   return (
-    <span style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", borderRadius: 99, border: `1px solid ${tint(palette.gold, 40)}`, background: tint(palette.gold, 10) }}>
-      <button type="button" onClick={onUse} className={TAP} style={{ minHeight: h, padding: "5px 4px 5px 12px", border: 0, background: "transparent", color: ink(palette.gold), fontFamily: sans, fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", maxWidth: 190, overflow: "hidden", textOverflow: "ellipsis" }}>{text}</button>
+    <span style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", borderRadius: 99, border: `1px solid ${palette.border}` }}>
+      <button type="button" onClick={onUse} className={TAP} style={{ minHeight: h, padding: "5px 4px 5px 12px", border: 0, background: "transparent", color: palette.textMuted, fontFamily: sans, fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", maxWidth: 190, overflow: "hidden", textOverflow: "ellipsis" }}>{text}</button>
       <button type="button" onClick={onRemove} aria-label="Remove saved reply" className={TAP} style={{ width: 30, height: h, border: 0, background: "transparent", color: palette.textFaint, display: "grid", placeItems: "center", cursor: "pointer" }}><X size={12} /></button>
     </span>
-  );
-}
-
-// the newest trades as little squares, oldest on the left, so a mentor sees the run at a glance
-function FormStrip({ list }) {
-  const last = [...list].sort((a, b) => b.ts - a.ts).slice(0, 12).reverse();
-  if (last.length < 2) return null;
-  return (
-    <div style={{ marginTop: 14 }}>
-      <div style={{ ...eyebrow, marginBottom: 8 }}>Last {last.length} trades</div>
-      <div style={{ display: "flex", gap: 5 }}>
-        {last.map((t) => (
-          <span key={t.id} title={`${t.pair || "Trade"} ${money(t.pnl)}`} style={{ flex: "1 1 0", maxWidth: 26, height: 26, borderRadius: 8, display: "grid", placeItems: "center", fontFamily: mono, fontSize: 10, fontWeight: 800, color: t.pnl === 0 ? palette.textFaint : "#fff", background: t.pnl > 0 ? GOOD : t.pnl < 0 ? BAD : tint(palette.text, 12) }}>{t.pnl > 0 ? "W" : t.pnl < 0 ? "L" : "-"}</span>
-        ))}
-      </div>
-    </div>
   );
 }
 
@@ -415,37 +343,6 @@ function SkelCard({ rows = 2 }) {
       <Skel h={15} w="38%" r={6} />
       {Array.from({ length: rows }).map((_, i) => <Skel key={i} h={46} r={13} style={{ marginTop: 10 }} />)}
     </Card>
-  );
-}
-
-// cumulative result of the shared trades, oldest to newest
-function EquityChart({ list }) {
-  const pts = [...list].sort((a, b) => a.ts - b.ts);
-  if (pts.length < 3) return null;
-  let run = 0;
-  const ys = [0, ...pts.map((t) => (run += t.pnl))];
-  const lo = Math.min(...ys);
-  const hi = Math.max(...ys);
-  const span = hi - lo || 1;
-  const W = 300, H = 72, P = 4;
-  const x = (i) => P + (i / (ys.length - 1)) * (W - 2 * P);
-  const y = (v) => P + (1 - (v - lo) / span) * (H - 2 * P);
-  const line = ys.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(" ");
-  const end = ys[ys.length - 1];
-  const col = end >= 0 ? GOOD : BAD;
-  const area = `${line} L${x(ys.length - 1).toFixed(1)} ${H - P} L${x(0).toFixed(1)} ${H - P} Z`;
-  return (
-    <div style={{ marginTop: 14, padding: "12px 12px 8px", borderRadius: 14, background: tint(palette.text, 4), border: `1px solid ${palette.border}` }}>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
-        <span style={eyebrow}>Equity of shared trades</span>
-        <span style={{ fontFamily: mono, fontSize: 13, fontWeight: 800, color: ink(col) }}>{money(Math.round(end))}</span>
-      </div>
-      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={72} preserveAspectRatio="none" role="img" aria-label={`Equity curve ending at ${money(Math.round(end))}`} style={{ display: "block", marginTop: 8 }}>
-        {lo < 0 && hi > 0 && <line x1={P} x2={W - P} y1={y(0)} y2={y(0)} stroke={tint(palette.text, 22)} strokeWidth="1" strokeDasharray="3 4" vectorEffect="non-scaling-stroke" />}
-        <path d={area} fill={tint(col, 14)} stroke="none" />
-        <path d={line} fill="none" stroke={col} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-      </svg>
-    </div>
   );
 }
 
@@ -542,94 +439,6 @@ function ActionItems({ storageKey }) {
   );
 }
 
-function Confetti({ k }) {
-  const bits = useMemo(() => (!k ? [] : Array.from({ length: 36 }, (_, i) => ({
-    left: Math.random() * 100,
-    dx: (Math.random() - 0.5) * 160,
-    rot: Math.random() * 720 - 360,
-    dur: 1.6 + Math.random() * 1.2,
-    del: Math.random() * 0.35,
-    color: [palette.gold, GOOD, WARN, BAD, "#6aa7ff"][i % 5],
-  }))), [k]);
-  if (!bits.length) return null;
-  return (
-    <div className="pt-confetti" aria-hidden="true" style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 90, overflow: "hidden" }}>
-      {bits.map((b, i) => <span key={i} style={{ left: `${b.left}%`, background: b.color, "--dx": `${b.dx}px`, "--rot": `${b.rot}deg`, "--dur": `${b.dur}s`, "--del": `${b.del}s` }} />)}
-    </div>
-  );
-}
-
-// progress toward the next shared-streak milestone
-function Milestone({ streak }) {
-  const cur = streak.current;
-  const next = MILESTONES.find((m) => m > cur);
-  const prev = [...MILESTONES].filter((m) => m <= cur).pop() || 0;
-  const reached = [...MILESTONES].filter((m) => streak.best >= m).pop();
-  const pct = next ? Math.max(4, Math.round(((cur - prev) / (next - prev)) * 100)) : 100;
-  const text = cur === 0 ? "Be clean on the same day to start a streak." : next ? `${plural(next - cur, "more clean day")} to reach ${next} days together.` : "100+ days together. Legendary.";
-  return (
-    <div style={{ marginTop: 12 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <Award size={14} style={{ color: reached ? palette.gold : palette.textFaint, flexShrink: 0 }} />
-        <span style={{ flex: 1, minWidth: 0, fontSize: 11.5, color: palette.textMuted, lineHeight: 1.4 }}>{text}</span>
-        {reached && <Pill color={palette.gold}>{reached}-day club</Pill>}
-      </div>
-      <div style={{ height: 6, borderRadius: 99, background: tint(palette.text, 10), marginTop: 8, overflow: "hidden" }}>
-        <div style={{ width: `${cur === 0 ? 0 : pct}%`, height: "100%", borderRadius: 99, background: palette.gold, transition: "width .5s ease" }} />
-      </div>
-    </div>
-  );
-}
-
-// a fresh question to talk about each day
-function Starter({ say }) {
-  const [i, setI] = useState(() => Math.floor(Date.now() / DAY_MS) % PROMPTS.length);
-  const copy = async () => {
-    try { await navigator.clipboard.writeText(PROMPTS[i]); say("Copied. Send it to your partner."); } catch (e) { say("Couldn't copy.", true); }
-  };
-  return (
-    <Card title="Conversation starter" icon={<MessageCircle size={14} />}>
-      <div style={{ fontSize: 15, fontWeight: 700, color: palette.text, lineHeight: 1.45, padding: "2px 0 2px 12px", borderLeft: `3px solid ${palette.gold}` }}>{PROMPTS[i]}</div>
-      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-        <button type="button" onClick={() => setI((v) => (v + 1) % PROMPTS.length)} style={{ ...btn(false), ...small, display: "inline-flex", alignItems: "center", gap: 6 }}><RefreshCw size={13} /> Another</button>
-        <button type="button" onClick={copy} style={{ ...btn(false), ...small, display: "inline-flex", alignItems: "center", gap: 6 }}><Copy size={13} /> Copy</button>
-      </div>
-    </Card>
-  );
-}
-
-function DisciplineScore({ list }) {
-  const r = disciplineScore(list);
-  if (!r) return null;
-  const color = r.score >= 75 ? GOOD : r.score >= 50 ? WARN : BAD;
-  const label = r.score >= 75 ? "Strong" : r.score >= 50 ? "Solid, with gaps" : "Needs attention";
-  const size = 68, stroke = 7, rad = (size - stroke) / 2, circ = 2 * Math.PI * rad;
-  return (
-    <div style={{ marginTop: 14, padding: "13px 13px 12px", borderRadius: 14, background: tint(palette.text, 4), border: `1px solid ${palette.border}` }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ flexShrink: 0 }} role="img" aria-label={`Discipline score ${r.score} out of 100`}>
-          <circle cx={size / 2} cy={size / 2} r={rad} fill="none" stroke={tint(palette.text, 11)} strokeWidth={stroke} />
-          <circle cx={size / 2} cy={size / 2} r={rad} fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={`${circ * (r.score / 100)} ${circ}`} transform={`rotate(-90 ${size / 2} ${size / 2})`} />
-          <text x="50%" y="50%" textAnchor="middle" dominantBaseline="central" style={{ fontFamily: mono, fontSize: 20, fontWeight: 800, fill: palette.text }}>{r.score}</text>
-        </svg>
-        <div style={{ minWidth: 0 }}>
-          <div style={eyebrow}>Discipline score</div>
-          <div style={{ fontSize: 16, fontWeight: 800, color: ink(color), marginTop: 3 }}>{label}</div>
-          <div style={{ fontSize: 11, color: palette.textFaint, marginTop: 2, lineHeight: 1.4 }}>Estimate from shared trades</div>
-        </div>
-      </div>
-      <div style={{ display: "grid", gap: 9, marginTop: 13 }}>
-        {r.parts.map(([name, v, hint]) => (
-          <div key={name} title={hint}>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, color: palette.textMuted }}><span>{name}</span><span style={{ fontFamily: mono, color: palette.text, fontWeight: 700 }}>{Math.round(v * 100)}</span></div>
-            <div style={{ height: 5, borderRadius: 99, background: tint(palette.text, 10), marginTop: 4, overflow: "hidden" }}><div style={{ width: `${Math.round(v * 100)}%`, height: "100%", borderRadius: 99, background: v >= 0.75 ? GOOD : v >= 0.5 ? WARN : BAD }} /></div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 // the things worth raising in the next session, picked from the shared trades
 function SessionPrep({ list, stars, homeworkOpen, onOpen }) {
   if (list.length < 3) return null;
@@ -659,62 +468,10 @@ function SessionPrep({ list, stars, homeworkOpen, onOpen }) {
 }
 const t_ = (t) => `${t.pair || "Trade"} ${money(t.pnl)} on ${dateText(t.ts)}`;
 
-// A row that scrolls sideways by touch swipe, by mouse drag, or with shift+wheel, and fades where more is hidden.
-function HScroll({ children, style }) {
-  const ref = useRef(null);
-  const drag = useRef(null);
-  const moved = useRef(false);
-  const [edge, setEdge] = useState({ l: false, r: false });
-  const measure = useCallback(() => {
-    const el = ref.current;
-    if (!el) return;
-    const l = el.scrollLeft > 4;
-    const r = el.scrollLeft + el.clientWidth < el.scrollWidth - 4;
-    setEdge((prev) => (prev.l === l && prev.r === r ? prev : { l, r }));
-  }, []);
-  useEffect(() => { measure(); });
-  useEffect(() => {
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
-  }, [measure]);
-  const down = (e) => {
-    const el = ref.current;
-    if (!el || e.pointerType !== "mouse" || e.button !== 0 || el.scrollWidth <= el.clientWidth) return;
-    drag.current = { x: e.clientX, left: el.scrollLeft };
-    moved.current = false;
-    const onMove = (ev) => {
-      if (!drag.current) return;
-      const dx = ev.clientX - drag.current.x;
-      if (!moved.current && Math.abs(dx) > 5) { moved.current = true; el.setAttribute("data-drag", "1"); }
-      if (moved.current) el.scrollLeft = drag.current.left - dx;
-    };
-    const onUp = () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-      el.removeAttribute("data-drag");
-      drag.current = null;
-      setTimeout(() => { moved.current = false; }, 0);
-    };
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-  };
-  const fade = 24;
-  const mask = edge.l || edge.r
-    ? `linear-gradient(90deg, ${edge.l ? `transparent 0, #000 ${fade}px` : "#000 0"}, ${edge.r ? `#000 calc(100% - ${fade}px), transparent 100%` : "#000 100%"})`
-    : undefined;
-  return (
-    <div ref={ref} className="pt-hs" onScroll={measure} onPointerDown={down}
-      onClickCapture={(e) => { if (moved.current) { e.preventDefault(); e.stopPropagation(); } }}
-      style={{ display: "flex", gap: 7, cursor: TOUCH ? undefined : "grab", WebkitMaskImage: mask, maskImage: mask, ...style }}>
-      {children}
-    </div>
-  );
-}
-
 function Empty({ icon, title, text, children }) {
   return (
     <div style={{ textAlign: "center", padding: "22px 14px" }}>
-      <span style={{ width: 48, height: 48, borderRadius: 16, display: "inline-grid", placeItems: "center", background: soft(palette.gold, 12), color: palette.gold }}>{icon}</span>
+      <span style={{ width: 48, height: 48, borderRadius: 16, display: "inline-grid", placeItems: "center", background: tint(palette.text, 6), color: palette.textMuted }}>{icon}</span>
       <div style={{ fontSize: 14.5, fontWeight: 800, color: palette.text, marginTop: 11 }}>{title}</div>
       <div style={{ ...sub, maxWidth: 340, margin: "5px auto 0" }}>{text}</div>
       {children}
@@ -806,7 +563,7 @@ function PartnerCard({ p, busy, today, onNudge, onLeave, onBlock }) {
   const bothClean = p.days.filter((d) => d.me === "clean" && d.them === "clean").length;
   return (
     <Card style={{ padding: 0, overflow: "hidden", marginBottom: 0 }}>
-      <div style={{ padding: "16px 16px 0", background: soft(tone, 10) }}>
+      <div style={{ padding: "16px 16px 0" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{ position: "relative", display: "inline-flex", flexShrink: 0 }}>
             <span style={{ padding: 2.5, borderRadius: 99, border: `2px solid ${tone}`, display: "inline-flex" }}>
@@ -863,7 +620,6 @@ function PartnerCard({ p, busy, today, onNudge, onLeave, onBlock }) {
                     <StatTile label="Best" value={p.streak.best} hint={p.streak.best === 1 ? "day" : "days"} />
           <StatTile label="This week" value={bothClean} hint="clean together" color={bothClean > 0 ? GOOD : undefined} />
         </div>
-        <Milestone streak={p.streak} />
 
         <div style={{ ...eyebrow, margin: "16px 0 8px" }}>{p.username}'s day</div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -893,11 +649,11 @@ function PartnerCard({ p, busy, today, onNudge, onLeave, onBlock }) {
         )}
       </div>
 
-      <HScroll style={{ gap: 8, padding: "12px 16px 14px", borderTop: `1px solid ${palette.border}` }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, padding: "12px 16px 14px", borderTop: `1px solid ${palette.border}` }}>
         {NUDGES.map(([kind, text]) => (
           <button key={kind} type="button" disabled={busy} onClick={() => onNudge(p, kind)} className={TAP} style={{ ...btn(false), ...small, fontSize: 12 }}>{text}</button>
         ))}
-      </HScroll>
+      </div>
     </Card>
   );
 }
@@ -920,7 +676,7 @@ function TodayStrip({ share, setShare, mine, partners, isDesktop }) {
   const clean = partners.filter((p) => p.today.shared && ![p.today.checkin, p.today.trades, p.today.loss].some((v) => v === false) && [p.today.checkin, p.today.trades, p.today.loss].some((v) => v === true)).length;
   const hints = { checkin: "Check in on your Trade plan", trades: "Set max trades per day in Settings", loss: "Set a daily loss limit in Settings" };
   return (
-    <Card style={{ padding: 0, overflow: "hidden", background: soft(tone, 11) }}>
+    <Card style={{ padding: 0, overflow: "hidden" }}>
       <div style={{ padding: isDesktop ? "18px 20px" : "16px" }}>
         <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "minmax(0, 1.15fr) minmax(0, 1.5fr)" : "1fr", gap: isDesktop ? 24 : 16, alignItems: "center" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
@@ -980,19 +736,6 @@ function PartnersPanel({ ctx, data }) {
   const [commitText, setCommitText] = useState("");
   const [editingCommit, setEditingCommit] = useState(false);
   const [showBlocked, setShowBlocked] = useState(false);
-  const celebrate = ctx.celebrate;
-  useEffect(() => {
-    for (const pr of data.partners) {
-      const hit = MILESTONES.filter((m) => pr.streak.current >= m).pop() || 0;
-      const key = `tredzi.partnerMilestone.${pr.linkId}`;
-      let seen = 0;
-      try { seen = Number(localStorage.getItem(key)) || 0; } catch (e) { /* ignore */ }
-      if (hit === seen) continue;
-      try { localStorage.setItem(key, String(hit)); } catch (e) { /* ignore */ }
-      if (hit > seen && celebrate) { celebrate(`${hit}-day streak with ${pr.username}. Keep it going.`); break; }
-    }
-  }, [data.partners, celebrate]);
-
   const invite = async () => {
     const name = inviteName.trim();
     if (!name) return;
@@ -1021,7 +764,7 @@ function PartnersPanel({ ctx, data }) {
   };
 
   const room = data.limit - data.partners.length;
-  const grid = isDesktop ? { display: "grid", gridTemplateColumns: "minmax(0, 1fr) 350px", gap: 18, alignItems: "start" } : {};
+  const grid = isDesktop ? { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 18, alignItems: "start" } : {};
 
   const left = (
     <div style={{ minWidth: 0 }}>
@@ -1053,7 +796,6 @@ function PartnersPanel({ ctx, data }) {
           {data.partners.map((p) => <PartnerCard key={p.linkId} p={p} busy={busy} today={today} onNudge={nudge} onLeave={leave} onBlock={block} />)}
         </div>
       )}
-      {data.partners.length > 0 && <Starter say={say} />}
       {(data.incoming.length > 0 || data.outgoing.length > 0) && (
         <Card title="Invites" icon={<Send size={13} />}>
           {data.incoming.map((inv) => (
@@ -1180,14 +922,14 @@ function TradeRow({ t, onOpen, review, right, starred }) {
           <span style={{ display: "flex", alignItems: "center", gap: 7 }}>
             <span style={{ fontSize: 13.5, fontWeight: 800, color: palette.text }}>{t.pair || "Trade"}</span>
             {starred && <Star size={12} fill="currentColor" aria-label="Flagged" style={{ color: palette.gold, flexShrink: 0 }} />}
-            {t.direction && <Pill color={String(t.direction).toLowerCase().startsWith("s") ? BAD : GOOD}>{t.direction}</Pill>}
+            {t.direction && <span style={{ fontSize: 11.5, fontWeight: 600, color: palette.textFaint }}>{t.direction}</span>}
           </span>
           <span style={{ display: "block", fontSize: 11, color: palette.textFaint, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{meta}</span>
         </span>
         <span style={{ textAlign: "right", flexShrink: 0, paddingRight: right || onOpen ? 0 : 12 }}>
           <span style={{ display: "block", fontFamily: mono, fontSize: 13.5, fontWeight: 800, color: ink(c) }}>{money(t.pnl)}</span>
           <span style={{ display: "block", marginTop: 4 }}>
-            {needs ? <Pill color={WARN}>Needs review</Pill> : t.comments > 0 ? <Pill>{plural(t.comments, "comment")}</Pill> : null}
+            {needs ? <span style={{ fontSize: 11, fontWeight: 700, color: ink(WARN) }}>Needs review</span> : t.comments > 0 ? <span style={{ fontSize: 11, color: palette.textFaint }}>{plural(t.comments, "comment")}</span> : null}
           </span>
         </span>
         {onOpen && !right && <ChevronRight size={16} style={{ color: palette.textFaint, marginRight: 8, flexShrink: 0 }} />}
@@ -1199,10 +941,10 @@ function TradeRow({ t, onOpen, review, right, starred }) {
 
 function QuickReplies({ items, onPick, saved = [], onRemoveSaved }) {
   return (
-    <HScroll style={{ margin: "0 -2px", padding: "2px 2px" }}>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
       {saved.map((text, i) => <SavedReply key={`s${i}`} text={text} onUse={() => onPick(text)} onRemove={() => onRemoveSaved && onRemoveSaved(i)} />)}
       {items.map(([label, text]) => <Chip key={label} onClick={() => onPick(text)}>{label}</Chip>)}
-    </HScroll>
+    </div>
   );
 }
 
@@ -1249,7 +991,7 @@ function TradeDetail({ ctx, id, onBack, onUnshared, next, onNext, onCommented })
   const meta = [["Setup", t.setup], ["Emotion", t.emotion], ["Session", t.session], ["Confidence", t.confidence]].filter((m) => m[1]);
   return (
     <Card style={{ padding: 0, overflow: "hidden" }}>
-      <div style={{ padding: "10px 16px 16px", background: soft(c, 12) }}>
+      <div style={{ padding: "10px 16px 16px", borderBottom: `1px solid ${palette.border}` }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
           {back}
           {!d.mine && (
@@ -1264,7 +1006,7 @@ function TradeDetail({ ctx, id, onBack, onUnshared, next, onNext, onCommented })
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ fontSize: 16, fontWeight: 800, color: palette.text }}>{t.pair || "Trade"}</span>
-              {t.direction && <Pill color={String(t.direction).toLowerCase().startsWith("s") ? BAD : GOOD}>{t.direction}</Pill>}
+              {t.direction && <span style={{ fontSize: 11.5, fontWeight: 600, color: palette.textFaint }}>{t.direction}</span>}
             </div>
             <div style={{ fontSize: 11.5, color: palette.textFaint, marginTop: 2 }}>{d.mine ? "Shared by you" : `Shared by ${d.owner.username}`} · {dateText(t.ts)}</div>
           </div>
@@ -1276,11 +1018,11 @@ function TradeDetail({ ctx, id, onBack, onUnshared, next, onNext, onCommented })
 
       <div style={{ padding: "14px 16px 16px" }}>
         {meta.length > 0 && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>
-            {meta.map(([k, v]) => (
-              <div key={k} style={{ padding: "9px 11px", borderRadius: 12, background: tint(palette.text, 4), border: `1px solid ${palette.border}` }}>
-                <div style={{ ...eyebrow, fontSize: 9.5 }}>{k}</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: palette.text, marginTop: 3 }}>{v}</div>
+          <div style={{ borderRadius: 14, border: `1px solid ${palette.border}`, background: tint(palette.text, 3) }}>
+            {meta.map(([k, v], i) => (
+              <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "10px 14px", borderTop: i ? `1px solid ${palette.border}` : 0, fontSize: 13 }}>
+                <span style={{ color: palette.textMuted }}>{k}</span>
+                <span style={{ color: palette.text, fontWeight: 700, textAlign: "right", minWidth: 0, overflowWrap: "anywhere" }}>{v}</span>
               </div>
             ))}
           </div>
@@ -1288,7 +1030,7 @@ function TradeDetail({ ctx, id, onBack, onUnshared, next, onNext, onCommented })
         {t.note && (
           <div style={{ marginTop: 12 }}>
             <div style={{ ...eyebrow, display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}><StickyNote size={12} /> Trader's note</div>
-            <div style={{ fontSize: 13, color: palette.text, lineHeight: 1.6, whiteSpace: "pre-wrap", padding: "2px 0 2px 11px", borderLeft: `3px solid ${tint(palette.text, 18)}` }}>{t.note}</div>
+            <div style={{ fontSize: 13, color: palette.text, lineHeight: 1.6, whiteSpace: "pre-wrap", overflowWrap: "anywhere", padding: "11px 14px", borderRadius: 14, border: `1px solid ${palette.border}`, background: tint(palette.text, 3) }}>{t.note}</div>
           </div>
         )}
         {t.shots.length > 0 && (
@@ -1316,9 +1058,9 @@ function TradeDetail({ ctx, id, onBack, onUnshared, next, onNext, onCommented })
           <div style={{ marginTop: 14 }}>
             {!d.mine && (
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                {Object.keys(MENTOR_SETS).map((k) => <Chip key={k} on={set === k} color={k === "Praise" ? GOOD : k === "Fix" ? BAD : undefined} onClick={() => setSet(k)}>{k}</Chip>)}
+                {Object.keys(MENTOR_SETS).map((k) => <Chip key={k} on={set === k} onClick={() => setSet(k)}>{k}</Chip>)}
                 <span style={{ flex: 1 }} />
-                <Chip on={showReview} onClick={() => setShowReview((v) => !v)}><ClipboardCheck size={12} style={{ verticalAlign: "-2px", marginRight: 5 }} />Checklist</Chip>
+                <Chip on={showReview} onClick={() => setShowReview((v) => !v)}>Checklist</Chip>
               </div>
             )}
             {!d.mine && showReview && <QuickReview onInsert={(t) => { pick(t); setShowReview(false); }} />}
@@ -1382,13 +1124,13 @@ function TradePicker({ ctx, mdata, onDone, onBack }) {
       )}
       <div style={{ ...sub, marginTop: -4 }}>Your mentors will see the result, note and up to 2 screenshots of each trade you pick. Nothing else about your account. You can stop sharing any trade later.</div>
       {list.length > 0 && (
-        <HScroll style={{ marginTop: 12 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
           <Chip onClick={() => quick(() => true)}>Select all</Chip>
           <Chip onClick={() => quick((t) => t.pnl < 0)} color={BAD}>Recent losses</Chip>
           <Chip onClick={() => quick((t) => (tradeScreenshots(t) || []).length > 0)}>With screenshots</Chip>
           <Chip onClick={() => quick((t) => !!String(t.note || "").trim())}>With notes</Chip>
           {count > 0 && <Chip onClick={() => setPicked({})}>Clear</Chip>}
-        </HScroll>
+        </div>
       )}
       {list.length === 0 && <div style={{ ...sub, marginTop: 12 }}>You haven't logged any trades yet.</div>}
       <div style={{ marginTop: 6, maxHeight: isDesktop ? 420 : "none", overflowY: "auto" }}>
@@ -1496,7 +1238,7 @@ function MenteePane({ ctx, link, trades, startFilter, onBack, onOpen }) {
   };
   return (
     <Card style={{ padding: 0, overflow: "hidden" }}>
-      <div style={{ padding: "10px 16px 15px", background: soft(palette.gold, 12) }}>
+      <div style={{ padding: "10px 16px 15px", borderBottom: `1px solid ${palette.border}` }}>
         <BackButton onClick={onBack} close={isDesktop} style={{ marginBottom: 4 }} />
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <Avatar name={link.username} size={44} src={link.avatar || undefined} />
@@ -1528,10 +1270,7 @@ function MenteePane({ ctx, link, trades, startFilter, onBack, onOpen }) {
               <StatTile label="Per trade" value={money(Math.round(stats.expectancy))} color={pnlColor(stats.expectancy)} hint="average result" />
               <StatTile label="Best / worst" value={`${Math.round(stats.best)} / ${Math.round(stats.worst)}`} hint="single trades, in $" />
             </div>
-            <DisciplineScore list={list} />
-            <EquityChart list={list} />
             <Trend list={list} />
-            <FormStrip list={list} />
             <SessionPrep list={list} stars={stars} homeworkOpen={homeworkOpen} onOpen={onOpen} />
 
             {insights.length > 0 && (
@@ -1539,7 +1278,7 @@ function MenteePane({ ctx, link, trades, startFilter, onBack, onOpen }) {
                 <div style={{ ...eyebrow, display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}><Lightbulb size={12} /> Coaching insights</div>
                 <div style={{ display: "grid", gap: 7 }}>
                   {insights.map((i) => (
-                    <div key={i.text} style={{ display: "flex", gap: 9, alignItems: "flex-start", padding: "10px 12px", borderRadius: 13, background: soft(i.tone, 12), border: `1px solid ${tint(i.tone, 28)}`, fontSize: 12.5, color: palette.text, lineHeight: 1.5 }}>
+                    <div key={i.text} style={{ display: "flex", gap: 9, alignItems: "flex-start", padding: "10px 12px", borderRadius: 13, background: tint(palette.text, 3), border: `1px solid ${palette.border}`, fontSize: 12.5, color: palette.text, lineHeight: 1.5 }}>
                       {i.tone === GOOD ? <TrendingUp size={15} style={{ color: ink(i.tone), flexShrink: 0, marginTop: 2 }} /> : i.tone === BAD ? <TrendingDown size={15} style={{ color: ink(i.tone), flexShrink: 0, marginTop: 2 }} /> : <AlertTriangle size={15} style={{ color: ink(i.tone), flexShrink: 0, marginTop: 2 }} />}
                       <span>{i.text}</span>
                     </div>
@@ -1559,9 +1298,9 @@ function MenteePane({ ctx, link, trades, startFilter, onBack, onOpen }) {
             )}
 
             <div style={{ marginTop: 18, paddingTop: 15, borderTop: `1px solid ${palette.border}` }}>
-              <HScroll>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                 {[["all", `All ${list.length}`], ["review", `To review ${open}`], ["loss", `Losses ${stats.losses}`], ["win", `Wins ${stats.wins}`], ...(flagged.length ? [["star", `Flagged ${flagged.length}`]] : [])].map(([k, label]) => <Chip key={k} on={filter === k} color={k === "review" ? WARN : k === "loss" ? BAD : k === "win" ? GOOD : undefined} onClick={() => setFilter(k)}>{label}</Chip>)}
-              </HScroll>
+              </div>
               {shown.length === 0 && <div style={{ ...sub, marginTop: 12 }}>{filter === "review" ? "You're all caught up. Every shared trade has feedback." : "No trades in this filter."}</div>}
               {shown.map((t) => <TradeRow key={t.id} t={t} review starred={stars.includes(String(t.id))} onOpen={() => onOpen(t)} />)}
             </div>
@@ -1603,12 +1342,10 @@ function MentorPanel({ ctx }) {
   const [mentorName, setMentorName] = useState("");
   const [menteeName, setMenteeName] = useState("");
   const [menteeTrades, setMenteeTrades] = useState(null);
-  const [refreshing, setRefreshing] = useState(false);
-  const [updated, setUpdated] = useState(0);
   const [doneIds, setDoneIds] = useState({}); // trades I just left feedback on, so the queue updates right away
 
   const load = useCallback(async () => {
-    try { setM(await api(token, "/mentors")); setUpdated(Date.now()); setErr(""); } catch (e) { setErr(e.message); }
+    try { setM(await api(token, "/mentors")); setErr(""); } catch (e) { setErr(e.message); }
   }, [token]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
@@ -1622,9 +1359,14 @@ function MentorPanel({ ctx }) {
     setMenteeTrades(null);
     api(token, `/mentors/trades?linkId=${encodeURIComponent(menteeLink)}`).then((r) => setMenteeTrades(r.trades)).catch((e) => { say(e.message, true); setSel(null); });
   }, [menteeLink, token, say]);
+  useEffect(() => {
+    if (!token) return undefined;
+    const tick = () => { if (document.visibilityState === "visible") load(); };
+    const id = setInterval(tick, 45000);
+    return () => clearInterval(id);
+  }, [token, load]);
 
   const viewTrades = menteeTrades ? menteeTrades.map((t) => (doneIds[t.id] ? { ...t, feedback: Math.max(1, t.feedback || 0), comments: Math.max(1, t.comments || 0) } : t)) : null;
-  const refresh = async () => { setRefreshing(true); await load(); setTimeout(() => setRefreshing(false), 450); };
   const act = async (fn, okText) => { const r = await run(fn, okText); await load(); return r; };
   const askMentor = async () => { const r = await act(() => api(token, "/mentors/invite", { method: "POST", body: { username: mentorName, role: "mentor" } })); if (r) { setMentorName(""); say(r.accepted ? "You're connected." : "Request sent."); } };
   const inviteMentee = async () => { const r = await act(() => api(token, "/mentors/invite", { method: "POST", body: { username: menteeName, role: "mentee" } })); if (r) { setMenteeName(""); say(r.accepted ? "You're connected." : "Invite sent."); } };
@@ -1635,7 +1377,7 @@ function MentorPanel({ ctx }) {
   if (!m) return <div><Card><div style={{ display: "flex", gap: 8 }}>{[0, 1, 2].map((i) => <Skel key={i} h={78} r={14} style={{ flex: 1 }} />)}</div></Card><SkelCard rows={2} /><SkelCard rows={3} /></div>;
 
   const hasMentors = m.mentors.length > 0;
-  const grid = isDesktop ? { display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.25fr)", gap: 18, alignItems: "start" } : {};
+  const grid = isDesktop ? { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 18, alignItems: "start" } : {};
   const backToList = () => setSel(sel && sel.back ? sel.back : null);
 
   // dashboard numbers
@@ -1660,12 +1402,8 @@ function MentorPanel({ ctx }) {
 
   const lists = (
     <div style={{ minWidth: 0 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "-2px 2px 8px" }}>
-        <span style={{ fontSize: 11, color: palette.textFaint }}>{updated ? `Updated ${new Date(updated).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}</span>
-        <button type="button" onClick={refresh} aria-label="Refresh" className={TAP} style={{ width: 36, height: 36, borderRadius: 99, border: 0, background: "transparent", color: palette.textMuted, display: "grid", placeItems: "center", cursor: "pointer" }}><RefreshCw size={15} style={{ animation: refreshing ? "ptSpin .8s linear infinite" : "none" }} /></button>
-      </div>
       <Card style={{ padding: 0, overflow: "hidden" }}>
-        <div style={{ display: "flex", gap: 8, padding: 14, background: soft(palette.gold, 12) }}>
+        <div style={{ display: "flex", gap: 8, padding: 14 }}>
           {tiles.map(([label, value, color, hint]) => <StatTile key={label} label={label} value={value} color={color} hint={hint} />)}
         </div>
       </Card>
@@ -1727,8 +1465,8 @@ function MentorPanel({ ctx }) {
               </div>
             </>
           )}
-          <div style={{ display: "flex", gap: 9, alignItems: "flex-start", marginTop: m.shared.length ? 12 : 0, padding: "10px 12px", borderRadius: 13, background: soft(palette.gold, 12), border: `1px solid ${tint(palette.gold, 28)}`, fontSize: 12.5, color: palette.text, lineHeight: 1.5 }}>
-            <Lightbulb size={15} style={{ color: palette.gold, flexShrink: 0, marginTop: 2 }} /><span>{tip}</span>
+          <div style={{ display: "flex", gap: 9, alignItems: "flex-start", marginTop: m.shared.length ? 12 : 0, padding: "10px 12px", borderRadius: 13, background: tint(palette.text, 3), border: `1px solid ${palette.border}`, fontSize: 12.5, color: palette.text, lineHeight: 1.5 }}>
+            <Lightbulb size={15} style={{ color: palette.textMuted, flexShrink: 0, marginTop: 2 }} /><span>{tip}</span>
           </div>
           {m.shared.length > 0 && <div style={{ ...eyebrow, margin: "16px 0 0" }}>Shared by you</div>}
           {m.shared.map((t) => <TradeRow key={t.id} t={t} onOpen={() => setSel({ kind: "trade", id: t.id })} />)}
@@ -1776,7 +1514,7 @@ function MentorPanel({ ctx }) {
     pane = <TradeDetail key={sel.id} ctx={ctx} id={sel.id} onBack={backToList} onUnshared={() => { setSel(null); load(); }} next={nextTrade} onNext={() => nextTrade && setSel({ kind: "trade", id: nextTrade.id, back: parent })} onCommented={(tid) => {
       setDoneIds((d) => ({ ...d, [tid]: true }));
       const remaining = (viewTrades || []).filter((t) => String(t.id) !== String(tid) && !hasFeedback(t)).length;
-      if (parent && viewTrades && remaining === 0 && ctx.celebrate) ctx.celebrate("Inbox zero. Every shared trade has feedback.");
+      if (parent && viewTrades && remaining === 0) ctx.say("All caught up. Every shared trade has feedback.");
     }} />;
   }
   else if (sel && sel.kind === "mentee") {
@@ -1803,9 +1541,7 @@ export default function PartnerTab({ isDesktop, session, communityUsername, trad
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState(null);
   const [today, setToday] = useState(() => dayKeyFromDate(new Date()));
-  const [burst, setBurst] = useState(0);
   const toastTimer = useRef(null);
-  const burstTimer = useRef(null);
   const dataRef = useRef(null);
   dataRef.current = data;
 
@@ -1814,13 +1550,7 @@ export default function PartnerTab({ isDesktop, session, communityUsername, trad
     clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(null), 3500);
   }, []);
-  const celebrate = useCallback((text) => {
-    setBurst(Date.now());
-    clearTimeout(burstTimer.current);
-    burstTimer.current = setTimeout(() => setBurst(0), 3200);
-    if (text) say(text);
-  }, [say]);
-  useEffect(() => () => { clearTimeout(toastTimer.current); clearTimeout(burstTimer.current); }, []);
+  useEffect(() => () => clearTimeout(toastTimer.current), []);
   useEffect(() => {
     const id = setInterval(() => setToday((t) => { const n = dayKeyFromDate(new Date()); return n === t ? t : n; }), 60000);
     return () => clearInterval(id);
@@ -1898,7 +1628,7 @@ export default function PartnerTab({ isDesktop, session, communityUsername, trad
   }, [load, say]);
   const reload = (opts) => { if (opts && opts.clearNudges) setData((d) => (d ? { ...d, nudges: [] } : d)); else load(true); };
 
-  const ctx = { token, isDesktop, busy, run, say, celebrate, reload, today, trades, share, mine, setShare, goToCommunity };
+  const ctx = { token, isDesktop, busy, run, say, reload, today, trades, share, mine, setShare, goToCommunity };
   // The page around a tab adds its own side padding, so pull out of it to leave only a small gutter.
   const wrap = isDesktop
     ? { margin: "0 -14px", fontFamily: sans, paddingBottom: 8 }
@@ -1907,10 +1637,9 @@ export default function PartnerTab({ isDesktop, session, communityUsername, trad
   const header = (right) => (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", padding: "2px 2px 14px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <span style={{ width: 40, height: 40, borderRadius: 13, display: "grid", placeItems: "center", flexShrink: 0, background: soft(palette.gold, 12), color: palette.gold }}><Users size={19} /></span>
+        <span style={{ width: 40, height: 40, borderRadius: 13, display: "grid", placeItems: "center", flexShrink: 0, background: tint(palette.text, 6), color: palette.textMuted }}><Users size={19} /></span>
         <div>
           <div style={{ fontSize: isDesktop ? 20 : 18.5, fontWeight: 800, color: palette.text, letterSpacing: -0.3 }}>Partner</div>
-          <div style={{ fontSize: 12, color: palette.textMuted, marginTop: 2 }}>Stay on plan with someone who notices when you don't.</div>
         </div>
       </div>
       {right}
@@ -1938,10 +1667,9 @@ export default function PartnerTab({ isDesktop, session, communityUsername, trad
   return (
     <div className="pt-wrap" style={wrap}>
       <style>{ptCss()}</style>
-      <Confetti k={burst} />
       {header(isDesktop ? <Segmented value={view} onChange={setView} options={[["partners", "Partners"], ["mentor", "Mentor", commentDot]]} /> : null)}
       {!isDesktop && <div style={{ position: "sticky", top: 0, zIndex: 5, margin: "0 -12px 12px", padding: "6px 12px 8px", background: palette.bg }}><Segmented full value={view} onChange={setView} options={[["partners", "Partners"], ["mentor", "Mentor", commentDot]]} /></div>}
-      {toast && <div role="status" className="pt-toast" style={{ ...(isDesktop ? { marginBottom: 14 } : { position: "fixed", left: 12, right: 12, bottom: "calc(88px + env(safe-area-inset-bottom, 0px))", zIndex: 80, boxShadow: "0 8px 24px rgba(0,0,0,0.28)" }), padding: "12px 14px", borderRadius: 14, fontSize: 13, fontWeight: 700, background: toast.bad ? soft(BAD, 9) : soft(GOOD, 8), color: toast.bad ? ink(BAD) : palette.text, border: `1px solid ${tint(toast.bad ? BAD : GOOD, 38)}` }}>{toast.text}</div>}
+      {toast && <div role="status" style={{ ...(isDesktop ? { marginBottom: 14 } : { position: "fixed", left: 12, right: 12, bottom: "calc(88px + env(safe-area-inset-bottom, 0px))", zIndex: 80, boxShadow: "0 4px 16px rgba(0,0,0,0.18)" }), padding: "12px 14px", borderRadius: 14, fontSize: 13, fontWeight: 700, background: toast.bad ? soft(BAD, 9) : soft(GOOD, 8), color: toast.bad ? ink(BAD) : palette.text, border: `1px solid ${tint(toast.bad ? BAD : GOOD, 38)}` }}>{toast.text}</div>}
       {view === "partners" ? <PartnersPanel ctx={ctx} data={data} /> : <MentorPanel ctx={ctx} />}
     </div>
   );
