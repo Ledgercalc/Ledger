@@ -10,18 +10,14 @@ export default function CommunityTab(props) {
     REACTION_EMOJIS,
     activeGroupId,
     addingGroup,
-    advanceStory,
     answerGroupQuestion,
     askGroupQuestion,
-    authorHasUnseen,
     avatarForAuthor,
     bioDraft,
     bioEditing,
     bioSaving,
-    cancelStoryDraft,
     claimCommunityUsername,
     closeProfileBack,
-    closeStoryViewer,
     commentDrafts,
     communityApiError,
     communityAvatar,
@@ -52,7 +48,6 @@ export default function CommunityTab(props) {
     deleteProfilePost,
     deleteSticker,
     deleteStickerPack,
-    deleteStory,
     deleteVaultItem,
     deleteWallEntry,
     feedComments,
@@ -90,7 +85,6 @@ export default function CommunityTab(props) {
     handlePostImageChange,
     handleProfilePostImageChange,
     handleStickerFileChange,
-    handleStoryImageChange,
     isAuthorOnline,
     isDesktop,
     joinCodeError,
@@ -106,7 +100,6 @@ export default function CommunityTab(props) {
     loadMoreProfilePosts,
     myFeedReactions,
     myGroups,
-    myStoryReactions,
     myWallIds,
     newFeedImage,
     newFeedPnl,
@@ -126,8 +119,6 @@ export default function CommunityTab(props) {
     openCommunityMemberProfile,
     openFollowList,
     openGlobalFeedComments,
-    openStoryComposer,
-    openStoryViewerFor,
     pinCommunityMessage,
     pingTyping,
     pinnedMessageId,
@@ -135,7 +126,6 @@ export default function CommunityTab(props) {
     postImageInputRef,
     postImageUploading,
     postProfileComment,
-    postStory,
     postWallEntry,
     profileAvatarInputRef,
     profileCommentDraft,
@@ -229,9 +219,6 @@ export default function CommunityTab(props) {
     setStickerManageMode,
     setStickerNewPackName,
     setStickerPickerOpen,
-    setStoryCaption,
-    setStoryPaused,
-    setStoryViewer,
     stickerActivePackId,
     stickerError,
     stickerFileInputRef,
@@ -241,19 +228,10 @@ export default function CommunityTab(props) {
     stickerPacksLoaded,
     stickerPickerOpen,
     stickerUploading,
-    storiesByAuthor,
-    storyAuthorOrder,
-    storyCaption,
-    storyDraft,
-    storyImageInputRef,
-    storyPosting,
-    storyProgressPct,
-    storyViewer,
     toggleFeedComments,
     toggleFeedReaction,
     toggleFollowMember,
     toggleMessageReaction,
-    toggleStoryReaction,
     typingUsers,
     unpinCommunityMessage,
     uploadProfilePostImage
@@ -278,45 +256,6 @@ export default function CommunityTab(props) {
     if (d.toDateString() === t.toDateString()) return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
     if (d.toDateString() === y.toDateString()) return "Yesterday";
     return d.toLocaleDateString([], { month: "short", day: "numeric" });
-  };
-  const STORY_RING = `linear-gradient(135deg, ${palette.gold}, #F2709C 55%, #9B6BFF)`;
-  const renderStoriesRow = () => {
-    const size = isDesktop ? 68 : 62;
-    const hasOwnStory = (storiesByAuthor[communityUsername] || []).length > 0;
-    const ownUnseen = authorHasUnseen(communityUsername);
-    const ring = (unseen, children) => (
-      <span className="flex items-center justify-center rounded-full" style={{ width: `${size}px`, height: `${size}px`, padding: "2.5px", background: unseen ? STORY_RING : palette.border }}>
-        <span className="flex items-center justify-center rounded-full" style={{ width: "100%", height: "100%", padding: "2.5px", background: palette.bg }}>{children}</span>
-      </span>
-    );
-    const label = (text, strong) => (
-      <span className="truncate" style={{ width: "100%", marginTop: "6px", color: strong ? palette.text : palette.textMuted, fontSize: "11.5px", fontWeight: strong ? 700 : 600, textAlign: "center" }}>{text}</span>
-    );
-    return (
-      <>
-        <input ref={storyImageInputRef} type="file" accept="image/*" onChange={handleStoryImageChange} style={{ display: "none" }} />
-        <div className="flex items-start flex-shrink-0" style={{ gap: "14px", overflowX: "auto", scrollbarWidth: "none", WebkitOverflowScrolling: "touch", padding: "2px 2px 14px" }}>
-          <div className="relative flex-shrink-0" style={{ width: `${size + 6}px` }}>
-            <button type="button" onClick={() => (hasOwnStory ? openStoryViewerFor(communityUsername) : openStoryComposer())} className={`flex flex-col items-center w-full ${TAP}`} aria-label={hasOwnStory ? "View your story" : "Add to your story"}>
-              {ring(hasOwnStory && ownUnseen, <Avatar name={communityUsername} size={size - 11} src={avatarForAuthor(communityUsername)} />)}
-              {label("Your story", true)}
-            </button>
-            <button type="button" onClick={(e) => { e.stopPropagation(); openStoryComposer(); }} className={`absolute flex items-center justify-center rounded-full ${TAP}`} style={{ width: "22px", height: "22px", right: "2px", top: `${size - 22}px`, background: palette.gold, color: palette.letterbox, border: `2.5px solid ${palette.bg}` }} aria-label="Add to your story">
-              <Plus size={12} strokeWidth={3} />
-            </button>
-          </div>
-          {storyAuthorOrder.filter((u) => u !== communityUsername).map((u) => {
-            const unseen = authorHasUnseen(u);
-            return (
-              <button key={u} type="button" onClick={() => openStoryViewerFor(u)} className={`flex flex-col items-center flex-shrink-0 ${TAP}`} style={{ width: `${size + 6}px` }}>
-                {ring(unseen, <Avatar name={u} size={size - 11} src={avatarForAuthor(u)} />)}
-                {label(u, unseen)}
-              </button>
-            );
-          })}
-        </div>
-      </>
-    );
   };
 
     // ---------- Reusable chat panel (used standalone on mobile, embedded in split view on desktop) ----------
@@ -857,9 +796,6 @@ export default function CommunityTab(props) {
         ) : communityPanelTab === "feed" ? (
           <>
             <div className="flex-1 px-4 py-4" style={{ overflowY: "auto", minHeight: 0, background: palette.bg }}>
-
-              {/* Stories */}
-              {renderStoriesRow()}
 
               <div className="rounded-2xl p-3.5 mb-4" style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}>
                 <textarea value={newFeedText} onChange={(e) => setNewFeedText(e.target.value)}
@@ -1762,7 +1698,6 @@ export default function CommunityTab(props) {
     body = (
       <div className="flex flex-col flex-1 min-h-0">
         <div className="flex-1 overflow-y-auto">
-          {renderStoriesRow()}
           <form className="mb-3" onSubmit={(e) => { e.preventDefault(); searchCommunity(communitySearch); }}>
             <div className="flex items-center gap-2.5 rounded-full px-4" style={{ height: "44px", background: palette.field, border: `1px solid ${palette.border}` }}>
               <Search size={17} style={{ color: palette.textFaint }} />
@@ -1770,7 +1705,7 @@ export default function CommunityTab(props) {
             </div>
           </form>
           <button type="button" onClick={() => { setCommunityLobbyTab("global"); setCommunityMobileFeedOpen(true); if (!globalFeedLoaded) loadGlobalFeed(); }} className={`w-full flex items-center gap-3.5 px-1 py-3 text-left ${TAP}`} style={{ background: "transparent", border: "none", borderBottom: `1px solid ${palette.border}`, color: palette.text }}>
-            <span className="flex items-center justify-center rounded-full flex-shrink-0" style={{ width: "54px", height: "54px", background: STORY_RING, color: "#fff" }}><Newspaper size={23} /></span>
+            <span className="flex items-center justify-center rounded-full flex-shrink-0" style={{ width: "54px", height: "54px", background: palette.gold, color: palette.letterbox }}><Newspaper size={23} /></span>
             <div className="flex-1 min-w-0"><div style={{ fontSize: "15.5px", fontWeight: 700 }}>Global feed</div><div className="truncate" style={{ color: palette.textFaint, fontSize: "13.5px", marginTop: "3px" }}>Posts from everyone on Tredzi</div></div>
             <ChevronRight size={17} style={{ color: palette.textFaint, flexShrink: 0 }} />
           </button>
@@ -1830,10 +1765,6 @@ export default function CommunityTab(props) {
           const shell = (children) => (
             isDesktop ? (
               <div className="fixed inset-0 flex flex-col" style={{ background: palette.bg, zIndex: 108 }}>
-                {/* Mounted here too (not just on the Feed tab) so tapping a profile picture or the
-                    story circle can always open the file picker, even if Feed isn't the active tab
-                    underneath this overlay. */}
-                <input ref={storyImageInputRef} type="file" accept="image/*" onChange={handleStoryImageChange} style={{ display: "none" }} />
                 <div className="flex items-center gap-3 px-6 flex-shrink-0" style={{ height: "56px", borderBottom: `1px solid ${palette.border}`, background: palette.surface }}>
                   <button type="button" onClick={closeProfileBack} className={`flex items-center gap-1.5 ${TAP}`} style={{ background: "none", border: "none", color: palette.textMuted, fontSize: "13px", fontWeight: 600, fontFamily: sans }} aria-label="Back">
                     <ChevronLeft size={18} /> Back
@@ -1850,7 +1781,6 @@ export default function CommunityTab(props) {
             ) : (
               <div className="fixed inset-0 flex justify-center" style={{ background: palette.bg, zIndex: 108 }}>
                 <div className="flex flex-col w-full min-h-0">
-                  <input ref={storyImageInputRef} type="file" accept="image/*" onChange={handleStoryImageChange} style={{ display: "none" }} />
                   <div className="flex items-center gap-3 px-3 py-2.5 flex-shrink-0" style={{ borderBottom: `1px solid ${palette.border}`, background: palette.surface, paddingTop: "max(10px, env(safe-area-inset-top))" }}>
                     <button type="button" onClick={closeProfileBack} className={`flex items-center justify-center rounded-full flex-shrink-0 ${TAP}`} style={{ width: "32px", height: "32px", background: palette.field, border: `1px solid ${palette.border}`, color: palette.textMuted }} aria-label="Back">
                       <ChevronLeft size={17} />
@@ -1888,34 +1818,16 @@ export default function CommunityTab(props) {
             ["Trades", stats.trades == null ? "—" : String(stats.trades), palette.text],
             ["Avg R", stats.avgR == null ? "—" : stats.avgR.toFixed(1), palette.text],
           ];
-          // Tapping the profile picture opens that person's story (Instagram-style). If it's your
-          // own picture and you have no active story, it starts one instead. If someone else has
-          // no story, the picture is just a picture — nothing to open.
-          const profileHasStory = (storiesByAuthor[p.username] || []).length > 0;
-          const profileStoryUnseen = authorHasUnseen(p.username);
-          const profileStoryAction = profileHasStory ? () => openStoryViewerFor(p.username) : (isMe ? openStoryComposer : null);
-          const profileRingGradient = profileHasStory
-            ? (profileStoryUnseen ? palette.gold : palette.border)
-            : palette.gold;
-          const avatarRingHandlers = profileStoryAction
-            ? {
-                role: "button",
-                tabIndex: 0,
-                onClick: profileStoryAction,
-                onKeyDown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); profileStoryAction(); } },
-                "aria-label": profileHasStory ? `View ${p.username}'s story` : "Add to your story",
-              }
-            : {};
           const avatarBlock = (
             <div className="relative flex-shrink-0">
               {isDesktop ? (
-                <span className={`inline-flex rounded-full ${profileStoryAction ? TAP : ""}`} style={{ padding: "3px", background: profileRingGradient, cursor: profileStoryAction ? "pointer" : "default" }} {...avatarRingHandlers}>
+                <span className="inline-flex rounded-full" style={{ padding: "3px", background: palette.border }}>
                   <span className="inline-flex rounded-full" style={{ padding: "4px", background: palette.bg }}>
                     <Avatar name={p.username} size={150} src={avatarSrc} online={p.isOnline} />
                   </span>
                 </span>
               ) : (
-                <span className={`inline-flex rounded-full ${profileStoryAction ? TAP : ""}`} style={{ padding: "2px", background: profileRingGradient, cursor: profileStoryAction ? "pointer" : "default" }} {...avatarRingHandlers}>
+                <span className="inline-flex rounded-full" style={{ padding: "2px", background: palette.border }}>
                   <span className="inline-flex rounded-full" style={{ padding: "3px", background: palette.bg }}>
                     <Avatar name={p.username} size={80} src={avatarSrc} online={p.isOnline} />
                   </span>
@@ -2094,42 +2006,6 @@ export default function CommunityTab(props) {
             </div>
           );
 
-          // Story-highlight circle (own profile only) — Instagram-style: shows your current
-          // story ring if you have one, or lets you start a new story. No longer opens the
-          // new-post composer (that's handled by the separate "New post" button/pill).
-          const hasOwnStory = (storiesByAuthor[p.username] || []).length > 0;
-          const ownStoryUnseen = authorHasUnseen(p.username);
-          const newCircle = isMe ? (
-            <div className="flex items-start" style={{ padding: isDesktop ? "0 40px 44px" : "0 16px 18px" }}>
-              <button
-                type="button"
-                onClick={() => (hasOwnStory ? openStoryViewerFor(p.username) : openStoryComposer())}
-                className={`flex flex-col items-center ${TAP}`}
-                style={{ background: "none", border: "none", padding: 0, width: isDesktop ? "96px" : "72px" }}
-                aria-label={hasOwnStory ? "View your story" : "Add to your story"}
-              >
-                <span
-                  className="flex items-center justify-center rounded-full"
-                  style={{
-                    width: isDesktop ? "88px" : "66px",
-                    height: isDesktop ? "88px" : "66px",
-                    padding: "3px",
-                    background: hasOwnStory ? (ownStoryUnseen ? palette.gold : palette.border) : palette.border,
-                  }}
-                >
-                  <span className="flex items-center justify-center rounded-full w-full h-full overflow-hidden" style={{ background: palette.surface }}>
-                    {hasOwnStory ? (
-                      <Avatar name={p.username} size={isDesktop ? 82 : 60} src={avatarSrc} />
-                    ) : (
-                      <Plus size={isDesktop ? 38 : 28} strokeWidth={1.6} style={{ color: palette.textMuted }} />
-                    )}
-                  </span>
-                </span>
-                <span style={{ marginTop: "9px", color: palette.text, fontSize: isDesktop ? "13.5px" : "12px", fontWeight: 700 }}>{hasOwnStory ? "Your story" : "New"}</span>
-              </button>
-            </div>
-          ) : null;
-
           if (isDesktop) {
             // Instagram-web layout: big ringed avatar left; username + actions, then
             // "N posts · N followers · N following", then bio on the right, then the tab bar
@@ -2164,7 +2040,7 @@ export default function CommunityTab(props) {
                   </div>
                 </div>
 
-                {newCircle}
+                
                 {tabBar}
                 <div>
                   {profileSubTab === "posts" ? postsGrid : statsPanel}
@@ -2203,7 +2079,7 @@ export default function CommunityTab(props) {
                 )}
               </div>
 
-              {newCircle}
+              
               {tabBar}
 
               {profileSubTab === "posts" ? postsGrid : statsPanel}
@@ -2619,166 +2495,6 @@ export default function CommunityTab(props) {
                 <div style={{ display: "flex", flexDirection: isDesktop ? "row" : "column", height: isDesktop ? "min(72vh, 560px)" : "auto", flex: isDesktop ? "none" : "1 1 auto", overflowY: isDesktop ? "hidden" : "auto", minHeight: 0 }}>
                   {mediaPane}
                   {captionPane}
-                </div>
-              </div>
-            </div>
-          );
-        })()}
-
-        {storyDraft && (
-          <div className="fixed inset-0 flex items-center justify-center" style={{ background: "#000000", zIndex: 135 }}>
-            <div className="relative w-full h-full flex flex-col" style={{ maxWidth: isDesktop ? "420px" : "100%", margin: "0 auto" }}>
-              <div className="flex items-center justify-between px-3 pt-3 pb-2 flex-shrink-0">
-                <button type="button" onClick={cancelStoryDraft} className={`flex items-center justify-center rounded-full ${TAP}`} style={{ width: "32px", height: "32px", background: "rgba(255,255,255,0.12)", color: "#FFFFFF" }} aria-label="Cancel story">
-                  <X size={16} />
-                </button>
-                <span style={{ color: "#FFFFFF", fontSize: "14px", fontWeight: 700 }}>New story</span>
-                <span style={{ width: "32px" }} />
-              </div>
-              <div className="flex-1 flex items-center justify-center px-4" style={{ minHeight: 0 }}>
-                <img src={storyDraft.image} alt="Story preview" className="rounded-xl" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
-              </div>
-              <div className="flex items-center gap-2 px-3 pb-4 pt-3 flex-shrink-0">
-                <input
-                  type="text"
-                  value={storyCaption}
-                  onChange={(e) => setStoryCaption(e.target.value.slice(0, 200))}
-                  placeholder="Add a caption…"
-                  className="flex-1 rounded-full px-4 py-2.5 outline-none"
-                  style={{ background: "rgba(255,255,255,0.12)", color: "#FFFFFF", fontSize: "13px", border: "1px solid rgba(255,255,255,0.18)" }}
-                />
-                <button
-                  type="button"
-                  onClick={postStory}
-                  disabled={storyPosting}
-                  className={`px-4 py-2.5 rounded-full ${TAP}`}
-                  style={{ background: palette.gold, color: palette.letterbox, fontFamily: mono, fontSize: "12px", fontWeight: 800, opacity: storyPosting ? 0.6 : 1 }}
-                >
-                  {storyPosting ? "Posting…" : "Post story"}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {storyViewer && (() => {
-          const author = storyAuthorOrder[storyViewer.authorIdx];
-          const slides = storiesByAuthor[author] || [];
-          const slide = slides[storyViewer.slideIdx];
-          if (!author || !slide) return null;
-          const isMine = author === communityUsername;
-          const pnlPositive = slide.pnl && !slide.pnl.trim().startsWith("-");
-
-          const handlePress = () => setStoryPaused(true);
-          const handleRelease = () => setStoryPaused(false);
-          const handleTapZone = (dir) => (e) => {
-            e.stopPropagation();
-            advanceStory(dir);
-          };
-
-          return (
-            <div
-              className="fixed inset-0 flex items-center justify-center"
-              style={{ background: "#000000", zIndex: 130 }}
-              onMouseDown={handlePress}
-              onMouseUp={handleRelease}
-              onMouseLeave={handleRelease}
-              onTouchStart={handlePress}
-              onTouchEnd={handleRelease}
-            >
-              <div className="relative w-full h-full flex flex-col" style={{ maxWidth: isDesktop ? "420px" : "100%", margin: "0 auto" }}>
-                {/* progress segments */}
-                <div className="flex gap-1 px-2.5 pt-2.5 flex-shrink-0" style={{ zIndex: 2 }}>
-                  {slides.map((s, i) => (
-                    <div key={s.id || i} className="flex-1 rounded-full overflow-hidden" style={{ height: "2.5px", background: "rgba(255,255,255,0.28)" }}>
-                      <div
-                        style={{
-                          height: "100%",
-                          width: i < storyViewer.slideIdx ? "100%" : i === storyViewer.slideIdx ? `${storyProgressPct}%` : "0%",
-                          background: "#FFFFFF",
-                          transition: i === storyViewer.slideIdx ? "none" : "width 0.15s linear",
-                        }}
-                      />
-                    </div>
-                  ))}
-                </div>
-
-                {/* header */}
-                <div className="flex items-center justify-between px-3 pt-2.5 pb-2 flex-shrink-0" style={{ zIndex: 2 }}>
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Avatar name={author} size={30} src={avatarForAuthor(author)} />
-                    <div className="min-w-0">
-                      <div className="truncate" style={{ color: "#FFFFFF", fontSize: "13px", fontWeight: 700 }}>{isMine ? "Your story" : author}</div>
-                      <div style={{ color: "rgba(255,255,255,0.65)", fontSize: "10.5px", fontFamily: mono }}>{feedTimeAgo(slide.ts)}</div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    {isMine && (
-                      <button type="button" onClick={(e) => { e.stopPropagation(); const left = slides.length - 1; deleteStory(slide.id); if (left <= 0) closeStoryViewer(); else setStoryViewer((cur) => cur && { ...cur, slideIdx: Math.min(cur.slideIdx, left - 1) }); }} className={TAP} style={{ color: "rgba(255,255,255,0.75)" }} aria-label="Delete story">
-                        <Trash2 size={16} />
-                      </button>
-                    )}
-                    <button type="button" onClick={closeStoryViewer} className={`flex items-center justify-center rounded-full ${TAP}`} style={{ width: "28px", height: "28px", background: "rgba(255,255,255,0.12)", color: "#FFFFFF" }} aria-label="Close story">
-                      <X size={15} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* slide content */}
-                <div className="relative flex-1 flex items-center justify-center px-4" style={{ minHeight: 0 }}>
-                  <div className="absolute inset-y-0 left-0" style={{ width: "35%", zIndex: 3 }} onClick={handleTapZone(-1)} />
-                  <div className="absolute inset-y-0 right-0" style={{ width: "35%", zIndex: 3 }} onClick={handleTapZone(1)} />
-
-                  {slide.image ? (
-                    <img src={slide.image} alt="Story" className="rounded-xl" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
-                  ) : (
-                    <div className="w-full rounded-2xl p-6 text-center" style={{ background: "#171B24", border: `1px solid rgba(255,255,255,0.1)` }}>
-                      {slide.text && <p style={{ color: "#F5F6F9", fontSize: "16px", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{slide.text}</p>}
-                    </div>
-                  )}
-
-                  {slide.image && slide.text && (
-                    <div className="absolute" style={{ left: "16px", right: "16px", bottom: "12px", zIndex: 4, textAlign: "center", color: "#FFFFFF", fontSize: "14px", lineHeight: 1.4, background: "rgba(0,0,0,0.5)", padding: "8px 12px", borderRadius: "12px", whiteSpace: "pre-wrap" }}>
-                      {slide.text}
-                    </div>
-                  )}
-
-                  {slide.pnl && (
-                    <span
-                      className="absolute"
-                      style={{
-                        bottom: "14px", left: "50%", transform: "translateX(-50%)",
-                        background: pnlPositive ? `${palette.green}cc` : `${palette.red}cc`,
-                        color: "#0A0C11", fontSize: "12.5px", fontWeight: 800, padding: "5px 13px", borderRadius: "999px", fontFamily: mono, zIndex: 4,
-                      }}
-                    >
-                      {slide.pnl}
-                    </span>
-                  )}
-                </div>
-
-                {/* reactions on the story itself — tap to react, tap again to undo */}
-                <div className="flex items-center justify-center gap-2 px-3 pb-4 pt-2 flex-shrink-0" style={{ zIndex: 2 }} onClick={(e) => e.stopPropagation()}>
-                  {FEED_REACTIONS.map((r) => {
-                    const count = (slide.reactions && slide.reactions[r.key]) || 0;
-                    const active = myStoryReactions[slide.id] === r.key;
-                    return (
-                      <button
-                        key={r.key}
-                        type="button"
-                        onClick={() => toggleStoryReaction(slide.id, r.key)}
-                        className={`flex items-center gap-1 ${TAP}`}
-                        style={{
-                          color: "#FFFFFF", fontSize: "12px", fontFamily: mono, fontWeight: 700,
-                          background: active ? "rgba(224,172,95,0.25)" : "rgba(255,255,255,0.1)",
-                          border: `1px solid ${active ? palette.gold : "rgba(255,255,255,0.18)"}`,
-                          borderRadius: "999px", padding: "5px 10px",
-                        }}
-                      >
-                        <span style={{ fontSize: "14px" }}>{r.emoji}</span>{count > 0 && count}
-                      </button>
-                    );
-                  })}
                 </div>
               </div>
             </div>
