@@ -1063,9 +1063,9 @@ export default function CommunityTab(props) {
 
         {/* Messages */}
         <div className="relative flex-1 min-h-0 flex flex-col" style={{ background: palette.bg }}>
-          <style>{`@keyframes typingDot{0%,60%,100%{opacity:.35;transform:none}30%{opacity:1;transform:translateY(-3px)}}@keyframes msgIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}@keyframes sk{0%,100%{opacity:.5}50%{opacity:1}}.msg-in{animation:msgIn .18s ease-out both}.msg-sk{animation:sk 1.3s ease-in-out infinite}@media (prefers-reduced-motion:reduce){.msg-in,.msg-sk{animation:none}}`}</style>
+          <style>{`.msg-scroll{scrollbar-width:thin;scrollbar-color:${palette.textFaint}66 transparent}.msg-scroll::-webkit-scrollbar{width:8px}.msg-scroll::-webkit-scrollbar-thumb{background:${palette.textFaint}55;border-radius:8px}.msg-scroll::-webkit-scrollbar-button{display:none}@keyframes typingDot{0%,60%,100%{opacity:.35;transform:none}30%{opacity:1;transform:translateY(-3px)}}@keyframes msgIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}@keyframes sk{0%,100%{opacity:.5}50%{opacity:1}}.msg-in{animation:msgIn .18s ease-out both}.msg-sk{animation:sk 1.3s ease-in-out infinite}@media (prefers-reduced-motion:reduce){.msg-in,.msg-sk{animation:none}}`}</style>
           <div
-            className="flex-1"
+            className="flex-1 msg-scroll"
             style={{ overflowY: "auto", minHeight: 0, overscrollBehavior: "contain", padding: isDesktop ? "14px 20px 10px" : "10px 10px 8px" }}
             onScroll={(e) => { const el = e.currentTarget; const far = el.scrollHeight - el.scrollTop - el.clientHeight > 260; if (far !== showJump) setShowJump(far); }}
             onClick={() => { if (activeMsgId) setActiveMsgId(null); }}
@@ -1282,7 +1282,7 @@ export default function CommunityTab(props) {
           style={{
             borderTop: `1px solid ${palette.border}`,
             background: palette.surface,
-            padding: isDesktop ? "10px 14px" : "8px 10px",
+            padding: isDesktop ? "12px 16px" : "8px 10px",
             paddingBottom: isDesktop ? undefined : "calc(8px + env(safe-area-inset-bottom, 0px))",
           }}
         >
@@ -1675,8 +1675,8 @@ export default function CommunityTab(props) {
     body = (
       <div className="flex gap-4 flex-1" style={{ minHeight: 0, height: "100%" }}>
         {renderSidebar()}
-        <div className="flex-1 min-w-0 rounded-2xl overflow-hidden" style={{ border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}>
-          {communityLobbyTab === "search" ? renderCommunitySearch() : activeGroupId ? renderChatPanel({ background: palette.bg, height: "100%" }) : communityLobbyTab === "global" ? renderGlobalFeed() : (
+        <div className="relative flex-1 min-w-0 rounded-2xl overflow-hidden" style={{ border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}>
+          {communityLobbyTab === "search" ? renderCommunitySearch() : activeGroupId ? renderChatPanel({ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, height: "auto", background: palette.bg }) : communityLobbyTab === "global" ? renderGlobalFeed() : (
             <div className="flex flex-col items-center justify-center h-full text-center px-8" style={{ background: palette.bg }}>
               <span className="flex items-center justify-center rounded-full mb-4" style={{ width: "64px", height: "64px", background: `${palette.gold}14`, border: `1px solid ${palette.gold}33` }}><Users size={28} style={{ color: palette.gold }} /></span>
               <div style={{ fontFamily: display, fontSize: "17px", fontWeight: 700, color: palette.text, marginBottom: "6px" }}>Pick a group to start</div>
