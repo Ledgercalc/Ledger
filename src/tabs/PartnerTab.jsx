@@ -1,5 +1,5 @@
-import { AlertTriangle, ArrowUpRight, Award, Calendar, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, Clock, Copy, Download, Flame, Inbox, Lightbulb, Lock, MessageCircle, Mic, Pause, Pencil, Play, Plus, RefreshCw, Repeat, Send, Share2, ShieldAlert, Sparkles, Square, Star, StickyNote, Target, TrendingDown, TrendingUp, Trash2, Users, X } from "lucide-react";
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, ArrowUpRight, Award, Calendar, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, Clock, Copy, Download, Inbox, Lightbulb, Lock, MessageCircle, Mic, Pause, Pencil, Play, Plus, Repeat, Send, Share2, ShieldAlert, Sparkles, Square, Star, StickyNote, Target, TrendingDown, TrendingUp, Trash2, Users, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { COMMUNITY_API_BASE } from "../api/community.js";
 import { Avatar } from "../components/ui.jsx";
 import { dayKeyFromDate, dayKeyFromTs, num } from "../lib/format.js";
@@ -49,15 +49,6 @@ const NUDGE_TEXT = {
   goal: "set you a goal.",
   session: "shared their session notes.",
 };
-// one-tap starters so a mentor can give useful feedback in seconds, and a mentee knows what to ask
-const MENTOR_QUICK = [
-  ["Followed plan", "Clean entry and you followed your plan."],
-  ["Entry early", "Entry was early. Wait for confirmation before you click."],
-  ["Risk too big", "Risk was too big for this setup. Size down until it's proven."],
-  ["Moved stop", "You moved the stop. Keep it fixed once the trade is live."],
-  ["Good patience", "Good patience here. Let the winners run."],
-  ["Skip setup", "I'd skip this setup until you've tested it more."],
-];
 const MENTOR_SETS = {
   Praise: [
     ["Followed plan", "Clean entry and you followed your plan."],
@@ -114,7 +105,7 @@ const MENTEE_QUICK = [
   ["Size right?", "Was my position size right for this setup?"],
   ["Your take", "What would you have done differently here?"],
 ];
-const DEFAULT_SHARE = { on: true, checkin: true, trades: true, loss: true, ready: true };
+const DEFAULT_SHARE = { on: true, checkin: true, trades: true, loss: true };
 const money = (n) => `${n < 0 ? "-" : "+"}$${Math.abs(n).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 const dateText = (ts) => new Date(ts).toLocaleDateString([], { month: "short", day: "numeric" });
 const ago = (ts) => {
@@ -380,14 +371,14 @@ function InputGroup({ value, onChange, onEnter, placeholder, button, mono: isMon
   );
 }
 
-// A row of summary numbers in one container, separated by hairlines.
+// Summary numbers, each in its own card.
 function StatStrip({ items }) {
   return (
-    <div style={{ display: "flex" }}>
-      {items.map(([label, value, color, hint], i) => (
-        <div key={label} style={{ flex: "1 1 0", minWidth: 0, padding: "16px 16px 15px", borderLeft: i ? `1px solid ${palette.border}` : 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: palette.textMuted }}>{label}</div>
-          <div style={{ fontFamily: mono, fontSize: 26, fontWeight: 800, letterSpacing: -0.8, lineHeight: 1, marginTop: 8, color: color ? ink(color) : palette.text }}>{value}</div>
+    <div style={{ display: "grid", gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))`, gap: 10 }}>
+      {items.map(([label, value, color, hint]) => (
+        <div key={label} style={{ minWidth: 0, padding: "14px 14px 13px", background: palette.surface, border: `1px solid ${palette.border}`, borderRadius: 18, boxShadow: palette.shadow }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: palette.textMuted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</div>
+          <div style={{ fontFamily: mono, fontSize: "clamp(21px, 5.6vw, 26px)", fontWeight: 800, letterSpacing: -0.8, lineHeight: 1, marginTop: 8, color: color ? ink(color) : palette.text }}>{value}</div>
           {hint && <div style={{ fontSize: 11.5, color: palette.textFaint, marginTop: 7, lineHeight: 1.35 }}>{hint}</div>}
         </div>
       ))}
@@ -623,55 +614,11 @@ const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Frida
 
 const PAUSE_AFTER = 3; // losses in a row before the pause banner shows
 const PAUSE_KEY = "tredzi.pause";
-const RITUAL_KEY = "tredzi.ritual";
 const readPause = () => { try { const v = JSON.parse(localStorage.getItem(PAUSE_KEY) || "{}"); return { until: Number(v.until) || 0, dismissed: Number(v.dismissed) || 0 }; } catch (e) { return { until: 0, dismissed: 0 }; } };
 const writePause = (v) => { try { localStorage.setItem(PAUSE_KEY, JSON.stringify(v)); } catch (e) { /* storage unavailable */ } };
-const readRitual = (day) => {
-  try { const v = JSON.parse(localStorage.getItem(RITUAL_KEY) || "{}"); if (v && v.day === day) return { day, read: !!v.read, done: !!v.done, at: Number(v.at) || 0 }; } catch (e) { /* ignore */ }
-  return { day, read: false, done: false, at: 0 };
-};
-const writeRitual = (v) => { try { localStorage.setItem(RITUAL_KEY, JSON.stringify(v)); } catch (e) { /* storage unavailable */ } };
-
 // A tick box drawn the same way everywhere in this tab. `auto` boxes can't be tapped; they reflect a setting.
 function Tick({ on, auto }) {
   return <span aria-hidden="true" style={{ width: 20, height: 20, borderRadius: 7, display: "grid", placeItems: "center", flexShrink: 0, border: `2px solid ${on ? GOOD : tint(palette.text, auto ? 20 : 30)}`, background: on ? GOOD : "transparent", color: "#fff" }}>{on && <Check size={13} strokeWidth={3.2} />}</span>;
-}
-
-/* ---------- pre-session ritual ---------- */
-function RitualCard({ ctx }) {
-  const { ritual, updateRitual, ritualRows, share } = ctx;
-  const all = ritualRows.every((r) => r.on);
-  return (
-    <Card title="Before you trade today" icon={<ClipboardCheck size={14} />}
-      aside={ritual.done ? <Pill color={GOOD}><Check size={11} strokeWidth={3} /> Ready</Pill> : <Pill color={WARN}>Not yet</Pill>}>
-      {ritual.done ? (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-          <div style={{ fontSize: 13, color: palette.text, lineHeight: 1.5 }}>Plan confirmed{ritual.at ? ` at ${clock(ritual.at)}` : ""}. Trade well.</div>
-          <button type="button" onClick={() => updateRitual({ done: false, at: 0 })} style={{ ...btn(false), ...small }}>Edit</button>
-        </div>
-      ) : (
-        <>
-          {ritualRows.map((r) => {
-            const inner = (
-              <>
-                <Tick on={r.on} auto={r.auto} />
-                <span style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
-                  <span style={{ display: "block", fontSize: 13.5, fontWeight: 600, color: palette.text }}>{r.label}</span>
-                  {r.auto && !r.on && <span style={{ display: "block", fontSize: 11, color: palette.textFaint, marginTop: 1 }}>{r.hint}</span>}
-                </span>
-              </>
-            );
-            const st = { display: "flex", alignItems: "center", gap: 11, width: "100%", minHeight: TOUCH ? 46 : 40, padding: "4px 2px", background: "transparent", border: 0, fontFamily: sans };
-            return r.auto
-              ? <div key={r.key} style={st}>{inner}</div>
-              : <button key={r.key} type="button" role="checkbox" aria-checked={r.on} onClick={() => updateRitual({ read: !ritual.read })} className={TAP} style={{ ...st, cursor: "pointer" }}>{inner}</button>;
-          })}
-          <button type="button" disabled={!all} onClick={() => updateRitual({ done: true, at: Date.now() })} style={{ ...btn(true), width: "100%", marginTop: 10, opacity: all ? 1 : 0.5 }}>Confirm plan</button>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, ...sub }}><Lock size={11} /> {share.on && share.ready ? "Partners see one tick: ready or not yet." : "Sharing is off, so only you see this."}</div>
-        </>
-      )}
-    </Card>
-  );
 }
 
 /* ---------- pause pact ---------- */
@@ -788,40 +735,63 @@ function ReportCard({ ctx, data, order }) {
   );
 }
 
-/* ---------- rule-break heatmap ---------- */
-function RuleHeatmapCard({ ctx }) {
-  const { today, dayState } = ctx;
+/* ---------- which rules hold up: the last 5 weeks, rule by rule ---------- */
+function RulesCard({ ctx }) {
+  const { today, dayRules } = ctx;
   const start = addDaysKey(weekStartOf(today), -28);
-  let kept = 0, broken = 0;
-  const rows = [0, 1, 2, 3, 4].map((w) => [0, 1, 2, 3, 4, 5, 6].map((d) => {
-    const key = addDaysKey(start, w * 7 + d);
-    const state = key > today ? "future" : dayState(key);
-    if (state === "kept") kept += 1; else if (state === "broken") broken += 1;
-    return { key, state };
-  }));
-  const fill = (s) => (s === "kept" ? GOOD : s === "broken" ? BAD : tint(palette.text, s === "future" ? 4 : 9));
-  const word = { kept: "rules kept", broken: "rule broken", none: "no data", future: "not yet" };
+  const rules = [["checkin", "Check-in on plan"], ["trades", "Max trades"], ["loss", "Loss limit"]];
+  const tally = { checkin: [0, 0], trades: [0, 0], loss: [0, 0] };
+  const weeks = [0, 1, 2, 3, 4].map((w) => {
+    let clean = 0;
+    for (let d = 0; d < 7; d += 1) {
+      const key = addDaysKey(start, w * 7 + d);
+      if (key > today) break;
+      const r = dayRules(key);
+      let any = false, bad = false;
+      rules.forEach(([k]) => { if (r[k] === true) { tally[k][0] += 1; any = true; } else if (r[k] === false) { tally[k][1] += 1; bad = true; } });
+      if (any && !bad) clean += 1;
+    }
+    return clean;
+  });
+  const total = rules.reduce((n, [k]) => n + tally[k][0] + tally[k][1], 0);
+  const worst = rules.map(([k, label]) => ({ label, broke: tally[k][1] })).sort((a, b) => b.broke - a.broke)[0];
   return (
-    <Card title="Last 5 weeks" icon={<Calendar size={14} />} aside={<span style={{ fontSize: 11.5, color: palette.textFaint }}>{kept + broken > 0 ? `${kept} kept · ${broken} broken` : "no data yet"}</span>}>
-      <div style={{ display: "grid", gridTemplateColumns: "28px repeat(7, minmax(0, 1fr))", gap: 5, maxWidth: 420, alignItems: "center", fontSize: 11, color: palette.textFaint }}>
-        <span />
-        {["M", "T", "W", "T", "F", "S", "S"].map((l, i) => <span key={i} style={{ textAlign: "center" }}>{l}</span>)}
-        {rows.map((row, w) => (
-          <Fragment key={w}>
-            <span>W{w + 1}</span>
-            {row.map((c) => (
-              <span key={c.key} role="img" aria-label={`${keyText(c.key)}: ${word[c.state]}`} title={`${keyText(c.key)}: ${word[c.state]}`}
-                style={{ display: "block", aspectRatio: "1", borderRadius: 6, background: fill(c.state), boxShadow: c.key === today ? `0 0 0 2px ${palette.gold}` : "none" }} />
+    <Card title="Your rules, last 5 weeks" icon={<Target size={14} />}>
+      {total === 0 ? (
+        <div style={{ ...sub, marginTop: -4 }}>Nothing to show yet. Check in on your Trade plan and set max trades and a loss limit in Settings, and each rule gets its own scorecard here.</div>
+      ) : (
+        <>
+          <div style={{ display: "grid", gap: 13 }}>
+            {rules.map(([k, label]) => {
+              const [ok, no] = tally[k];
+              const n = ok + no;
+              return (
+                <div key={k}>
+                  <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8, fontSize: 12.5 }}>
+                    <span style={{ fontWeight: 700, color: palette.text }}>{label}</span>
+                    <span style={{ color: palette.textMuted }}>{n ? `${ok} kept · ${no} broken` : "not tracked"}</span>
+                  </div>
+                  <div style={{ display: "flex", height: 7, borderRadius: 99, overflow: "hidden", background: tint(palette.text, 8), marginTop: 6 }}>
+                    {ok > 0 && <div style={{ width: `${(ok / n) * 100}%`, background: GOOD }} />}
+                    {no > 0 && <div style={{ width: `${(no / n) * 100}%`, background: BAD }} />}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {worst && worst.broke > 0 && <div style={{ ...sub, fontSize: 12.5, color: palette.textMuted, marginTop: 12 }}>{worst.label} is the rule you break most ({plural(worst.broke, "day")}).</div>}
+          <div style={{ ...eyebrow, margin: "16px 0 8px" }}>Clean days each week</div>
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 64 }}>
+            {weeks.map((n, i) => (
+              <div key={i} style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", gap: 4, height: "100%" }}>
+                <span style={{ fontFamily: mono, fontSize: 11, fontWeight: 800, color: palette.textMuted }}>{n}</span>
+                <span style={{ width: "100%", maxWidth: 34, height: Math.max(4, (n / 7) * 38), borderRadius: 6, background: i === 4 ? palette.gold : tint(palette.text, 22) }} />
+              </div>
             ))}
-          </Fragment>
-        ))}
-      </div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 14, marginTop: 12, fontSize: 11.5, color: palette.textMuted }}>
-        {[["kept", "Rules kept"], ["broken", "Rule broken"], ["none", "No data"]].map(([k, label]) => (
-          <span key={k} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span aria-hidden="true" style={{ width: 11, height: 11, borderRadius: 4, background: fill(k) }} />{label}</span>
-        ))}
-      </div>
-      <div style={sub}>Worked out on this device from your check-ins, max trades and loss limit. W5 is this week.</div>
+          </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 6 }}>{weeks.map((_, i) => <span key={i} style={{ flex: 1, textAlign: "center", fontSize: 10.5, color: palette.textFaint }}>{i === 4 ? "This wk" : `W${i + 1}`}</span>)}</div>
+        </>
+      )}
     </Card>
   );
 }
@@ -1374,7 +1344,6 @@ function PartnerCard({ p, busy, today, onNudge, onLeave, onBlock }) {
           <div style={eyebrow}>{p.username}'s day</div>
           <span style={{ display: "inline-flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
             {onBreak && <Pill color={WARN}><Pause size={10} strokeWidth={3} /> Taking a break</Pill>}
-            {t.ready === true ? <Pill color={GOOD}><Check size={10} strokeWidth={3} /> Ready</Pill> : <Pill>Not ready yet</Pill>}
           </span>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -1382,7 +1351,7 @@ function PartnerCard({ p, busy, today, onNudge, onLeave, onBlock }) {
           <Signal label="Trade limit" value={t.trades} />
           <Signal label="Loss limit" value={t.loss} />
         </div>
-        {!t.shared && t.ready !== true && !onBreak && <div style={sub}>{p.username} hasn't shared anything yet today.</div>}
+        {!t.shared && !onBreak && <div style={sub}>{p.username} hasn't shared anything yet today.</div>}
         <div style={{ ...eyebrow, margin: "16px 0 10px" }}>Last 7 days</div>
         <div style={{ paddingBottom: 16 }}>
           <WeekStrip days={p.days} today={today} />
@@ -1477,13 +1446,6 @@ function TodayStrip({ share, setShare, mine, partners, isDesktop }) {
               <Switch on={share.on && share[key]} onChange={(v) => setShare({ [key]: v })} label={`Share: ${label}`} />
             </div>
           ))}
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 13, opacity: share.on ? 1 : 0.5 }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, color: palette.text, fontWeight: 600 }}>Ready to trade tick</div>
-              <div style={{ fontSize: 11, color: palette.textFaint }}>Shows once you confirm your plan above</div>
-            </div>
-            <Switch on={share.on && share.ready} onChange={(v) => setShare({ ready: v })} label="Share: ready to trade tick" />
-          </div>
         </div>
       )}
     </Card>
@@ -1577,7 +1539,7 @@ function PartnersPanel({ ctx, data }) {
           ))}
         </Card>
       )}
-      <RuleHeatmapCard ctx={ctx} />
+      <RulesCard ctx={ctx} />
     </div>
   );
 
@@ -1667,7 +1629,6 @@ function PartnersPanel({ ctx, data }) {
   return (
     <div>
       <TodayStrip share={share} setShare={setShare} mine={mine} partners={data.partners} isDesktop={isDesktop} />
-      <RitualCard ctx={ctx} />
       <div style={grid}>{left}{right}</div>
     </div>
   );
@@ -1831,7 +1792,7 @@ function TradeDetail({ ctx, id, onBack, onUnshared, next, onNext, onCommented })
           <div style={{ marginTop: "auto", paddingTop: 16 }}>
             <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
               {trays.map(([k, col]) => <DropChip key={k} open={tray === k} color={col} onClick={() => toggleTray(k)} count={k === "Saved" ? saved.length : 0}>{k}</DropChip>)}
-              {mentor && (<><Chip on={voiceOpen} onClick={() => setVoiceOpen((v) => !v)}><Mic size={13} style={{ verticalAlign: "-2px", marginRight: 5 }} />Voice</Chip><span style={{ flex: 1 }} /><DropChip open={tray === "Checklist"} color={palette.gold} onClick={() => toggleTray("Checklist")}>Checklist</DropChip></>)}
+              {mentor && (<><button type="button" onClick={() => setVoiceOpen((v) => !v)} aria-label="Voice note" aria-pressed={voiceOpen} title="Voice note" className={TAP} style={{ flexShrink: 0, width: TOUCH ? 40 : 34, height: TOUCH ? 40 : 34, borderRadius: 99, display: "grid", placeItems: "center", cursor: "pointer", border: `1px solid ${voiceOpen ? tint(palette.gold, 55) : palette.border}`, background: voiceOpen ? tint(palette.gold, 16) : "transparent", color: voiceOpen ? ink(palette.gold) : palette.textMuted }}><Mic size={16} /></button><span style={{ flex: 1 }} /><DropChip open={tray === "Checklist"} color={palette.gold} onClick={() => toggleTray("Checklist")}>Checklist</DropChip></>)}
             </div>
             <Fold open={!!tray}>
               <div style={{ paddingTop: 10 }}>
@@ -2195,9 +2156,7 @@ function MentorPanel({ ctx }) {
 
   const lists = (
     <div className="pt-col">
-      <Card style={{ padding: 0, overflow: "hidden", flex: "0 0 auto" }}>
-        <StatStrip items={tiles} />
-      </Card>
+      <StatStrip items={tiles} />
 
       {m.invites.length > 0 && (
         <Card title="Requests" icon={<Send size={13} />} tone={palette.gold}>
@@ -2389,17 +2348,23 @@ export default function PartnerTab({ isDesktop, session, communityUsername, trad
     };
   }, [trades, settings.maxTradesPerDay, settings.dailyLossLimit, playbookCheckins, today]);
   // one day's verdict for the heatmap, report card and streak: kept, broken, or none (nothing to judge)
-  const dayState = useCallback((key) => {
+  const dayRules = useCallback((key) => {
     const maxTrades = num(settings.maxTradesPerDay);
     const lossLimit = num(settings.dailyLossLimit);
     const ds = trades.filter((t) => dayKeyFromTs(t.ts) === key);
     const check = playbookCheckins.find((c) => c.date === key);
-    if (!ds.length && !check) return "none";
     const loss = Math.abs(ds.filter((t) => t.pnl < 0).reduce((sum, t) => sum + t.pnl, 0));
-    const vals = [check ? isCleanCheckin(check) : null, maxTrades > 0 && ds.length ? ds.length <= maxTrades : null, lossLimit > 0 && ds.length ? loss < lossLimit : null];
+    return {
+      checkin: check ? isCleanCheckin(check) : null,
+      trades: maxTrades > 0 && ds.length ? ds.length <= maxTrades : null,
+      loss: lossLimit > 0 && ds.length ? loss < lossLimit : null,
+    };
+  }, [trades, settings.maxTradesPerDay, settings.dailyLossLimit, playbookCheckins]);
+  const dayState = useCallback((key) => {
+    const vals = Object.values(dayRules(key));
     if (vals.some((v) => v === false)) return "broken";
     return vals.some((v) => v === true) ? "kept" : "none";
-  }, [trades, settings.maxTradesPerDay, settings.dailyLossLimit, playbookCheckins]);
+  }, [dayRules]);
   const ownStreak = useMemo(() => {
     let n = 0;
     for (let i = 0; i < 60; i += 1) {
@@ -2412,16 +2377,6 @@ export default function PartnerTab({ isDesktop, session, communityUsername, trad
     }
     return n;
   }, [today, dayState]);
-
-  // pre-session ritual: a tick box for reading the plan, plus two that follow the Settings
-  const [ritual, setRitual] = useState(() => readRitual(dayKeyFromDate(new Date())));
-  useEffect(() => { setRitual((r) => (r.day === today ? r : readRitual(today))); }, [today]);
-  const updateRitual = (patch) => setRitual((r) => { const next = { ...r, ...patch, day: today }; writeRitual(next); return next; });
-  const ritualRows = [
-    { key: "read", label: "I read my plan", on: ritual.read, auto: false },
-    { key: "max", label: "Max trades set", on: num(settings.maxTradesPerDay) > 0, auto: true, hint: "Set max trades per day in Settings" },
-    { key: "loss", label: "Loss limit set", on: num(settings.dailyLossLimit) > 0, auto: true, hint: "Set a daily loss limit in Settings" },
-  ];
 
   // pause pact: after a run of losses today, offer a one-hour break and tell partners quietly
   const [pause, setPause] = useState(readPause);
@@ -2448,8 +2403,7 @@ export default function PartnerTab({ isDesktop, session, communityUsername, trad
     checkin: share.on && share.checkin ? mine.checkin : null,
     trades: share.on && share.trades ? mine.trades : null,
     loss: share.on && share.loss ? mine.loss : null,
-    ready: share.on && share.ready && ritual.done ? true : null,
-  }), [mine, share.on, share.checkin, share.trades, share.loss, share.ready, ritual.done]);
+  }), [mine, share.on, share.checkin, share.trades, share.loss]);
 
   const partnerCount = data ? data.partners.length : 0;
   const lastSent = useRef("");
@@ -2482,7 +2436,7 @@ export default function PartnerTab({ isDesktop, session, communityUsername, trad
   const reload = (opts) => { if (opts && opts.clearNudges) setData((d) => (d ? { ...d, nudges: [] } : d)); else load(true); };
 
   const username = (data && data.me && data.me.username) || communityUsername || "";
-  const ctx = { token, isDesktop, busy, run, say, reload, today, trades, share, mine, setShare, goToCommunity, dayState, ownStreak, ritual, updateRitual, ritualRows, username };
+  const ctx = { token, isDesktop, busy, run, say, reload, today, trades, share, mine, setShare, goToCommunity, dayState, dayRules, ownStreak, username };
   // The page around a tab adds its own side padding, so pull out of it to leave only a small gutter.
   const wrap = isDesktop
     ? { margin: "0 -14px", fontFamily: sans, paddingBottom: 8 }
