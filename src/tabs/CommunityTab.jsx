@@ -1126,7 +1126,7 @@ export default function CommunityTab(props) {
 
 
         {/* Messages */}
-        <div className="relative flex-1 min-h-0 flex flex-col" style={{ background: palette.bg, backgroundImage: `radial-gradient(${palette.textFaint}26 1px, transparent 1.3px)`, backgroundSize: "22px 22px" }}>
+        <div className="relative flex-1 min-h-0 flex flex-col" style={{ background: palette.bg }}>
           <style>{`@keyframes typingDot{0%,60%,100%{opacity:.35;transform:none}30%{opacity:1;transform:translateY(-3px)}}@keyframes msgIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}@keyframes sk{0%,100%{opacity:.5}50%{opacity:1}}.msg-in{animation:msgIn .18s ease-out both}.msg-sk{animation:sk 1.3s ease-in-out infinite}@media (prefers-reduced-motion:reduce){.msg-in,.msg-sk{animation:none}}`}</style>
           <div
             className="flex-1"
@@ -1172,31 +1172,35 @@ export default function CommunityTab(props) {
                     setActiveMsgId(null);
                     setTimeout(() => { if (composerRef.current) composerRef.current.focus(); }, 30);
                   };
-                  const renderQuote = (standalone) => {
+                  const emojiOnly = m.type !== "sticker" && isEmojiOnly(m.text);
+                  const overlap = m.type !== "sticker" && !emojiOnly;
+                  const replyBlock = (() => {
                     if (!m.replyToAuthor) return null;
-                    const qColor = standalone || !isMe ? nameColor(m.replyToAuthor) : palette.letterbox;
                     const rid = m.replyToId || m.replyTo;
+                    const target = m.replyToAuthor === communityUsername ? (isMe ? "yourself" : "you") : m.replyToAuthor;
+                    const who = isMe ? "You" : m.author;
                     return (
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); if (rid) jumpTo(rid); }}
-                        className={TAP}
-                        style={{
-                          display: "flex", width: "100%", minWidth: "150px", textAlign: "left", margin: standalone ? "0 0 4px" : "1px 0 6px", padding: 0, overflow: "hidden",
-                          borderRadius: "10px", border: standalone ? `1px solid ${palette.border}` : "none", cursor: rid ? "pointer" : "default",
-                          background: standalone ? palette.surface : isMe ? "rgba(0,0,0,0.13)" : `${qColor}1c`,
-                        }}
-                      >
-                        <span aria-hidden="true" style={{ width: "4px", flexShrink: 0, background: qColor }} />
-                        <span style={{ display: "block", flex: 1, minWidth: 0, padding: "5px 10px 6px 9px" }}>
-                          <span className="truncate" style={{ display: "block", fontSize: "13px", fontWeight: 700, color: qColor, lineHeight: 1.25 }}>{m.replyToAuthor === communityUsername ? "You" : m.replyToAuthor}</span>
-                          <span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", fontSize: "13px", lineHeight: 1.3, marginTop: "1px", color: !standalone && isMe ? palette.letterbox : palette.textMuted, opacity: !standalone && isMe ? 0.88 : 1, whiteSpace: "normal" }}>{m.replyToText || "Message"}</span>
-                        </span>
-                      </button>
+                      <div style={{ alignSelf: isMe ? "flex-end" : "flex-start", maxWidth: "100%", display: "flex", flexDirection: "column", alignItems: isMe ? "flex-end" : "flex-start", marginBottom: overlap ? "-13px" : "5px" }}>
+                        <div className="flex items-center" style={{ gap: "5px", fontSize: "12px", color: palette.textFaint, margin: "0 4px 4px", fontWeight: 600 }}>
+                          <CornerUpLeft size={12} />
+                          <span className="truncate">{who} replied to {target}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); if (rid) jumpTo(rid); }}
+                          className={TAP}
+                          style={{
+                            display: "block", maxWidth: "100%", textAlign: "left", cursor: rid ? "pointer" : "default",
+                            padding: overlap ? "8px 13px 21px" : "8px 13px", borderRadius: "18px",
+                            background: palette.field, border: `1px solid ${palette.border}`, color: palette.textMuted,
+                            fontSize: "13.5px", lineHeight: 1.35, opacity: 0.95,
+                          }}
+                        >
+                          <span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", whiteSpace: "normal", overflowWrap: "anywhere" }}>{m.replyToText || "Message"}</span>
+                        </button>
+                      </div>
                     );
-                  };
-                  const quote = renderQuote(false);
-                  const standaloneQuote = renderQuote(true);
+                  })();
                   const iconBtn = (label, onClick, children, color) => (
                     <button type="button" aria-label={label} title={label} onClick={(e) => { e.stopPropagation(); onClick(); }} className={`flex items-center justify-center rounded-full ${TAP}`} style={{ width: "34px", height: "34px", background: "none", border: "none", color: color || palette.textMuted }}>{children}</button>
                   );
@@ -1243,14 +1247,13 @@ export default function CommunityTab(props) {
                           </span>
                         )}
                         <div className="flex flex-col" style={{ maxWidth: isDesktop ? "62%" : "80%", minWidth: 0, alignItems: isMe ? "flex-end" : "flex-start" }}>
+                          {replyBlock}
                           {m.type === "sticker" ? (
                             <div onClick={(e) => { e.stopPropagation(); setActiveMsgId(selected ? null : m.id); }} style={{ cursor: "pointer" }}>
-                              {standaloneQuote && <div style={{ width: "210px", maxWidth: "100%" }}>{standaloneQuote}</div>}
                               <img src={m.text} alt="Sticker" style={{ width: "128px", height: "128px", objectFit: "contain", display: "block" }} />
                             </div>
-                          ) : isEmojiOnly(m.text) ? (
+                          ) : emojiOnly ? (
                             <div onClick={(e) => { e.stopPropagation(); setActiveMsgId(selected ? null : m.id); }} onDoubleClick={(e) => { e.stopPropagation(); if (REACTION_EMOJIS[0]) toggleMessageReaction(m.id, REACTION_EMOJIS[0]); }} style={{ cursor: "pointer", textAlign: isMe ? "right" : "left" }}>
-                              {standaloneQuote && <div style={{ width: "210px", maxWidth: "100%" }}>{standaloneQuote}</div>}
                               <div style={{ fontSize: "46px", lineHeight: 1.15 }}>{m.text}</div>
                               <div style={{ fontSize: "10.5px", color: palette.textFaint, marginTop: "1px" }}>{clockTime(m.ts)}</div>
                             </div>
@@ -1260,8 +1263,9 @@ export default function CommunityTab(props) {
                               onDoubleClick={(e) => { e.stopPropagation(); if (REACTION_EMOJIS[0]) toggleMessageReaction(m.id, REACTION_EMOJIS[0]); }}
                               style={{
                                 display: "flow-root", cursor: "pointer", background: bubbleColor, color: textColor, borderRadius: radius,
-                                padding: "7px 11px 6px", fontSize: "15px", lineHeight: 1.4, whiteSpace: "pre-wrap", overflowWrap: "anywhere", wordBreak: "break-word",
-                                boxShadow: selected ? `0 0 0 2px ${palette.gold}88` : "0 1px 1px rgba(0,0,0,0.07)",
+                                position: "relative", zIndex: 1,
+                                padding: Object.keys(m.reactions || {}).length > 0 ? "7px 11px 13px" : "7px 11px 6px", fontSize: "15px", lineHeight: 1.4, whiteSpace: "pre-wrap", overflowWrap: "anywhere", wordBreak: "break-word",
+                                boxShadow: `${m.replyToAuthor ? `0 0 0 3px ${palette.bg}, ` : ""}${selected ? `0 0 0 2px ${palette.gold}99` : "0 1px 2px rgba(0,0,0,0.10)"}`,
                                 border: isMe ? "none" : `1px solid ${palette.border}`,
                               }}
                             >
@@ -1273,27 +1277,33 @@ export default function CommunityTab(props) {
                                   {badge && <span style={{ fontSize: "10px", fontWeight: 700, color: palette.gold, background: `${palette.gold}1a`, borderRadius: "999px", padding: "0 6px", lineHeight: "15px" }}>{badge}</span>}
                                 </div>
                               )}
-                              {quote}
                               <span>{renderText(m.text)}</span>
                               <span style={{ float: "right", margin: "7px 0 -3px 12px", fontSize: "10.5px", fontFamily: sans, opacity: 0.65, lineHeight: 1 }}>{clockTime(m.ts)}</span>
                             </div>
                           )}
                           {Object.keys(m.reactions || {}).length > 0 && (
-                            <div className="flex items-center gap-1 flex-wrap" style={{ marginTop: "-7px", padding: "0 8px", position: "relative", zIndex: 1, justifyContent: isMe ? "flex-end" : "flex-start" }}>
+                            <div className="flex items-center flex-wrap" style={{ gap: "4px", marginTop: "-11px", padding: "0 8px", position: "relative", zIndex: 2, justifyContent: isMe ? "flex-end" : "flex-start" }}>
                               {Object.entries(m.reactions).map(([emoji, count]) => {
                                 const mine = (m.myReactions || []).includes(emoji);
                                 return (
                                   <button key={emoji} type="button" onClick={(e) => { e.stopPropagation(); toggleMessageReaction(m.id, emoji); }} className={TAP}
-                                    style={{ fontSize: "12.5px", fontFamily: sans, fontWeight: 700, color: mine ? palette.gold : palette.textMuted, background: mine ? `${palette.gold}1a` : palette.surface, border: `1px solid ${mine ? `${palette.gold}66` : palette.border}`, borderRadius: "999px", padding: "2px 8px" }}
+                                    style={{
+                                      display: "inline-flex", alignItems: "center", gap: "4px", height: "26px", padding: "0 9px", borderRadius: "999px",
+                                      fontSize: "13px", fontFamily: sans, fontWeight: 700, lineHeight: 1,
+                                      color: mine ? palette.letterbox : palette.text,
+                                      background: mine ? palette.gold : palette.surface,
+                                      border: `1px solid ${mine ? palette.gold : palette.textFaint}`,
+                                      boxShadow: `0 0 0 2px ${palette.bg}, 0 3px 8px rgba(0,0,0,0.16)`,
+                                    }}
                                     aria-label={`${emoji} reaction, ${count}`}>
-                                    {emoji} {count}
+                                    <span style={{ fontSize: "14px" }}>{emoji}</span>{count > 1 && <span>{count}</span>}
                                   </button>
                                 );
                               })}
                             </div>
                           )}
                           {selected && (
-                            <div className="msg-in flex items-center" style={{ marginTop: "6px", padding: "3px 6px", gap: "1px", borderRadius: "999px", background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow, maxWidth: "100%", overflowX: "auto" }}>
+                            <div className="msg-in flex items-center" style={{ marginTop: "6px", padding: "3px 6px", gap: "1px", borderRadius: "999px", background: palette.surface, border: `1px solid ${palette.textFaint}`, boxShadow: `0 0 0 2px ${palette.bg}, 0 8px 24px rgba(0,0,0,0.20)`, maxWidth: "100%", overflowX: "auto", position: "relative", zIndex: 3 }}>
                               {REACTION_EMOJIS.slice(0, 6).map((emoji) => (
                                 <button key={emoji} type="button" onClick={(e) => { e.stopPropagation(); toggleMessageReaction(m.id, emoji); setActiveMsgId(null); }} className={TAP} style={{ width: "34px", height: "34px", fontSize: "19px", background: "none", border: "none", padding: 0 }}>{emoji}</button>
                               ))}
@@ -1336,7 +1346,7 @@ export default function CommunityTab(props) {
           style={{
             borderTop: `1px solid ${palette.border}`,
             background: palette.surface,
-            padding: isDesktop ? "10px 14px 14px" : "8px 10px",
+            padding: isDesktop ? "10px 14px" : "8px 10px",
             paddingBottom: isDesktop ? undefined : "calc(8px + env(safe-area-inset-bottom, 0px))",
           }}
         >
@@ -1474,16 +1484,17 @@ export default function CommunityTab(props) {
               </div>
             </div>
           )}
-          <div className="flex items-end gap-2">
-            <div className="flex items-end flex-1 min-w-0" style={{ background: palette.field, border: `1px solid ${palette.border}`, borderRadius: "24px", padding: "2px 6px 2px 4px" }}>
+          <style>{`.cmp-pill{transition:border-color .15s,box-shadow .15s}.cmp-pill:focus-within{border-color:${palette.gold}99!important;box-shadow:0 0 0 3px ${palette.gold}22}.cmp-pill textarea::placeholder{color:${palette.textFaint};opacity:1}`}</style>
+          <div className="flex items-end" style={{ gap: "8px" }}>
+            <div className="cmp-pill flex items-end flex-1 min-w-0" style={{ background: palette.field, border: `1px solid ${palette.border}`, borderRadius: "26px", padding: "0 6px 0 4px", minHeight: "48px" }}>
               <button
                 type="button"
                 onClick={() => { if (!stickerPacksLoaded) fetchStickerPacks(); setStickerPickerOpen((v) => !v); }}
                 className={`flex items-center justify-center rounded-full flex-shrink-0 ${TAP}`}
-                style={{ width: "38px", height: "40px", color: stickerPickerOpen ? palette.gold : palette.textFaint }}
+                style={{ width: "40px", height: "46px", color: stickerPickerOpen ? palette.gold : palette.textFaint }}
                 aria-label="Stickers"
               >
-                <Sticker size={21} />
+                <Sticker size={22} />
               </button>
               <textarea
                 ref={composerRef}
@@ -1494,7 +1505,7 @@ export default function CommunityTab(props) {
                 placeholder="Message"
                 enterKeyHint="send"
                 className="flex-1 min-w-0 bg-transparent outline-none"
-                style={{ resize: "none", color: palette.text, fontSize: isDesktop ? "14.5px" : "16px", lineHeight: 1.35, padding: "10px 4px", maxHeight: "120px", fontFamily: "inherit", border: "none" }}
+                style={{ resize: "none", display: "block", color: palette.text, fontSize: isDesktop ? "15px" : "16px", lineHeight: "22px", padding: "12px 6px", maxHeight: "124px", fontFamily: "inherit", border: "none" }}
               />
             </div>
             <button
@@ -1503,17 +1514,17 @@ export default function CommunityTab(props) {
               disabled={!communityMsgText.trim()}
               className={`flex items-center justify-center rounded-full flex-shrink-0 ${TAP}`}
               style={{
-                width: "46px", height: "46px",
+                width: "48px", height: "48px",
                 background: communityMsgText.trim() ? palette.gold : palette.field,
                 color: communityMsgText.trim() ? palette.letterbox : palette.textFaint,
                 border: communityMsgText.trim() ? "none" : `1px solid ${palette.border}`,
-                boxShadow: communityMsgText.trim() ? `0 3px 10px ${palette.gold}44` : "none",
+                boxShadow: communityMsgText.trim() ? `0 4px 12px ${palette.gold}55` : "none",
                 transform: communityMsgText.trim() ? "scale(1)" : "scale(0.94)",
-                transition: "background .15s, transform .15s, color .15s",
+                transition: "background .15s, transform .15s, color .15s, box-shadow .15s",
               }}
               aria-label="Send"
             >
-              <Send size={19} />
+              <Send size={20} />
             </button>
           </div>
           {communityApiError && (
