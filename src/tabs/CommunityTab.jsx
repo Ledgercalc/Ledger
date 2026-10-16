@@ -271,6 +271,54 @@ export default function CommunityTab(props) {
   }, [communityMsgText]);
   useEffect(() => { setActiveMsgId(null); }, [activeGroupId, communityPanelTab]);
   let body = null;
+  const listTime = (ts) => {
+    if (!ts) return "";
+    const d = new Date(ts), t = new Date(), y = new Date();
+    y.setDate(t.getDate() - 1);
+    if (d.toDateString() === t.toDateString()) return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    if (d.toDateString() === y.toDateString()) return "Yesterday";
+    return d.toLocaleDateString([], { month: "short", day: "numeric" });
+  };
+  const STORY_RING = `linear-gradient(135deg, ${palette.gold}, #F2709C 55%, #9B6BFF)`;
+  const renderStoriesRow = () => {
+    const size = isDesktop ? 68 : 62;
+    const hasOwnStory = (storiesByAuthor[communityUsername] || []).length > 0;
+    const ownUnseen = authorHasUnseen(communityUsername);
+    const ring = (unseen, children) => (
+      <span className="flex items-center justify-center rounded-full" style={{ width: `${size}px`, height: `${size}px`, padding: "2.5px", background: unseen ? STORY_RING : palette.border }}>
+        <span className="flex items-center justify-center rounded-full" style={{ width: "100%", height: "100%", padding: "2.5px", background: palette.bg }}>{children}</span>
+      </span>
+    );
+    const label = (text, strong) => (
+      <span className="truncate" style={{ width: "100%", marginTop: "6px", color: strong ? palette.text : palette.textMuted, fontSize: "11.5px", fontWeight: strong ? 700 : 600, textAlign: "center" }}>{text}</span>
+    );
+    return (
+      <>
+        <input ref={storyImageInputRef} type="file" accept="image/*" onChange={handleStoryImageChange} style={{ display: "none" }} />
+        <div className="flex items-start flex-shrink-0" style={{ gap: "14px", overflowX: "auto", scrollbarWidth: "none", WebkitOverflowScrolling: "touch", padding: "2px 2px 14px" }}>
+          <div className="relative flex-shrink-0" style={{ width: `${size + 6}px` }}>
+            <button type="button" onClick={() => (hasOwnStory ? openStoryViewerFor(communityUsername) : openStoryComposer())} className={`flex flex-col items-center w-full ${TAP}`} aria-label={hasOwnStory ? "View your story" : "Add to your story"}>
+              {ring(hasOwnStory && ownUnseen, <Avatar name={communityUsername} size={size - 11} src={avatarForAuthor(communityUsername)} />)}
+              {label("Your story", true)}
+            </button>
+            <button type="button" onClick={(e) => { e.stopPropagation(); openStoryComposer(); }} className={`absolute flex items-center justify-center rounded-full ${TAP}`} style={{ width: "22px", height: "22px", right: "2px", top: `${size - 22}px`, background: palette.gold, color: palette.letterbox, border: `2.5px solid ${palette.bg}` }} aria-label="Add to your story">
+              <Plus size={12} strokeWidth={3} />
+            </button>
+          </div>
+          {storyAuthorOrder.filter((u) => u !== communityUsername).map((u) => {
+            const unseen = authorHasUnseen(u);
+            return (
+              <button key={u} type="button" onClick={() => openStoryViewerFor(u)} className={`flex flex-col items-center flex-shrink-0 ${TAP}`} style={{ width: `${size + 6}px` }}>
+                {ring(unseen, <Avatar name={u} size={size - 11} src={avatarForAuthor(u)} />)}
+                {label(u, unseen)}
+              </button>
+            );
+          })}
+        </div>
+      </>
+    );
+  };
+
     // ---------- Reusable chat panel (used standalone on mobile, embedded in split view on desktop) ----------
   const renderChatPanel = (heightStyle) => {
   const group = myGroups.find((g) => g.id === activeGroupId);
@@ -293,6 +341,12 @@ export default function CommunityTab(props) {
     el.scrollIntoView({ behavior: "smooth", block: "center" });
     if (el.animate) el.animate([{ background: `${palette.gold}26` }, { background: "transparent" }], { duration: 1100 });
   };
+  const isEmojiOnly = (t) => /^(?:\p{Extended_Pictographic}(?:\uFE0F|\u200D\p{Extended_Pictographic})*){1,3}$/u.test(String(t || "").replace(/\s/g, ""));
+  const renderText = (t) => String(t).split(/(https?:\/\/[^\s]+)/g).map((part, i) => (
+    /^https?:\/\//.test(part)
+      ? <a key={i} href={part} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "inherit", fontWeight: 600, textDecoration: "underline", textUnderlineOffset: "2px" }}>{part}</a>
+      : part
+  ));
   const onlineCount = groupMembersList.filter((x) => isAuthorOnline(x.username)).length;
   const memberTotal = groupInfo?.memberCount ?? groupMembersList.length ?? 0;
     return (
@@ -804,76 +858,8 @@ export default function CommunityTab(props) {
           <>
             <div className="flex-1 px-4 py-4" style={{ overflowY: "auto", minHeight: 0, background: palette.bg }}>
 
-              {/* Stories — their own row + composer, completely separate from feed posts (Telegram-style) */}
-              <input ref={storyImageInputRef} type="file" accept="image/*" onChange={handleStoryImageChange} style={{ display: "none" }} />
-              <div className="flex items-start gap-3 mb-5 pb-1" style={{ overflowX: "auto", scrollbarWidth: "none", WebkitOverflowScrolling: "touch" }}>
-                {(() => {
-                  const hasOwnStory = (storiesByAuthor[communityUsername] || []).length > 0;
-                  const ownUnseen = authorHasUnseen(communityUsername);
-                  return (
-                    <div className="relative flex-shrink-0" style={{ width: isDesktop ? "68px" : "60px" }}>
-                      <button
-                        type="button"
-                        onClick={() => (hasOwnStory ? openStoryViewerFor(communityUsername) : openStoryComposer())}
-                        className={`flex flex-col items-center w-full ${TAP}`}
-                      >
-                        <span
-                          className="flex items-center justify-center rounded-full"
-                          style={{
-                            width: isDesktop ? "54px" : "46px", height: isDesktop ? "54px" : "46px",
-                            border: hasOwnStory ? `2px solid ${ownUnseen ? palette.gold : palette.border}` : `1.5px dashed ${palette.textFaint}`,
-                            padding: hasOwnStory ? "2px" : 0, color: palette.textFaint,
-                          }}
-                        >
-                          {hasOwnStory ? (
-                            <Avatar name={communityUsername} size={isDesktop ? 46 : 38} src={avatarForAuthor(communityUsername)} />
-                          ) : (
-                            <Plus size={isDesktop ? 20 : 17} />
-                          )}
-                        </span>
-                        <span className="truncate" style={{ width: "100%", marginTop: "6px", color: palette.textMuted, fontSize: isDesktop ? "10.5px" : "9.5px", fontWeight: 600, textAlign: "center" }}>
-                          My story
-                        </span>
-                      </button>
-                      {hasOwnStory && (
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); openStoryComposer(); }}
-                          className={`absolute flex items-center justify-center rounded-full ${TAP}`}
-                          style={{ width: "18px", height: "18px", right: isDesktop ? "6px" : "4px", top: isDesktop ? "34px" : "28px", background: palette.gold, color: palette.letterbox, border: `2px solid ${palette.bg}` }}
-                          aria-label="Add to your story"
-                        >
-                          <Plus size={11} />
-                        </button>
-                      )}
-                    </div>
-                  );
-                })()}
-                {storyAuthorOrder
-                  .filter((u) => u !== communityUsername)
-                  .map((u) => {
-                    const unseen = authorHasUnseen(u);
-                    return (
-                      <button
-                        key={u}
-                        type="button"
-                        onClick={() => openStoryViewerFor(u)}
-                        className={`flex flex-col items-center flex-shrink-0 ${TAP}`}
-                        style={{ width: isDesktop ? "68px" : "60px" }}
-                      >
-                        <span
-                          className="flex items-center justify-center rounded-full"
-                          style={{ width: isDesktop ? "54px" : "46px", height: isDesktop ? "54px" : "46px", border: `2px solid ${unseen ? palette.gold : palette.border}`, padding: "2px" }}
-                        >
-                          <Avatar name={u} size={isDesktop ? 46 : 38} src={avatarForAuthor(u)} />
-                        </span>
-                        <span className="truncate" style={{ width: "100%", marginTop: "6px", color: unseen ? palette.text : palette.textMuted, fontSize: isDesktop ? "10.5px" : "9.5px", fontWeight: 600, textAlign: "center" }}>
-                          {u}
-                        </span>
-                      </button>
-                    );
-                  })}
-              </div>
+              {/* Stories */}
+              {renderStoriesRow()}
 
               <div className="rounded-2xl p-3.5 mb-4" style={{ background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}>
                 <textarea value={newFeedText} onChange={(e) => setNewFeedText(e.target.value)}
@@ -1140,8 +1126,8 @@ export default function CommunityTab(props) {
 
 
         {/* Messages */}
-        <div className="relative flex-1 min-h-0 flex flex-col" style={{ background: palette.bg }}>
-          <style>{`@keyframes msgIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}@keyframes sk{0%,100%{opacity:.5}50%{opacity:1}}.msg-in{animation:msgIn .18s ease-out both}.msg-sk{animation:sk 1.3s ease-in-out infinite}@media (prefers-reduced-motion:reduce){.msg-in,.msg-sk{animation:none}}`}</style>
+        <div className="relative flex-1 min-h-0 flex flex-col" style={{ background: palette.bg, backgroundImage: `radial-gradient(${palette.textFaint}26 1px, transparent 1.3px)`, backgroundSize: "22px 22px" }}>
+          <style>{`@keyframes typingDot{0%,60%,100%{opacity:.35;transform:none}30%{opacity:1;transform:translateY(-3px)}}@keyframes msgIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}@keyframes sk{0%,100%{opacity:.5}50%{opacity:1}}.msg-in{animation:msgIn .18s ease-out both}.msg-sk{animation:sk 1.3s ease-in-out infinite}@media (prefers-reduced-motion:reduce){.msg-in,.msg-sk{animation:none}}`}</style>
           <div
             className="flex-1"
             style={{ overflowY: "auto", minHeight: 0, overscrollBehavior: "contain", padding: isDesktop ? "14px 20px 10px" : "10px 10px 8px" }}
@@ -1181,18 +1167,36 @@ export default function CommunityTab(props) {
                   const bubbleColor = isMe ? palette.gold : palette.surface;
                   const textColor = isMe ? palette.letterbox : palette.text;
                   const preview = m.type === "sticker" ? "Sticker" : (m.text || "").slice(0, 60);
-                  const replyTo = () => { setReplyingTo({ id: m.id, author: m.author, preview }); setActiveMsgId(null); };
-                  const quote = m.replyToAuthor && (
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); const rid = m.replyToId || m.replyTo; if (rid) jumpTo(rid); }}
-                      className={TAP}
-                      style={{ display: "block", width: "100%", textAlign: "left", margin: "0 0 5px", padding: "4px 8px", borderRadius: "8px", border: "none", borderLeft: `3px solid ${isMe ? palette.letterbox : palette.gold}`, background: isMe ? "rgba(0,0,0,0.12)" : palette.field }}
-                    >
-                      <div style={{ fontSize: "12px", fontWeight: 700, color: isMe ? palette.letterbox : palette.gold }}>{m.replyToAuthor}</div>
-                      <div className="truncate" style={{ fontSize: "12.5px", color: isMe ? palette.letterbox : palette.textMuted, opacity: isMe ? 0.85 : 1 }}>{m.replyToText}</div>
-                    </button>
-                  );
+                  const replyTo = () => {
+                    setReplyingTo({ id: m.id, author: m.author, preview });
+                    setActiveMsgId(null);
+                    setTimeout(() => { if (composerRef.current) composerRef.current.focus(); }, 30);
+                  };
+                  const renderQuote = (standalone) => {
+                    if (!m.replyToAuthor) return null;
+                    const qColor = standalone || !isMe ? nameColor(m.replyToAuthor) : palette.letterbox;
+                    const rid = m.replyToId || m.replyTo;
+                    return (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); if (rid) jumpTo(rid); }}
+                        className={TAP}
+                        style={{
+                          display: "flex", width: "100%", minWidth: "150px", textAlign: "left", margin: standalone ? "0 0 4px" : "1px 0 6px", padding: 0, overflow: "hidden",
+                          borderRadius: "10px", border: standalone ? `1px solid ${palette.border}` : "none", cursor: rid ? "pointer" : "default",
+                          background: standalone ? palette.surface : isMe ? "rgba(0,0,0,0.13)" : `${qColor}1c`,
+                        }}
+                      >
+                        <span aria-hidden="true" style={{ width: "4px", flexShrink: 0, background: qColor }} />
+                        <span style={{ display: "block", flex: 1, minWidth: 0, padding: "5px 10px 6px 9px" }}>
+                          <span className="truncate" style={{ display: "block", fontSize: "13px", fontWeight: 700, color: qColor, lineHeight: 1.25 }}>{m.replyToAuthor === communityUsername ? "You" : m.replyToAuthor}</span>
+                          <span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", fontSize: "13px", lineHeight: 1.3, marginTop: "1px", color: !standalone && isMe ? palette.letterbox : palette.textMuted, opacity: !standalone && isMe ? 0.88 : 1, whiteSpace: "normal" }}>{m.replyToText || "Message"}</span>
+                        </span>
+                      </button>
+                    );
+                  };
+                  const quote = renderQuote(false);
+                  const standaloneQuote = renderQuote(true);
                   const iconBtn = (label, onClick, children, color) => (
                     <button type="button" aria-label={label} title={label} onClick={(e) => { e.stopPropagation(); onClick(); }} className={`flex items-center justify-center rounded-full ${TAP}`} style={{ width: "34px", height: "34px", background: "none", border: "none", color: color || palette.textMuted }}>{children}</button>
                   );
@@ -1203,12 +1207,31 @@ export default function CommunityTab(props) {
                           <span style={{ fontSize: "11.5px", fontWeight: 600, color: palette.textMuted, background: palette.surface, border: `1px solid ${palette.border}`, borderRadius: "999px", padding: "3px 12px" }}>{dayLabel(m.ts)}</span>
                         </div>
                       )}
+                      <div style={{ position: "relative" }}>
+                      <span className="reply-hint" aria-hidden="true" style={{ position: "absolute", right: "6px", top: "50%", marginTop: "-15px", width: "30px", height: "30px", borderRadius: "999px", background: palette.surface, border: `1px solid ${palette.border}`, color: palette.gold, display: "grid", placeItems: "center", opacity: 0, pointerEvents: "none" }}><CornerUpLeft size={15} /></span>
                       <div
                         id={`msg-${m.id}`}
                         className="msg-in flex"
                         style={{ justifyContent: isMe ? "flex-end" : "flex-start", alignItems: "flex-end", gap: "6px", marginTop: newDay ? 0 : joinsPrev ? "2px" : "10px", borderRadius: "12px" }}
                         onTouchStart={(e) => { const t = e.touches[0]; swipe.current = { x: t.clientX, y: t.clientY, id: m.id }; }}
-                        onTouchEnd={(e) => { const t = e.changedTouches[0]; const sw = swipe.current; if (sw.id === m.id && t.clientX - sw.x < -70 && Math.abs(t.clientY - sw.y) < 30) { if (navigator.vibrate) navigator.vibrate(8); replyTo(); } swipe.current = { x: 0, y: 0, id: null }; }}
+                        onTouchMove={(e) => {
+                          const t = e.touches[0]; const sw = swipe.current;
+                          if (sw.id !== m.id || Math.abs(t.clientY - sw.y) > 30) return;
+                          const dx = Math.max(-72, Math.min(0, t.clientX - sw.x));
+                          const row = e.currentTarget;
+                          row.style.transition = "none"; row.style.transform = `translateX(${dx}px)`;
+                          const hint = row.parentElement && row.parentElement.querySelector(".reply-hint");
+                          if (hint) { hint.style.opacity = String(Math.min(1, -dx / 48)); hint.style.transform = `scale(${0.6 + Math.min(0.4, -dx / 120)})`; }
+                        }}
+                        onTouchEnd={(e) => {
+                          const t = e.changedTouches[0]; const sw = swipe.current; const row = e.currentTarget;
+                          const fire = sw.id === m.id && t.clientX - sw.x < -64 && Math.abs(t.clientY - sw.y) < 30;
+                          row.style.transition = "transform .18s ease"; row.style.transform = "";
+                          const hint = row.parentElement && row.parentElement.querySelector(".reply-hint");
+                          if (hint) hint.style.opacity = "0";
+                          if (fire) { if (navigator.vibrate) navigator.vibrate(8); replyTo(); }
+                          swipe.current = { x: 0, y: 0, id: null };
+                        }}
                       >
                         {!isMe && (
                           <span style={{ width: "30px", flexShrink: 0, lineHeight: 0 }}>
@@ -1222,8 +1245,14 @@ export default function CommunityTab(props) {
                         <div className="flex flex-col" style={{ maxWidth: isDesktop ? "62%" : "80%", minWidth: 0, alignItems: isMe ? "flex-end" : "flex-start" }}>
                           {m.type === "sticker" ? (
                             <div onClick={(e) => { e.stopPropagation(); setActiveMsgId(selected ? null : m.id); }} style={{ cursor: "pointer" }}>
-                              {m.replyToAuthor && <div style={{ maxWidth: "200px" }}>{quote}</div>}
+                              {standaloneQuote && <div style={{ width: "210px", maxWidth: "100%" }}>{standaloneQuote}</div>}
                               <img src={m.text} alt="Sticker" style={{ width: "128px", height: "128px", objectFit: "contain", display: "block" }} />
+                            </div>
+                          ) : isEmojiOnly(m.text) ? (
+                            <div onClick={(e) => { e.stopPropagation(); setActiveMsgId(selected ? null : m.id); }} onDoubleClick={(e) => { e.stopPropagation(); if (REACTION_EMOJIS[0]) toggleMessageReaction(m.id, REACTION_EMOJIS[0]); }} style={{ cursor: "pointer", textAlign: isMe ? "right" : "left" }}>
+                              {standaloneQuote && <div style={{ width: "210px", maxWidth: "100%" }}>{standaloneQuote}</div>}
+                              <div style={{ fontSize: "46px", lineHeight: 1.15 }}>{m.text}</div>
+                              <div style={{ fontSize: "10.5px", color: palette.textFaint, marginTop: "1px" }}>{clockTime(m.ts)}</div>
                             </div>
                           ) : (
                             <div
@@ -1245,12 +1274,12 @@ export default function CommunityTab(props) {
                                 </div>
                               )}
                               {quote}
-                              <span>{m.text}</span>
+                              <span>{renderText(m.text)}</span>
                               <span style={{ float: "right", margin: "7px 0 -3px 12px", fontSize: "10.5px", fontFamily: sans, opacity: 0.65, lineHeight: 1 }}>{clockTime(m.ts)}</span>
                             </div>
                           )}
                           {Object.keys(m.reactions || {}).length > 0 && (
-                            <div className="flex items-center gap-1 flex-wrap" style={{ marginTop: "4px", justifyContent: isMe ? "flex-end" : "flex-start" }}>
+                            <div className="flex items-center gap-1 flex-wrap" style={{ marginTop: "-7px", padding: "0 8px", position: "relative", zIndex: 1, justifyContent: isMe ? "flex-end" : "flex-start" }}>
                               {Object.entries(m.reactions).map(([emoji, count]) => {
                                 const mine = (m.myReactions || []).includes(emoji);
                                 return (
@@ -1277,9 +1306,18 @@ export default function CommunityTab(props) {
                           )}
                         </div>
                       </div>
+                      </div>
                     </div>
                   );
                 })}
+                {typingUsers.length > 0 && (
+                  <div className="msg-in flex items-end" style={{ marginTop: "8px", gap: "6px" }} aria-label="Someone is typing">
+                    <span style={{ width: "30px", flexShrink: 0 }} />
+                    <div className="flex items-center" style={{ gap: "4px", padding: "13px 14px", borderRadius: "18px 18px 18px 5px", background: palette.surface, border: `1px solid ${palette.border}` }}>
+                      {[0, 1, 2].map((i) => <span key={i} style={{ width: "7px", height: "7px", borderRadius: "999px", background: palette.textFaint, display: "inline-block", animation: `typingDot 1.1s ${i * 0.15}s infinite` }} />)}
+                    </div>
+                  </div>
+                )}
                 <div ref={communityMessagesEndRef} />
               </div>
             )}
@@ -1303,15 +1341,15 @@ export default function CommunityTab(props) {
           }}
         >
           {replyingTo && (
-            <div className="flex items-center gap-2.5" style={{ padding: "2px 4px 8px" }}>
-              <CornerUpLeft size={16} style={{ color: palette.gold, flexShrink: 0 }} />
-              <span style={{ width: "3px", alignSelf: "stretch", borderRadius: "3px", background: palette.gold, flexShrink: 0 }} />
-              <div className="min-w-0 flex-1">
-                <div style={{ color: palette.gold, fontSize: "12px", fontWeight: 700 }}>Reply to {replyingTo.author}</div>
-                <div className="truncate" style={{ color: palette.textMuted, fontSize: "12.5px" }}>{replyingTo.preview}</div>
+            <div className="msg-in flex items-stretch" style={{ marginBottom: "8px", borderRadius: "12px", overflow: "hidden", background: palette.field, border: `1px solid ${palette.border}` }}>
+              <span aria-hidden="true" style={{ width: "4px", flexShrink: 0, background: nameColor(replyingTo.author) }} />
+              <CornerUpLeft size={17} style={{ color: nameColor(replyingTo.author), flexShrink: 0, alignSelf: "center", margin: "0 4px 0 10px" }} />
+              <div className="min-w-0 flex-1" style={{ padding: "7px 6px 7px 8px" }}>
+                <div className="truncate" style={{ color: nameColor(replyingTo.author), fontSize: "13px", fontWeight: 700 }}>Replying to {replyingTo.author === communityUsername ? "yourself" : replyingTo.author}</div>
+                <div className="truncate" style={{ color: palette.textMuted, fontSize: "13px", marginTop: "1px" }}>{replyingTo.preview}</div>
               </div>
-              <button type="button" onClick={() => setReplyingTo(null)} className={`flex items-center justify-center ${TAP}`} style={{ width: "30px", height: "30px", color: palette.textFaint, flexShrink: 0 }} aria-label="Cancel reply">
-                <X size={16} />
+              <button type="button" onClick={() => setReplyingTo(null)} className={`flex items-center justify-center flex-shrink-0 ${TAP}`} style={{ width: "40px", color: palette.textFaint }} aria-label="Cancel reply">
+                <X size={17} />
               </button>
             </div>
           )}
@@ -1713,27 +1751,38 @@ export default function CommunityTab(props) {
     body = (
       <div className="flex flex-col flex-1 min-h-0">
         <div className="flex-1 overflow-y-auto">
+          {renderStoriesRow()}
           <form className="mb-3" onSubmit={(e) => { e.preventDefault(); searchCommunity(communitySearch); }}>
-            <div className="flex items-center gap-2 rounded-xl px-3" style={{ height: "40px", background: palette.field, border: `1px solid ${palette.border}` }}>
-              <Search size={15} style={{ color: palette.textFaint }} />
-              <input value={communitySearch} onChange={(e) => setCommunitySearch(e.target.value)} placeholder="Search people & posts" className="flex-1 min-w-0 bg-transparent outline-none" style={{ color: palette.text, fontSize: "12px" }} />
+            <div className="flex items-center gap-2.5 rounded-full px-4" style={{ height: "44px", background: palette.field, border: `1px solid ${palette.border}` }}>
+              <Search size={17} style={{ color: palette.textFaint }} />
+              <input value={communitySearch} onChange={(e) => setCommunitySearch(e.target.value)} placeholder="Search people & posts" className="flex-1 min-w-0 bg-transparent outline-none" style={{ color: palette.text, fontSize: "15px" }} />
             </div>
           </form>
-          <button type="button" onClick={() => { setCommunityLobbyTab("global"); setCommunityMobileFeedOpen(true); if (!globalFeedLoaded) loadGlobalFeed(); }} className={`w-full flex items-center gap-3 rounded-2xl p-4 mb-4 ${TAP}`} style={{ background: palette.surface, border: `1px solid ${palette.gold}44`, color: palette.text }}>
-            <span className="flex items-center justify-center rounded-xl" style={{ width: "42px", height: "42px", background: `${palette.gold}14`, color: palette.gold }}><Newspaper size={19} /></span><div className="flex-1 text-left"><div style={{ fontSize: "14px", fontWeight: 800 }}>Global Feed</div><div style={{ color: palette.textFaint, fontSize: "10.5px", marginTop: "2px" }}>See posts from everyone on Tredzi</div></div><ChevronRight size={16} style={{ color: palette.gold }} />
+          <button type="button" onClick={() => { setCommunityLobbyTab("global"); setCommunityMobileFeedOpen(true); if (!globalFeedLoaded) loadGlobalFeed(); }} className={`w-full flex items-center gap-3.5 px-1 py-3 text-left ${TAP}`} style={{ background: "transparent", border: "none", borderBottom: `1px solid ${palette.border}`, color: palette.text }}>
+            <span className="flex items-center justify-center rounded-full flex-shrink-0" style={{ width: "54px", height: "54px", background: STORY_RING, color: "#fff" }}><Newspaper size={23} /></span>
+            <div className="flex-1 min-w-0"><div style={{ fontSize: "15.5px", fontWeight: 700 }}>Global feed</div><div className="truncate" style={{ color: palette.textFaint, fontSize: "13.5px", marginTop: "3px" }}>Posts from everyone on Tredzi</div></div>
+            <ChevronRight size={17} style={{ color: palette.textFaint, flexShrink: 0 }} />
           </button>
-          <div className="flex items-center justify-between mb-3"><span style={{ color: palette.textFaint, fontSize: "10px", fontFamily: mono, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>My Groups</span></div>
+          <div className="flex items-center justify-between" style={{ margin: "16px 2px 4px" }}><span style={{ color: palette.text, fontSize: "14px", fontWeight: 800 }}>Groups{joined.length ? ` · ${joined.length}` : ""}</span></div>
           {renderGroupActions()}
           {joined.length === 0 ? (
             <div className="rounded-2xl p-5 text-center" style={{ background: palette.surface, border: `1px solid ${palette.border}` }}><Users size={22} style={{ color: palette.gold, margin: "0 auto 8px" }} /><div style={{ color: palette.text, fontSize: "13px", fontWeight: 700 }}>No groups yet</div><div style={{ color: palette.textFaint, fontSize: "11px", marginTop: "4px" }}>Create a group or join one with an invite code.</div></div>
           ) : joined.map((g) => (
             <button key={g.id} type="button" onClick={() => { setCommunityLobbyTab("mine"); setCommunityMobileFeedOpen(false); setActiveGroupId(g.id); }} className={`w-full flex items-center gap-3.5 px-1 py-3 text-left ${TAP}`} style={{ background: "transparent", border: "none", borderBottom: `1px solid ${palette.border}` }}>
-              <Avatar name={g.name} size={52} src={g.avatar} />
+              <Avatar name={g.name} size={54} src={g.avatar} />
               <div className="flex-1 min-w-0">
-                <div className="truncate" style={{ color: palette.text, fontSize: "15.5px", fontWeight: 700 }}>{g.name}</div>
-                <div className="truncate" style={{ color: palette.textFaint, fontSize: "12.5px", marginTop: "3px" }}>{g.memberCount ? `${g.memberCount} members · ` : ""}{g.role === "owner" ? "You own this group" : "Member"}</div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate" style={{ color: palette.text, fontSize: "15.5px", fontWeight: 700 }}>{g.name}</span>
+                  {g.lastMessageAt ? <span style={{ flexShrink: 0, fontSize: "12px", color: Number(g.unread) > 0 ? palette.gold : palette.textFaint, fontWeight: Number(g.unread) > 0 ? 700 : 500 }}>{listTime(g.lastMessageAt)}</span> : null}
+                </div>
+                <div className="flex items-center justify-between gap-2" style={{ marginTop: "3px" }}>
+                  <span className="truncate" style={{ color: Number(g.unread) > 0 ? palette.text : palette.textFaint, fontSize: "13.5px" }}>
+                    {g.lastMessage ? `${g.lastMessageAuthor ? `${g.lastMessageAuthor}: ` : ""}${g.lastMessage}` : (g.description || (g.role === "owner" ? "You own this group" : "Tap to open the chat"))}
+                  </span>
+                  {Number(g.unread) > 0 && <span style={{ flexShrink: 0, minWidth: "21px", height: "21px", padding: "0 6px", borderRadius: "999px", background: palette.gold, color: palette.letterbox, fontSize: "11.5px", fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{Number(g.unread) > 99 ? "99+" : Number(g.unread)}</span>}
+                </div>
               </div>
-              <ChevronRight size={17} style={{ color: palette.textFaint, flexShrink: 0 }} />
+
             </button>
           ))}
         </div>
