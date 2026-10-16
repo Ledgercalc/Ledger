@@ -258,6 +258,15 @@ export default function CommunityTab(props) {
     return d.toLocaleDateString([], { month: "short", day: "numeric" });
   };
 
+  // Global feed: the feed itself is drawn by renderGlobalFeed (parent). This wrapper adds no box of its own
+  // (display: contents) and only lifts the centred max-width and the wide side padding around the posts.
+  const renderGlobalFeedWide = () => (
+    <div className="gf-wide" style={{ display: "contents" }}>
+      <style>{`.gf-wide [style*="max-width"]:not(img):not(p):not(span){max-width:none!important}.gf-wide [class*="max-w-"]:not(img){max-width:none!important}.gf-wide [style*="overflow-y: auto"],.gf-wide [class*="overflow-y-auto"]{padding-left:12px!important;padding-right:12px!important}`}</style>
+      {renderGlobalFeed()}
+    </div>
+  );
+
     // ---------- Reusable chat panel (used standalone on mobile, embedded in split view on desktop) ----------
   const renderChatPanel = (heightStyle) => {
   const group = myGroups.find((g) => g.id === activeGroupId);
@@ -1676,7 +1685,7 @@ export default function CommunityTab(props) {
       <div className="flex gap-4 flex-1" style={{ minHeight: 0, height: "100%" }}>
         {renderSidebar()}
         <div className="relative flex-1 min-w-0 rounded-2xl overflow-hidden" style={{ border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}>
-          {communityLobbyTab === "search" ? renderCommunitySearch() : activeGroupId ? renderChatPanel({ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, height: "auto", background: palette.bg }) : communityLobbyTab === "global" ? renderGlobalFeed() : (
+          {communityLobbyTab === "search" ? renderCommunitySearch() : activeGroupId ? renderChatPanel({ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, height: "auto", background: palette.bg }) : communityLobbyTab === "global" ? renderGlobalFeedWide() : (
             <div className="flex flex-col items-center justify-center h-full text-center px-8" style={{ background: palette.bg }}>
               <span className="flex items-center justify-center rounded-full mb-4" style={{ width: "64px", height: "64px", background: `${palette.gold}14`, border: `1px solid ${palette.gold}33` }}><Users size={28} style={{ color: palette.gold }} /></span>
               <div style={{ fontFamily: display, fontSize: "17px", fontWeight: 700, color: palette.text, marginBottom: "6px" }}>Pick a group to start</div>
@@ -1691,7 +1700,7 @@ export default function CommunityTab(props) {
     body = <div className="flex flex-col flex-1 min-h-0 rounded-2xl overflow-hidden" style={{ border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}><button type="button" onClick={() => { setCommunityLobbyTab("mine"); }} className={`flex items-center gap-1.5 px-3 py-2.5 ${TAP}`} style={{ background: palette.surface, borderBottom: `1px solid ${palette.border}`, color: palette.textMuted, fontFamily: mono, fontSize: "11px", fontWeight: 700 }}><ChevronLeft size={14} />Groups</button><div className="flex-1 min-h-0">{renderCommunitySearch()}</div></div>;
   } else if (communityMobileFeedOpen && !activeGroupId) {
     // ---------- MOBILE GLOBAL FEED ----------
-    body = <div className="flex flex-col flex-1 min-h-0 rounded-2xl overflow-hidden" style={{ border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}>{renderGlobalFeed()}</div>;
+    body = <div className="flex flex-col flex-1 min-h-0 rounded-2xl overflow-hidden" style={{ border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}>{renderGlobalFeedWide()}</div>;
   } else if (!activeGroupId) {
     // ---------- MOBILE GROUP LOBBY ----------
     const joined = myGroups;
