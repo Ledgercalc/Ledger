@@ -5,7 +5,7 @@ import { readStayOut, writeStayOut } from "../lib/stayOut.js";
 import { sans } from "../lib/theme.js";
 
 // Mount this once, near the top of the app (for example next to your header), and it keeps a lock banner on every
-// screen while a partner has asked you to stay out. It checks the server every 30 seconds and counts down live.
+// screen while a partner has asked you to stay out. It checks the server regularly and counts down live.
 // To also stop logging trades, disable your "Add trade" button while isStayedOut() (from lib/stayOut.js) is true.
 const countdown = (ms) => {
   const s = Math.max(0, Math.ceil(ms / 1000));
@@ -26,23 +26,33 @@ export default function StayOutGate({ session }) {
     return () => window.removeEventListener("tredzi-stayout", sync);
   }, []);
 
+  // Checks the server every 30 seconds, and every 6 seconds while a request to your partner is waiting for an answer.
   useEffect(() => {
     if (!token) return undefined;
     let stop = false;
-    const poll = async () => {
-      try {
-        const res = await fetch(`${COMMUNITY_API_BASE}/partners/lock`, { headers: { Authorization: `Bearer ${token}` } });
-        if (!res.ok || stop) return;
-        const d = await res.json();
-        const cur = readStayOut();
-        writeStayOut(d.lock && d.lock.active ? { until: d.lock.until, by: cur && cur.until === d.lock.until ? cur.by : "" } : null);
-      } catch (e) {
-        /* offline: keep showing what we last knew */
+    let timer = null;
+    const loop = async () => {
+      if (stop) return;
+      let next = 30000;
+      if (document.visibilityState === "visible") {
+        try {
+          const res = await fetch(`${COMMUNITY_API_BASE}/partners/lock`, { headers: { Authorization: `Bearer ${token}` } });
+          if (res.ok && !stop) {
+            const d = await res.json();
+            const cur = readStayOut();
+            writeStayOut(d.lock && d.lock.active ? { until: d.lock.until, by: cur && cur.until === d.lock.until ? cur.by : "" } : null);
+            if (d.pending) next = 6000;
+          }
+        } catch (e) {
+          /* offline: keep showing what we last knew */
+        }
       }
+      if (!stop) timer = setTimeout(loop, next);
     };
-    poll();
-    const id = setInterval(() => { if (document.visibilityState === "visible") poll(); }, 30000);
-    return () => { stop = true; clearInterval(id); };
+    const wake = () => { if (document.visibilityState === "visible") { clearTimeout(timer); loop(); } };
+    loop();
+    document.addEventListener("visibilitychange", wake);
+    return () => { stop = true; clearTimeout(timer); document.removeEventListener("visibilitychange", wake); };
   }, [token]);
 
   useEffect(() => {
