@@ -48,6 +48,9 @@ const NUDGE_TEXT = {
   review: "rated one of your trades.",
   goal: "set you a goal.",
   session: "shared their session notes.",
+  lock: "hit their loss limit and is locked out.",
+  override_ok: "let you keep trading.",
+  override_no: "asked you to stay out.",
 };
 const MENTOR_SETS = {
   Praise: [
@@ -1266,6 +1269,146 @@ function MyCoaching({ ctx, m, onReload }) {
   );
 }
 
+/* ================= loss guard: lock after losses, partner decides ================= */
+const hms = (ms) => {
+  const t = Math.max(0, Math.ceil(ms / 1000));
+  const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), sec = t % 60;
+  return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}` : `${m}:${String(sec).padStart(2, "0")}`;
+};
+function useSecondTick() {
+  const [, force] = useState(0);
+  useEffect(() => { const id = setInterval(() => force((n) => n + 1), 1000); return () => clearInterval(id); }, []);
+}
+function Countdown({ until, skew }) {
+  useSecondTick();
+  return <span style={{ fontFamily: mono, fontVariantNumeric: "tabular-nums" }}>{hms(until - (Date.now() + (skew || 0)))}</span>;
+}
+const fmtDur = (m) => (m % 60 === 0 && m >= 60 ? `${m / 60} hour${m === 60 ? "" : "s"}` : m > 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`);
+
+// What the PARTNER sees: a card asking whether to let the locked trader keep trading.
+function GuardPopup({ item, skew, busy, onDecide }) {
+  useSecondTick();
+  if (item.expiresAt <= Date.now() + (skew || 0)) return null;
+  return (
+    <div role="alertdialog" aria-modal="true" aria-label={`${item.username} hit the loss limit`} style={{ position: "fixed", inset: 0, zIndex: 140, display: "grid", placeItems: "center", padding: 16, background: "rgba(0,0,0,0.5)" }}>
+      <div style={{ width: "100%", maxWidth: 360, borderRadius: 22, background: palette.surface, border: `1px solid ${palette.border}`, boxShadow: "0 24px 60px rgba(0,0,0,0.35)", padding: "20px 18px 16px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+          <AlertTriangle size={21} style={{ color: ink(WARN), flexShrink: 0 }} />
+          <div style={{ fontSize: 17, fontWeight: 800, color: palette.text, lineHeight: 1.25 }}>{item.username} hit the loss limit</div>
+        </div>
+        <div style={{ fontSize: 15, color: palette.textMuted, lineHeight: 1.5, marginTop: 9 }}>{item.username} wants to keep trading today. Let them?</div>
+        {item.streak > 0 && <div style={{ fontSize: 12.5, color: palette.textFaint, marginTop: 4 }}>{plural(item.streak, "loss", "losses")} in a row.</div>}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 16 }}>
+          <button type="button" autoFocus disabled={busy} onClick={() => onDecide(item.id, false)} style={{ ...btn(false), minHeight: 56, fontSize: 15, fontWeight: 800 }}>Stay out</button>
+          <button type="button" disabled={busy} onClick={() => onDecide(item.id, true)} style={{ ...btn(true), minHeight: 56, fontSize: 15, fontWeight: 800 }}>Okay</button>
+        </div>
+        <div style={{ ...sub, textAlign: "center", marginTop: 13 }}>Auto-declines in <Countdown until={item.expiresAt} skew={skew} /></div>
+      </div>
+    </div>
+  );
+}
+
+// What the LOCKED trader sees: the lock, the timer, and (if allowed) a way to ask their partner.
+function LockBanner({ guard, skew, busy, onAsk, onCancel }) {
+  const names = guard.partners || [];
+  const who = names.length === 1 ? names[0] : "your partners";
+  const req = guard.request;
+  const pending = req && req.status === "pending" && req.expiresAt > Date.now() + (skew || 0);
+  const declined = req && (req.status === "declined");
+  const canAsk = guard.settings.needPartner && names.length > 0;
+  return (
+    <Card style={{ background: soft(BAD, 8), border: `1px solid ${tint(BAD, 38)}` }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+        <Lock size={20} style={{ color: ink(BAD), flexShrink: 0, marginTop: 1 }} />
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ fontSize: 14.5, fontWeight: 800, color: palette.text, lineHeight: 1.4 }}>Trading locked{guard.streak > 0 ? ` after ${plural(guard.streak, "loss", "losses")} in a row` : ""}</div>
+          <div style={sub}>Unlocks at {clock(guard.lockedUntil)} (<Countdown until={guard.lockedUntil} skew={skew} />). MT5 closes any new trade you open until then.</div>
+        </div>
+      </div>
+      {pending ? (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
+          <div style={{ fontSize: 13, color: palette.text }}>Waiting for {who}… auto-declines in <Countdown until={req.expiresAt} skew={skew} /></div>
+          <button type="button" disabled={busy} onClick={onCancel} style={{ ...btn(false), ...small }}>Cancel</button>
+        </div>
+      ) : canAsk ? (
+        <div style={{ marginTop: 12 }}>
+          {declined && <div style={{ fontSize: 13, color: ink(BAD), marginBottom: 8, fontWeight: 600 }}>{req.by || who} said stay out.</div>}
+          <button type="button" disabled={busy} onClick={onAsk} style={{ ...btn(true), width: "100%" }}>Ask {who} to let me trade</button>
+        </div>
+      ) : (
+        <div style={sub}>{guard.settings.needPartner ? "Add a partner if you want someone to be able to let you back in." : "Your guard is set to no override. Wait it out."}</div>
+      )}
+    </Card>
+  );
+}
+
+function LossGuardCard({ ctx, order }) {
+  const { guard, saveGuard, testGuard, busy } = ctx;
+  const [draft, setDraft] = useState(null);
+  const [dirty, setDirty] = useState(false);
+  const [help, setHelp] = useState(false);
+  useEffect(() => { if (guard && !dirty) setDraft(guard.settings); }, [guard, dirty]);
+  if (!guard || !draft) return null;
+  const locked = guard.locked;
+  const edit = (patch) => { setDraft((d) => ({ ...d, ...patch })); setDirty(true); };
+  const mt5 = guard.mt5 || {};
+  const status = !mt5.connected
+    ? { tone: WARN, text: "MT5 isn't connected. Connect it in the Broker tab first, then add the guard EA below." }
+    : !mt5.online
+      ? { tone: WARN, text: "MT5 isn't reporting right now. Keep the terminal and the sync EA running." }
+      : { tone: GOOD, text: "MT5 is connected. The lock starts from your next closed trade." };
+  const durations = [[15, "15 min"], [30, "30 min"], [60, "1 hour"], [120, "2 hours"], [240, "4 hours"]];
+  return (
+    <Card style={{ order }} title="Loss guard" icon={<Lock size={14} />} aside={<Pill color={draft.enabled ? GOOD : undefined}>{draft.enabled ? "On" : "Off"}</Pill>}>
+      <div style={{ ...sub, marginTop: -4 }}>After a losing streak you pick, MT5 blocks your next trade for a set time, and your partner can decide whether to let you back in.</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 12 }}>
+        <span style={{ fontSize: 13.5, fontWeight: 700, color: palette.text }}>Lock me after losses</span>
+        <Switch on={draft.enabled} onChange={(v) => edit({ enabled: v })} label="Loss guard on" />
+      </div>
+      <div style={{ opacity: draft.enabled ? 1 : 0.5, pointerEvents: draft.enabled ? "auto" : "none" }}>
+        <div style={{ ...eyebrow, margin: "14px 0 8px" }}>After</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          {[1, 2, 3].map((n) => <Chip key={n} on={draft.losses === n} onClick={() => edit({ losses: n })}>{n} {n === 1 ? "loss" : "losses in a row"}</Chip>)}
+        </div>
+        <div style={{ ...eyebrow, margin: "14px 0 8px" }}>Lock for</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          {durations.map(([m, label]) => <Chip key={m} on={draft.minutes === m} onClick={() => edit({ minutes: m })}>{label}</Chip>)}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
+          <input type="number" inputMode="numeric" min="5" max="1440" value={draft.minutes} onChange={(e) => edit({ minutes: Math.max(5, Math.min(1440, Math.round(Number(e.target.value) || 5))) })} aria-label="Lock minutes" style={{ ...field, width: 100 }} />
+          <span style={{ fontSize: 12.5, color: palette.textMuted }}>minutes ({fmtDur(draft.minutes)})</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 14 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 700, color: palette.text }}>Partner can let me back in</div>
+            <div style={{ fontSize: 11.5, color: palette.textFaint }}>{draft.needPartner ? "They get a card: Stay out or Okay. It auto-declines after 5 minutes." : "Off: no override. You wait the full lock."}</div>
+          </div>
+          <Switch on={draft.needPartner} onChange={(v) => edit({ needPartner: v })} label="Partner can let me back in" />
+        </div>
+        {draft.needPartner && (guard.partners || []).length === 0 && <div style={{ ...sub, color: ink(WARN) }}>You have no partner yet, so nobody could answer. Add one on this page.</div>}
+      </div>
+      <button type="button" disabled={busy || !dirty || locked} onClick={async () => { const ok = await saveGuard(draft); if (ok) setDirty(false); }} style={{ ...btn(true), width: "100%", marginTop: 14, opacity: busy || !dirty || locked ? 0.55 : 1 }}>{locked ? "Locked right now" : "Save loss guard"}</button>
+      {locked && <div style={sub}>Settings can't change while you're locked.</div>}
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 12, fontSize: 12.5, color: palette.textMuted, lineHeight: 1.45 }}>
+        <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 99, background: status.tone, marginTop: 5, flexShrink: 0 }} />
+        <span>{status.text}</span>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+        <DropChip open={help} onClick={() => setHelp((v) => !v)}>Set up the MT5 block</DropChip>
+        <button type="button" disabled={busy || locked} onClick={testGuard} style={{ ...btn(false), ...small, opacity: busy || locked ? 0.55 : 1 }}>Test lock (1 min)</button>
+      </div>
+      <Fold open={help}>
+        <ol style={{ margin: "10px 0 0", paddingLeft: 18, fontSize: 12.5, color: palette.textMuted, lineHeight: 1.6 }}>
+          <li>Copy <b>TredziGuard.mq5</b> into MT5 (File &gt; Open Data Folder &gt; MQL5 &gt; Experts) and compile it.</li>
+          <li>Tools &gt; Options &gt; Expert Advisors: tick <b>Allow WebRequest</b> and add <span style={{ fontFamily: mono, overflowWrap: "anywhere" }}>{guard.origin}</span></li>
+          <li>Drag it onto any chart, paste that address and your sync key into its inputs, and keep Algo Trading on.</li>
+        </ol>
+        <div style={sub}>MT5 can't refuse an order, so the EA closes any new position the moment it opens and removes new pending orders. You may pay the spread. Positions already open when the lock starts are left alone.</div>
+      </Fold>
+    </Card>
+  );
+}
+
 /* ---------- a partner ---------- */
 function PartnerCard({ p, busy, today, onNudge, onLeave, onBlock }) {
   const [menu, setMenu] = useState(false);
@@ -1571,6 +1714,7 @@ function PartnersPanel({ ctx, data }) {
       </Card>
 
       <ReportCard ctx={ctx} data={data} order={firstAdd ? 3 : 2} />
+      <LossGuardCard ctx={ctx} order={4} />
 
       <Card style={{ order: firstAdd ? 1 : 3 }} title="Add a partner" icon={<Plus size={14} />} aside={<Pill>{data.partners.length}/{data.limit}</Pill>}>
         {room <= 0 ? (
@@ -2399,6 +2543,44 @@ export default function PartnerTab({ isDesktop, session, communityUsername, trad
   const endPause = () => { const next = { until: 0, dismissed: lastTradeTs }; writePause(next); setPause(next); tellPartners(0); };
   const keepGoing = () => { const next = { ...pause, dismissed: lastTradeTs }; writePause(next); setPause(next); };
 
+  // loss guard: poll the lock + any "let them trade?" requests addressed to me
+  const [guard, setGuard] = useState(null);
+  const guardSkew = useRef(0);
+  const guardSeen = useRef({ first: true, key: null });
+  const loadGuard = useCallback(async () => {
+    if (!token) return;
+    try {
+      const g = await api(token, "/partners/guard");
+      guardSkew.current = g.now - Date.now();
+      const key = g.request ? `${g.request.id}:${g.request.status}` : null;
+      if (!guardSeen.current.first && key !== guardSeen.current.key && g.request) {
+        if (g.request.status === "approved") say(`${g.request.by || "Your partner"} let you keep trading.`);
+        else if (g.request.status === "declined") say(`${g.request.by || "Your partner"} said stay out.`, true);
+      }
+      guardSeen.current = { first: false, key };
+      setGuard(g);
+    } catch (e) { /* the guard just stays as it was */ }
+  }, [token, say]);
+  useEffect(() => {
+    if (!token) return undefined;
+    loadGuard();
+    const id = setInterval(() => { if (document.visibilityState === "visible") loadGuard(); }, 10000);
+    return () => clearInterval(id);
+  }, [token, loadGuard]);
+  const saveGuard = async (d) => {
+    const r = await run(() => api(token, "/partners/guard/settings", { method: "POST", body: d }), "Loss guard saved.");
+    if (r) loadGuard();
+    return !!r;
+  };
+  const testGuard = async () => { const r = await run(() => api(token, "/partners/guard/test", { method: "POST" }), "Test lock started for 1 minute."); if (r) loadGuard(); };
+  const askGuard = async () => { const r = await run(() => api(token, "/partners/guard/request", { method: "POST" }), "Asked. They have 5 minutes."); if (r) loadGuard(); };
+  const cancelGuard = async () => { const r = await run(() => api(token, "/partners/guard/cancel", { method: "POST" })); if (r) loadGuard(); };
+  const decideGuard = async (id, approve) => {
+    const r = await run(() => api(token, "/partners/guard/decide", { method: "POST", body: { id, approve } }), approve ? "Okay. They can trade again." : "Done. They stay out.");
+    setGuard((g) => (g ? { ...g, inbox: (g.inbox || []).filter((x) => x.id !== id) } : g));
+    if (r !== undefined) loadGuard();
+  };
+
   const outgoing = useMemo(() => ({
     checkin: share.on && share.checkin ? mine.checkin : null,
     trades: share.on && share.trades ? mine.trades : null,
@@ -2436,7 +2618,7 @@ export default function PartnerTab({ isDesktop, session, communityUsername, trad
   const reload = (opts) => { if (opts && opts.clearNudges) setData((d) => (d ? { ...d, nudges: [] } : d)); else load(true); };
 
   const username = (data && data.me && data.me.username) || communityUsername || "";
-  const ctx = { token, isDesktop, busy, run, say, reload, today, trades, share, mine, setShare, goToCommunity, dayState, dayRules, ownStreak, username };
+  const ctx = { token, isDesktop, busy, run, say, reload, today, trades, share, mine, setShare, goToCommunity, dayState, dayRules, ownStreak, username, guard, saveGuard, testGuard };
   // The page around a tab adds its own side padding, so pull out of it to leave only a small gutter.
   const wrap = isDesktop
     ? { margin: "0 -14px", fontFamily: sans, paddingBottom: 8 }
@@ -2478,6 +2660,8 @@ export default function PartnerTab({ isDesktop, session, communityUsername, trad
       {header(isDesktop ? <Segmented value={view} onChange={setView} options={[["partners", "Partners"], ["mentor", "Mentor", commentDot]]} /> : null)}
       {!isDesktop && <div style={{ position: "sticky", top: 0, zIndex: 5, margin: "0 -12px 12px", padding: "6px 12px 8px", background: palette.bg }}><Segmented full value={view} onChange={setView} options={[["partners", "Partners"], ["mentor", "Mentor", commentDot]]} /></div>}
       {toast && <div role="status" style={{ ...(isDesktop ? { marginBottom: 14 } : { position: "fixed", left: 12, right: 12, bottom: "calc(88px + env(safe-area-inset-bottom, 0px))", zIndex: 80, boxShadow: "0 4px 16px rgba(0,0,0,0.18)" }), padding: "12px 14px", borderRadius: 14, fontSize: 13, fontWeight: 700, background: toast.bad ? soft(BAD, 9) : soft(GOOD, 8), color: toast.bad ? ink(BAD) : palette.text, border: `1px solid ${tint(toast.bad ? BAD : GOOD, 38)}` }}>{toast.text}</div>}
+      {guard && guard.inbox && guard.inbox.length > 0 && <GuardPopup item={guard.inbox[0]} skew={guardSkew.current} busy={busy} onDecide={decideGuard} />}
+      {guard && guard.locked && <LockBanner guard={guard} skew={guardSkew.current} busy={busy} onAsk={askGuard} onCancel={cancelGuard} />}
       {(paused || showPact) && <PauseBanner run={runToday} paused={paused} until={pause.until} hasPartners={partnerCount > 0} sharing={share.on} onPause={startPause} onKeep={keepGoing} onEnd={endPause} />}
       {view === "partners" ? <PartnersPanel ctx={ctx} data={data} /> : <MentorPanel ctx={ctx} />}
     </div>
