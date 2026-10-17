@@ -1,6 +1,8 @@
 import { startCloudSync, stopCloudSync } from "./lib/cloudSync.js";
 import { COMMUNITY_API_BASE, COMMUNITY_AVATAR_KEY, COMMUNITY_JOIN_REQUESTS_KEY, COMMUNITY_MEMBERSHIPS_KEY, COMMUNITY_MESSAGE_POLL_MS, COMMUNITY_ONBOARDING_KEY, COMMUNITY_SESSION_KEY, COMMUNITY_USERNAME_KEY, communityApi } from "./api/community.js";
 import { pokeCrab } from "./lib/mascot.js";
+import StayOutGate from "./components/StayOutGate.jsx";
+import { readStayOut } from "./lib/stayOut.js";
 import { PlanLockCard, PlanSettingsCard, PlansHost } from "./components/PlansModal.jsx";
 import MobileDock from "./components/MobileDock.jsx";
 import SessionSnapshot from "./components/SessionSnapshot.jsx";
@@ -6263,8 +6265,39 @@ const selectInsightsSubTab = (id) => {
     pokeCrab(pnl > 0 ? "win" : "loss", { amount: pnl });
   };
 
+  // A partner asked you to stay out after a losing streak: refuse a NEW manual trade until the lock ends.
+  // (Editing an old trade is fine, and trades that arrive from your broker sync are real trades that already happened.)
+  const blockedByStayOut = () => {
+    const lock = readStayOut();
+    if (!lock) return false;
+    const until = new Date(lock.until).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    pokeCrab("look", { say: `Locked out until ${until}. Step away for now.` });
+    return true;
+  };
+
+  // Stay-out rule: tell the server when a losing streak is on, wherever you are in the app (not only in the Partner tab).
+  // The server decides whether your rule asks your partner, and the same streak never asks twice.
+  const stayCheckKey = useRef("");
+  useEffect(() => {
+    if (!session || !session.token) return;
+    const todayKey = dayKeyFromDate(new Date());
+    const todays = trades.filter((t) => dayKeyFromTs(t.ts) === todayKey).sort((a, b) => b.ts - a.ts);
+    let run = 0;
+    for (const t of todays) { if (t.pnl < 0) run += 1; else break; }
+    if (run < 2 || !todays.length) return;
+    const key = String(todays[0].ts);
+    if (stayCheckKey.current === key) return;
+    stayCheckKey.current = key;
+    fetch(`${COMMUNITY_API_BASE}/partners/lock/check`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.token}` },
+      body: JSON.stringify({ key, run }),
+    }).catch(() => {});
+  }, [trades, session]);
+
   const commitTrade = (opts = {}) => {
     const pnl = num(tradeInput);
+    if (!editingTradeId && blockedByStayOut()) return;
     if (editingTradeId) {
       const next = trades.map((t) =>
         t.id === editingTradeId
@@ -6308,6 +6341,7 @@ const selectInsightsSubTab = (id) => {
   const submitTrade = () => {
     const pnl = num(tradeInput);
     if (!tradeInput || pnl === 0) return;
+    if (!editingTradeId && blockedByStayOut()) return;
 
     if (!editingTradeId && settings.revengeLockEnabled && trades.length > 0) {
       const sorted = [...trades].sort((a, b) => a.ts - b.ts);
@@ -7656,6 +7690,8 @@ if (activeTab === "community") {
           </div>
         </header>
         )}
+
+        <StayOutGate session={session} />
 
         {(() => {
           const communityFullBleed = activeTab === "community" && (isDesktop || !!activeGroupId);
