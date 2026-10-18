@@ -13,8 +13,8 @@ import {
 //   candles, sessionKey, lines { entry, sl, tp }, markers, colors { text, grid, border, up, down, entry, font, bg },
 //   precision, height, compact, pickMode, onPickPrice, onApplyPlan, footer
 
-const DRAW_COLOR = "#5b9dff";
-const SWATCHES = ["#5b9dff", "#f5c542", "#ff6b6b", "#2ecc71", "#c77dff", "#ffffff"];
+const DRAW_COLOR = "#2962ff";
+const SWATCHES = ["#2962ff", "#f5c542", "#ef5350", "#26a69a", "#ab47bc", "#ffffff"];
 const PANE = "candle_pane";
 const DRAW_GROUP = "bt-draw";
 const MARK_GROUP = "bt-markers";
@@ -25,10 +25,22 @@ const lineOf = (overlay) => {
   return { color: l.color || DRAW_COLOR, size: l.size || 1.5, dashed: l.style === "dashed" };
 };
 const hexA = (hex, a) => {
-  const m = /^#?([0-9a-f]{6})$/i.exec(hex || "");
-  if (!m) return `rgba(91,157,255,${a})`;
+  let h = String(hex || "").trim();
+  const m3 = /^#([0-9a-f])([0-9a-f])([0-9a-f])$/i.exec(h);
+  if (m3) h = `#${m3[1]}${m3[1]}${m3[2]}${m3[2]}${m3[3]}${m3[3]}`;
+  const m = /^#([0-9a-f]{6})$/i.exec(h);
+  if (!m) {
+    const rgb = /^rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)/i.exec(h);
+    return rgb ? `rgba(${rgb[1]},${rgb[2]},${rgb[3]},${a})` : `rgba(41,98,255,${a})`;
+  }
   const n = parseInt(m[1], 16);
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+};
+const isLightColor = (c) => {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(c || "").replace(/^#([0-9a-f])([0-9a-f])([0-9a-f])$/i, "#$1$1$2$2$3$3"));
+  if (!m) return false;
+  const n = parseInt(m[1], 16);
+  return (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255 > 0.6;
 };
 const prec = (chart) => {
   const s = chart.getSymbol();
@@ -46,7 +58,7 @@ const fmtDur = (sec) => {
   if (m) parts.push(`${m}m`);
   return parts.length ? parts.join(" ") : "0m";
 };
-const labelStyle = (color) => ({ style: "fill", color, size: 11, backgroundColor: "rgba(15,15,20,0.85)", borderSize: 0, paddingLeft: 5, paddingRight: 5, paddingTop: 2, paddingBottom: 2 });
+const labelStyle = (color) => ({ style: "fill", color: "#ffffff", size: 11, weight: 600, backgroundColor: color, borderSize: 0, borderRadius: 4, paddingLeft: 6, paddingRight: 6, paddingTop: 3, paddingBottom: 3 });
 
 // ---- custom overlays (TradingView tools that KLineChart does not ship) ----
 function positionTemplate(name) {
@@ -157,6 +169,40 @@ export const OVERLAY_TEMPLATES = [
     },
   },
   {
+    name: "btFib",
+    totalStep: 3,
+    needDefaultPointFigure: true,
+    needDefaultXAxisFigure: true,
+    needDefaultYAxisFigure: true,
+    createPointFigures: ({ chart, overlay, coordinates, bounding }) => {
+      if (coordinates.length < 2 || overlay.points.length < 2) return [];
+      const [a, b] = coordinates;
+      const [pa, pb] = overlay.points;
+      if (!Number.isFinite(pa.value) || !Number.isFinite(pb.value)) return [];
+      const p = prec(chart);
+      const levels = [
+        [0, "#787b86"], [0.236, "#f23645"], [0.382, "#ff9800"], [0.5, "#4caf50"], [0.618, "#089981"], [0.786, "#00bcd4"], [1, "#787b86"],
+      ];
+      const x0 = Math.min(a.x, b.x);
+      const x1 = bounding.width;
+      const yAt = (lv) => b.y + (a.y - b.y) * lv;
+      const out = [];
+      for (let i = 0; i < levels.length - 1; i++) {
+        const y1 = yAt(levels[i][0]);
+        const y2 = yAt(levels[i + 1][0]);
+        out.push({ type: "rect", ignoreEvent: true, attrs: { x: x0, y: Math.min(y1, y2), width: x1 - x0, height: Math.abs(y2 - y1) }, styles: { style: "fill", color: hexA(levels[i + 1][1], 0.09) } });
+      }
+      levels.forEach(([lv, col]) => {
+        const y = yAt(lv);
+        out.push({ type: "line", attrs: { coordinates: [{ x: x0, y }, { x: x1, y }] }, styles: { color: col, size: 1, style: "solid" } });
+        const price = pb.value + (pa.value - pb.value) * lv;
+        out.push({ type: "text", ignoreEvent: true, attrs: { x: x0 + 4, y: y - 2, text: `${lv} (${price.toFixed(p)})`, baseline: "bottom" }, styles: { style: "fill", color: col, size: 10.5, weight: 600, backgroundColor: "transparent", borderSize: 0 } });
+      });
+      out.push({ type: "line", ignoreEvent: true, attrs: { coordinates: [a, b] }, styles: { color: "#787b86", size: 1, style: "dashed", dashedValue: [4, 4] } });
+      return out;
+    },
+  },
+  {
     name: "btText",
     totalStep: 2,
     needDefaultPointFigure: true,
@@ -165,8 +211,7 @@ export const OVERLAY_TEMPLATES = [
     createPointFigures: ({ overlay, coordinates }) => {
       if (!coordinates.length) return [];
       const l = lineOf(overlay);
-      const col = l.color === DRAW_COLOR ? "#ffffff" : l.color;
-      return [{ type: "text", attrs: { x: coordinates[0].x, y: coordinates[0].y, text: String(overlay.extendData || ""), baseline: "bottom" }, styles: labelStyle(col) }];
+      return [{ type: "text", attrs: { x: coordinates[0].x, y: coordinates[0].y, text: String(overlay.extendData || ""), baseline: "bottom" }, styles: { style: "fill", color: l.color, size: 13, weight: 600, backgroundColor: "transparent", borderSize: 0 } }];
     },
   },
   // Entry / SL / TP guide lines (one point, only its price matters).
@@ -229,7 +274,7 @@ const TOOL_OVERLAY = {
   vline: "verticalStraightLine",
   channel: "parallelStraightLine",
   brush: "brush",
-  fib: "fibonacciLine",
+  fib: "btFib",
   measure: "btMeasure",
   rect: "btRect",
   text: "btText",
@@ -275,7 +320,7 @@ const TOOL_GROUPS = [
   ] },
 ];
 const ALL_TOOLS = TOOL_GROUPS.flatMap((g) => g.tools);
-const NO_STYLE_BAR = ["btLong", "btShort", "btMeasure", "fibonacciLine"];
+const NO_STYLE_BAR = ["btLong", "btShort", "btMeasure", "btFib"];
 
 const toK = (c) => ({ timestamp: c.time * 1000, open: c.open, high: c.high, low: c.low, close: c.close });
 
@@ -320,10 +365,15 @@ function buildStyles(colors, compact) {
     xAxis: { axisLine: { color: colors.border }, tickLine: { color: colors.border }, tickText: axisText },
     yAxis: { axisLine: { color: colors.border }, tickLine: { color: colors.border }, tickText: axisText },
     separator: { color: colors.border },
-    crosshair: { horizontal: { line: { color: colors.text } }, vertical: { line: { color: colors.text } } },
+    crosshair: {
+      horizontal: { line: { style: "dashed", dashedValue: [4, 4], size: 1, color: colors.text } },
+      vertical: { line: { style: "dashed", dashedValue: [4, 4], size: 1, color: colors.text } },
+    },
     overlay: {
-      point: { color: "#ffffff", borderColor: DRAW_COLOR, borderSize: 2, radius: compact ? 6 : 4, activeColor: "#ffffff", activeBorderColor: DRAW_COLOR, activeBorderSize: 3, activeRadius: compact ? 8 : 6 },
-      line: { color: DRAW_COLOR, size: 1.5 },
+      point: { color: "#ffffff", borderColor: DRAW_COLOR, borderSize: 2, radius: compact ? 6 : 5, activeColor: DRAW_COLOR, activeBorderColor: "#ffffff", activeBorderSize: 2, activeRadius: compact ? 8 : 7 },
+      line: { color: DRAW_COLOR, size: 2 },
+      rect: { color: "rgba(41,98,255,0.12)", borderColor: DRAW_COLOR, borderSize: 1.5 },
+      polygon: { color: "rgba(41,98,255,0.12)", borderColor: DRAW_COLOR, borderSize: 1.5 },
       text: { color: "#ffffff", family: colors.font, size: 11 },
     },
   };
@@ -376,7 +426,7 @@ export default function KLineBacktestChart({ candles, sessionKey, lines, markers
   // Create once.
   useEffect(() => {
     ensureRegistered();
-    const chart = init(hostRef.current, { styles: "dark", timezone: "UTC" });
+    const chart = init(hostRef.current, { styles: isLightColor(colorsRef.current.bg) ? "light" : "dark", timezone: "UTC" });
     if (!chart) return undefined;
     chart.setStyles(buildStyles(colorsRef.current, compact));
     chart.setDataLoader({
@@ -407,8 +457,11 @@ export default function KLineBacktestChart({ candles, sessionKey, lines, markers
   // Theme / precision changes.
   useEffect(() => {
     const chart = chartRef.current;
-    if (chart) chart.setStyles(buildStyles(colors, compact));
-  }, [colors.text, colors.grid, colors.border, colors.up, colors.down, colors.font, compact]);
+    if (chart) {
+      chart.setStyles(isLightColor(colors.bg) ? "light" : "dark");
+      chart.setStyles(buildStyles(colors, compact));
+    }
+  }, [colors.text, colors.grid, colors.border, colors.up, colors.down, colors.font, colors.bg, compact]);
 
   // Data: push new candles through the live feed while stepping, otherwise reload.
   useEffect(() => {
@@ -641,7 +694,7 @@ export default function KLineBacktestChart({ candles, sessionKey, lines, markers
   const patchSelected = (patch) => {
     const chart = chartRef.current;
     if (!chart || !selected) return;
-    const cur = { color: DRAW_COLOR, width: 1.5, dash: false, ...(stylesRef.current[selected.id] || {}), ...patch };
+    const cur = { color: DRAW_COLOR, width: 2, dash: false, ...(stylesRef.current[selected.id] || {}), ...patch };
     stylesRef.current[selected.id] = cur;
     chart.overrideOverlay({
       id: selected.id,
@@ -653,17 +706,23 @@ export default function KLineBacktestChart({ candles, sessionKey, lines, markers
     });
     bump((v) => v + 1);
   };
-  const curStyle = selected ? { color: DRAW_COLOR, width: 1.5, dash: false, ...(stylesRef.current[selected.id] || {}) } : null;
+  const curStyle = selected ? { color: DRAW_COLOR, width: 2, dash: false, ...(stylesRef.current[selected.id] || {}) } : null;
 
   const S = compact ? 38 : 32;
   const bg = colors.bg || "#0e0e12";
+  const soft = hexA(DRAW_COLOR, 0.2);
   const btn = (active) => ({
     width: S, height: S, display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: 8,
-    border: `1px solid ${active ? DRAW_COLOR : colors.border}`, background: active ? DRAW_COLOR : "transparent",
-    color: active ? "#fff" : colors.text, cursor: "pointer", padding: 0, flexShrink: 0,
+    border: `1px solid ${active ? DRAW_COLOR : colors.border}`, background: active ? soft : "transparent",
+    color: active ? DRAW_COLOR : colors.text, cursor: "pointer", padding: 0, flexShrink: 0,
+  });
+  const railBtn = (active) => ({
+    width: 34, height: 34, display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: 8,
+    border: "none", background: active ? soft : "transparent", color: active ? DRAW_COLOR : colors.text,
+    cursor: "pointer", padding: 0, flexShrink: 0,
   });
   const pill = (id, color) => ({
-    height: S, padding: "0 12px", borderRadius: 8, border: `1px solid ${color}`, background: tool === id ? color : "transparent",
+    height: S, padding: "0 14px", borderRadius: 8, border: `1px solid ${color}`, background: tool === id ? color : hexA(color, 0.1),
     color: tool === id ? "#fff" : color, fontFamily: colors.font, fontSize: 12.5, fontWeight: 700, cursor: "pointer", flexShrink: 0,
   });
   const iconOff = (on) => ({ opacity: on ? 1 : 0.4, cursor: on ? "pointer" : "not-allowed" });
@@ -671,94 +730,126 @@ export default function KLineBacktestChart({ candles, sessionKey, lines, markers
   const ToolsIcon = activeDef ? activeDef.Icon : Pencil;
   const hint = tool === "eraser" ? "Tap a drawing to delete it" : tool ? HINTS[tool] : "";
   const showStyleBar = selected && !tool && !NO_STYLE_BAR.includes(selected.name);
+  const rail = !compact;
+  const divider = <span style={{ width: 1, alignSelf: "stretch", background: colors.border, flexShrink: 0, margin: "2px 2px" }} />;
   const shell = full
     ? { position: "fixed", inset: 0, zIndex: 1000, background: bg, display: "flex", flexDirection: "column", paddingTop: "env(safe-area-inset-top, 0px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }
     : undefined;
 
   return (
     <div style={shell}>
-      <div style={{ display: "flex", gap: 6, flexWrap: compact ? "nowrap" : "wrap", overflowX: compact ? "auto" : "visible", scrollbarWidth: "none", alignItems: "center", marginBottom: 8, padding: compact ? "0 12px" : full ? "8px 12px 0" : 0, flexShrink: 0 }} role="toolbar" aria-label="Drawing tools">
-        <button type="button" onClick={() => startTool(null)} aria-label="Cursor" title="Cursor (select and move drawings)" aria-pressed={!tool} style={btn(!tool)}>
-          <MousePointer2 size={16} />
-        </button>
-        {compact ? (
-          <button type="button" onClick={() => setSheet(true)} aria-label="Drawing tools" title="Drawing tools" aria-pressed={!!activeDef} style={btn(!!activeDef)}>
-            <ToolsIcon size={16} />
-          </button>
-        ) : (
-          ALL_TOOLS.map(({ id, label, Icon }) => (
-            <button key={id} type="button" title={label} aria-label={label} aria-pressed={tool === id} onClick={() => startTool(id)} style={btn(tool === id)}>
-              <Icon size={16} />
+      <div style={{ display: "flex", gap: 6, flexWrap: compact ? "nowrap" : "wrap", overflowX: compact ? "auto" : "visible", scrollbarWidth: "none", alignItems: "center", marginBottom: 8, padding: compact ? "0 12px" : full ? "8px 12px 0" : 0, flexShrink: 0 }} role="toolbar" aria-label="Chart tools">
+        {!compact && (
+          <>
+            <button type="button" title="Magnet: snap to open, high, low, close" aria-label="Magnet" aria-pressed={magnet} onClick={() => setMagnet((v) => !v)} style={btn(magnet)}>
+              <Magnet size={17} />
             </button>
-          ))
+            {divider}
+          </>
         )}
-        <button type="button" title="Eraser (tap a drawing)" aria-label="Eraser" aria-pressed={tool === "eraser"} onClick={() => startTool("eraser")} style={btn(tool === "eraser")}>
-          <Eraser size={16} />
-        </button>
-        <button type="button" title="Magnet: snap to open, high, low, close" aria-label="Magnet" aria-pressed={magnet} onClick={() => setMagnet((v) => !v)} style={btn(magnet)}>
-          <Magnet size={16} />
-        </button>
-        <span style={{ width: 1, alignSelf: "stretch", background: colors.border, flexShrink: 0, margin: "2px 2px" }} />
         <button type="button" onClick={() => startTool("long")} aria-pressed={tool === "long"} title="Long position (entry, stop loss, take profit)" style={pill("long", colors.up)}>Long</button>
         <button type="button" onClick={() => startTool("short")} aria-pressed={tool === "short"} title="Short position (entry, stop loss, take profit)" style={pill("short", colors.down)}>Short</button>
         <div style={{ flex: 1 }} />
         {plan && onApplyPlan && (
-          <button type="button" title="Copy the stop loss, take profit and side of your latest Long/Short plan into the order form" onClick={() => onApplyPlan(plan)} style={{ flexShrink: 0, height: S, padding: "0 10px", borderRadius: 8, border: `1px solid ${colors.entry}`, background: "transparent", color: colors.entry, fontFamily: colors.font, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+          <button type="button" title="Copy the stop loss, take profit and side of your latest Long/Short plan into the order form" onClick={() => onApplyPlan(plan)} style={{ flexShrink: 0, height: S, padding: "0 12px", borderRadius: 8, border: `1px solid ${colors.entry}`, background: hexA(colors.entry, 0.12), color: colors.entry, fontFamily: colors.font, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
             Use plan
           </button>
         )}
-        <button type="button" title="Undo last drawing" aria-label="Undo last drawing" disabled={!count} onClick={undo} style={{ ...btn(false), ...iconOff(count > 0) }}>
-          <Undo2 size={16} />
-        </button>
-        <button type="button" title="Clear all drawings" aria-label="Clear all drawings" disabled={!count} onClick={clearAll} style={{ ...btn(false), ...iconOff(count > 0) }}>
-          <Trash2 size={16} />
-        </button>
+        {!compact && (
+          <>
+            <button type="button" title="Undo last drawing" aria-label="Undo last drawing" disabled={!count} onClick={undo} style={{ ...btn(false), ...iconOff(count > 0) }}>
+              <Undo2 size={17} />
+            </button>
+            <button type="button" title="Clear all drawings" aria-label="Clear all drawings" disabled={!count} onClick={clearAll} style={{ ...btn(false), ...iconOff(count > 0) }}>
+              <Trash2 size={17} />
+            </button>
+          </>
+        )}
         <button type="button" title={full ? "Exit fullscreen" : "Fullscreen chart"} aria-label={full ? "Exit fullscreen" : "Fullscreen chart"} onClick={() => setFull((v) => !v)} style={btn(full)}>
-          {full ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+          {full ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
         </button>
       </div>
 
       <div
-        ref={areaRef}
         style={{
-          position: "relative", isolation: "isolate",
+          display: "flex", gap: 8, alignItems: "stretch", boxSizing: "border-box",
           width: compact && !full ? "calc(100% - 6px)" : "100%", marginLeft: compact && !full ? 6 : 0,
+          padding: full ? "0 12px" : 0,
           height: full ? undefined : height, flex: full ? "1 1 0" : undefined, minHeight: full ? 0 : undefined,
         }}
       >
-        <div ref={hostRef} style={{ width: "100%", height: "100%", cursor: pickMode ? "crosshair" : "default" }} aria-label="Price chart" />
-        {hint && (
-          <div style={{ position: "absolute", left: 8, top: 6, zIndex: 6, pointerEvents: "none", background: "rgba(15,15,20,0.82)", color: DRAW_COLOR, fontFamily: colors.font, fontSize: 12, padding: "4px 8px", borderRadius: 6, maxWidth: "80%" }}>
-            {hint}{compact ? "" : ". Esc cancels"}
-          </div>
-        )}
-        {selected && !tool && (
-          <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", top: 6, zIndex: 7, display: "flex", alignItems: "center", gap: 6, background: "rgba(15,15,20,0.92)", border: `1px solid ${colors.border}`, borderRadius: 10, padding: "5px 8px", maxWidth: "96%", overflowX: "auto", scrollbarWidth: "none" }}>
-            {showStyleBar && (
-              <>
-                {SWATCHES.map((c) => (
-                  <button key={c} type="button" aria-label={`Colour ${c}`} onClick={() => patchSelected({ color: c })} style={{ width: 20, height: 20, borderRadius: 10, background: c, border: curStyle.color === c ? "2px solid #fff" : "2px solid transparent", boxShadow: "0 0 0 1px rgba(255,255,255,0.25)", padding: 0, cursor: "pointer", flexShrink: 0 }} />
-                ))}
-                <span style={{ width: 1, height: 18, background: colors.border, flexShrink: 0 }} />
-                {[1.5, 2.5, 3.5].map((w, i) => (
-                  <button key={w} type="button" aria-label={`Line thickness ${i + 1}`} onClick={() => patchSelected({ width: w })} style={{ width: 26, height: 24, borderRadius: 6, border: `1px solid ${curStyle.width === w ? DRAW_COLOR : colors.border}`, background: "transparent", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }}>
-                    <span style={{ width: 14, height: w, background: colors.text, borderRadius: 2 }} />
+        {rail && (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: 4, border: `1px solid ${colors.border}`, borderRadius: 10, background: bg, overflowY: "auto", scrollbarWidth: "none", flexShrink: 0 }} role="toolbar" aria-label="Drawing tools" aria-orientation="vertical">
+            <button type="button" onClick={() => startTool(null)} aria-label="Cursor" title="Cursor (select and move drawings)" aria-pressed={!tool} style={railBtn(!tool)}>
+              <MousePointer2 size={18} />
+            </button>
+            {TOOL_GROUPS.map((g) => (
+              <div key={g.title} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, width: "100%", borderTop: `1px solid ${colors.border}`, marginTop: 3, paddingTop: 3 }}>
+                {g.tools.map(({ id, label, Icon }) => (
+                  <button key={id} type="button" title={label} aria-label={label} aria-pressed={tool === id} onClick={() => startTool(id)} style={railBtn(tool === id)}>
+                    <Icon size={18} />
                   </button>
                 ))}
-                <button type="button" aria-label="Dashed line" aria-pressed={curStyle.dash} onClick={() => patchSelected({ dash: !curStyle.dash })} style={{ width: 26, height: 24, borderRadius: 6, border: `1px solid ${curStyle.dash ? DRAW_COLOR : colors.border}`, background: "transparent", color: colors.text, cursor: "pointer", padding: 0, fontSize: 11, flexShrink: 0 }}>
-                  - -
-                </button>
-                <span style={{ width: 1, height: 18, background: colors.border, flexShrink: 0 }} />
-              </>
-            )}
-            <button type="button" aria-label="Delete drawing" title="Delete" onClick={deleteSelected} style={{ ...btn(false), width: 26, height: 24, border: "none", color: colors.down }}>
-              <Trash2 size={14} />
-            </button>
-            <button type="button" aria-label="Deselect" title="Done" onClick={() => setSelected(null)} style={{ ...btn(false), width: 26, height: 24, border: "none" }}>
-              <X size={14} />
-            </button>
+              </div>
+            ))}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "100%", borderTop: `1px solid ${colors.border}`, marginTop: 3, paddingTop: 3 }}>
+              <button type="button" title="Eraser (tap a drawing)" aria-label="Eraser" aria-pressed={tool === "eraser"} onClick={() => startTool("eraser")} style={railBtn(tool === "eraser")}>
+                <Eraser size={18} />
+              </button>
+            </div>
           </div>
         )}
+
+        <div ref={areaRef} style={{ position: "relative", isolation: "isolate", flex: 1, minWidth: 0 }}>
+          <div ref={hostRef} style={{ position: "absolute", inset: 0, cursor: pickMode ? "crosshair" : "default" }} aria-label="Price chart" />
+          {compact && (
+            <div style={{ position: "absolute", left: 6, top: 8, zIndex: 6, display: "flex", flexDirection: "column", gap: 6 }}>
+              {[
+                { key: "cursor", label: "Cursor", Icon: MousePointer2, active: !tool, onClick: () => startTool(null) },
+                { key: "tools", label: "Drawing tools", Icon: ToolsIcon, active: !!activeDef, onClick: () => setSheet(true) },
+                { key: "eraser", label: "Eraser", Icon: Eraser, active: tool === "eraser", onClick: () => startTool("eraser") },
+                { key: "magnet", label: "Magnet", Icon: Magnet, active: magnet, onClick: () => setMagnet((v) => !v) },
+                { key: "undo", label: "Undo last drawing", Icon: Undo2, active: false, disabled: !count, onClick: undo },
+              ].map(({ key, label, Icon, active, disabled, onClick }) => (
+                <button key={key} type="button" aria-label={label} title={label} aria-pressed={active} disabled={disabled} onClick={onClick} style={{ width: 40, height: 40, borderRadius: 20, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0, cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.45 : 1, background: active ? DRAW_COLOR : bg, color: active ? "#fff" : colors.text, border: `1px solid ${active ? DRAW_COLOR : colors.border}`, boxShadow: "0 2px 8px rgba(0,0,0,0.25)" }}>
+                  <Icon size={18} />
+                </button>
+              ))}
+            </div>
+          )}
+          {hint && (
+            <div style={{ position: "absolute", left: compact ? 54 : 10, top: 8, zIndex: 6, pointerEvents: "none", background: hexA(DRAW_COLOR, 0.92), color: "#fff", fontFamily: colors.font, fontSize: 12, fontWeight: 600, padding: "5px 10px", borderRadius: 8, maxWidth: "80%", boxShadow: "0 4px 14px rgba(0,0,0,0.35)" }}>
+              {hint}{compact ? "" : ". Esc cancels"}
+            </div>
+          )}
+          {selected && !tool && (
+            <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", ...(compact ? { bottom: 38 } : { top: 8 }), zIndex: 7, display: "flex", alignItems: "center", gap: 8, background: bg, border: `1px solid ${colors.border}`, borderRadius: 12, padding: "6px 10px", maxWidth: "94%", overflowX: "auto", scrollbarWidth: "none", boxShadow: "0 6px 20px rgba(0,0,0,0.3)" }}>
+              {showStyleBar && (
+                <>
+                  {SWATCHES.map((c) => (
+                    <button key={c} type="button" aria-label={`Colour ${c}`} onClick={() => patchSelected({ color: c })} style={{ width: 20, height: 20, borderRadius: 10, background: c, border: curStyle.color === c ? "2px solid #fff" : "2px solid transparent", outline: curStyle.color === c ? `2px solid ${hexA(c, 0.5)}` : "none", padding: 0, cursor: "pointer", flexShrink: 0 }} />
+                  ))}
+                  <span style={{ width: 1, height: 20, background: colors.border, flexShrink: 0 }} />
+                  {[2, 3, 4].map((w, i) => (
+                    <button key={w} type="button" aria-label={`Line thickness ${i + 1}`} onClick={() => patchSelected({ width: w })} style={{ width: 28, height: 26, borderRadius: 6, border: "none", background: curStyle.width === w ? soft : "transparent", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }}>
+                      <span style={{ width: 14, height: w, background: curStyle.width === w ? DRAW_COLOR : colors.text, borderRadius: 2 }} />
+                    </button>
+                  ))}
+                  <button type="button" aria-label="Dashed line" aria-pressed={curStyle.dash} onClick={() => patchSelected({ dash: !curStyle.dash })} style={{ width: 28, height: 26, borderRadius: 6, border: "none", background: curStyle.dash ? soft : "transparent", color: curStyle.dash ? DRAW_COLOR : colors.text, cursor: "pointer", padding: 0, fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
+                    - -
+                  </button>
+                  <span style={{ width: 1, height: 20, background: colors.border, flexShrink: 0 }} />
+                </>
+              )}
+              <button type="button" aria-label="Delete drawing" title="Delete" onClick={deleteSelected} style={{ ...btn(false), width: 28, height: 26, border: "none", color: colors.down }}>
+                <Trash2 size={15} />
+              </button>
+              <button type="button" aria-label="Deselect" title="Done" onClick={() => setSelected(null)} style={{ ...btn(false), width: 28, height: 26, border: "none" }}>
+                <X size={15} />
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {full && footer ? <div style={{ flexShrink: 0, padding: "10px 12px" }}>{footer}</div> : null}
@@ -766,20 +857,24 @@ export default function KLineBacktestChart({ candles, sessionKey, lines, markers
       {sheet && (
         <>
           <div onClick={() => setSheet(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1100 }} />
-          <div role="dialog" aria-label="Drawing tools" style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 1101, background: bg, borderTop: `1px solid ${colors.border}`, borderRadius: "16px 16px 0 0", padding: "12px 14px calc(16px + env(safe-area-inset-bottom, 0px))", maxHeight: "70vh", overflowY: "auto" }}>
+          <div role="dialog" aria-label="Drawing tools" style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 1101, background: bg, borderTop: `1px solid ${colors.border}`, borderRadius: "18px 18px 0 0", padding: "12px 14px calc(16px + env(safe-area-inset-bottom, 0px))", maxHeight: "70vh", overflowY: "auto" }}>
+            <div style={{ width: 40, height: 4, borderRadius: 2, background: colors.border, margin: "0 auto 10px" }} />
             <div style={{ display: "flex", alignItems: "center", marginBottom: 6 }}>
               <div style={{ flex: 1, color: colors.text, fontFamily: colors.font, fontSize: 13, fontWeight: 700 }}>Drawing tools</div>
               <button type="button" aria-label="Close" onClick={() => setSheet(false)} style={{ ...btn(false), border: "none" }}>
                 <X size={18} />
               </button>
             </div>
+            <button type="button" onClick={() => { clearAll(); setSheet(false); }} disabled={!count} style={{ marginTop: 6, width: "100%", height: 40, borderRadius: 10, border: `1px solid ${colors.border}`, background: "transparent", color: colors.down, fontFamily: colors.font, fontSize: 13, fontWeight: 700, cursor: count ? "pointer" : "not-allowed", opacity: count ? 1 : 0.45 }}>
+              Clear all drawings
+            </button>
             {TOOL_GROUPS.map((g) => (
               <div key={g.title} style={{ marginTop: 10 }}>
                 <div style={{ color: colors.text, opacity: 0.6, fontFamily: colors.font, fontSize: 11.5, marginBottom: 6 }}>{g.title}</div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
                   {g.tools.map(({ id, label, Icon }) => (
-                    <button key={id} type="button" onClick={() => startTool(id)} style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 66, padding: "8px 4px", borderRadius: 10, border: `1px solid ${tool === id ? DRAW_COLOR : colors.border}`, background: tool === id ? DRAW_COLOR : "transparent", color: tool === id ? "#fff" : colors.text, fontFamily: colors.font, fontSize: 10.5, lineHeight: 1.2, cursor: "pointer", textAlign: "center" }}>
-                      <Icon size={20} />
+                    <button key={id} type="button" onClick={() => startTool(id)} style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 66, padding: "8px 4px", borderRadius: 12, border: `1px solid ${tool === id ? DRAW_COLOR : colors.border}`, background: tool === id ? soft : "transparent", color: tool === id ? DRAW_COLOR : colors.text, fontFamily: colors.font, fontSize: 10.5, lineHeight: 1.2, cursor: "pointer", textAlign: "center" }}>
+                      <Icon size={21} />
                       {label}
                     </button>
                   ))}
