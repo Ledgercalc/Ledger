@@ -1,4 +1,4 @@
-import BacktestChart from "../components/BacktestChart.jsx";
+import BacktestChart from "../components/KLineBacktestChart.jsx";
 import { INSTRUMENTS, TIMEFRAMES, fetchCandles } from "../api/marketData.js";
 import { calcR, scanPosition, summarize, validateOrder } from "../lib/backtestEngine.js";
 import { inferTfLabel, parseCandlesCsv, precisionFor } from "../lib/candles.js";
@@ -53,6 +53,7 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
   const [showJump, setShowJump] = useState(false);
   const [showNote, setShowNote] = useState(false);
   const [showMoreStats, setShowMoreStats] = useState(false);
+  const [showSource, setShowSource] = useState(false);
 
   const fileRef = useRef(null);
 
@@ -142,6 +143,7 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
     down: palette.red,
     entry: palette.gold,
     font: mono,
+    bg: palette.surface,
   };
 
   // ---- loading data ----
@@ -161,6 +163,7 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
     setIdx(startAt(list.length));
     setSessionKey((k) => k + 1);
     setError("");
+    setShowSource(false);
   };
 
   const loadMarket = async () => {
@@ -284,19 +287,21 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idx, pos, candles]);
 
-  const enterTrade = () => {
+  const enterTrade = (sideArg) => {
     if (pos || !bar) return;
+    const sd = sideArg === "buy" || sideArg === "sell" ? sideArg : side;
     const sl = parseFloat(slInput);
     const tp = tpInput.trim() === "" ? null : parseFloat(tpInput);
-    const err = validateOrder({ side, entry: bar.close, sl, tp, risk: riskNum });
+    const err = validateOrder({ side: sd, entry: bar.close, sl, tp, risk: riskNum });
     if (err) {
       setOrderError(err);
       return;
     }
     setOrderError("");
     setPickMode(null);
+    setSide(sd);
     setPos({
-      side,
+      side: sd,
       entry: bar.close,
       sl,
       tp,
@@ -400,9 +405,72 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
     </div>
   );
 
+  const renderReplay = (pad) => (
+        <div style={{ padding: pad }}>
+          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+            <button type="button" onClick={() => setPlaying((p) => !p)} disabled={idx >= last} className={TAP} style={{ ...ghostBtn(playing), flex: 1, justifyContent: "center", ...(idx >= last ? disabledBtn : null) }} aria-label={playing ? "Pause" : "Play"}>
+              {playing ? <Pause size={15} /> : <Play size={15} />} {playing ? "Pause" : "Play"}
+            </button>
+            <button type="button" onClick={() => { setPlaying(false); step(); }} disabled={idx >= last} className={TAP} style={{ ...ghostBtn(false), flex: 1, justifyContent: "center", ...(idx >= last ? disabledBtn : null) }} aria-label="Next candle">
+              <StepForward size={15} /> Next
+            </button>
+            <button type="button" onClick={() => setSpeed(SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length])} className={TAP} style={ghostBtn(false)} aria-label={`Replay speed ${speed}x, tap to change`}>
+              {speed}x
+            </button>
+            <button type="button" onClick={() => setShowJump((v) => !v)} className={TAP} style={ghostBtn(showJump)} aria-label="Jump options" aria-expanded={showJump}>
+              <Shuffle size={15} />
+            </button>
+          </div>
+          {showJump && (
+            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+              <button type="button" onClick={jumpRandom} disabled={!!pos} className={TAP} style={{ ...ghostBtn(false), ...(pos ? disabledBtn : null) }} title={pos ? "Close your trade first" : "Jump to a random point"}>
+                <Shuffle size={15} /> Random
+              </button>
+              <input type="date" aria-label="Jump to date" disabled={!!pos} onChange={(e) => jumpToDate(e.target.value)} style={{ ...field, flex: 1, ...(pos ? disabledBtn : null) }} />
+            </div>
+          )}
+          {idx >= last && (
+            <p style={{ color: palette.textMuted, fontFamily: mono, fontSize: 12.5, margin: "10px 0 0" }}>
+              You've reached the end of this data.
+            </p>
+          )}
+        </div>
+  );
+
+  const fsTrade = pos ? (
+    <button type="button" onClick={closeNow} className={TAP} style={{ ...ghostBtn(false), width: "100%", justifyContent: "center", marginTop: 10 }}>
+      Close at {bar ? bar.close.toFixed(precision) : "-"}  ({openR == null ? "-" : `${signed(openR)}R`})
+    </button>
+  ) : (
+    <div style={{ marginTop: 10 }}>
+      {orderError && <p role="alert" style={{ color: palette.red, fontFamily: mono, fontSize: 12.5, margin: "0 0 8px" }}>{orderError}</p>}
+      <div style={{ display: "flex", gap: 8 }}>
+        <button type="button" onClick={() => enterTrade("buy")} className={TAP} style={{ flex: 1, background: palette.green, color: "#fff", border: `1px solid ${palette.green}`, borderRadius: 10, padding: "11px 0", fontFamily: display, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Buy</button>
+        <button type="button" onClick={() => enterTrade("sell")} className={TAP} style={{ flex: 1, background: palette.red, color: "#fff", border: `1px solid ${palette.red}`, borderRadius: 10, padding: "11px 0", fontFamily: display, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Sell</button>
+      </div>
+      <p style={{ color: palette.textFaint, fontFamily: mono, fontSize: 11.5, margin: "8px 0 0" }}>
+        Draw a Long or Short box, tap Use plan, then Buy or Sell. Risk: ${risk || "0"} per trade.
+      </p>
+    </div>
+  );
+  const fsFooter = (
+    <div>
+      {renderReplay(0)}
+      {fsTrade}
+    </div>
+  );
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {/* Data source */}
+      {!isDesktop && hasData && !showSource ? (
+        <div style={{ ...card, display: "flex", alignItems: "center", gap: 10, padding: "10px 12px" }}>
+          <div style={{ flex: 1, minWidth: 0, fontFamily: display, fontWeight: 700, color: palette.text, fontSize: 15 }}>
+            {meta.symbol} <span style={{ color: palette.textFaint, fontWeight: 500, fontSize: 13 }}>{meta.tf}{meta.source ? ` - ${meta.source}` : ""}</span>
+          </div>
+          <button type="button" onClick={() => setShowSource(true)} className={TAP} style={ghostBtn(false)}>Change</button>
+        </div>
+      ) : (
       <div style={card}>
         <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "1.4fr 0.8fr auto auto" : "1fr 1fr", gap: 10, alignItems: "end" }}>
           <div style={isDesktop ? undefined : { gridColumn: "1 / -1" }}>
@@ -444,7 +512,13 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
               : "Load free candles or import a CSV, then step through one candle at a time."}
           </p>
         )}
+        {!isDesktop && hasData && (
+          <button type="button" onClick={() => setShowSource(false)} className={TAP} style={{ background: "transparent", border: "none", color: palette.textMuted, fontFamily: mono, fontSize: 12.5, padding: "10px 0 0", cursor: "pointer" }}>
+            Hide
+          </button>
+        )}
       </div>
+      )}
 
       {hasData && (
         <div style={{ display: isDesktop ? "grid" : "flex", flexDirection: "column", gridTemplateColumns: isDesktop ? "minmax(0,1fr) 330px" : undefined, gap: 16, alignItems: "start" }}>
@@ -455,7 +529,7 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
                 {meta.symbol} <span style={{ color: palette.textFaint, fontWeight: 500, fontSize: 13 }}>{meta.tf}{meta.source ? ` - ${meta.source}` : ""}</span>
               </div>
               <div style={{ fontFamily: mono, fontSize: 12, color: palette.textMuted }}>
-                {bar ? `${fmtTime(bar.time)} UTC` : ""}{isDesktop ? `  -  bar ${idx + 1}/${candles.length}` : ""}
+                {bar ? `${fmtTime(bar.time)} UTC` : ""}{`  -  bar ${idx + 1}/${candles.length}`}
               </div>
             </div>
 
@@ -467,7 +541,8 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
               colors={chartColors}
               precision={precision}
               compact={!isDesktop}
-              height={isDesktop ? 480 : 340}
+              height={isDesktop ? 480 : Math.max(340, Math.round((typeof window !== "undefined" ? window.innerHeight : 700) * 0.52))}
+              footer={fsFooter}
               pickMode={pickMode}
               onPickPrice={onPickPrice}
               onApplyPlan={(plan) => {
@@ -521,35 +596,7 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
             </p>
               </>
             ) : (
-              <div style={{ padding: "0 12px" }}>
-                <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                  <button type="button" onClick={() => setPlaying((p) => !p)} disabled={idx >= last} className={TAP} style={{ ...ghostBtn(playing), flex: 1, justifyContent: "center", ...(idx >= last ? disabledBtn : null) }} aria-label={playing ? "Pause" : "Play"}>
-                    {playing ? <Pause size={15} /> : <Play size={15} />} {playing ? "Pause" : "Play"}
-                  </button>
-                  <button type="button" onClick={() => { setPlaying(false); step(); }} disabled={idx >= last} className={TAP} style={{ ...ghostBtn(false), flex: 1, justifyContent: "center", ...(idx >= last ? disabledBtn : null) }} aria-label="Next candle">
-                    <StepForward size={15} /> Next
-                  </button>
-                  <button type="button" onClick={() => setSpeed(SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length])} className={TAP} style={ghostBtn(false)} aria-label={`Replay speed ${speed}x, tap to change`}>
-                    {speed}x
-                  </button>
-                  <button type="button" onClick={() => setShowJump((v) => !v)} className={TAP} style={ghostBtn(showJump)} aria-label="Jump options" aria-expanded={showJump}>
-                    <Shuffle size={15} />
-                  </button>
-                </div>
-                {showJump && (
-                  <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                    <button type="button" onClick={jumpRandom} disabled={!!pos} className={TAP} style={{ ...ghostBtn(false), ...(pos ? disabledBtn : null) }} title={pos ? "Close your trade first" : "Jump to a random point"}>
-                      <Shuffle size={15} /> Random
-                    </button>
-                    <input type="date" aria-label="Jump to date" disabled={!!pos} onChange={(e) => jumpToDate(e.target.value)} style={{ ...field, flex: 1, ...(pos ? disabledBtn : null) }} />
-                  </div>
-                )}
-                {idx >= last && (
-                  <p style={{ color: palette.textMuted, fontFamily: mono, fontSize: 12.5, margin: "10px 0 0" }}>
-                    You've reached the end of this data.
-                  </p>
-                )}
-              </div>
+              renderReplay("0 12px")
             )}
           </div>
 
@@ -599,7 +646,7 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
                   {orderError && (
                     <p role="alert" style={{ color: palette.red, fontFamily: mono, fontSize: 12.5, margin: "10px 0 0" }}>{orderError}</p>
                   )}
-                  <button type="button" onClick={enterTrade} className={TAP} style={{ ...ghostBtn(true), width: "100%", justifyContent: "center", marginTop: 12 }}>
+                  <button type="button" onClick={() => enterTrade()} className={TAP} style={{ ...ghostBtn(true), width: "100%", justifyContent: "center", marginTop: 12 }}>
                     {side === "buy" ? "Buy" : "Sell"} at {bar ? bar.close.toFixed(precision) : "-"}
                   </button>
                   <p style={{ color: palette.textFaint, fontFamily: mono, fontSize: 11.5, lineHeight: 1.5, margin: "8px 0 0" }}>
