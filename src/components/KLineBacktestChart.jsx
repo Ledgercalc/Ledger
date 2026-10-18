@@ -3,6 +3,7 @@ import { dispose, init, registerOverlay } from "klinecharts";
 import {
   ArrowUpRight, Eraser, Magnet, Maximize2, Minimize2, Minus, MousePointer2, MoveRight, MoveUpRight, Pencil,
   PenTool, Ruler, SeparatorVertical, Slash, Square, Trash2, TrendingUp, Type, Undo2, X, Equal, AlignJustify,
+  Eye, EyeOff, Settings2, Copy,
 } from "lucide-react";
 
 // Drop-in replacement for BacktestChart.jsx, built on KLineChart (open source, Apache 2.0).
@@ -16,13 +17,36 @@ import {
 const DRAW_COLOR = "#2962ff";
 const SWATCHES = ["#2962ff", "#f5c542", "#ef5350", "#26a69a", "#ab47bc", "#ffffff"];
 const PANE = "candle_pane";
+const DEFAULT_UI = { color: DRAW_COLOR, opacity: 1, width: 2, dash: "solid" };
+const NAME_LABEL = {
+  segment: "Trend line", rayLine: "Ray", straightLine: "Extended line", btArrow: "Arrow", horizontalStraightLine: "Horizontal line",
+  horizontalRayLine: "Horizontal ray", verticalStraightLine: "Vertical line", parallelStraightLine: "Parallel channel", brush: "Brush",
+  btFib: "Fib retracement", btMeasure: "Measure", btRect: "Rectangle", btText: "Text", btLong: "Long position", btShort: "Short position",
+};
+const storeKey = (k) => `tredzi-bt-drawings:${k}`;
+function readSaved(k) {
+  try {
+    const raw = window.localStorage.getItem(storeKey(k));
+    const v = raw ? JSON.parse(raw) : [];
+    return Array.isArray(v) ? v : [];
+  } catch (err) {
+    return [];
+  }
+}
+function writeSaved(k, list) {
+  try {
+    window.localStorage.setItem(storeKey(k), JSON.stringify(list));
+  } catch (err) {
+    // storage full or blocked: drawings just won't persist
+  }
+}
 const DRAW_GROUP = "bt-draw";
 const MARK_GROUP = "bt-markers";
 const LEVEL_GROUP = "bt-levels";
 
 const lineOf = (overlay) => {
   const l = (overlay.styles && overlay.styles.line) || {};
-  return { color: l.color || DRAW_COLOR, size: l.size || 1.5, dashed: l.style === "dashed" };
+  return { color: l.color || DRAW_COLOR, size: l.size || 1.5, dashed: l.style === "dashed", dv: l.dashedValue || [6, 5] };
 };
 const hexA = (hex, a) => {
   let h = String(hex || "").trim();
@@ -118,7 +142,7 @@ export const OVERLAY_TEMPLATES = [
       return [{
         type: "rect",
         attrs: { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), width: Math.abs(b.x - a.x), height: Math.abs(b.y - a.y) },
-        styles: { style: "stroke_fill", color: hexA(l.color, 0.14), borderColor: l.color, borderSize: l.size, borderStyle: l.dashed ? "dashed" : "solid", borderDashedValue: [6, 5] },
+        styles: { style: "stroke_fill", color: hexA(l.color, overlay.extendData && Number.isFinite(overlay.extendData.fill) ? overlay.extendData.fill : 0.14), borderColor: l.color, borderSize: l.size, borderStyle: l.dashed ? "dashed" : "solid", borderDashedValue: l.dv },
       }];
     },
   },
@@ -135,7 +159,7 @@ export const OVERLAY_TEMPLATES = [
       const ang = Math.atan2(b.y - a.y, b.x - a.x);
       const hl = 10 + l.size * 2;
       return [
-        { type: "line", attrs: { coordinates: [a, b] }, styles: { color: l.color, size: l.size, style: l.dashed ? "dashed" : "solid", dashedValue: [6, 5] } },
+        { type: "line", attrs: { coordinates: [a, b] }, styles: { color: l.color, size: l.size, style: l.dashed ? "dashed" : "solid", dashedValue: l.dv } },
         {
           type: "polygon",
           ignoreEvent: true,
@@ -211,7 +235,10 @@ export const OVERLAY_TEMPLATES = [
     createPointFigures: ({ overlay, coordinates }) => {
       if (!coordinates.length) return [];
       const l = lineOf(overlay);
-      return [{ type: "text", attrs: { x: coordinates[0].x, y: coordinates[0].y, text: String(overlay.extendData || ""), baseline: "bottom" }, styles: { style: "fill", color: l.color, size: 13, weight: 600, backgroundColor: "transparent", borderSize: 0 } }];
+      const ed = overlay.extendData;
+      const text = typeof ed === "string" ? ed : (ed && ed.text) || "";
+      const size = (ed && ed.size) || 13;
+      return [{ type: "text", attrs: { x: coordinates[0].x, y: coordinates[0].y, text, baseline: "bottom" }, styles: { style: "fill", color: l.color, size, weight: 600, backgroundColor: "transparent", borderSize: 0 } }];
     },
   },
   // Entry / SL / TP guide lines (one point, only its price matters).
@@ -379,7 +406,7 @@ function buildStyles(colors, compact) {
   };
 }
 
-export default function KLineBacktestChart({ candles, sessionKey, lines, markers, colors, precision, height, compact, pickMode, onPickPrice, onApplyPlan, footer }) {
+export default function KLineBacktestChart({ candles, sessionKey, lines, markers, colors, precision, height, compact, pickMode, onPickPrice, onApplyPlan, footer, drawKey }) {
   const hostRef = useRef(null);
   const areaRef = useRef(null);
   const chartRef = useRef(null);
@@ -395,6 +422,9 @@ export default function KLineBacktestChart({ candles, sessionKey, lines, markers
   const magnetRef = useRef(false);
   const toolRef = useRef(null);
   const stylesRef = useRef({});
+  const suspendRef = useRef(false);
+  const drawKeyRef = useRef(drawKey);
+  const lastKeyRef = useRef(null);
   colorsRef.current = colors;
   candlesRef.current = candles;
   pickRef.current = { pickMode, onPickPrice };
@@ -407,8 +437,27 @@ export default function KLineBacktestChart({ candles, sessionKey, lines, markers
   const [sheet, setSheet] = useState(false);
   const [full, setFull] = useState(false);
   const [count, setCount] = useState(0);
+  const [hidden, setHidden] = useState(false);
+  const [settings, setSettings] = useState(false);
   magnetRef.current = magnet;
   toolRef.current = tool;
+
+  const persist = useCallback(() => {
+    const chart = chartRef.current;
+    const key = drawKeyRef.current;
+    if (!chart || !key || suspendRef.current) return;
+    const list = chart
+      .getOverlays({ groupId: DRAW_GROUP })
+      .filter((o) => o.points.length > 0 && o.points.every((p) => Number.isFinite(p.timestamp) && Number.isFinite(p.value)))
+      .map((o) => ({
+        name: o.name,
+        points: o.points.map((p) => ({ timestamp: p.timestamp, value: p.value })),
+        styles: o.styles || null,
+        extendData: o.extendData === undefined ? null : o.extendData,
+        ui: stylesRef.current[o.id] || null,
+      }));
+    writeSaved(key, list);
+  }, []);
 
   const refreshPlan = useCallback(() => {
     const chart = chartRef.current;
@@ -421,7 +470,8 @@ export default function KLineBacktestChart({ candles, sessionKey, lines, markers
     const o = all[all.length - 1];
     setPlan(o ? { side: o.name === "btLong" ? "buy" : "sell", sl: o.points[1].value, tp: o.points[2].value } : null);
     setCount(chart.getOverlays({ groupId: DRAW_GROUP }).length);
-  }, []);
+    setTimeout(persist, 0);
+  }, [persist]);
 
   // Create once.
   useEffect(() => {
@@ -545,18 +595,64 @@ export default function KLineBacktestChart({ candles, sessionKey, lines, markers
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pickMode]);
 
-  // New dataset: drop drawings.
+  const makeCbs = () => ({
+    onPressedMoveEnd: () => refreshPlan(),
+    onRemoved: () => refreshPlan(),
+    onSelected: ({ overlay }) => setSelected({ id: overlay.id, name: overlay.name }),
+    onDeselected: () => setSelected(null),
+    onClick: ({ overlay }) => {
+      if (toolRef.current === "eraser" && chartRef.current) chartRef.current.removeOverlay({ id: overlay.id });
+    },
+    onDoubleClick: ({ overlay }) => {
+      setSelected({ id: overlay.id, name: overlay.name });
+      setSettings(true);
+    },
+  });
+
+  // Drawings are saved per symbol (not per timeframe), so they stay put when you switch timeframe or reload.
+  // Without a drawKey, drawings are simply cleared when a new dataset loads.
   const firstTime = candles.length ? candles[0].time : null;
   useEffect(() => {
+    drawKeyRef.current = drawKey;
     const chart = chartRef.current;
-    if (chart) chart.removeOverlay({ groupId: DRAW_GROUP });
+    if (!chart) return;
+    if (drawKey && lastKeyRef.current === drawKey) return;
+    lastKeyRef.current = drawKey || null;
+    suspendRef.current = true;
+    chart.removeOverlay({ groupId: DRAW_GROUP });
     idsRef.current = [];
     drawingRef.current = null;
     setSelected(null);
+    setSettings(false);
     setTool(null);
-    setPlan(null);
-    setCount(0);
-  }, [firstTime]);
+    if (drawKey) {
+      readSaved(drawKey).forEach((rec) => {
+        if (!rec || !rec.name || !Array.isArray(rec.points)) return;
+        const id = chart.createOverlay({
+          name: rec.name,
+          groupId: DRAW_GROUP,
+          mode: magnetRef.current ? "strong_magnet" : "normal",
+          points: rec.points,
+          styles: rec.styles || undefined,
+          extendData: rec.extendData === null ? undefined : rec.extendData,
+          ...makeCbs(),
+        });
+        if (typeof id === "string") {
+          idsRef.current.push(id);
+          if (rec.ui) stylesRef.current[id] = rec.ui;
+        }
+      });
+    }
+    suspendRef.current = false;
+    refreshPlan();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drawKey, firstTime]);
+
+  // Hide / show all drawings.
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (chart) chart.overrideOverlay({ groupId: DRAW_GROUP, visible: !hidden });
+  }, [hidden]);
 
   // Fullscreen: lock page scroll.
   useEffect(() => {
@@ -607,6 +703,7 @@ export default function KLineBacktestChart({ candles, sessionKey, lines, markers
     drawingRef.current = null;
     setSelected(null);
     setSheet(false);
+    if (hidden && id !== null) setHidden(false);
     if (id === null) {
       setTool(null);
       return;
@@ -622,7 +719,7 @@ export default function KLineBacktestChart({ candles, sessionKey, lines, markers
         setTool(null);
         return;
       }
-      extendData = t.trim().slice(0, 60);
+      extendData = { text: t.trim().slice(0, 60), size: 13 };
     }
     if (id === "long" || id === "short") extendData = { up: colorsRef.current.up, down: colorsRef.current.down };
     const done = () => {
@@ -635,14 +732,8 @@ export default function KLineBacktestChart({ candles, sessionKey, lines, markers
       groupId: DRAW_GROUP,
       mode: magnetRef.current ? "strong_magnet" : "normal",
       extendData,
+      ...makeCbs(),
       onDrawEnd: done,
-      onPressedMoveEnd: () => refreshPlan(),
-      onRemoved: () => refreshPlan(),
-      onSelected: ({ overlay }) => setSelected({ id: overlay.id, name: overlay.name }),
-      onDeselected: () => setSelected(null),
-      onClick: ({ overlay }) => {
-        if (toolRef.current === "eraser") chartRef.current.removeOverlay({ id: overlay.id });
-      },
     });
     if (typeof oid === "string") {
       drawingRef.current = oid;
@@ -691,22 +782,64 @@ export default function KLineBacktestChart({ candles, sessionKey, lines, markers
     refreshPlan();
   };
 
-  const patchSelected = (patch) => {
+  const uiOf = (id) => ({ ...DEFAULT_UI, ...(stylesRef.current[id] || {}) });
+  const applyUi = (id, ui) => {
     const chart = chartRef.current;
-    if (!chart || !selected) return;
-    const cur = { color: DRAW_COLOR, width: 2, dash: false, ...(stylesRef.current[selected.id] || {}), ...patch };
-    stylesRef.current[selected.id] = cur;
+    if (!chart) return;
+    stylesRef.current[id] = ui;
     chart.overrideOverlay({
-      id: selected.id,
+      id,
       styles: {
-        line: { color: cur.color, size: cur.width, style: cur.dash ? "dashed" : "solid", dashedValue: [6, 5] },
-        point: { borderColor: cur.color, activeBorderColor: cur.color },
-        text: { color: cur.color },
+        line: { color: hexA(ui.color, ui.opacity), size: ui.width, style: ui.dash === "solid" ? "solid" : "dashed", dashedValue: ui.dash === "dotted" ? [2, 4] : [6, 5] },
+        point: { borderColor: ui.color, activeColor: ui.color },
       },
     });
+    persist();
     bump((v) => v + 1);
   };
-  const curStyle = selected ? { color: DRAW_COLOR, width: 2, dash: false, ...(stylesRef.current[selected.id] || {}) } : null;
+  const patchSelected = (patch) => {
+    if (selected) applyUi(selected.id, { ...uiOf(selected.id), ...patch });
+  };
+  const curStyle = selected ? uiOf(selected.id) : null;
+
+  const settingsOpen = settings && !!selected;
+  const ov = settingsOpen && chartRef.current ? chartRef.current.getOverlays({ id: selected.id })[0] || null : null;
+  const setPointValue = (i, raw) => {
+    const n = parseFloat(raw);
+    const chart = chartRef.current;
+    if (!chart || !ov || !Number.isFinite(n)) return;
+    chart.overrideOverlay({ id: ov.id, points: ov.points.map((p, j) => (j === i ? { ...p, value: n } : { ...p })) });
+    refreshPlan();
+    bump((v) => v + 1);
+  };
+  const patchExtend = (patch) => {
+    const chart = chartRef.current;
+    if (!chart || !ov) return;
+    const cur = ov.extendData && typeof ov.extendData === "object" ? ov.extendData : typeof ov.extendData === "string" ? { text: ov.extendData } : {};
+    chart.overrideOverlay({ id: ov.id, extendData: { ...cur, ...patch } });
+    persist();
+    bump((v) => v + 1);
+  };
+  const cloneSelected = () => {
+    const chart = chartRef.current;
+    if (!chart || !ov) return;
+    const barMs = candles.length > 1 ? (candles[1].time - candles[0].time) * 1000 : 3600000;
+    const id = chart.createOverlay({
+      name: ov.name,
+      groupId: DRAW_GROUP,
+      mode: magnetRef.current ? "strong_magnet" : "normal",
+      points: ov.points.map((p) => ({ timestamp: p.timestamp + barMs * 3, value: p.value })),
+      styles: JSON.parse(JSON.stringify(ov.styles || {})),
+      extendData: ov.extendData === undefined ? undefined : JSON.parse(JSON.stringify(ov.extendData)),
+      ...makeCbs(),
+    });
+    if (typeof id === "string") {
+      idsRef.current.push(id);
+      if (stylesRef.current[ov.id]) stylesRef.current[id] = { ...stylesRef.current[ov.id] };
+      setSelected({ id, name: ov.name });
+      refreshPlan();
+    }
+  };
 
   const S = compact ? 38 : 32;
   const bg = colors.bg || "#0e0e12";
@@ -757,6 +890,9 @@ export default function KLineBacktestChart({ candles, sessionKey, lines, markers
         )}
         {!compact && (
           <>
+            <button type="button" title={hidden ? "Show drawings" : "Hide drawings"} aria-label={hidden ? "Show drawings" : "Hide drawings"} aria-pressed={hidden} onClick={() => setHidden((v) => !v)} style={btn(hidden)}>
+              {hidden ? <EyeOff size={17} /> : <Eye size={17} />}
+            </button>
             <button type="button" title="Undo last drawing" aria-label="Undo last drawing" disabled={!count} onClick={undo} style={{ ...btn(false), ...iconOff(count > 0) }}>
               <Undo2 size={17} />
             </button>
@@ -835,12 +971,15 @@ export default function KLineBacktestChart({ candles, sessionKey, lines, markers
                       <span style={{ width: 14, height: w, background: curStyle.width === w ? DRAW_COLOR : colors.text, borderRadius: 2 }} />
                     </button>
                   ))}
-                  <button type="button" aria-label="Dashed line" aria-pressed={curStyle.dash} onClick={() => patchSelected({ dash: !curStyle.dash })} style={{ width: 28, height: 26, borderRadius: 6, border: "none", background: curStyle.dash ? soft : "transparent", color: curStyle.dash ? DRAW_COLOR : colors.text, cursor: "pointer", padding: 0, fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
+                  <button type="button" aria-label="Dashed line" aria-pressed={curStyle.dash !== "solid"} onClick={() => patchSelected({ dash: curStyle.dash === "solid" ? "dashed" : "solid" })} style={{ width: 28, height: 26, borderRadius: 6, border: "none", background: curStyle.dash !== "solid" ? soft : "transparent", color: curStyle.dash !== "solid" ? DRAW_COLOR : colors.text, cursor: "pointer", padding: 0, fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
                     - -
                   </button>
                   <span style={{ width: 1, height: 20, background: colors.border, flexShrink: 0 }} />
                 </>
               )}
+              <button type="button" aria-label="Drawing settings" title="Settings" onClick={() => setSettings(true)} style={{ ...btn(false), width: 28, height: 26, border: "none" }}>
+                <Settings2 size={15} />
+              </button>
               <button type="button" aria-label="Delete drawing" title="Delete" onClick={deleteSelected} style={{ ...btn(false), width: 28, height: 26, border: "none", color: colors.down }}>
                 <Trash2 size={15} />
               </button>
@@ -854,6 +993,97 @@ export default function KLineBacktestChart({ candles, sessionKey, lines, markers
 
       {full && footer ? <div style={{ flexShrink: 0, padding: "10px 12px" }}>{footer}</div> : null}
 
+      {settingsOpen && ov && (
+        <>
+          <div onClick={() => setSettings(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1200 }} />
+          <div role="dialog" aria-label="Drawing settings" style={{ position: "fixed", zIndex: 1201, background: bg, color: colors.text, fontFamily: colors.font, border: `1px solid ${colors.border}`, boxSizing: "border-box", overflowY: "auto", ...(compact ? { left: 0, right: 0, bottom: 0, borderRadius: "18px 18px 0 0", maxHeight: "78vh", padding: "12px 16px calc(16px + env(safe-area-inset-bottom, 0px))" } : { left: "50%", top: "50%", transform: "translate(-50%, -50%)", width: 360, maxWidth: "94vw", maxHeight: "86vh", borderRadius: 14, padding: 16, boxShadow: "0 18px 50px rgba(0,0,0,0.45)" }) }}>
+            <div style={{ display: "flex", alignItems: "center", marginBottom: 12 }}>
+              <div style={{ flex: 1, fontSize: 14, fontWeight: 700 }}>{NAME_LABEL[ov.name] || "Drawing"} settings</div>
+              <button type="button" aria-label="Close" onClick={() => setSettings(false)} style={{ ...btn(false), border: "none" }}>
+                <X size={18} />
+              </button>
+            </div>
+            {!NO_STYLE_BAR.includes(ov.name) && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 11.5, opacity: 0.65, marginBottom: 6 }}>Line</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  {SWATCHES.map((c) => (
+                    <button key={c} type="button" aria-label={`Colour ${c}`} onClick={() => patchSelected({ color: c })} style={{ width: 24, height: 24, borderRadius: 12, background: c, border: curStyle.color === c ? "2px solid #fff" : `1px solid ${colors.border}`, outline: curStyle.color === c ? `2px solid ${hexA(c, 0.55)}` : "none", padding: 0, cursor: "pointer" }} />
+                  ))}
+                  <input type="color" aria-label="Custom colour" value={/^#[0-9a-f]{6}$/i.test(curStyle.color) ? curStyle.color : DRAW_COLOR} onChange={(e) => patchSelected({ color: e.target.value })} style={{ width: 28, height: 28, padding: 0, border: `1px solid ${colors.border}`, borderRadius: 6, background: "transparent", cursor: "pointer" }} />
+                </div>
+                <label style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12, fontSize: 12.5 }}>
+                  <span style={{ width: 70 }}>Opacity</span>
+                  <input type="range" min="10" max="100" value={Math.round(curStyle.opacity * 100)} onChange={(e) => patchSelected({ opacity: Number(e.target.value) / 100 })} style={{ flex: 1 }} />
+                  <span style={{ width: 36, textAlign: "right" }}>{Math.round(curStyle.opacity * 100)}%</span>
+                </label>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 12, fontSize: 12.5 }}>
+                  <span style={{ width: 70 }}>Thickness</span>
+                  {[1, 2, 3, 4, 5].map((w) => (
+                    <button key={w} type="button" aria-label={`Thickness ${w}`} onClick={() => patchSelected({ width: w })} style={{ flex: 1, height: 30, borderRadius: 8, border: `1px solid ${curStyle.width === w ? DRAW_COLOR : colors.border}`, background: curStyle.width === w ? soft : "transparent", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
+                      <span style={{ width: 16, height: w, background: curStyle.width === w ? DRAW_COLOR : colors.text, borderRadius: 2 }} />
+                    </button>
+                  ))}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 12, fontSize: 12.5 }}>
+                  <span style={{ width: 70 }}>Style</span>
+                  {[["solid", "Solid"], ["dashed", "Dashed"], ["dotted", "Dotted"]].map(([v, label]) => (
+                    <button key={v} type="button" onClick={() => patchSelected({ dash: v })} style={{ flex: 1, height: 30, borderRadius: 8, border: `1px solid ${curStyle.dash === v ? DRAW_COLOR : colors.border}`, background: curStyle.dash === v ? soft : "transparent", color: curStyle.dash === v ? DRAW_COLOR : colors.text, fontFamily: colors.font, fontSize: 12, cursor: "pointer" }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {ov.name === "btRect" && (
+              <label style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, fontSize: 12.5 }}>
+                <span style={{ width: 70 }}>Fill</span>
+                <input type="range" min="0" max="60" value={Math.round(((ov.extendData && Number.isFinite(ov.extendData.fill) ? ov.extendData.fill : 0.14)) * 100)} onChange={(e) => patchExtend({ fill: Number(e.target.value) / 100 })} style={{ flex: 1 }} />
+                <span style={{ width: 36, textAlign: "right" }}>{Math.round(((ov.extendData && Number.isFinite(ov.extendData.fill) ? ov.extendData.fill : 0.14)) * 100)}%</span>
+              </label>
+            )}
+            {ov.name === "btText" && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 11.5, opacity: 0.65, marginBottom: 6 }}>Text</div>
+                <input type="text" maxLength={60} defaultValue={typeof ov.extendData === "string" ? ov.extendData : (ov.extendData && ov.extendData.text) || ""} onChange={(e) => patchExtend({ text: e.target.value })} style={{ width: "100%", boxSizing: "border-box", height: 34, borderRadius: 8, border: `1px solid ${colors.border}`, background: "transparent", color: colors.text, fontFamily: colors.font, fontSize: 13, padding: "0 10px" }} />
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 10 }}>
+                  {[11, 13, 16, 20, 26].map((z) => (
+                    <button key={z} type="button" onClick={() => patchExtend({ size: z })} style={{ flex: 1, height: 30, borderRadius: 8, border: `1px solid ${((ov.extendData && ov.extendData.size) || 13) === z ? DRAW_COLOR : colors.border}`, background: "transparent", color: colors.text, fontFamily: colors.font, fontSize: 12, cursor: "pointer" }}>
+                      {z}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {ov.points.length > 0 && ov.points.length <= 4 && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 11.5, opacity: 0.65, marginBottom: 6 }}>Price levels</div>
+                {ov.points.map((pt, i) => {
+                  const label = ov.name === "btLong" || ov.name === "btShort" ? ["Entry", "Stop loss", "Take profit"][i] : `Point ${i + 1}`;
+                  return (
+                    <label key={`${ov.id}-${i}`} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, fontSize: 12.5 }}>
+                      <span style={{ width: 70 }}>{label}</span>
+                      <input type="number" step="any" defaultValue={Number.isFinite(pt.value) ? Number(pt.value.toFixed(precision)) : ""} key={`${ov.id}-${i}-${Number.isFinite(pt.value) ? pt.value.toFixed(precision) : ""}`} onBlur={(e) => setPointValue(i, e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }} style={{ flex: 1, minWidth: 0, height: 32, borderRadius: 8, border: `1px solid ${colors.border}`, background: "transparent", color: colors.text, fontFamily: colors.font, fontSize: 13, padding: "0 10px" }} />
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button type="button" onClick={cloneSelected} style={{ flex: 1, height: 36, borderRadius: 9, border: `1px solid ${colors.border}`, background: "transparent", color: colors.text, fontFamily: colors.font, fontSize: 12.5, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                <Copy size={14} /> Clone
+              </button>
+              <button type="button" onClick={() => { setSettings(false); deleteSelected(); }} style={{ flex: 1, height: 36, borderRadius: 9, border: `1px solid ${colors.border}`, background: "transparent", color: colors.down, fontFamily: colors.font, fontSize: 12.5, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                <Trash2 size={14} /> Delete
+              </button>
+              <button type="button" onClick={() => setSettings(false)} style={{ flex: 1, height: 36, borderRadius: 9, border: "none", background: DRAW_COLOR, color: "#fff", fontFamily: colors.font, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                Done
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
       {sheet && (
         <>
           <div onClick={() => setSheet(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1100 }} />
@@ -865,6 +1095,9 @@ export default function KLineBacktestChart({ candles, sessionKey, lines, markers
                 <X size={18} />
               </button>
             </div>
+            <button type="button" onClick={() => { setHidden((v) => !v); setSheet(false); }} style={{ marginTop: 6, width: "100%", height: 40, borderRadius: 10, border: `1px solid ${colors.border}`, background: "transparent", color: colors.text, fontFamily: colors.font, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+              {hidden ? "Show drawings" : "Hide drawings"}
+            </button>
             <button type="button" onClick={() => { clearAll(); setSheet(false); }} disabled={!count} style={{ marginTop: 6, width: "100%", height: 40, borderRadius: 10, border: `1px solid ${colors.border}`, background: "transparent", color: colors.down, fontFamily: colors.font, fontSize: 13, fontWeight: 700, cursor: count ? "pointer" : "not-allowed", opacity: count ? 1 : 0.45 }}>
               Clear all drawings
             </button>
