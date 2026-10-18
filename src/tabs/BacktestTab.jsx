@@ -543,6 +543,7 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
               compact={!isDesktop}
               height={isDesktop ? 480 : Math.max(340, Math.round((typeof window !== "undefined" ? window.innerHeight : 700) * 0.52))}
               footer={fsFooter}
+              drawKey={meta.symbol}
               pickMode={pickMode}
               onPickPrice={onPickPrice}
               onApplyPlan={(plan) => {
