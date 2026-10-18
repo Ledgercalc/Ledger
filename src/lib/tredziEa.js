@@ -2,22 +2,32 @@
 // String.raw keeps the MQL5 backslashes (\r\n, \\, \") exactly as written. Do not add backticks or dollar-brace to the MQL5 code.
 export const TREDZI_EA = String.raw`//+------------------------------------------------------------------+
 //| TredziSync.mq5 - sends open positions and closed trades to Tredzi |
-//| Read-only: this add-on never places, changes or closes a trade.   |
+//| It also enforces your partner's "Stay out" lock: while you are   |
+//| locked, new trades and pending orders are closed automatically.  |
+//| It never opens trades, and it does nothing when you are not locked.|
 //+------------------------------------------------------------------+
 #property copyright "Tredzi"
-#property version   "2.00"
+#property version   "2.10"
+
+#include <Trade\Trade.mqh>
 
 input string InpPushUrl   = "__PUSH_URL__";
 input string InpSyncKey   = "__SYNC_KEY__";
 input int    InpOpenSecs  = 10;   // send interval while a trade is open
 input int    InpIdleSecs  = 30;   // send interval while flat (heartbeat)
 input int    InpHistoryDays = 60; // closed trades to send the first time
+input bool   InpEnforceLock   = true;  // close new trades while the partner stay-out lock is on
+input bool   InpCloseExisting = false; // also close trades that were already open when the lock started
 
 bool     g_backfilled = false;
 int      g_recheck    = 0;
 datetime g_lastPos    = 0;
 datetime g_lastHist   = 0;
 string   g_status     = "starting";
+CTrade   g_trade;
+datetime g_lastNoLock = 0;   // last time Tredzi told us we were NOT locked (broker time)
+string   g_gvUntil    = "";
+string   g_gvAllow    = "";
 
 //--- helpers -------------------------------------------------------
 string Esc(string s)
@@ -49,10 +59,171 @@ string AccountJson()
           "\"demo\":" + (demo ? "true" : "false") + "}";
 }
 
+//--- stay-out lock (set from the Partner tab) -----------------------
+long NowMs() { return (long)TimeGMT() * 1000; }
+
+string AllowName(ulong ticket) { return g_gvAllow + (string)ticket; }
+
+string LocalClock(long untilMs)
+{
+   datetime t = (datetime)(untilMs / 1000 + (long)(TimeLocal() - TimeGMT()));
+   return TimeToString(t, TIME_MINUTES);
+}
+
+bool IsLocked()
+{
+   if(!InpEnforceLock || !GlobalVariableCheck(g_gvUntil)) return false;
+   return (long)GlobalVariableGet(g_gvUntil) > NowMs();
+}
+
+string LockLine()
+{
+   if(!InpEnforceLock) return "\nStay-out lock: switched off in the add-on settings";
+   string s = IsLocked()
+      ? "\nSTAY-OUT LOCK ON until " + LocalClock((long)GlobalVariableGet(g_gvUntil)) + ". New trades are closed automatically."
+      : "\nStay-out lock: ready (you are not locked)";
+   if(!TerminalInfoInteger(TERMINAL_TRADE_ALLOWED) || !MQLInfoInteger(MQL_TRADE_ALLOWED))
+      s += "\nAlgo Trading is OFF, so the lock cannot close trades. Switch it on.";
+   return s;
+}
+
+void StartLock(long untilMs)
+{
+   GlobalVariableSet(g_gvUntil, (double)untilMs);
+   GlobalVariablesDeleteAll(g_gvAllow);
+   // Trades that were open BEFORE the lock stay allowed, so you can manage them. A trade opened after the last
+   // time Tredzi said "not locked" counts as new, so it can't slip in during the moment before the lock reached us.
+   if(!InpCloseExisting)
+   {
+      for(int i = 0; i < PositionsTotal(); i++)
+      {
+         ulong t = PositionGetTicket(i);
+         if(t == 0) continue;
+         datetime opened = (datetime)PositionGetInteger(POSITION_TIME);
+         if(g_lastNoLock == 0 || opened <= g_lastNoLock)
+            GlobalVariableSet(AllowName(t), PositionGetDouble(POSITION_VOLUME));
+      }
+   }
+   string msg = "Tredzi: your partner asked you to stay out until " + LocalClock(untilMs) + ". New trades will be closed.";
+   Print(msg);
+   Alert(msg);
+}
+
+void EndLock()
+{
+   GlobalVariableDel(g_gvUntil);
+   GlobalVariablesDeleteAll(g_gvAllow);
+   Print("Tredzi: the stay-out lock is over. Trade carefully.");
+}
+
+// known = Tredzi answered. No answer (offline) keeps the lock we already know about until it runs out.
+void ApplyServerLock(bool known, bool active, long untilMs)
+{
+   if(!known) return;
+   if(active && untilMs > NowMs())
+   {
+      if(!GlobalVariableCheck(g_gvUntil) || (long)GlobalVariableGet(g_gvUntil) <= NowMs()) StartLock(untilMs);
+      else GlobalVariableSet(g_gvUntil, (double)untilMs);
+   }
+   else
+   {
+      g_lastNoLock = TimeTradeServer();
+      if(GlobalVariableCheck(g_gvUntil)) EndLock(); // lifted by your partner, or over
+   }
+}
+
+void Enforce()
+{
+   if(!InpEnforceLock) return;
+   if(!IsLocked())
+   {
+      if(GlobalVariableCheck(g_gvUntil)) EndLock();
+      return;
+   }
+   if(!TerminalInfoInteger(TERMINAL_TRADE_ALLOWED) || !MQLInfoInteger(MQL_TRADE_ALLOWED)) return;
+   bool hedging = ((ENUM_ACCOUNT_MARGIN_MODE)AccountInfoInteger(ACCOUNT_MARGIN_MODE) == ACCOUNT_MARGIN_MODE_RETAIL_HEDGING);
+
+   // pending orders would open a new trade later: remove them all
+   for(int i = OrdersTotal() - 1; i >= 0; i--)
+   {
+      ulong ot = OrderGetTicket(i);
+      if(ot > 0) g_trade.OrderDelete(ot);
+   }
+   // positions: close anything that was not allowed when the lock started
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   {
+      ulong tk = PositionGetTicket(i);
+      if(tk == 0) continue;
+      string sym = PositionGetString(POSITION_SYMBOL);
+      double vol = PositionGetDouble(POSITION_VOLUME);
+      string nm  = AllowName(tk);
+      double allowed = GlobalVariableCheck(nm) ? GlobalVariableGet(nm) : 0.0;
+      g_trade.SetTypeFillingBySymbol(sym);
+      g_trade.SetDeviationInPoints(100);
+      if(allowed <= 0.0)
+      {
+         if(g_trade.PositionClose(tk)) Print("Tredzi lock: closed new trade #", tk, " on ", sym);
+         else Print("Tredzi lock: could not close #", tk, " (", g_trade.ResultRetcodeDescription(), ")");
+      }
+      else if(vol > allowed + 1e-9)
+      {
+         // netting account: someone added to an old position. Close only the extra part.
+         double step  = SymbolInfoDouble(sym, SYMBOL_VOLUME_STEP);
+         double minv  = SymbolInfoDouble(sym, SYMBOL_VOLUME_MIN);
+         double extra = vol - allowed;
+         if(step > 0) extra = MathFloor(extra / step + 1e-9) * step;
+         if(extra >= minv)
+         {
+            bool ok = hedging ? g_trade.PositionClosePartial(tk, extra) : g_trade.PositionClosePartial(sym, extra);
+            if(!ok) Print("Tredzi lock: could not trim #", tk, " (", g_trade.ResultRetcodeDescription(), ")");
+         }
+      }
+      else if(vol < allowed - 1e-9)
+         GlobalVariableSet(nm, vol); // you reduced it: you can't add it back during the lock
+   }
+}
+
+long ReadNumber(string s, int from)
+{
+   long v = 0;
+   int len = StringLen(s);
+   for(int i = from; i < len; i++)
+   {
+      ushort c = StringGetCharacter(s, i);
+      if(c < '0' || c > '9') break;
+      v = v * 10 + (c - '0');
+   }
+   return v;
+}
+
+// Tredzi answers every send with {"ok":true,...,"lock":null} or {"lock":{"active":true,"until":<ms>}}
+void HandleLockReply(string r)
+{
+   bool known = (StringFind(r, "\"ok\":true") >= 0);
+   bool active = false;
+   long untilMs = 0;
+   if(known)
+   {
+      int p = StringFind(r, "\"lock\":");
+      if(p >= 0)
+      {
+         string tail = StringSubstr(r, p + 7);
+         if(StringGetCharacter(tail, 0) != 'n')
+         {
+            active = (StringFind(tail, "\"active\":true") >= 0);
+            int u = StringFind(tail, "\"until\":");
+            if(u >= 0) untilMs = ReadNumber(tail, u + 8);
+         }
+      }
+   }
+   ApplyServerLock(known, active, untilMs);
+   Enforce();
+}
+
 void Show(string s)
 {
    g_status = s;
-   Comment("Tredzi sync: " + s);
+   Comment("Tredzi sync: " + s + LockLine());
 }
 
 //--- HTTP ----------------------------------------------------------
@@ -78,6 +249,8 @@ bool Post(string body)
    if(code >= 200 && code < 300)
    {
       Show("connected, last sent " + TimeToString(TimeLocal(), TIME_SECONDS));
+      HandleLockReply(CharArrayToString(res, 0, WHOLE_ARRAY, CP_UTF8));
+      Show(g_status);
       return true;
    }
    string reply = CharArrayToString(res, 0, WHOLE_ARRAY, CP_UTF8);
@@ -219,6 +392,8 @@ bool PushHistory(datetime from)
 //--- events --------------------------------------------------------
 int OnInit()
 {
+   g_gvUntil = "TZ_LOCK_UNTIL_" + (string)AccountInfoInteger(ACCOUNT_LOGIN);
+   g_gvAllow = "TZ_ALLOW_" + (string)AccountInfoInteger(ACCOUNT_LOGIN) + "_";
    if(StringFind(InpSyncKey, "__SYNC") >= 0 || StringFind(InpPushUrl, "__PUSH") >= 0 || StringLen(InpSyncKey) < 10)
    {
       Show("this file has no sync key. Download it again from the Tredzi Broker tab.");
@@ -238,6 +413,7 @@ void OnDeinit(const int reason)
 
 void OnTimer()
 {
+   Enforce();
    if(!TerminalInfoInteger(TERMINAL_CONNECTED)) { Show("MT5 is offline"); return; }
    int gap = (PositionsTotal() > 0) ? InpOpenSecs : InpIdleSecs;
    if(g_lastPos == 0 || TimeLocal() - g_lastPos >= gap) PushPositions();
@@ -255,6 +431,8 @@ void OnTimer()
 
 void OnTradeTransaction(const MqlTradeTransaction &trans, const MqlTradeRequest &request, const MqlTradeResult &result)
 {
+   // react the moment a new order or trade appears, not only on the next timer tick
+   if(trans.type == TRADE_TRANSACTION_ORDER_ADD || trans.type == TRADE_TRANSACTION_DEAL_ADD) Enforce();
    if(trans.type == TRADE_TRANSACTION_DEAL_ADD)
    {
       g_recheck = 4;      // send closed trades on the next few timer ticks
