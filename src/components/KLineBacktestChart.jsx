@@ -406,7 +406,7 @@ function buildStyles(colors, compact) {
   };
 }
 
-export default function KLineBacktestChart({ candles, sessionKey, lines, markers, colors, precision, height, compact, pickMode, onPickPrice, onApplyPlan, footer, drawKey }) {
+export default function KLineBacktestChart({ candles, sessionKey, lines, markers, colors, precision, height, compact, pickMode, onPickPrice, onApplyPlan, footer, drawKey, hideTradeTools }) {
   const hostRef = useRef(null);
   const areaRef = useRef(null);
   const chartRef = useRef(null);
@@ -877,13 +877,17 @@ export default function KLineBacktestChart({ candles, sessionKey, lines, markers
             <button type="button" title="Magnet: snap to open, high, low, close" aria-label="Magnet" aria-pressed={magnet} onClick={() => setMagnet((v) => !v)} style={btn(magnet)}>
               <Magnet size={17} />
             </button>
-            {divider}
+            {!hideTradeTools && divider}
           </>
         )}
-        <button type="button" onClick={() => startTool("long")} aria-pressed={tool === "long"} title="Long position (entry, stop loss, take profit)" style={pill("long", colors.up)}>Long</button>
-        <button type="button" onClick={() => startTool("short")} aria-pressed={tool === "short"} title="Short position (entry, stop loss, take profit)" style={pill("short", colors.down)}>Short</button>
+        {!hideTradeTools && (
+          <>
+            <button type="button" onClick={() => startTool("long")} aria-pressed={tool === "long"} title="Long position (entry, stop loss, take profit)" style={pill("long", colors.up)}>Long</button>
+            <button type="button" onClick={() => startTool("short")} aria-pressed={tool === "short"} title="Short position (entry, stop loss, take profit)" style={pill("short", colors.down)}>Short</button>
+          </>
+        )}
         <div style={{ flex: 1 }} />
-        {plan && onApplyPlan && (
+        {plan && onApplyPlan && !hideTradeTools && (
           <button type="button" title="Copy the stop loss, take profit and side of your latest Long/Short plan into the order form" onClick={() => onApplyPlan(plan)} style={{ flexShrink: 0, height: S, padding: "0 12px", borderRadius: 8, border: `1px solid ${colors.entry}`, background: hexA(colors.entry, 0.12), color: colors.entry, fontFamily: colors.font, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
             Use plan
           </button>
