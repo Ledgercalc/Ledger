@@ -1,12 +1,10 @@
-import BacktestChart from "../components/KLineBacktestChart.jsx";
-import ExtraChartPane from "../components/ExtraChartPane.jsx";
-import { TF_MINUTES, baseMinutes } from "../lib/mtf.js";
+import BacktestChart from "../components/TredziChart.jsx";
 import { INSTRUMENTS, TIMEFRAMES, fetchCandles } from "../api/marketData.js";
 import { calcR, scanPosition, summarize, validateOrder } from "../lib/backtestEngine.js";
 import { inferTfLabel, parseCandlesCsv, precisionFor } from "../lib/candles.js";
 import { scopedKey } from "../lib/constants.js";
 import { TAP, display, mono, palette } from "../lib/theme.js";
-import { Columns2, Crosshair, Download, LayoutGrid, Loader2, Pause, Play, RotateCcw, Rows2, Shuffle, Square, StepForward, Trash2, Upload } from "lucide-react";
+import { Crosshair, Download, Loader2, Pause, Play, RotateCcw, Shuffle, StepForward, Trash2, Upload } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
@@ -56,22 +54,6 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
   const [showNote, setShowNote] = useState(false);
   const [showMoreStats, setShowMoreStats] = useState(false);
   const [showSource, setShowSource] = useState(false);
-  const [layout, setLayoutState] = useState(() => {
-    try {
-      return window.localStorage.getItem("tredzi-bt-layout") || "single";
-    } catch (err) {
-      return "single";
-    }
-  });
-  const setLayout = (v) => {
-    setLayoutState(v);
-    try {
-      window.localStorage.setItem("tredzi-bt-layout", v);
-    } catch (err) {
-      // layout just won't be remembered
-    }
-  };
-  const [extraTfs, setExtraTfs] = useState([null, null, null]);
 
   const fileRef = useRef(null);
 
@@ -423,29 +405,6 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
     </div>
   );
 
-  // Multi-chart layout: extra charts show the same replay at other timeframes (never smaller than the base).
-  const baseMin = useMemo(() => baseMinutes(candles), [candles]);
-  const tfOptions = useMemo(() => {
-    const list = TF_MINUTES.filter((t) => t.min >= baseMin && t.min % baseMin === 0);
-    return list.length ? list : [{ id: "base", label: "Same", min: baseMin }];
-  }, [baseMin]);
-  const paneTf = (i) => {
-    const chosen = tfOptions.find((t) => t.id === extraTfs[i]);
-    if (chosen) return chosen;
-    const target = baseMin * [4, 16, 96][i];
-    return tfOptions.find((t) => t.min >= target) || tfOptions[tfOptions.length - 1];
-  };
-  const setExtraTf = (i, id) => setExtraTfs((prev) => prev.map((v, j) => (j === i ? id : v)));
-  const effLayout = isDesktop ? layout : layout === "single" ? "single" : "two-v";
-  const extraIdx = effLayout === "single" ? [] : effLayout === "quad" ? [0, 1, 2] : [0];
-  const phoneH = Math.max(320, Math.round((typeof window !== "undefined" ? window.innerHeight : 700) * 0.52));
-  const mainHeight = effLayout === "single" ? (isDesktop ? 480 : phoneH) : effLayout === "two-h" ? 480 : effLayout === "quad" ? 320 : isDesktop ? 380 : 300;
-  const paneHeight = effLayout === "two-h" ? 480 : effLayout === "quad" ? 320 : isDesktop ? 300 : 260;
-  const layoutStyle = effLayout === "two-h" || effLayout === "quad" ? { display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 12 } : { display: "flex", flexDirection: "column", gap: 12 };
-  const layoutOptions = isDesktop
-    ? [["single", "1 chart", Square], ["two-h", "2 side by side", Columns2], ["two-v", "2 stacked", Rows2], ["quad", "4 charts", LayoutGrid]]
-    : [["single", "1 chart", Square], ["two-v", "2 charts", Rows2]];
-
   const renderReplay = (pad) => (
         <div style={{ padding: pad }}>
           <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
@@ -574,58 +533,27 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: 6, margin: "0 0 8px", padding: isDesktop ? 0 : "0 12px", flexWrap: "wrap" }} role="group" aria-label="Chart layout">
-              {layoutOptions.map(([id, label, Icon]) => (
-                <button key={id} type="button" onClick={() => setLayout(id)} aria-pressed={effLayout === id} title={label} aria-label={label} className={TAP} style={{ ...ghostBtn(effLayout === id), padding: "7px 10px", display: "inline-flex", alignItems: "center", gap: 6 }}>
-                  <Icon size={15} />{isDesktop ? label : ""}
-                </button>
-              ))}
-            </div>
-            <div style={layoutStyle}>
-              <div style={{ minWidth: 0 }}>
-                <BacktestChart
-                  candles={visible}
-                  sessionKey={sessionKey}
-                  lines={lines}
-                  markers={markers}
-                  colors={chartColors}
-                  precision={precision}
-                  compact={!isDesktop}
-                  height={mainHeight}
-                  footer={fsFooter}
-                  drawKey={meta.symbol}
-                  pickMode={pickMode}
-                  onPickPrice={onPickPrice}
-                  onApplyPlan={(plan) => {
-                    if (pos) return;
-                    setSide(plan.side);
-                    setSlInput(plan.sl.toFixed(precision));
-                    setTpInput(plan.tp.toFixed(precision));
-                    setOrderError("");
-                  }}
-                />
-              </div>
-              {extraIdx.map((i) => (
-                <ExtraChartPane
-                  key={i}
-                  label={`Chart ${i + 2}`}
-                  tf={paneTf(i)}
-                  tfOptions={tfOptions}
-                  onTfChange={(id) => setExtraTf(i, id)}
-                  visible={visible}
-                  sessionKey={sessionKey}
-                  symbol={meta.symbol}
-                  lines={lines}
-                  markers={markers}
-                  colors={chartColors}
-                  precision={precision}
-                  height={paneHeight}
-                  border={palette.border}
-                  textColor={palette.textMuted}
-                  font={mono}
-                />
-              ))}
-            </div>
+            <BacktestChart
+              candles={visible}
+              sessionKey={sessionKey}
+              lines={lines}
+              markers={markers}
+              colors={chartColors}
+              precision={precision}
+              compact={!isDesktop}
+              height={isDesktop ? 480 : Math.max(340, Math.round((typeof window !== "undefined" ? window.innerHeight : 700) * 0.52))}
+              footer={fsFooter}
+              drawKey={meta.symbol}
+              pickMode={pickMode}
+              onPickPrice={onPickPrice}
+              onApplyPlan={(plan) => {
+                if (pos) return;
+                setSide(plan.side);
+                setSlInput(plan.sl.toFixed(precision));
+                setTpInput(plan.tp.toFixed(precision));
+                setOrderError("");
+              }}
+            />
             {pickMode && (
               <p style={{ color: palette.gold, fontFamily: mono, fontSize: 12.5, margin: "8px 0 0", padding: isDesktop ? 0 : "0 12px" }}>
                 Tap the chart at your {pickMode === "sl" ? "stop loss" : "take profit"} level.
