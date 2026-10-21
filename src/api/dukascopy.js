@@ -90,16 +90,31 @@ async function fetchHour(id, y, m0, d, h, signal, kind = "t") {
   for (let attempt = 0; attempt < 4; attempt++) {
     try {
       const res = await fetch(url, { signal });
-      if (res.status === 204 || res.status === 404) return null;
+      if (res.status === 204) return null; // no data for that day/hour
+      if (res.status === 404) {
+        throw Object.assign(new Error("Your Worker doesn't have the Dukascopy route yet. Replace worker.js with the new one, deploy it, then try again."), { fatal: true });
+      }
       if (res.ok) {
         const buf = new Uint8Array(await res.arrayBuffer());
         return buf.length ? buf : null;
       }
-      lastErr = new Error(`The data server answered ${res.status}.`);
-      if (res.status < 500 && res.status !== 429) throw lastErr;
+      let detail = "";
+      try {
+        const j = await res.json();
+        detail = (j && j.error) || "";
+      } catch (e) {
+        // no readable body
+      }
+      const refused = /answered (401|403|451|429)/.test(detail);
+      lastErr = Object.assign(
+        new Error(refused ? `Dukascopy refused the request (${detail.match(/\d{3}/)[0]}). Their free feed may be blocking automated downloads.` : detail || `The data server answered ${res.status}.`),
+        { fatal: refused || (res.status < 500 && res.status !== 429) }
+      );
+      if (lastErr.fatal) throw lastErr;
     } catch (err) {
       if (signal && signal.aborted) throw err;
-      lastErr = err;
+      if (err && err.fatal) throw err;
+      lastErr = err instanceof TypeError ? new Error("Couldn't reach your data server. Check that your Worker is deployed and that you're online.") : err;
     }
     await sleep(700 * 2 ** attempt);
   }
