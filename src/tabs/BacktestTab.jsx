@@ -1,4 +1,5 @@
 import BacktestChart from "../components/TredziChart.jsx";
+import DukascopyPanel from "../components/DukascopyPanel.jsx";
 import { INSTRUMENTS, TIMEFRAMES, fetchCandles } from "../api/marketData.js";
 import { calcR, scanPosition, summarize, validateOrder } from "../lib/backtestEngine.js";
 import { inferTfLabel, parseCandlesCsv, precisionFor } from "../lib/candles.js";
@@ -502,6 +503,15 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
           </button>
           <input ref={fileRef} type="file" accept=".csv,.txt,text/csv" onChange={onCsv} style={{ display: "none" }} />
         </div>
+        <DukascopyPanel
+          symbol={symbol}
+          tf={tf}
+          instruments={INSTRUMENTS}
+          onLoad={(list) => {
+            setPlaying(false);
+            applyDataset(list, { symbol, tf, source: "Dukascopy" }, defaultStart);
+          }}
+        />
         {error && (
           <p role="alert" style={{ color: palette.red, fontFamily: mono, fontSize: 12.5, margin: "10px 0 0" }}>{error}</p>
         )}
