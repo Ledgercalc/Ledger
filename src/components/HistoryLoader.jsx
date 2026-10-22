@@ -19,6 +19,7 @@ export default function HistoryLoader({ symbol, setSymbol, tf, setTf, instrument
   const [progress, setProgress] = useState(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [partial, setPartial] = useState(false);
   const [saved, setSaved] = useState({ count: 0, first: "", last: "" });
   const [savedSet, setSavedSet] = useState(new Set());
   const ctrl = useRef(null);
@@ -47,12 +48,19 @@ export default function HistoryLoader({ symbol, setSymbol, tf, setTf, instrument
   const loadAll = async () => {
     setError("");
     setMessage("");
+    setPartial(false);
     if (!valid) return setError(from > to ? "The start date has to be before the end date." : to > today ? "The end date can't be in the future." : `Dukascopy data starts around ${EARLIEST}.`);
     ctrl.current = new AbortController();
     setBusy(true);
     setProgress({ done: 0, total: 0, bytes: 0 });
     try {
-      await downloadDukascopy({ symbol, fromDay: from, toDay: to, signal: ctrl.current.signal, onProgress: setProgress });
+      const r = await downloadDukascopy({ symbol, fromDay: from, toDay: to, signal: ctrl.current.signal, onProgress: setProgress });
+      if (r.failed.length) {
+        const first = r.failed.find((f) => f.message !== "Not fetched yet") || r.failed[0];
+        setPartial(true);
+        setError(`${r.failed.length} day${r.failed.length === 1 ? "" : "s"} couldn't be fetched (${first.message}) Everything else is saved. Wait a few minutes and press Load candles again to carry on where it stopped.`);
+        return;
+      }
       setBuilding(true);
       const list = await loadDukascopy({ symbol, fromDay: from, toDay: to, tf, clean });
       if (list.length < 30) throw new Error("No candles came back for that range. It may be a weekend or holiday. Try other dates.");
@@ -66,6 +74,20 @@ export default function HistoryLoader({ symbol, setSymbol, tf, setTf, instrument
     }
   };
   const stop = () => ctrl.current && ctrl.current.abort();
+  // Use what is already on the device, even if a few days are missing.
+  const loadSaved = async () => {
+    setError("");
+    setBuilding(true);
+    try {
+      const list = await loadDukascopy({ symbol, fromDay: from, toDay: to, tf, clean });
+      if (list.length < 30) throw new Error("Not enough saved candles in that range yet.");
+      onLoad(list, { from, to });
+    } catch (err) {
+      setError((err && err.message) || "Couldn't build the chart from the saved data.");
+    } finally {
+      setBuilding(false);
+    }
+  };
   const clearData = async () => {
     await clearSaved(symbol);
     setSaved({ count: 0, first: "", last: "" });
@@ -152,11 +174,17 @@ export default function HistoryLoader({ symbol, setSymbol, tf, setTf, instrument
           <div style={{ ...grey, marginTop: 6, color: palette.textMuted }}>
             {progress.total ? `Day ${progress.done} of ${progress.total}${progress.day ? ` (${progress.day})` : ""}` : "Starting"} - {(progress.bytes / 1048576).toFixed(1)} MB fetched
           </div>
+          {progress.note && <div style={{ ...grey, marginTop: 4, color: palette.gold }}>{progress.note}</div>}
         </div>
       )}
       {error && (
         <div style={{ marginTop: 10 }}>
           <p role="alert" style={{ color: palette.red, fontFamily: mono, fontSize: 12.5, margin: 0 }}>{error}</p>
+          {partial && (
+            <button type="button" onClick={loadSaved} disabled={building} style={{ ...linkBtn, marginTop: 6, marginRight: 14 }}>
+              Load what's saved so far
+            </button>
+          )}
           {onQuick && (
             <button type="button" onClick={onQuick} disabled={quickLoading} style={{ ...linkBtn, marginTop: 6 }}>
               {quickLoading ? "Loading..." : "Load quick recent data instead (limited history)"}
