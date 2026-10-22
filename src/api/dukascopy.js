@@ -1,7 +1,8 @@
 import { COMMUNITY_API_BASE } from "./community.js";
 import { lzmaDecode } from "../lib/lzma.js";
-import { getRange, listDays, putDay } from "../lib/candleStore.js";
+import { clearSymbol, getRange, listDays, putDay } from "../lib/candleStore.js";
 import { resample } from "../lib/candles.js";
+import { instrumentKind, polishCandles } from "../lib/candleClean.js";
 
 // Full history from Dukascopy's free public datafeed, served to the browser through your Worker's
 // /market/duka-raw (the browser isn't allowed to read Dukascopy directly).
@@ -234,6 +235,10 @@ export async function downloadDukascopy({ symbol, fromDay, toDay, onProgress, si
   return { downloaded: todo.length, bytes };
 }
 
+export async function clearSaved(symbol) {
+  await clearSymbol(symbol);
+}
+
 export async function storedDays(symbol) {
   return new Set(await listDays(symbol));
 }
@@ -244,7 +249,7 @@ export async function storedSummary(symbol) {
 }
 
 // Build the candles for the chart from what is stored, at the timeframe you picked.
-export async function loadDukascopy({ symbol, fromDay, toDay, tf }) {
+export async function loadDukascopy({ symbol, fromDay, toDay, tf, clean = true }) {
   const chunks = await getRange(symbol, fromDay, toDay);
   let total = 0;
   chunks.forEach((c) => {
@@ -256,5 +261,6 @@ export async function loadDukascopy({ symbol, fromDay, toDay, tf }) {
     for (let i = 0; i < f.length; i += 5) list[k++] = { time: f[i], open: f[i + 1], high: f[i + 2], low: f[i + 3], close: f[i + 4] };
   }
   const minutes = TF_MIN[tf] || 1;
-  return minutes === 1 ? list : resample(list, minutes);
+  const built = minutes === 1 ? list : resample(list, minutes);
+  return clean ? polishCandles(built, minutes, instrumentKind(symbol)) : built;
 }
