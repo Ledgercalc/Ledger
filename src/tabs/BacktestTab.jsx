@@ -1,11 +1,11 @@
 import BacktestChart from "../components/TredziChart.jsx";
-import DukascopyPanel from "../components/DukascopyPanel.jsx";
+import HistoryLoader from "../components/HistoryLoader.jsx";
 import { INSTRUMENTS, TIMEFRAMES, fetchCandles } from "../api/marketData.js";
 import { calcR, scanPosition, summarize, validateOrder } from "../lib/backtestEngine.js";
 import { inferTfLabel, parseCandlesCsv, precisionFor } from "../lib/candles.js";
 import { scopedKey } from "../lib/constants.js";
 import { TAP, display, mono, palette } from "../lib/theme.js";
-import { Crosshair, Download, Loader2, Pause, Play, RotateCcw, Shuffle, StepForward, Trash2, Upload } from "lucide-react";
+import { Crosshair, Download, Pause, Play, RotateCcw, Shuffle, StepForward, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
@@ -473,40 +473,21 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
         </div>
       ) : (
       <div style={card}>
-        <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "1.4fr 0.8fr auto auto" : "1fr 1fr", gap: 10, alignItems: "end" }}>
-          <div style={isDesktop ? undefined : { gridColumn: "1 / -1" }}>
-            <label style={label} htmlFor="bt-symbol">Instrument</label>
-            <select id="bt-symbol" value={symbol} onChange={(e) => setSymbol(e.target.value)} style={field}>
-              {["Forex", "Metals", "Indices"].map((g) => (
-                <optgroup key={g} label={g}>
-                  {INSTRUMENTS.filter((i) => i.group === g).map((i) => (
-                    <option key={i.id} value={i.id}>{i.label}</option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label style={label} htmlFor="bt-tf">Timeframe</label>
-            <select id="bt-tf" value={tf} onChange={(e) => setTf(e.target.value)} style={field}>
-              {TIMEFRAMES.map((t) => (
-                <option key={t.id} value={t.id}>{t.label} ({t.range})</option>
-              ))}
-            </select>
-          </div>
-          <button type="button" onClick={loadMarket} disabled={loading} className={TAP} style={{ ...ghostBtn(true), justifyContent: "center", ...(loading ? disabledBtn : null) }}>
-            {loading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
-            {loading ? "Loading" : "Load candles"}
-          </button>
-          <button type="button" onClick={() => fileRef.current && fileRef.current.click()} className={TAP} style={{ ...ghostBtn(false), justifyContent: "center" }}>
-            <Upload size={15} /> Import CSV
-          </button>
-          <input ref={fileRef} type="file" accept=".csv,.txt,text/csv" onChange={onCsv} style={{ display: "none" }} />
-        </div>
-        <DukascopyPanel
+        <HistoryLoader
           symbol={symbol}
+          setSymbol={setSymbol}
           tf={tf}
+          setTf={setTf}
           instruments={INSTRUMENTS}
+          timeframes={TIMEFRAMES}
+          isDesktop={isDesktop}
+          fileRef={fileRef}
+          onCsv={onCsv}
+          onQuick={loadMarket}
+          quickLoading={loading}
+          fieldStyle={field}
+          labelStyle={label}
+          ghostBtn={ghostBtn}
           onLoad={(list) => {
             setPlaying(false);
             applyDataset(list, { symbol, tf, source: "Dukascopy" }, defaultStart);
@@ -518,8 +499,8 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
         {!hasData && !error && (
           <p style={{ color: palette.textMuted, fontFamily: mono, fontSize: 12.5, lineHeight: 1.6, margin: "12px 0 0" }}>
             {isDesktop
-              ? "Load free candles for forex, gold or indices, or import your own CSV (MT4/MT5, Dukascopy and TradingView exports work). Then step through the chart one candle at a time and place trades with no hindsight."
-              : "Load free candles or import a CSV, then step through one candle at a time."}
+              ? "Pick an instrument, a timeframe and any date range (even years back), then press Load candles. Or import your own CSV (MT4/MT5, Dukascopy and TradingView exports work). Then step through the chart one candle at a time and place trades with no hindsight."
+              : "Pick dates and load candles, or import a CSV, then step through one candle at a time."}
           </p>
         )}
         {!isDesktop && hasData && (
