@@ -1,6 +1,6 @@
 import { COMMUNITY_API_BASE } from "./community.js";
 import { lzmaDecode } from "../lib/lzma.js";
-import { clearSymbol, getRange, listDays, putDay } from "../lib/candleStore.js";
+import { clearSymbol, getRange, listDays, listVolumeDays, putDay } from "../lib/candleStore.js";
 import { instrumentKind, polishCandles } from "../lib/candleClean.js";
 
 // Full history from Dukascopy's free public datafeed, served to the browser through your Worker's
@@ -72,12 +72,14 @@ export function ticksToMinutes(raw, hourStartSec, info) {
     if (!(bid > 0)) continue;
     const t = hourStartSec + Math.floor(dv.getUint32(o) / 1000);
     const m = t - (t % 60);
+    const vol = (dv.getFloat32(o + 12) || 0) + (dv.getFloat32(o + 16) || 0);
     if (cur && cur.time === m) {
       if (bid > cur.high) cur.high = bid;
       if (bid < cur.low) cur.low = bid;
       cur.close = bid;
+      cur.volume += vol;
     } else {
-      cur = { time: m, open: bid, high: bid, low: bid, close: bid };
+      cur = { time: m, open: bid, high: bid, low: bid, close: bid, volume: vol };
       out.push(cur);
     }
   }
@@ -175,19 +177,20 @@ export function candleFileToMinutes(raw, dayStartSec, info) {
     const high = dv.getUint32(o + 16) / div;
     const vol = dv.getFloat32(o + 20);
     if (!(open > 0) || (vol === 0 && high === low)) continue; // padding minutes without any trades
-    out.push({ time: dayStartSec + dv.getUint32(o), open, high: Math.max(high, open, close), low: Math.min(low, open, close), close });
+    out.push({ time: dayStartSec + dv.getUint32(o), open, high: Math.max(high, open, close), low: Math.min(low, open, close), close, volume: vol > 0 ? vol : 0 });
   }
   return out;
 }
 
 function toFlat(candles) {
-  const flat = new Float64Array(candles.length * 5);
+  const flat = new Float64Array(candles.length * 6);
   candles.forEach((c, i) => {
-    flat[i * 5] = c.time;
-    flat[i * 5 + 1] = c.open;
-    flat[i * 5 + 2] = c.high;
-    flat[i * 5 + 3] = c.low;
-    flat[i * 5 + 4] = c.close;
+    flat[i * 6] = c.time;
+    flat[i * 6 + 1] = c.open;
+    flat[i * 6 + 2] = c.high;
+    flat[i * 6 + 3] = c.low;
+    flat[i * 6 + 4] = c.close;
+    flat[i * 6 + 5] = c.volume || 0;
   });
   return flat;
 }
@@ -255,7 +258,7 @@ export function daysBetween(fromDay, toDay) {
 export async function downloadDukascopy({ symbol, fromDay, toDay, onProgress, signal, concurrency = 3 }) {
   const info = DUKA[symbol];
   if (!info) throw new Error("That instrument isn't available from Dukascopy.");
-  const stored = new Set(await listDays(symbol));
+  const stored = new Set(await listVolumeDays(symbol));
   const today = dayString(Date.now());
   const todo = daysBetween(fromDay, toDay).filter((d) => new Date(dayStart(d)).getUTCDay() !== 6 && d <= today && (!stored.has(d) || d === today));
   const state = { done: 0, total: todo.length, day: "", bytes: 0, note: "" };
@@ -354,8 +357,14 @@ export async function clearSaved(symbol) {
   await clearSymbol(symbol);
 }
 
+// Days saved with volume data (complete). Days saved by an older version (no volume) are refreshed on the next Load.
 export async function storedDays(symbol) {
-  return new Set(await listDays(symbol));
+  return new Set(await listVolumeDays(symbol));
+}
+
+export async function storedDayCounts(symbol) {
+  const [all, vol] = await Promise.all([listDays(symbol), listVolumeDays(symbol)]);
+  return { all: all.length, withVolume: vol.length, needRefresh: all.length - vol.length };
 }
 
 export async function storedSummary(symbol) {
@@ -371,11 +380,12 @@ export async function loadDukascopy({ symbol, fromDay, toDay, tf, clean = true }
   const size = minutes * 60;
   const list = [];
   let cur = null;
-  for (const f of chunks) {
-    for (let i = 0; i < f.length; i += 5) {
+  for (const { flat: f, stride } of chunks) {
+    for (let i = 0; i < f.length; i += stride) {
       const t = f[i];
+      const vol = stride > 5 ? f[i + 5] : 0;
       if (minutes === 1) {
-        list.push({ time: t, open: f[i + 1], high: f[i + 2], low: f[i + 3], close: f[i + 4] });
+        list.push({ time: t, open: f[i + 1], high: f[i + 2], low: f[i + 3], close: f[i + 4], volume: vol });
         continue;
       }
       const bucket = Math.floor(t / size) * size;
@@ -383,8 +393,9 @@ export async function loadDukascopy({ symbol, fromDay, toDay, tf, clean = true }
         if (f[i + 2] > cur.high) cur.high = f[i + 2];
         if (f[i + 3] < cur.low) cur.low = f[i + 3];
         cur.close = f[i + 4];
+        cur.volume += vol;
       } else {
-        cur = { time: bucket, open: f[i + 1], high: f[i + 2], low: f[i + 3], close: f[i + 4] };
+        cur = { time: bucket, open: f[i + 1], high: f[i + 2], low: f[i + 3], close: f[i + 4], volume: vol };
         list.push(cur);
       }
     }
