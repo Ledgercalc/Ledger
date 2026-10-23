@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { Component, useEffect, useRef, useState } from "react";
 import { ChartEngine } from "../lib/chartEngine.js";
 import {
-  AlignJustify, ArrowUpRight, Copy, Equal, Eraser, Eye, EyeOff, Magnet, Maximize2, Minimize2, Minus, MousePointer2, MoveRight,
+  AlignJustify, ArrowLeftRight, BarChart3, ArrowUpDown, ArrowUpRight, Circle, Copy, GitFork, Info, Layers, PenTool, Plus, Triangle, Equal, Eraser, Eye, EyeOff, Magnet, Maximize2, Minimize2, Minus, MousePointer2, MoveRight,
   MoveUpRight, Pencil, Ruler, SeparatorVertical, Settings2, Slash, Square, Trash2, TrendingUp, Type, Undo2, X,
 } from "lucide-react";
 
@@ -18,14 +18,17 @@ const DEFAULT_UI = { color: DRAW_COLOR, opacity: 1, width: 2, dash: "solid" };
 const BT = {
   trend: "segment", ray: "rayLine", xline: "straightLine", arrow: "btArrow", hline: "horizontalStraightLine", hray: "horizontalRayLine",
   vline: "verticalStraightLine", channel: "parallelStraightLine", fib: "btFib", measure: "btMeasure", rect: "btRect", text: "btText",
-  long: "btLong", short: "btShort",
+  long: "btLong", short: "btShort", cross: "btCross", infoline: "btInfo", ellipse: "btEllipse", triangle: "btTriangle",
+  pitchfork: "btPitchfork", fibext: "btFibExt", prange: "btPriceRange", drange: "btDateRange", brush: "btBrush",
 };
 const NAME_LABEL = {
   segment: "Trend line", rayLine: "Ray", straightLine: "Extended line", btArrow: "Arrow", horizontalStraightLine: "Horizontal line",
   horizontalRayLine: "Horizontal ray", verticalStraightLine: "Vertical line", parallelStraightLine: "Parallel channel",
   btFib: "Fib retracement", btMeasure: "Measure", btRect: "Rectangle", btText: "Text", btLong: "Long position", btShort: "Short position",
+  btCross: "Cross line", btInfo: "Info line", btEllipse: "Ellipse", btTriangle: "Triangle", btPitchfork: "Pitchfork",
+  btFibExt: "Fib extension", btPriceRange: "Price range", btDateRange: "Date range", btBrush: "Brush",
 };
-const NO_STYLE_BAR = ["btLong", "btShort", "btMeasure", "btFib"];
+const NO_STYLE_BAR = ["btLong", "btShort", "btMeasure", "btFib", "btFibExt", "btPriceRange", "btDateRange"];
 const FIB_LEVELS = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];
 const FIB_COLORS = ["#787b86", "#f23645", "#ff9800", "#4caf50", "#089981", "#00bcd4", "#787b86"];
 
@@ -104,40 +107,58 @@ function writeSaved(k, list) {
 
 
 // How many taps each tool needs.
-const NEED = { hline: 1, hray: 1, vline: 1, text: 1, trend: 2, ray: 2, xline: 2, arrow: 2, rect: 2, fib: 2, measure: 2, channel: 3, long: 3, short: 3 };
+const NEED = { hline: 1, hray: 1, vline: 1, cross: 1, text: 1, trend: 2, infoline: 2, ray: 2, xline: 2, arrow: 2, rect: 2, ellipse: 2, fib: 2, measure: 2, prange: 2, drange: 2, channel: 3, triangle: 3, pitchfork: 3, fibext: 3, long: 3, short: 3, brush: 100000 };
 const HINTS = {
   hline: ["Tap where the line should go"],
   hray: ["Tap where the ray should start"],
   vline: ["Tap where the line should go"],
+  cross: ["Tap where the lines should cross"],
   text: ["Tap where the label should go"],
   trend: ["Tap the start point", "Tap the end point"],
+  infoline: ["Tap the start point", "Tap the end point"],
   ray: ["Tap the start point", "Tap a second point to set the direction"],
   xline: ["Tap the first point", "Tap a second point"],
   arrow: ["Tap the tail", "Tap the arrow head"],
   channel: ["Tap the start point", "Tap the end of the first line", "Tap to set the channel width"],
+  pitchfork: ["Tap point A (the handle)", "Tap point B", "Tap point C"],
   rect: ["Tap the first corner", "Tap the opposite corner"],
+  ellipse: ["Tap one corner", "Tap the opposite corner"],
+  triangle: ["Tap the first corner", "Tap the second corner", "Tap the third corner"],
+  brush: ["Press and drag to draw freely"],
   fib: ["Tap the swing start", "Tap the swing end"],
+  fibext: ["Tap the swing start", "Tap the swing end", "Tap the retracement point"],
   measure: ["Tap the start point", "Tap the end point"],
+  prange: ["Tap the first price", "Tap the second price"],
+  drange: ["Tap the start time", "Tap the end time"],
   long: ["Tap your entry price", "Tap your stop loss", "Tap your take profit"],
   short: ["Tap your entry price", "Tap your stop loss", "Tap your take profit"],
 };
 const TOOL_GROUPS = [
   { title: "Lines", tools: [
     { id: "trend", label: "Trend line", Icon: TrendingUp },
+    { id: "infoline", label: "Info line", Icon: Info },
     { id: "ray", label: "Ray", Icon: MoveUpRight },
     { id: "xline", label: "Extended line", Icon: Slash },
     { id: "arrow", label: "Arrow", Icon: ArrowUpRight },
     { id: "hline", label: "Horizontal line", Icon: Minus },
     { id: "hray", label: "Horizontal ray", Icon: MoveRight },
     { id: "vline", label: "Vertical line", Icon: SeparatorVertical },
+    { id: "cross", label: "Cross line", Icon: Plus },
     { id: "channel", label: "Parallel channel", Icon: Equal },
+    { id: "pitchfork", label: "Pitchfork", Icon: GitFork },
   ] },
   { title: "Fib and measure", tools: [
     { id: "fib", label: "Fib retracement", Icon: AlignJustify },
+    { id: "fibext", label: "Fib extension", Icon: Layers },
     { id: "measure", label: "Measure", Icon: Ruler },
+    { id: "prange", label: "Price range", Icon: ArrowUpDown },
+    { id: "drange", label: "Date range", Icon: ArrowLeftRight },
   ] },
   { title: "Shapes and text", tools: [
     { id: "rect", label: "Rectangle", Icon: Square },
+    { id: "ellipse", label: "Ellipse", Icon: Circle },
+    { id: "triangle", label: "Triangle", Icon: Triangle },
+    { id: "brush", label: "Brush", Icon: PenTool },
     { id: "text", label: "Text label", Icon: Type },
   ] },
 ];
@@ -196,7 +217,7 @@ function channelGeom(d, env) {
 }
 
 
-function hitDrawing(d, x, y, env, near = 9) {
+function hitDrawingBase(d, x, y, env, near = 9) {
   const { chart, series, plotW } = env;
   const ts = chart.timeScale();
   const X = (pt) => ts.logicalToCoordinate(pt.l);
@@ -212,7 +233,7 @@ function hitDrawing(d, x, y, env, near = 9) {
     const ys = b ? Y(b) : null;
     const yt = c ? Y(c) : null;
     const last = d.pts[d.pts.length - 1];
-    const xEnd = ts.logicalToCoordinate(Math.max(last.l, a.l + 8));
+    const xEnd = ts.logicalToCoordinate(Math.max(last.l, a.l + 24));
     if (xa == null || ya == null || ys == null || xEnd == null) return false;
     const ys2 = [ya, ys];
     if (yt != null) ys2.push(yt);
@@ -251,7 +272,7 @@ function hitDrawing(d, x, y, env, near = 9) {
 
 // Round drag handles for a selected drawing. mode: "pt" moves one anchor, "price" moves only the
 // price of an anchor, "width" stretches a position box, "move" drags the whole drawing.
-function handlesOf(d, env) {
+function handlesBase(d, env) {
   const { chart, series, plotW } = env;
   const ts = chart.timeScale();
   const X = (pt) => ts.logicalToCoordinate(pt.l);
@@ -275,9 +296,9 @@ function handlesOf(d, env) {
   }
   if (d.type === "long" || d.type === "short") {
     const last = d.pts[d.pts.length - 1];
-    const xEnd = ts.logicalToCoordinate(Math.max(last.l, a.l + 8));
+    const xEnd = ts.logicalToCoordinate(Math.max(last.l, a.l + 24));
     if (ya == null || xEnd == null) return out;
-    const xm = xa + (xEnd - xa) / 2;
+    const xm = xEnd;
     out.push({ x: xa, y: ya, mode: "pt", i: 0 });
     out.push({ x: xEnd, y: ya, mode: "width" });
     if (b && Y(b) != null) out.push({ x: xm, y: Y(b), mode: "price", i: 1 });
@@ -300,6 +321,287 @@ function handlesOf(d, env) {
   return out;
 }
 
+
+// ---- extra tools: cross line, info line, ellipse, triangle, pitchfork, fib extension, ranges, brush ----
+const FIBEXT_LEVELS = [0, 0.382, 0.618, 1, 1.272, 1.618, 2.618];
+const FIBEXT_COLORS = ["#787b86", "#ff9800", "#4caf50", "#2962ff", "#00bcd4", "#089981", "#ab47bc"];
+
+function rayFrom(x0, y0, vx, vy, plotW) {
+  if (Math.abs(vx) < 1e-6) return { x: x0, y: vy >= 0 ? y0 + 6000 : y0 - 6000 };
+  const tx = vx > 0 ? plotW + 80 : -80;
+  return { x: tx, y: y0 + vy * ((tx - x0) / vx) };
+}
+
+function arrowHead(ctx, x, y, ang, len) {
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x - len * Math.cos(ang - 0.45), y - len * Math.sin(ang - 0.45));
+  ctx.lineTo(x - len * Math.cos(ang + 0.45), y - len * Math.sin(ang + 0.45));
+  ctx.closePath();
+  ctx.fill();
+}
+
+function paintExtra(ctx, d, env, st, line, chip) {
+  const { eng, plotW, plotH, prec, pal } = env;
+  const X = (pt) => eng.xOf(pt.l);
+  const Y = (pt) => eng.yOf(pt.p);
+  const [a, b, c] = d.pts;
+  const xa = X(a);
+  const ya = Y(a);
+  const fillA = d.fill == null ? 0.14 : d.fill;
+  switch (d.type) {
+    case "cross":
+      line(0, ya, plotW, ya);
+      line(xa, 0, xa, plotH);
+      return true;
+    case "brush":
+      ctx.beginPath();
+      d.pts.forEach((pt, i) => {
+        if (i === 0) ctx.moveTo(X(pt), Y(pt));
+        else ctx.lineTo(X(pt), Y(pt));
+      });
+      ctx.stroke();
+      return true;
+    case "infoline": {
+      if (!b) return true;
+      const xb = X(b);
+      const yb = Y(b);
+      line(xa, ya, xb, yb);
+      const diff = b.p - a.p;
+      const ang = Math.round((Math.atan2(ya - yb, xb - xa) * 180) / Math.PI);
+      chip(`${diff > 0 ? "+" : ""}${diff.toFixed(prec)} (${pct((diff / a.p) * 100)})  ${Math.abs(b.l - a.l)} bars  ${ang}\u00B0`, (xa + xb) / 2, (ya + yb) / 2 - 14, st.solid, "center");
+      return true;
+    }
+    case "ellipse": {
+      if (!b) return true;
+      const xb = X(b);
+      const yb = Y(b);
+      ctx.beginPath();
+      ctx.ellipse((xa + xb) / 2, (ya + yb) / 2, Math.max(1, Math.abs(xb - xa) / 2), Math.max(1, Math.abs(yb - ya) / 2), 0, 0, Math.PI * 2);
+      ctx.fillStyle = hexA(st.solid, fillA);
+      ctx.fill();
+      ctx.stroke();
+      return true;
+    }
+    case "triangle": {
+      if (!b) return true;
+      ctx.beginPath();
+      ctx.moveTo(xa, ya);
+      ctx.lineTo(X(b), Y(b));
+      if (c) ctx.lineTo(X(c), Y(c));
+      if (c) ctx.closePath();
+      if (c) {
+        ctx.fillStyle = hexA(st.solid, fillA);
+        ctx.fill();
+      }
+      ctx.stroke();
+      return true;
+    }
+    case "pitchfork": {
+      if (!b) return true;
+      const xb = X(b);
+      const yb = Y(b);
+      if (!c) {
+        line(xa, ya, xb, yb);
+        return true;
+      }
+      const xc = X(c);
+      const yc = Y(c);
+      const vx = (xb + xc) / 2 - xa;
+      const vy = (yb + yc) / 2 - ya;
+      const m = rayFrom(xa, ya, vx, vy, plotW);
+      const u = rayFrom(xb, yb, vx, vy, plotW);
+      const l = rayFrom(xc, yc, vx, vy, plotW);
+      ctx.fillStyle = hexA(st.solid, 0.08);
+      ctx.beginPath();
+      ctx.moveTo(xb, yb);
+      ctx.lineTo(u.x, u.y);
+      ctx.lineTo(l.x, l.y);
+      ctx.lineTo(xc, yc);
+      ctx.closePath();
+      ctx.fill();
+      line(xa, ya, m.x, m.y);
+      line(xb, yb, u.x, u.y);
+      line(xc, yc, l.x, l.y);
+      ctx.setLineDash([4, 4]);
+      ctx.globalAlpha = 0.6;
+      line(xb, yb, xc, yc);
+      ctx.globalAlpha = 1;
+      return true;
+    }
+    case "fibext": {
+      if (!b) return true;
+      const xb = X(b);
+      const yb = Y(b);
+      ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = "#787b86";
+      ctx.lineWidth = 1;
+      line(xa, ya, xb, yb);
+      if (!c) return true;
+      const xc = X(c);
+      line(xb, yb, xc, Y(c));
+      const delta = b.p - a.p;
+      ctx.setLineDash([]);
+      const ys = FIBEXT_LEVELS.map((lv) => eng.yOf(c.p + delta * lv));
+      for (let i = 0; i < ys.length - 1; i++) {
+        ctx.fillStyle = hexA(FIBEXT_COLORS[i + 1], 0.07);
+        ctx.fillRect(xc, Math.min(ys[i], ys[i + 1]), plotW - xc, Math.abs(ys[i + 1] - ys[i]));
+      }
+      ctx.font = `600 10.5px ${eng.theme.font}`;
+      ctx.textAlign = "left";
+      ctx.textBaseline = "bottom";
+      FIBEXT_LEVELS.forEach((lv, i) => {
+        ctx.strokeStyle = FIBEXT_COLORS[i];
+        line(xc, ys[i], plotW, ys[i]);
+        ctx.fillStyle = FIBEXT_COLORS[i];
+        ctx.fillText(`${lv} (${(c.p + delta * lv).toFixed(prec)})`, xc + 5, ys[i] - 2);
+      });
+      return true;
+    }
+    case "prange": {
+      if (!b) return true;
+      const xb = X(b);
+      const yb = Y(b);
+      const diff = b.p - a.p;
+      const col = diff >= 0 ? pal.up : pal.down;
+      const x0 = Math.min(xa, xb);
+      const x1 = Math.max(xa, xb, x0 + 30);
+      const mx = (x0 + x1) / 2;
+      ctx.setLineDash([]);
+      ctx.fillStyle = hexA(col, 0.12);
+      ctx.fillRect(x0, Math.min(ya, yb), x1 - x0, Math.abs(yb - ya));
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 1;
+      line(x0, ya, x1, ya);
+      line(x0, yb, x1, yb);
+      ctx.lineWidth = 1.5;
+      line(mx, ya, mx, yb);
+      ctx.fillStyle = col;
+      const dir = yb > ya ? Math.PI / 2 : -Math.PI / 2;
+      arrowHead(ctx, mx, yb, dir, 9);
+      chip(`${diff > 0 ? "+" : ""}${diff.toFixed(prec)} (${pct((diff / a.p) * 100)})`, mx, (ya + yb) / 2, col, "center");
+      return true;
+    }
+    case "drange": {
+      if (!b) return true;
+      const xb = X(b);
+      const yb = Y(b);
+      const x0 = Math.min(xa, xb);
+      const x1 = Math.max(xa, xb);
+      const my = (ya + yb) / 2;
+      ctx.setLineDash([]);
+      ctx.fillStyle = hexA(st.solid, 0.08);
+      ctx.fillRect(x0, 0, x1 - x0, plotH);
+      ctx.strokeStyle = st.solid;
+      ctx.lineWidth = 1;
+      line(xa, 0, xa, plotH);
+      line(xb, 0, xb, plotH);
+      ctx.lineWidth = 1.5;
+      line(x0, my, x1, my);
+      ctx.fillStyle = st.solid;
+      arrowHead(ctx, x1, my, 0, 9);
+      arrowHead(ctx, x0, my, Math.PI, 9);
+      const ta = eng.timeAt(a.l);
+      const tb = eng.timeAt(b.l);
+      chip(`${Math.abs(b.l - a.l)} bars${ta != null && tb != null ? `  ${fmtDur(tb - ta)}` : ""}`, (x0 + x1) / 2, my - 14, st.solid, "center");
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+
+function hitMore(d, x, y, env, near) {
+  const { eng, plotW } = env;
+  const X = (pt) => eng.xOf(pt.l);
+  const Y = (pt) => eng.yOf(pt.p);
+  const [a, b, c] = d.pts;
+  const xa = X(a);
+  const ya = Y(a);
+  const seg = (x1, y1, x2, y2) => distToSegment(x, y, x1, y1, x2, y2) < near;
+  switch (d.type) {
+    case "cross":
+      return Math.abs(x - xa) < near || Math.abs(y - ya) < near;
+    case "brush":
+      for (let i = 0; i < d.pts.length - 1; i++) if (seg(X(d.pts[i]), Y(d.pts[i]), X(d.pts[i + 1]), Y(d.pts[i + 1]))) return true;
+      return false;
+    case "infoline":
+      return !!b && seg(xa, ya, X(b), Y(b));
+    case "ellipse": {
+      if (!b) return false;
+      const xb = X(b);
+      const yb = Y(b);
+      const rx = Math.max(near, Math.abs(xb - xa) / 2);
+      const ry = Math.max(near, Math.abs(yb - ya) / 2);
+      const v = ((x - (xa + xb) / 2) / rx) ** 2 + ((y - (ya + yb) / 2) / ry) ** 2;
+      return v <= 1.1;
+    }
+    case "triangle": {
+      if (!b) return false;
+      const xb = X(b);
+      const yb = Y(b);
+      if (!c) return seg(xa, ya, xb, yb);
+      const xc = X(c);
+      const yc = Y(c);
+      if (seg(xa, ya, xb, yb) || seg(xb, yb, xc, yc) || seg(xc, yc, xa, ya)) return true;
+      const sign = (px, py, x1, y1, x2, y2) => (px - x2) * (y1 - y2) - (x1 - x2) * (py - y2);
+      const d1 = sign(x, y, xa, ya, xb, yb);
+      const d2 = sign(x, y, xb, yb, xc, yc);
+      const d3 = sign(x, y, xc, yc, xa, ya);
+      return !((d1 < 0 || d2 < 0 || d3 < 0) && (d1 > 0 || d2 > 0 || d3 > 0));
+    }
+    case "pitchfork": {
+      if (!b) return false;
+      const xb = X(b);
+      const yb = Y(b);
+      if (!c) return seg(xa, ya, xb, yb);
+      const xc = X(c);
+      const yc = Y(c);
+      const vx = (xb + xc) / 2 - xa;
+      const vy = (yb + yc) / 2 - ya;
+      const m = rayFrom(xa, ya, vx, vy, plotW);
+      const u = rayFrom(xb, yb, vx, vy, plotW);
+      const l = rayFrom(xc, yc, vx, vy, plotW);
+      return seg(xa, ya, m.x, m.y) || seg(xb, yb, u.x, u.y) || seg(xc, yc, l.x, l.y) || seg(xb, yb, xc, yc);
+    }
+    case "fibext": {
+      if (!b) return false;
+      const xb = X(b);
+      const yb = Y(b);
+      if (seg(xa, ya, xb, yb)) return true;
+      if (!c) return false;
+      const xc = X(c);
+      if (seg(xb, yb, xc, Y(c))) return true;
+      const delta = b.p - a.p;
+      return x >= xc - near && FIBEXT_LEVELS.some((lv) => Math.abs(y - eng.yOf(c.p + delta * lv)) < near);
+    }
+    case "prange": {
+      if (!b) return false;
+      const xb = X(b);
+      const yb = Y(b);
+      const x0 = Math.min(xa, xb);
+      const x1 = Math.max(xa, xb, x0 + 30);
+      return x >= x0 - near && x <= x1 + near && y >= Math.min(ya, yb) - near && y <= Math.max(ya, yb) + near;
+    }
+    case "drange": {
+      if (!b) return false;
+      const xb = X(b);
+      return x >= Math.min(xa, xb) - near && x <= Math.max(xa, xb) + near;
+    }
+    default:
+      return undefined;
+  }
+}
+
+function hitDrawing(d, x, y, env, near = 9) {
+  const r = hitMore(d, x, y, env, near);
+  return r === undefined ? hitDrawingBase(d, x, y, env, near) : r;
+}
+function handlesOf(d, env) {
+  if (d.type === "brush") return [];
+  return handlesBase(d, env);
+}
+
 function dragPts(d, drag, pt) {
   const o = drag.orig;
   if (drag.mode === "move") {
@@ -310,7 +612,7 @@ function dragPts(d, drag, pt) {
   if (drag.mode === "pt") return o.map((q, i) => (i === drag.i ? { l: pt.l, p: pt.p } : q));
   if (drag.mode === "price") return o.map((q, i) => (i === drag.i ? { ...q, p: pt.p } : q));
   if (drag.mode === "width") {
-    const nl = Math.max(pt.l, o[0].l + 8);
+    const nl = Math.max(pt.l, o[0].l + 24);
     return o.map((q, i) => (i > 0 ? { ...q, l: nl } : q));
   }
   return o;
@@ -346,6 +648,10 @@ function paintDrawing(ctx, d, env) {
     ctx.stroke();
   };
 
+  if (paintExtra(ctx, d, env, st, line, chip)) {
+    ctx.setLineDash([]);
+    return;
+  }
   if (d.type === "hline" || d.type === "hray") {
     line(d.type === "hray" ? xa : 0, ya, plotW, ya);
     return;
@@ -373,31 +679,43 @@ function paintDrawing(ctx, d, env) {
     if (!b) return;
     const ys = Y(b);
     const last = d.pts[d.pts.length - 1];
-    const x1 = eng.xOf(Math.max(last.l, a.l + 8));
+    const x1 = eng.xOf(Math.max(last.l, a.l + 24));
     const w = x1 - xa;
+    const cx = xa + w / 2;
     const entry = a.p;
+    const isLong = d.type === "long";
+    const signed = (v) => `${v >= 0 ? "+" : ""}${v.toFixed(prec)}`;
     ctx.setLineDash([]);
-    ctx.lineWidth = 1;
-    const box = (y, color) => {
-      ctx.fillStyle = hexA(color, 0.2);
+    const zone = (y, color) => {
+      ctx.fillStyle = hexA(color, 0.17);
       ctx.fillRect(xa, Math.min(ya, y), w, Math.abs(y - ya));
-      ctx.strokeStyle = color;
-      ctx.strokeRect(xa, Math.min(ya, y), w, Math.abs(y - ya));
     };
-    box(ys, pal.down);
-    chip(`SL ${b.p.toFixed(prec)}  ${pct(((b.p - entry) / entry) * 100)}`, xa + 4, ys + (ys > ya ? -12 : 12), pal.down);
+    zone(ys, pal.down);
+    const yt = c ? Y(c) : null;
+    if (c) zone(yt, pal.up);
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = pal.down;
+    line(xa, ys, x1, ys);
+    if (c) {
+      ctx.strokeStyle = pal.up;
+      line(xa, yt, x1, yt);
+    }
+    ctx.strokeStyle = "#787b86";
+    line(xa, ya, x1, ya);
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = hexA("#787b86", 0.5);
+    const top = Math.min(ya, ys, c ? yt : ya);
+    const bot = Math.max(ya, ys, c ? yt : ya);
+    line(xa, top, xa, bot);
+    line(x1, top, x1, bot);
+    chip(`Stop: ${b.p.toFixed(prec)} (${pct(((b.p - entry) / entry) * 100)})  ${signed(b.p - entry)}`, cx, ys + (ys > ya ? -13 : 13), pal.down, "center");
     let rr = "";
     if (c) {
-      const yt = Y(c);
-      box(yt, pal.up);
-      chip(`TP ${c.p.toFixed(prec)}  ${pct(((c.p - entry) / entry) * 100)}`, xa + 4, yt + (yt > ya ? -12 : 12), pal.up);
+      chip(`Target: ${c.p.toFixed(prec)} (${pct(((c.p - entry) / entry) * 100)})  ${signed(c.p - entry)}`, cx, yt + (yt > ya ? -13 : 13), pal.up, "center");
       const risk = Math.abs(entry - b.p);
-      if (risk > 0) rr = `  R:R ${(Math.abs(c.p - entry) / risk).toFixed(2)}`;
+      if (risk > 0) rr = (Math.abs(c.p - entry) / risk).toFixed(2);
     }
-    ctx.strokeStyle = DRAW_COLOR;
-    ctx.lineWidth = 1.5;
-    line(xa, ya, x1, ya);
-    chip(`${d.type === "long" ? "Long" : "Short"} ${entry.toFixed(prec)}${rr}`, xa + 4, ya, DRAW_COLOR);
+    chip(`${isLong ? "Long" : "Short"} ${entry.toFixed(prec)}${rr ? `   R:R ${rr}` : ""}`, cx, ya, "#434651", "center");
     return;
   }
 
@@ -500,7 +818,7 @@ function paintDrawing(ctx, d, env) {
 function paintAxisTags(ctx, list, levels, env) {
   const { eng, plotW, plotH, prec } = env;
   for (const d of list) {
-    if (d.type !== "hline" && d.type !== "hray") continue;
+    if (d.type !== "hline" && d.type !== "hray" && d.type !== "cross") continue;
     const y = eng.yOf(d.pts[0].p);
     if (y < 0 || y > plotH) continue;
     eng.chip(ctx, d.pts[0].p.toFixed(prec), plotW + 2, y, strokeOf(d).solid, "#ffffff");
@@ -515,11 +833,11 @@ function paintAxisTags(ctx, list, levels, env) {
 function paintMarkers(ctx, markers, env) {
   const { eng } = env;
   const cs = eng.candles;
-  if (!markers.length || !cs.length) return;
+  if (!markers.length || !eng.n) return;
   ctx.setLineDash([]);
   for (const m of markers) {
     const i = Math.round(eng.logicalAt(m.time));
-    const cd = cs[i];
+    const cd = i >= 0 && i < eng.n ? cs[i] : null;
     if (!cd || cd.time !== m.time) continue;
     const x = eng.xOf(i);
     const above = m.position === "aboveBar";
@@ -546,7 +864,7 @@ function paintMarkers(ctx, markers, env) {
   }
 }
 
-export default function TredziChart({ candles, sessionKey, lines, markers, colors, precision, height, compact, pickMode, onPickPrice, onApplyPlan, footer, drawKey, hideTradeTools }) {
+function TredziChartInner({ candles, sessionKey, lines, markers, colors, precision, height, compact, pickMode, onPickPrice, onApplyPlan, footer, drawKey, hideTradeTools, limit }) {
   const canvasRef = useRef(null);
   const areaRef = useRef(null);
   const engRef = useRef(null);
@@ -567,6 +885,15 @@ export default function TredziChart({ candles, sessionKey, lines, markers, color
   const [hidden, setHidden] = useState(false);
   const [settings, setSettings] = useState(false);
   const [manualScale, setManualScale] = useState(false);
+  const [profile, setProfile] = useState(() => {
+    try {
+      const v = window.localStorage.getItem("tredzi-bt-vp");
+      return v === "range" || v === "session" ? v : "off";
+    } catch (err) {
+      return "off";
+    }
+  });
+  const [vpMenu, setVpMenu] = useState(false);
 
   const drawingsRef = useRef([]);
   const selectedRef = useRef(null);
@@ -646,7 +973,7 @@ export default function TredziChart({ candles, sessionKey, lines, markers, color
     const first = candles.length ? candles[0].time : null;
     const prev = prevDataRef.current;
     const reset = prev.key !== sessionKey || prev.first !== first;
-    eng.setData(candles, reset);
+    eng.setData(candles, reset, limit);
     prevDataRef.current = { key: sessionKey, first };
     if (reset) setManualScale(false);
     if (reset && !drawKeyRef.current) {
@@ -655,14 +982,25 @@ export default function TredziChart({ candles, sessionKey, lines, markers, color
     }
     markDirty();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [candles, sessionKey]);
+  }, [candles, limit, sessionKey]);
 
   useEffect(() => {
     markDirty();
   }, [lines, markers]);
 
+  useEffect(() => {
+    eng.profileMode = profile;
+    markDirty();
+    try {
+      window.localStorage.setItem("tredzi-bt-vp", profile);
+    } catch (err) {
+      // not remembered
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile]);
+
   // Load saved drawings once the candles are there (needed to turn saved times back into bar positions).
-  const hasData = candles.length > 0;
+  const hasData = (Number.isFinite(limit) ? limit : candles.length) > 0;
   useEffect(() => {
     if (!hasData) return;
     const tag = drawKey || "__none";
@@ -755,7 +1093,7 @@ export default function TredziChart({ candles, sessionKey, lines, markers, color
     const l = Math.round(eng.lOf(x));
     let p = eng.pOf(y);
     if (magnetRef.current) {
-      const c = eng.candles[l];
+      const c = l >= 0 && l < eng.n ? eng.candles[l] : null;
       if (c) {
         let best = null;
         let bd = Infinity;
@@ -847,7 +1185,7 @@ export default function TredziChart({ candles, sessionKey, lines, markers, color
   const paintTop = (ctx) => {
     if (compact) return;
     const hover = eng.crosshair ? eng.candleAtX(eng.crosshair.x) : null;
-    const c = hover ? hover.c : eng.candles[eng.candles.length - 1];
+    const c = hover ? hover.c : eng.candles[eng.n - 1];
     if (!c) return;
     const col = c.close >= c.open ? eng.theme.up : eng.theme.down;
     ctx.font = `11px ${eng.theme.font}`;
@@ -998,6 +1336,12 @@ export default function TredziChart({ candles, sessionKey, lines, markers, color
         return;
       }
       const pt = pointAt(x, y);
+      if (t === "brush") {
+        draftRef.current = { type: "brush", pts: [{ l: pt.l, p: pt.p }], cur: pt };
+        gesture.current = { mode: "brush", last: { x, y } };
+        markDirty();
+        return;
+      }
       const draft = draftRef.current;
       const pts = draft ? [...draft.pts, { l: pt.l, p: pt.p }] : [{ l: pt.l, p: pt.p }];
       if (pts.length >= NEED[t]) {
@@ -1063,6 +1407,14 @@ export default function TredziChart({ candles, sessionKey, lines, markers, color
       const drag = { mode: g.dmode, i: g.i, orig: g.orig, start: g.start };
       setDrawings((prev) => prev.map((q) => (q.id === g.id ? { ...q, pts: dragPts(q, drag, pt) } : q)));
       g.moved = true;
+    } else if (g && g.mode === "brush" && draftRef.current) {
+      const pt = pointAt(x, y);
+      const draft = draftRef.current;
+      if (Math.hypot(x - g.last.x, y - g.last.y) > 2.5 && draft.pts.length < 600) {
+        draft.pts.push({ l: pt.l, p: pt.p });
+        g.last = { x, y };
+      }
+      draftRef.current = { ...draft, cur: pt };
     } else if (draftRef.current) {
       draftRef.current = { ...draftRef.current, cur: pointAt(x, y) };
     }
@@ -1087,6 +1439,13 @@ export default function TredziChart({ candles, sessionKey, lines, markers, color
       }
     } else if (g.mode === "drag") {
       if (g.moved) schedulePersist();
+    } else if (g.mode === "brush") {
+      const draft = draftRef.current;
+      if (draft && draft.pts.length >= 2) commit("brush", draft.pts);
+      else {
+        draftRef.current = null;
+        setStep(0);
+      }
     } else if (g.mode === "create") {
       const draft = draftRef.current;
       if (draft && NEED[draft.type] === 2 && draft.pts.length === 1 && Math.hypot(x - g.x, y - g.y) > 12) {
@@ -1219,6 +1578,20 @@ export default function TredziChart({ candles, sessionKey, lines, markers, color
         )}
         {!compact && (
           <>
+            <div style={{ position: "relative", flexShrink: 0 }}>
+              <button type="button" title="Volume profile" aria-label="Volume profile" aria-haspopup="menu" aria-expanded={vpMenu} aria-pressed={profile !== "off"} onClick={() => setVpMenu((v) => !v)} style={btn(profile !== "off")}>
+                <BarChart3 size={17} />
+              </button>
+              {vpMenu && (
+                <div role="menu" style={{ position: "absolute", right: 0, top: S + 6, zIndex: 30, background: bg, border: `1px solid ${colors.border}`, borderRadius: 10, padding: 6, minWidth: 250, boxShadow: "0 8px 24px rgba(0,0,0,0.25)" }}>
+                  {[["off", "Volume profile: off"], ["range", "Visible range volume profile"], ["session", "Session volume profile (daily)"]].map(([id, label]) => (
+                    <button key={id} type="button" role="menuitemradio" aria-checked={profile === id} onClick={() => { setProfile(id); setVpMenu(false); }} style={{ display: "block", width: "100%", textAlign: "left", padding: "8px 10px", borderRadius: 8, border: "none", background: profile === id ? soft : "transparent", color: profile === id ? DRAW_COLOR : colors.text, fontFamily: colors.font, fontSize: 12.5, fontWeight: profile === id ? 700 : 500, cursor: "pointer" }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <button type="button" title={hidden ? "Show drawings" : "Hide drawings"} aria-label={hidden ? "Show drawings" : "Hide drawings"} aria-pressed={hidden} onClick={() => setHidden((v) => !v)} style={btn(hidden)}>
               {hidden ? <EyeOff size={17} /> : <Eye size={17} />}
             </button>
@@ -1379,7 +1752,7 @@ export default function TredziChart({ candles, sessionKey, lines, markers, color
                 </div>
               </div>
             )}
-            {ov.name === "btRect" && (
+            {(ov.name === "btRect" || ov.name === "btEllipse" || ov.name === "btTriangle") && (
               <label style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, fontSize: 12.5 }}>
                 <span style={{ width: 70 }}>Fill</span>
                 <input type="range" min="0" max="60" value={Math.round(((ov.extendData && Number.isFinite(ov.extendData.fill) ? ov.extendData.fill : 0.14)) * 100)} onChange={(e) => patchExtend({ fill: Number(e.target.value) / 100 })} style={{ flex: 1 }} />
@@ -1439,6 +1812,16 @@ export default function TredziChart({ candles, sessionKey, lines, markers, color
                 <X size={18} />
               </button>
             </div>
+            <div style={{ marginTop: 10 }}>
+              <div style={{ color: colors.text, opacity: 0.6, fontFamily: colors.font, fontSize: 11.5, marginBottom: 6 }}>Volume profile</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+                {[["off", "Off"], ["range", "Visible range"], ["session", "Daily session"]].map(([id, label]) => (
+                  <button key={id} type="button" onClick={() => { setProfile(id); setSheet(false); }} style={{ minHeight: 44, borderRadius: 10, border: `1px solid ${profile === id ? DRAW_COLOR : colors.border}`, background: profile === id ? soft : "transparent", color: profile === id ? DRAW_COLOR : colors.text, fontFamily: colors.font, fontSize: 12, cursor: "pointer" }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <button type="button" onClick={() => { setHidden((v) => !v); setSheet(false); }} style={{ marginTop: 6, width: "100%", height: 40, borderRadius: 10, border: `1px solid ${colors.border}`, background: "transparent", color: colors.text, fontFamily: colors.font, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
               {hidden ? "Show drawings" : "Hide drawings"}
             </button>
@@ -1462,5 +1845,44 @@ export default function TredziChart({ candles, sessionKey, lines, markers, color
         </>
       )}
     </div>
+  );
+}
+
+// If anything inside the chart ever throws, show what happened (so it can be reported) instead of a blank screen.
+class ChartBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+
+  componentDidCatch(error) {
+    console.error("Chart error:", error);
+  }
+
+  render() {
+    const { error } = this.state;
+    if (!error) return this.props.children;
+    const colors = this.props.colors || {};
+    return (
+      <div role="alert" style={{ padding: 16, border: `1px solid ${colors.border || "#ccc"}`, borderRadius: 12, color: colors.text || "inherit", fontFamily: colors.font }}>
+        <div style={{ fontWeight: 700, marginBottom: 6 }}>The chart ran into a problem.</div>
+        <div style={{ fontSize: 12.5, opacity: 0.8, marginBottom: 10, wordBreak: "break-word" }}>{String((error && error.message) || error)}</div>
+        <button type="button" onClick={() => this.setState({ error: null })} style={{ padding: "8px 14px", borderRadius: 8, border: `1px solid ${colors.border || "#ccc"}`, background: "transparent", color: "inherit", cursor: "pointer", fontFamily: colors.font }}>
+          Try again
+        </button>
+      </div>
+    );
+  }
+}
+
+export default function TredziChart(props) {
+  return (
+    <ChartBoundary key={props.sessionKey} colors={props.colors}>
+      <TredziChartInner {...props} />
+    </ChartBoundary>
   );
 }
