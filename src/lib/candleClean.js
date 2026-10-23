@@ -10,7 +10,7 @@ export function polishCandles(list, tfMin, kind, inPlace = false) {
   const n = list.length;
   if (n < 3) return list;
   const barSec = tfMin * 60;
-  const out = inPlace ? list : list.map((c) => ({ time: c.time, open: c.open, high: c.high, low: c.low, close: c.close }));
+  const out = inPlace ? list : list.map((c) => ({ time: c.time, open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume }));
 
   if (kind === "forex" || kind === "metal") {
     for (let i = 1; i < n; i++) {
