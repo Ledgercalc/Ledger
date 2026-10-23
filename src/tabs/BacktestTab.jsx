@@ -93,7 +93,6 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
 
   // ---- derived ----
   const last = candles.length - 1;
-  const visible = useMemo(() => candles.slice(0, idx + 1), [candles, idx]);
   const bar = candles[idx] || null;
   const precision = useMemo(() => (bar ? precisionFor(bar.close) : 5), [bar]);
   const timeIndex = useMemo(() => {
@@ -525,7 +524,8 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
             </div>
 
             <BacktestChart
-              candles={visible}
+              candles={candles}
+              limit={idx + 1}
               sessionKey={sessionKey}
               lines={lines}
               markers={markers}
