@@ -61,7 +61,7 @@ export function parseCandlesCsv(text) {
   let cols;
   let start = 1;
   if (headerless) {
-    cols = { time: 0, open: 1, high: 2, low: 3, close: 4, dateSplit: null };
+    cols = { time: 0, open: 1, high: 2, low: 3, close: 4, volume: first.length >= 6 && Number.isFinite(Number(first[5])) ? 5 : -1, dateSplit: null };
     start = 0;
   } else {
     const heads = first.map(normHeader);
@@ -75,6 +75,7 @@ export function parseCandlesCsv(text) {
       high: find(["high", "h"]),
       low: find(["low", "l"]),
       close: find(["close", "c", "last"]),
+      volume: find(["volume", "vol", "tick_volume", "tickvol", "tickvolume", "real_volume"]),
       dateSplit: dateIdx >= 0 && timeOnlyIdx >= 0 && dateIdx !== timeOnlyIdx ? { date: dateIdx, time: timeOnlyIdx } : null,
     };
     if (cols.time < 0 || cols.open < 0 || cols.high < 0 || cols.low < 0 || cols.close < 0) {
@@ -97,11 +98,16 @@ export function parseCandlesCsv(text) {
     const l = Number(c[cols.low]);
     const cl = Number(c[cols.close]);
     if (time == null || ![o, h, l, cl].every(Number.isFinite)) continue;
-    byTime.set(time, { time, open: o, high: Math.max(h, o, cl), low: Math.min(l, o, cl), close: cl });
+    const candle = { time, open: o, high: Math.max(h, o, cl), low: Math.min(l, o, cl), close: cl };
+    if (cols.volume >= 0) {
+      const v = Number(c[cols.volume]);
+      if (Number.isFinite(v) && v >= 0) candle.volume = v;
+    }
+    byTime.set(time, candle);
   }
   const list = [...byTime.values()].sort((a, b) => a.time - b.time);
   if (list.length < 30) throw new Error("I could only read " + list.length + " valid candles. Need at least 30.");
-  return list.length > 600000 ? list.slice(-600000) : list;
+  return list.length > 3000000 ? list.slice(-3000000) : list;
 }
 
 export function resample(list, minutes) {
@@ -113,10 +119,12 @@ export function resample(list, minutes) {
     if (!cur || cur.time !== bucket) {
       if (cur) out.push(cur);
       cur = { time: bucket, open: c.open, high: c.high, low: c.low, close: c.close };
+      if (c.volume != null) cur.volume = c.volume;
     } else {
       cur.high = Math.max(cur.high, c.high);
       cur.low = Math.min(cur.low, c.low);
       cur.close = c.close;
+      if (c.volume != null) cur.volume = (cur.volume || 0) + c.volume;
     }
   }
   if (cur) out.push(cur);
