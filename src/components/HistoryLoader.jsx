@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { DUKA, clearSaved, dayString, daysBetween, downloadDukascopy, loadDukascopy, storedDays, storedSummary } from "../api/dukascopy.js";
+import { DUKA, clearSaved, dayString, daysBetween, downloadDukascopy, loadDukascopy, storedDayCounts, storedDays, storedSummary } from "../api/dukascopy.js";
 import { TAP, mono, palette } from "../lib/theme.js";
 import { Download, Loader2, Square, Upload } from "lucide-react";
 
@@ -22,6 +22,7 @@ export default function HistoryLoader({ symbol, setSymbol, tf, setTf, instrument
   const [partial, setPartial] = useState(false);
   const [saved, setSaved] = useState({ count: 0, first: "", last: "" });
   const [savedSet, setSavedSet] = useState(new Set());
+  const [counts, setCounts] = useState({ all: 0, withVolume: 0, needRefresh: 0 });
   const ctrl = useRef(null);
   const supported = !!DUKA[symbol];
   const label = (instruments.find((i) => i.id === symbol) || { label: symbol }).label;
@@ -31,6 +32,7 @@ export default function HistoryLoader({ symbol, setSymbol, tf, setTf, instrument
     if (supported) {
       storedSummary(symbol).then((s) => alive && setSaved(s)).catch(() => {});
       storedDays(symbol).then((s) => alive && setSavedSet(s)).catch(() => {});
+      storedDayCounts(symbol).then((c) => alive && setCounts(c)).catch(() => {});
     }
     return () => {
       alive = false;
@@ -195,7 +197,7 @@ export default function HistoryLoader({ symbol, setSymbol, tf, setTf, instrument
       {message && !error && <p style={{ color: palette.textMuted, fontFamily: mono, fontSize: 12.5, margin: "10px 0 0" }}>{message}</p>}
       {supported && saved.count > 0 && (
         <p style={{ ...grey, margin: "10px 0 0" }}>
-          Saved on this device for {label}: {saved.count} day{saved.count === 1 ? "" : "s"} ({saved.first} to {saved.last}).{" "}
+          Saved on this device for {label}: {saved.count} day{saved.count === 1 ? "" : "s"} ({saved.first} to {saved.last}).{counts.needRefresh > 0 ? ` ${counts.needRefresh} of them were saved before volume data was added and will be refreshed on the next Load (needed for the volume profile).` : ""}{" "}
           <button type="button" onClick={clearData} disabled={working} style={linkBtn}>Remove</button>
         </p>
       )}
