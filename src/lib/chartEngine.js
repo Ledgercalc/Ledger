@@ -375,20 +375,23 @@ export class ChartEngine {
       }
     }
     if (!(max > 0)) return null;
-    // value area: grow outwards from the point of control until the chosen share of the volume is inside
+    // value area (standard method): from the point of control, compare the next two rows above with the next two
+    // rows below, add the heavier pair, repeat until the chosen share of the volume is inside
     let vl = poc;
     let vh = poc;
     let acc = tot[poc];
     const target = sum * (Math.min(100, Math.max(1, vp.vaPct)) / 100);
     while (acc < target && (vl > 0 || vh < rows - 1)) {
-      const below = vl > 0 ? tot[vl - 1] : -1;
-      const above = vh < rows - 1 ? tot[vh + 1] : -1;
-      if (above >= below) {
-        vh++;
-        acc += tot[vh];
+      const canUp = vh < rows - 1;
+      const canDn = vl > 0;
+      const upSum = (canUp ? tot[vh + 1] : 0) + (vh + 2 < rows ? tot[vh + 2] : 0);
+      const dnSum = (canDn ? tot[vl - 1] : 0) + (vl - 2 >= 0 ? tot[vl - 2] : 0);
+      if (canUp && (!canDn || upSum >= dnSum)) {
+        vh = Math.min(rows - 1, vh + 2);
+        acc += upSum;
       } else {
-        vl--;
-        acc += tot[vl];
+        vl = Math.max(0, vl - 2);
+        acc += dnSum;
       }
     }
     return { rows, lo, step, up, dn, tot, max, maxDelta, poc, val: vl, vah: vh };
@@ -494,7 +497,9 @@ export class ChartEngine {
         const s = this.lowerBound(tS);
         const e = Math.min(this.n - 1, this.lowerBound(tE) - 1);
         if (e - s < 2) continue;
-        const key = `${tS}|${tE}|${this.n}|${sig}`;
+        // The minutes under the chart run on past the replay position, so cap the session at the last candle shown.
+        const tEnd = Math.min(tE, cs[e].time + this.barSec);
+        const key = `${tS}|${tEnd}|${this.n}|${sig}`;
         let item = this.profileCache.get(key);
         if (!item) {
           let lo = Infinity;
@@ -503,7 +508,7 @@ export class ChartEngine {
             if (cs[i].low < lo) lo = cs[i].low;
             if (cs[i].high > hi) hi = cs[i].high;
           }
-          item = { prof: hi > lo ? this.computeProfile(tS, tE, lo, hi) : null };
+          item = { prof: hi > lo ? this.computeProfile(tS, tEnd, lo, hi) : null };
           if (this.profileCache.size > 400) this.profileCache.delete(this.profileCache.keys().next().value);
           this.profileCache.set(key, item);
         }
