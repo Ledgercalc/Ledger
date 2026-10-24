@@ -131,36 +131,45 @@ const HINTS = {
   long: ["Tap your entry price", "Tap your stop loss", "Tap your take profit"],
   short: ["Tap your entry price", "Tap your stop loss", "Tap your take profit"],
 };
-const IC = Object.fromEntries(["trend", "infoline", "ray", "xline", "arrow", "hline", "hray", "vline", "cross", "channel", "pitchfork", "fib", "fibext", "measure", "prange", "drange", "rect", "ellipse", "triangle", "brush", "text"].map((id) => [id, iconFor(id)]));
+const IC = Object.fromEntries(["trend", "infoline", "ray", "xline", "arrow", "hline", "hray", "vline", "cross", "channel", "pitchfork", "fib", "fibext", "measure", "prange", "drange", "rect", "ellipse", "triangle", "brush", "text", "long", "short"].map((id) => [id, iconFor(id)]));
+// Same categories as TradingView's left toolbar: one button per group, the group's tools open in a menu.
 const TOOL_GROUPS = [
-  { title: "Lines", tools: [
+  { id: "lines", title: "Trend line tools", tools: [
     { id: "trend", label: "Trend line", Icon: IC.trend },
-    { id: "infoline", label: "Info line", Icon: IC.infoline },
     { id: "ray", label: "Ray", Icon: IC.ray },
+    { id: "infoline", label: "Info line", Icon: IC.infoline },
     { id: "xline", label: "Extended line", Icon: IC.xline },
     { id: "arrow", label: "Arrow", Icon: IC.arrow },
     { id: "hline", label: "Horizontal line", Icon: IC.hline },
     { id: "hray", label: "Horizontal ray", Icon: IC.hray },
     { id: "vline", label: "Vertical line", Icon: IC.vline },
     { id: "cross", label: "Cross line", Icon: IC.cross },
+  ] },
+  { id: "pitch", title: "Channels and pitchforks", tools: [
     { id: "channel", label: "Parallel channel", Icon: IC.channel },
     { id: "pitchfork", label: "Pitchfork", Icon: IC.pitchfork },
   ] },
-  { title: "Fib and measure", tools: [
+  { id: "fib", title: "Fibonacci", tools: [
     { id: "fib", label: "Fib retracement", Icon: IC.fib },
     { id: "fibext", label: "Fib extension", Icon: IC.fibext },
-    { id: "measure", label: "Measure", Icon: IC.measure },
+  ] },
+  { id: "forecast", title: "Forecasting and measurement", tools: [
+    { id: "long", label: "Long position", Icon: IC.long },
+    { id: "short", label: "Short position", Icon: IC.short },
     { id: "prange", label: "Price range", Icon: IC.prange },
     { id: "drange", label: "Date range", Icon: IC.drange },
+    { id: "measure", label: "Measure", Icon: IC.measure },
   ] },
-  { title: "Shapes and text", tools: [
+  { id: "shapes", title: "Shapes", tools: [
+    { id: "brush", label: "Brush", Icon: IC.brush },
     { id: "rect", label: "Rectangle", Icon: IC.rect },
     { id: "ellipse", label: "Ellipse", Icon: IC.ellipse },
     { id: "triangle", label: "Triangle", Icon: IC.triangle },
-    { id: "brush", label: "Brush", Icon: IC.brush },
-    { id: "text", label: "Text label", Icon: IC.text },
   ] },
+  { id: "notes", title: "Annotation", tools: [{ id: "text", label: "Text label", Icon: IC.text }] },
 ];
+const HOTKEYS = { trend: "Alt + T", hline: "Alt + H", vline: "Alt + V", cross: "Alt + C", fib: "Alt + F" };
+const HOTKEY_TOOL = { KeyT: "trend", KeyH: "hline", KeyV: "vline", KeyC: "cross", KeyF: "fib" };
 const ALL_TOOLS = TOOL_GROUPS.flatMap((g) => g.tools);
 
 function distToSegment(px, py, ax, ay, bx, by) {
@@ -900,6 +909,9 @@ function TredziChartInner({ candles, sessionKey, lines, markers, colors, precisi
   const patchVp = (patch) => setVp((v) => ({ ...v, ...patch }));
   const [vpDialog, setVpDialog] = useState(false);
   const [vpMenu, setVpMenu] = useState(false);
+  const [lastTool, setLastTool] = useState({});
+  const [flyout, setFlyout] = useState(null);
+  const flyTimer = useRef(null);
 
   const drawingsRef = useRef([]);
   const selectedRef = useRef(null);
@@ -1261,6 +1273,8 @@ function TredziChartInner({ candles, sessionKey, lines, markers, colors, precisi
       return;
     }
     if (hiddenRef.current) setHidden(false);
+    const grp = TOOL_GROUPS.find((g) => g.tools.some((t) => t.id === id));
+    if (grp) setLastTool((m) => ({ ...m, [grp.id]: id }));
     if (id === "text") {
       const t = window.prompt("Label text");
       if (!t || !t.trim()) {
@@ -1289,6 +1303,11 @@ function TredziChartInner({ candles, sessionKey, lines, markers, colors, precisi
     const onKey = (e) => {
       const tg = (e.target && e.target.tagName) || "";
       if (/INPUT|TEXTAREA|SELECT/.test(tg)) return;
+      if (e.altKey && !e.ctrlKey && !e.metaKey && HOTKEY_TOOL[e.code]) {
+        e.preventDefault();
+        startTool(HOTKEY_TOOL[e.code]);
+        return;
+      }
       if (e.key === "Escape") {
         draftRef.current = null;
         setStep(0);
@@ -1626,19 +1645,46 @@ function TredziChartInner({ candles, sessionKey, lines, markers, colors, precisi
         }}
       >
         {rail && (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: 4, border: `1px solid ${colors.border}`, borderRadius: 10, background: bg, overflowY: "auto", scrollbarWidth: "none", flexShrink: 0 }} role="toolbar" aria-label="Drawing tools" aria-orientation="vertical">
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: 4, border: `1px solid ${colors.border}`, borderRadius: 10, background: bg, flexShrink: 0, position: "relative", zIndex: 5 }} role="toolbar" aria-label="Drawing tools" aria-orientation="vertical">
             <button type="button" onClick={() => startTool(null)} aria-label="Cursor" title="Cursor (select and move drawings)" aria-pressed={!tool} style={railBtn(!tool)}>
               <MousePointer2 size={18} />
             </button>
-            {TOOL_GROUPS.map((g) => (
-              <div key={g.title} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, width: "100%", borderTop: `1px solid ${colors.border}`, marginTop: 3, paddingTop: 3 }}>
-                {g.tools.map(({ id, label, Icon }) => (
-                  <button key={id} type="button" title={label} aria-label={label} aria-pressed={tool === id} onClick={() => startTool(id)} style={railBtn(tool === id)}>
-                    <Icon size={18} />
+            {TOOL_GROUPS.map((g) => {
+              const active = g.tools.some((t) => t.id === tool);
+              const current = g.tools.find((t) => t.id === (active ? tool : lastTool[g.id])) || g.tools[0];
+              const CurIcon = current.Icon;
+              const open = flyout === g.id;
+              const enter = () => {
+                clearTimeout(flyTimer.current);
+                flyTimer.current = setTimeout(() => setFlyout(g.id), 120);
+              };
+              const leave = () => {
+                clearTimeout(flyTimer.current);
+                flyTimer.current = setTimeout(() => setFlyout(null), 220);
+              };
+              return (
+                <div key={g.id} onMouseEnter={enter} onMouseLeave={leave} style={{ position: "relative", width: "100%", display: "flex", justifyContent: "center", borderTop: `1px solid ${colors.border}`, marginTop: 3, paddingTop: 3 }}>
+                  <button type="button" title={`${current.label} (${g.title})`} aria-label={current.label} aria-pressed={active} aria-haspopup="menu" aria-expanded={open} onClick={() => { startTool(current.id); setFlyout(null); }} onContextMenu={(e) => { e.preventDefault(); setFlyout(g.id); }} style={{ ...railBtn(active), position: "relative" }}>
+                    <CurIcon size={20} />
+                    {g.tools.length > 1 && <span aria-hidden="true" style={{ position: "absolute", right: 2, bottom: 2, width: 0, height: 0, borderLeft: "5px solid transparent", borderBottom: `5px solid ${active ? DRAW_COLOR : colors.text}`, opacity: 0.6 }} />}
                   </button>
-                ))}
-              </div>
-            ))}
+                  {open && (
+                    <div style={{ position: "absolute", left: "100%", top: 0, paddingLeft: 8, zIndex: 40 }}>
+                      <div role="menu" aria-label={g.title} style={{ background: bg, border: `1px solid ${colors.border}`, borderRadius: 10, padding: 6, minWidth: 250, boxShadow: "0 10px 28px rgba(0,0,0,0.3)" }}>
+                        <div style={{ padding: "4px 10px 6px", fontSize: 11, opacity: 0.6, fontFamily: colors.font }}>{g.title}</div>
+                        {g.tools.map(({ id, label, Icon }) => (
+                          <button key={id} type="button" role="menuitem" onClick={() => { startTool(id); setFlyout(null); }} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left", padding: "7px 10px", borderRadius: 8, border: "none", background: tool === id ? soft : "transparent", color: tool === id ? DRAW_COLOR : colors.text, fontFamily: colors.font, fontSize: 13, cursor: "pointer" }}>
+                            <Icon size={22} />
+                            <span style={{ flex: 1 }}>{label}</span>
+                            {HOTKEYS[id] && <span style={{ fontSize: 11, opacity: 0.55 }}>{HOTKEYS[id]}</span>}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "100%", borderTop: `1px solid ${colors.border}`, marginTop: 3, paddingTop: 3 }}>
               <button type="button" title="Eraser (tap a drawing)" aria-label="Eraser" aria-pressed={tool === "eraser"} onClick={() => startTool("eraser")} style={railBtn(tool === "eraser")}>
                 <Eraser size={18} />
