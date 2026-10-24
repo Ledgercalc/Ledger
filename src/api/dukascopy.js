@@ -400,5 +400,27 @@ export async function loadDukascopy({ symbol, fromDay, toDay, tf, clean = true }
       }
     }
   }
-  return clean ? polishCandles(list, minutes, instrumentKind(symbol), true) : list;
+  const out = clean ? polishCandles(list, minutes, instrumentKind(symbol), true) : list;
+  // Keep the raw minutes next to a bigger-timeframe chart: the volume profile is calculated from them (far more
+  // accurate than spreading one 1h or 4h candle over its whole range). Compact typed arrays keep memory small.
+  if (minutes > 1) {
+    let total = 0;
+    for (const { flat, stride } of chunks) total += Math.floor(flat.length / stride);
+    const m1 = { n: total, time: new Uint32Array(total), low: new Float32Array(total), high: new Float32Array(total), vol: new Float32Array(total), up: new Uint8Array(total), hasVol: false };
+    let k = 0;
+    for (const { flat: f, stride } of chunks) {
+      for (let i = 0; i < f.length; i += stride) {
+        const v = stride > 5 ? f[i + 5] : 0;
+        m1.time[k] = f[i];
+        m1.low[k] = f[i + 3];
+        m1.high[k] = f[i + 2];
+        m1.vol[k] = v;
+        m1.up[k] = f[i + 4] >= f[i + 1] ? 1 : 0;
+        if (v > 0) m1.hasVol = true;
+        k++;
+      }
+    }
+    out.m1 = m1;
+  }
+  return out;
 }
