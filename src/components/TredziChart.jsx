@@ -1,9 +1,7 @@
 import { Component, useEffect, useRef, useState } from "react";
-import { ChartEngine } from "../lib/chartEngine.js";
-import {
-  AlignJustify, ArrowLeftRight, BarChart3, ArrowUpDown, ArrowUpRight, Circle, Copy, GitFork, Info, Layers, PenTool, Plus, Triangle, Equal, Eraser, Eye, EyeOff, Magnet, Maximize2, Minimize2, Minus, MousePointer2, MoveRight,
-  MoveUpRight, Pencil, Ruler, SeparatorVertical, Settings2, Slash, Square, Trash2, TrendingUp, Type, Undo2, X,
-} from "lucide-react";
+import { ChartEngine, VP_DEFAULTS, VP_SESSIONS } from "../lib/chartEngine.js";
+import { DrawIcon, iconFor } from "./DrawIcons.jsx";
+import { BarChart3, Copy, Eraser, Eye, EyeOff, Magnet, Maximize2, Minimize2, MousePointer2, Pencil, Settings2, Trash2, Undo2, X } from "lucide-react";
 
 // Tredzi's own chart: our own canvas engine (lib/chartEngine.js) plus our own drawing tools.
 // No chart library. Same props as the earlier chart components:
@@ -133,33 +131,34 @@ const HINTS = {
   long: ["Tap your entry price", "Tap your stop loss", "Tap your take profit"],
   short: ["Tap your entry price", "Tap your stop loss", "Tap your take profit"],
 };
+const IC = Object.fromEntries(["trend", "infoline", "ray", "xline", "arrow", "hline", "hray", "vline", "cross", "channel", "pitchfork", "fib", "fibext", "measure", "prange", "drange", "rect", "ellipse", "triangle", "brush", "text"].map((id) => [id, iconFor(id)]));
 const TOOL_GROUPS = [
   { title: "Lines", tools: [
-    { id: "trend", label: "Trend line", Icon: TrendingUp },
-    { id: "infoline", label: "Info line", Icon: Info },
-    { id: "ray", label: "Ray", Icon: MoveUpRight },
-    { id: "xline", label: "Extended line", Icon: Slash },
-    { id: "arrow", label: "Arrow", Icon: ArrowUpRight },
-    { id: "hline", label: "Horizontal line", Icon: Minus },
-    { id: "hray", label: "Horizontal ray", Icon: MoveRight },
-    { id: "vline", label: "Vertical line", Icon: SeparatorVertical },
-    { id: "cross", label: "Cross line", Icon: Plus },
-    { id: "channel", label: "Parallel channel", Icon: Equal },
-    { id: "pitchfork", label: "Pitchfork", Icon: GitFork },
+    { id: "trend", label: "Trend line", Icon: IC.trend },
+    { id: "infoline", label: "Info line", Icon: IC.infoline },
+    { id: "ray", label: "Ray", Icon: IC.ray },
+    { id: "xline", label: "Extended line", Icon: IC.xline },
+    { id: "arrow", label: "Arrow", Icon: IC.arrow },
+    { id: "hline", label: "Horizontal line", Icon: IC.hline },
+    { id: "hray", label: "Horizontal ray", Icon: IC.hray },
+    { id: "vline", label: "Vertical line", Icon: IC.vline },
+    { id: "cross", label: "Cross line", Icon: IC.cross },
+    { id: "channel", label: "Parallel channel", Icon: IC.channel },
+    { id: "pitchfork", label: "Pitchfork", Icon: IC.pitchfork },
   ] },
   { title: "Fib and measure", tools: [
-    { id: "fib", label: "Fib retracement", Icon: AlignJustify },
-    { id: "fibext", label: "Fib extension", Icon: Layers },
-    { id: "measure", label: "Measure", Icon: Ruler },
-    { id: "prange", label: "Price range", Icon: ArrowUpDown },
-    { id: "drange", label: "Date range", Icon: ArrowLeftRight },
+    { id: "fib", label: "Fib retracement", Icon: IC.fib },
+    { id: "fibext", label: "Fib extension", Icon: IC.fibext },
+    { id: "measure", label: "Measure", Icon: IC.measure },
+    { id: "prange", label: "Price range", Icon: IC.prange },
+    { id: "drange", label: "Date range", Icon: IC.drange },
   ] },
   { title: "Shapes and text", tools: [
-    { id: "rect", label: "Rectangle", Icon: Square },
-    { id: "ellipse", label: "Ellipse", Icon: Circle },
-    { id: "triangle", label: "Triangle", Icon: Triangle },
-    { id: "brush", label: "Brush", Icon: PenTool },
-    { id: "text", label: "Text label", Icon: Type },
+    { id: "rect", label: "Rectangle", Icon: IC.rect },
+    { id: "ellipse", label: "Ellipse", Icon: IC.ellipse },
+    { id: "triangle", label: "Triangle", Icon: IC.triangle },
+    { id: "brush", label: "Brush", Icon: IC.brush },
+    { id: "text", label: "Text label", Icon: IC.text },
   ] },
 ];
 const ALL_TOOLS = TOOL_GROUPS.flatMap((g) => g.tools);
@@ -885,14 +884,21 @@ function TredziChartInner({ candles, sessionKey, lines, markers, colors, precisi
   const [hidden, setHidden] = useState(false);
   const [settings, setSettings] = useState(false);
   const [manualScale, setManualScale] = useState(false);
-  const [profile, setProfile] = useState(() => {
+  const [vp, setVp] = useState(() => {
     try {
-      const v = window.localStorage.getItem("tredzi-bt-vp");
-      return v === "range" || v === "session" ? v : "off";
+      const raw = window.localStorage.getItem("tredzi-bt-vp2");
+      if (raw) return { ...VP_DEFAULTS, ...JSON.parse(raw) };
+      const old = window.localStorage.getItem("tredzi-bt-vp");
+      if (old === "range" || old === "session") return { ...VP_DEFAULTS, mode: old };
     } catch (err) {
-      return "off";
+      // fall through to defaults
     }
+    return { ...VP_DEFAULTS };
   });
+  const profile = vp.mode;
+  const setProfile = (mode) => setVp((v) => ({ ...v, mode }));
+  const patchVp = (patch) => setVp((v) => ({ ...v, ...patch }));
+  const [vpDialog, setVpDialog] = useState(false);
   const [vpMenu, setVpMenu] = useState(false);
 
   const drawingsRef = useRef([]);
@@ -989,15 +995,15 @@ function TredziChartInner({ candles, sessionKey, lines, markers, colors, precisi
   }, [lines, markers]);
 
   useEffect(() => {
-    eng.profileMode = profile;
+    eng.setProfile(vp);
     markDirty();
     try {
-      window.localStorage.setItem("tredzi-bt-vp", profile);
+      window.localStorage.setItem("tredzi-bt-vp2", JSON.stringify(vp));
     } catch (err) {
       // not remembered
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile]);
+  }, [vp]);
 
   // Load saved drawings once the candles are there (needed to turn saved times back into bar positions).
   const hasData = (Number.isFinite(limit) ? limit : candles.length) > 0;
@@ -1540,7 +1546,7 @@ function TredziChartInner({ candles, sessionKey, lines, markers, colors, precisi
   });
   const pill = (id, color) => ({
     height: S, padding: "0 14px", borderRadius: 8, border: `1px solid ${color}`, background: tool === id ? color : hexA(color, 0.1),
-    color: tool === id ? "#fff" : color, fontFamily: colors.font, fontSize: 12.5, fontWeight: 700, cursor: "pointer", flexShrink: 0,
+    color: tool === id ? "#fff" : color, fontFamily: colors.font, fontSize: 12.5, fontWeight: 700, cursor: "pointer", flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 6,
   });
   const iconOff = (on) => ({ opacity: on ? 1 : 0.4, cursor: on ? "pointer" : "not-allowed" });
   const activeDef = ALL_TOOLS.find((t) => t.id === tool) || (tool === "eraser" ? { Icon: Eraser } : null);
@@ -1566,8 +1572,8 @@ function TredziChartInner({ candles, sessionKey, lines, markers, colors, precisi
         )}
         {!hideTradeTools && (
           <>
-            <button type="button" onClick={() => startTool("long")} aria-pressed={tool === "long"} title="Long position (entry, stop loss, take profit)" style={pill("long", colors.up)}>Long</button>
-            <button type="button" onClick={() => startTool("short")} aria-pressed={tool === "short"} title="Short position (entry, stop loss, take profit)" style={pill("short", colors.down)}>Short</button>
+            <button type="button" onClick={() => startTool("long")} aria-pressed={tool === "long"} title="Long position (entry, stop loss, take profit)" style={pill("long", colors.up)}><DrawIcon id="long" size={18} />Long</button>
+            <button type="button" onClick={() => startTool("short")} aria-pressed={tool === "short"} title="Short position (entry, stop loss, take profit)" style={pill("short", colors.down)}><DrawIcon id="short" size={18} />Short</button>
           </>
         )}
         <div style={{ flex: 1 }} />
@@ -1589,6 +1595,9 @@ function TredziChartInner({ candles, sessionKey, lines, markers, colors, precisi
                       {label}
                     </button>
                   ))}
+                  <button type="button" role="menuitem" onClick={() => { setVpDialog(true); setVpMenu(false); }} style={{ display: "block", width: "100%", textAlign: "left", padding: "8px 10px", marginTop: 4, borderTop: `1px solid ${colors.border}`, borderRadius: 0, border: "none", borderTopWidth: 1, background: "transparent", color: colors.text, fontFamily: colors.font, fontSize: 12.5, cursor: "pointer" }}>
+                    Settings...
+                  </button>
                 </div>
               )}
             </div>
@@ -1801,6 +1810,114 @@ function TredziChartInner({ candles, sessionKey, lines, markers, colors, precisi
         </>
       )}
 
+      {vpDialog && (
+        <>
+          <div onClick={() => setVpDialog(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1200 }} />
+          <div role="dialog" aria-label="Volume profile settings" style={{ position: "fixed", zIndex: 1201, background: bg, color: colors.text, fontFamily: colors.font, border: `1px solid ${colors.border}`, boxSizing: "border-box", overflowY: "auto", ...(compact ? { left: 0, right: 0, bottom: 0, borderRadius: "18px 18px 0 0", maxHeight: "86vh", padding: "12px 16px calc(16px + env(safe-area-inset-bottom, 0px))" } : { left: "50%", top: "50%", transform: "translate(-50%, -50%)", width: 400, maxWidth: "94vw", maxHeight: "88vh", borderRadius: 14, padding: 16, boxShadow: "0 18px 50px rgba(0,0,0,0.45)" }) }}>
+            <div style={{ display: "flex", alignItems: "center", marginBottom: 12 }}>
+              <div style={{ flex: 1, fontSize: 14, fontWeight: 700 }}>Volume profile settings</div>
+              <button type="button" aria-label="Close" onClick={() => setVpDialog(false)} style={{ ...btn(false), border: "none" }}>
+                <X size={18} />
+              </button>
+            </div>
+            {(() => {
+              const row = { display: "flex", alignItems: "center", gap: 10, marginBottom: 12, fontSize: 12.5 };
+              const lab = { width: 112, flexShrink: 0 };
+              const seg = (opts, value, onPick) => (
+                <div style={{ display: "flex", gap: 6, flex: 1, flexWrap: "wrap" }}>
+                  {opts.map(([v, l]) => (
+                    <button key={v} type="button" onClick={() => onPick(v)} style={{ flex: 1, minWidth: 64, height: 30, borderRadius: 8, border: `1px solid ${value === v ? DRAW_COLOR : colors.border}`, background: value === v ? soft : "transparent", color: value === v ? DRAW_COLOR : colors.text, fontFamily: colors.font, fontSize: 12, cursor: "pointer" }}>
+                      {l}
+                    </button>
+                  ))}
+                </div>
+              );
+              const num = { width: 80, height: 30, borderRadius: 8, border: `1px solid ${colors.border}`, background: "transparent", color: colors.text, fontFamily: colors.font, fontSize: 13, padding: "0 8px" };
+              const check = (key, text) => (
+                <label key={key} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, fontSize: 12.5, cursor: "pointer" }}>
+                  <input type="checkbox" checked={!!vp[key]} onChange={(e) => patchVp({ [key]: e.target.checked })} />
+                  {text}
+                </label>
+              );
+              const color = (key, text) => (
+                <label key={key} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, flex: "1 1 45%", cursor: "pointer" }}>
+                  <input type="color" value={vp[key]} onChange={(e) => patchVp({ [key]: e.target.value })} style={{ width: 28, height: 24, padding: 0, border: `1px solid ${colors.border}`, borderRadius: 6, background: "transparent" }} />
+                  {text}
+                </label>
+              );
+              return (
+                <>
+                  <div style={row}>
+                    <span style={lab}>Profile</span>
+                    {seg([["off", "Off"], ["range", "Visible range"], ["session", "Session"]], vp.mode, (v) => patchVp({ mode: v }))}
+                  </div>
+                  {vp.mode === "session" && (
+                    <div style={row}>
+                      <span style={lab}>Session</span>
+                      <select value={vp.session} onChange={(e) => patchVp({ session: e.target.value })} style={{ flex: 1, height: 30, borderRadius: 8, border: `1px solid ${colors.border}`, background: "transparent", color: colors.text, fontFamily: colors.font, fontSize: 12.5, padding: "0 8px" }}>
+                        {Object.entries(VP_SESSIONS).map(([id, def]) => (
+                          <option key={id} value={id}>{def.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  <div style={row}>
+                    <span style={lab}>Rows layout</span>
+                    {seg([["rows", "Number of rows"], ["size", "Price per row"]], vp.layout, (v) => patchVp({ layout: v }))}
+                  </div>
+                  <div style={row}>
+                    <span style={lab}>{vp.layout === "rows" ? "Number of rows" : "Row size (price)"}</span>
+                    {vp.layout === "rows" ? (
+                      <input type="number" min="5" max="400" step="1" value={vp.rows} onChange={(e) => patchVp({ rows: Math.max(5, Math.min(400, Number(e.target.value) || 24)) })} style={num} />
+                    ) : (
+                      <input type="number" min="0" step="any" value={vp.rowSize} onChange={(e) => patchVp({ rowSize: Math.max(0, Number(e.target.value) || 0) })} style={num} />
+                    )}
+                  </div>
+                  <div style={row}>
+                    <span style={lab}>Volume</span>
+                    {seg([["updown", "Up/Down"], ["total", "Total"], ["delta", "Delta"]], vp.volume, (v) => patchVp({ volume: v }))}
+                  </div>
+                  <div style={row}>
+                    <span style={lab}>Value area volume</span>
+                    <input type="range" min="10" max="100" value={vp.vaPct} onChange={(e) => patchVp({ vaPct: Number(e.target.value) })} style={{ flex: 1 }} />
+                    <span style={{ width: 40, textAlign: "right" }}>{vp.vaPct}%</span>
+                  </div>
+                  <div style={row}>
+                    <span style={lab}>Placement</span>
+                    {seg([["left", "Left"], ["right", "Right"]], vp.placement, (v) => patchVp({ placement: v }))}
+                  </div>
+                  <div style={row}>
+                    <span style={lab}>Width</span>
+                    <input type="range" min="5" max="100" value={vp.width} onChange={(e) => patchVp({ width: Number(e.target.value) })} style={{ flex: 1 }} />
+                    <span style={{ width: 40, textAlign: "right" }}>{vp.width}%</span>
+                  </div>
+                  <div style={{ marginTop: 4, marginBottom: 6 }}>
+                    {check("showPoc", "Point of control (POC) line")}
+                    {check("extendPoc", "Extend POC line to the right edge")}
+                    {check("showVa", "Value area high / low lines")}
+                    {check("showLabels", "Show price labels")}
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 14 }}>
+                    {color("upColor", "Up volume")}
+                    {color("downColor", "Down volume")}
+                    {color("pocColor", "POC line")}
+                    {color("vaColor", "Value area lines")}
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button type="button" onClick={() => setVp({ ...VP_DEFAULTS, mode: vp.mode === "off" ? "range" : vp.mode })} style={{ flex: 1, height: 36, borderRadius: 9, border: `1px solid ${colors.border}`, background: "transparent", color: colors.text, fontFamily: colors.font, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                      Reset to defaults
+                    </button>
+                    <button type="button" onClick={() => setVpDialog(false)} style={{ flex: 1, height: 36, borderRadius: 9, border: "none", background: DRAW_COLOR, color: "#fff", fontFamily: colors.font, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                      Done
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </>
+      )}
+
       {sheet && (
         <>
           <div onClick={() => setSheet(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1100 }} />
@@ -1815,13 +1932,16 @@ function TredziChartInner({ candles, sessionKey, lines, markers, colors, precisi
             <div style={{ marginTop: 10 }}>
               <div style={{ color: colors.text, opacity: 0.6, fontFamily: colors.font, fontSize: 11.5, marginBottom: 6 }}>Volume profile</div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
-                {[["off", "Off"], ["range", "Visible range"], ["session", "Daily session"]].map(([id, label]) => (
+                {[["off", "Off"], ["range", "Visible range"], ["session", "Session"]].map(([id, label]) => (
                   <button key={id} type="button" onClick={() => { setProfile(id); setSheet(false); }} style={{ minHeight: 44, borderRadius: 10, border: `1px solid ${profile === id ? DRAW_COLOR : colors.border}`, background: profile === id ? soft : "transparent", color: profile === id ? DRAW_COLOR : colors.text, fontFamily: colors.font, fontSize: 12, cursor: "pointer" }}>
                     {label}
                   </button>
                 ))}
               </div>
             </div>
+            <button type="button" onClick={() => { setVpDialog(true); setSheet(false); }} style={{ marginTop: 8, width: "100%", height: 40, borderRadius: 10, border: `1px solid ${colors.border}`, background: "transparent", color: colors.text, fontFamily: colors.font, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+              Volume profile settings...
+            </button>
             <button type="button" onClick={() => { setHidden((v) => !v); setSheet(false); }} style={{ marginTop: 6, width: "100%", height: 40, borderRadius: 10, border: `1px solid ${colors.border}`, background: "transparent", color: colors.text, fontFamily: colors.font, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
               {hidden ? "Show drawings" : "Hide drawings"}
             </button>
