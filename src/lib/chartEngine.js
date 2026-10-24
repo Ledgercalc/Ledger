@@ -21,11 +21,42 @@ function niceStep(raw) {
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const two = (n) => String(n).padStart(2, "0");
 
+
+export const VP_DEFAULTS = {
+  mode: "off", // off | range | session
+  layout: "rows", // rows (number of rows) | size (price per row)
+  rows: 24,
+  rowSize: 1,
+  volume: "updown", // updown | total | delta
+  vaPct: 70,
+  placement: "right", // left | right
+  width: 30, // % of the chart (range) or of the session width (session)
+  session: "daily",
+  showPoc: true,
+  showVa: true,
+  showLabels: true,
+  extendPoc: false,
+  upColor: "#2962ff",
+  downColor: "#fbc02d",
+  pocColor: "#f23645",
+  vaColor: "#2962ff",
+};
+
+// Sessions in UTC: off = start offset from 00:00 UTC (seconds), len = length.
+export const VP_SESSIONS = {
+  daily: { label: "Daily (00:00 UTC)", short: "daily", off: 0, len: 86400 },
+  forex: { label: "Forex day (22:00 UTC)", short: "forex day", off: -7200, len: 86400 },
+  asia: { label: "Asia (00:00-09:00 UTC)", short: "Asia", off: 0, len: 32400 },
+  london: { label: "London (07:00-16:00 UTC)", short: "London", off: 25200, len: 32400 },
+  newyork: { label: "New York (12:00-21:00 UTC)", short: "New York", off: 43200, len: 32400 },
+};
+
 export class ChartEngine {
   constructor() {
     this.candles = [];
     this.count = 0; // how many candles are shown (the replay position); lets the chart use one big array without copying it
-    this.profileMode = "off"; // off | range | session   (volume profile)
+    this.vp = { ...VP_DEFAULTS };
+    this.src = null; // 1-minute arrays under the chart, used by the volume profile
     this.profileCache = new Map();
     this.hasVolume = false;
     this.w = 300;
@@ -77,6 +108,8 @@ export class ChartEngine {
     const n = Number.isFinite(limit) ? Math.max(0, Math.min(limit, list.length)) : list.length;
     this.count = n;
     this.profileCache.clear();
+    this._rangeProf = null;
+    this.src = list.m1 || null;
     this.hasVolume = false;
     for (let i = 0, step = Math.max(1, Math.floor(n / 200)); i < n; i += step) {
       if (list[i].volume > 0) {
@@ -246,57 +279,19 @@ export class ChartEngine {
     ctx.fillText(text, left + 5, y + 0.5);
   }
 
-  // ---- volume profile ----
-  // Volume of each candle is spread evenly over the price rows it touched. If the data has no volume (CSV without a
-  // volume column, Yahoo) every candle counts the same, which gives "time at price" instead.
-  profileOf(from, to, rows, lo, hi) {
-    const step = (hi - lo) / rows;
-    if (!(step > 0)) return null;
-    const up = new Float64Array(rows);
-    const dn = new Float64Array(rows);
-    const cs = this.candles;
-    for (let i = from; i <= to; i++) {
-      const c = cs[i];
-      const w = this.hasVolume ? (c.volume > 0 ? c.volume : 0) : 1;
-      if (!w) continue;
-      let i0 = Math.floor((c.low - lo) / step);
-      let i1 = Math.floor((c.high - lo) / step);
-      if (i1 < 0 || i0 > rows - 1) continue;
-      i0 = Math.max(0, i0);
-      i1 = Math.min(rows - 1, i1);
-      const per = w / (i1 - i0 + 1);
-      const arr = c.close >= c.open ? up : dn;
-      for (let k = i0; k <= i1; k++) arr[k] += per;
-    }
-    const tot = new Float64Array(rows);
-    let sum = 0;
-    let max = 0;
-    let poc = 0;
-    for (let k = 0; k < rows; k++) {
-      tot[k] = up[k] + dn[k];
-      sum += tot[k];
-      if (tot[k] > max) {
-        max = tot[k];
-        poc = k;
-      }
-    }
-    if (!(max > 0)) return null;
-    // value area: grow from the point of control until 70% of the volume is inside
-    let vl = poc;
-    let vh = poc;
-    let acc = tot[poc];
-    while (acc < sum * 0.7 && (vl > 0 || vh < rows - 1)) {
-      const below = vl > 0 ? tot[vl - 1] : -1;
-      const above = vh < rows - 1 ? tot[vh + 1] : -1;
-      if (above >= below) {
-        vh++;
-        acc += tot[vh];
-      } else {
-        vl--;
-        acc += tot[vl];
-      }
-    }
-    return { rows, lo, step, up, dn, tot, max, poc, val: vl, vah: vh };
+  // ---- volume profile (modelled on TradingView's) ----
+  // Volume of each small candle is spread evenly over the price rows it touched. When 1-minute data sits under the
+  // chart (loaded from Dukascopy), the profile is built from those minutes, whatever timeframe you are looking at,
+  // which is much more accurate than spreading a whole 1h or 4h candle over its range. Without volume in the data,
+  // every candle counts the same ("time at price").
+  setProfile(s) {
+    this.vp = { ...VP_DEFAULTS, ...s };
+    this.profileCache.clear();
+    this._rangeProf = null;
+  }
+
+  get profileMode() {
+    return this.vp.mode;
   }
 
   lowerBound(t) {
@@ -310,108 +305,227 @@ export class ChartEngine {
     return lo;
   }
 
+  // Build the histogram for [tStart, tEnd) between prices lo and hi.
+  computeProfile(tStart, tEnd, lo, hi) {
+    const vp = this.vp;
+    let rows;
+    let step;
+    if (vp.layout === "size") {
+      step = Math.max(Number(vp.rowSize) || 0, (hi - lo) / 400);
+      lo = Math.floor(lo / step) * step;
+      rows = Math.max(1, Math.ceil((hi - lo) / step));
+    } else {
+      rows = Math.max(2, Math.min(400, Math.round(vp.rows)));
+      step = (hi - lo) / rows;
+    }
+    if (!(step > 0)) return null;
+    const up = new Float64Array(rows);
+    const dn = new Float64Array(rows);
+    const src = this.src && this.barSec > 60 ? this.src : null;
+    const hasVol = src ? src.hasVol : this.hasVolume;
+    const spread = (low, high, w, isUp) => {
+      let i0 = Math.floor((low - lo) / step);
+      let i1 = Math.floor((high - lo) / step);
+      if (i1 < 0 || i0 > rows - 1) return;
+      i0 = Math.max(0, i0);
+      i1 = Math.min(rows - 1, i1);
+      const per = w / (i1 - i0 + 1);
+      const arr = isUp ? up : dn;
+      for (let k = i0; k <= i1; k++) arr[k] += per;
+    };
+    if (src) {
+      const lb = (t) => {
+        let a = 0;
+        let b = src.n;
+        while (a < b) {
+          const m = (a + b) >> 1;
+          if (src.time[m] < t) a = m + 1;
+          else b = m;
+        }
+        return a;
+      };
+      const i0 = lb(tStart);
+      const i1 = lb(tEnd);
+      for (let i = i0; i < i1; i++) {
+        const w = hasVol ? src.vol[i] : 1;
+        if (w > 0) spread(src.low[i], src.high[i], w, src.up[i] === 1);
+      }
+    } else {
+      const cs = this.candles;
+      const i0 = this.lowerBound(tStart);
+      const i1 = this.lowerBound(tEnd);
+      for (let i = i0; i < i1; i++) {
+        const c = cs[i];
+        const w = hasVol ? (c.volume > 0 ? c.volume : 0) : 1;
+        if (w > 0) spread(c.low, c.high, w, c.close >= c.open);
+      }
+    }
+    const tot = new Float64Array(rows);
+    let sum = 0;
+    let max = 0;
+    let maxDelta = 0;
+    let poc = 0;
+    for (let k = 0; k < rows; k++) {
+      tot[k] = up[k] + dn[k];
+      sum += tot[k];
+      maxDelta = Math.max(maxDelta, Math.abs(up[k] - dn[k]));
+      if (tot[k] > max) {
+        max = tot[k];
+        poc = k;
+      }
+    }
+    if (!(max > 0)) return null;
+    // value area: grow outwards from the point of control until the chosen share of the volume is inside
+    let vl = poc;
+    let vh = poc;
+    let acc = tot[poc];
+    const target = sum * (Math.min(100, Math.max(1, vp.vaPct)) / 100);
+    while (acc < target && (vl > 0 || vh < rows - 1)) {
+      const below = vl > 0 ? tot[vl - 1] : -1;
+      const above = vh < rows - 1 ? tot[vh + 1] : -1;
+      if (above >= below) {
+        vh++;
+        acc += tot[vh];
+      } else {
+        vl--;
+        acc += tot[vl];
+      }
+    }
+    return { rows, lo, step, up, dn, tot, max, maxDelta, poc, val: vl, vah: vh };
+  }
+
   paintProfileBars(ctx, prof, x0, dir, maxW) {
-    const { theme } = this;
+    const vp = this.vp;
     for (let r = 0; r < prof.rows; r++) {
       if (!(prof.tot[r] > 0)) continue;
       const yTop = this.yOf(prof.lo + (r + 1) * prof.step);
       const yBot = this.yOf(prof.lo + r * prof.step);
       const h = Math.max(1, yBot - yTop - 1);
-      const w = (prof.tot[r] / prof.max) * maxW;
       const inVa = r >= prof.val && r <= prof.vah;
-      const wd = (prof.dn[r] / prof.tot[r]) * w;
-      const wu = w - wd;
-      ctx.globalAlpha = inVa ? 0.5 : 0.26;
-      ctx.fillStyle = theme.down;
-      ctx.fillRect(dir > 0 ? x0 : x0 - wd, yTop, wd, h);
-      ctx.fillStyle = theme.up;
-      ctx.fillRect(dir > 0 ? x0 + wd : x0 - w, yTop, wu, h);
+      const alpha = inVa ? 0.62 : 0.3;
+      ctx.globalAlpha = alpha;
+      if (vp.volume === "delta") {
+        const d = prof.up[r] - prof.dn[r];
+        const w = prof.maxDelta > 0 ? (Math.abs(d) / prof.maxDelta) * maxW : 0;
+        ctx.fillStyle = d >= 0 ? vp.upColor : vp.downColor;
+        ctx.fillRect(dir > 0 ? x0 : x0 - w, yTop, w, h);
+      } else if (vp.volume === "total") {
+        const w = (prof.tot[r] / prof.max) * maxW;
+        ctx.fillStyle = vp.upColor;
+        ctx.fillRect(dir > 0 ? x0 : x0 - w, yTop, w, h);
+      } else {
+        const w = (prof.tot[r] / prof.max) * maxW;
+        const wd = (prof.dn[r] / prof.tot[r]) * w;
+        ctx.fillStyle = vp.downColor;
+        ctx.fillRect(dir > 0 ? x0 : x0 - wd, yTop, wd, h);
+        ctx.fillStyle = vp.upColor;
+        ctx.fillRect(dir > 0 ? x0 + wd : x0 - w, yTop, w - wd, h);
+      }
     }
     ctx.globalAlpha = 1;
   }
 
-  paintProfileLines(ctx, prof, xFrom, xTo) {
-    const mid = (r) => this.yOf(prof.lo + (r + 0.5) * prof.step);
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = "#f5a623";
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(xFrom, Math.round(mid(prof.poc)) + 0.5);
-    ctx.lineTo(xTo, Math.round(mid(prof.poc)) + 0.5);
-    ctx.stroke();
-    ctx.setLineDash([3, 3]);
-    ctx.globalAlpha = 0.7;
-    ctx.beginPath();
-    for (const r of [prof.vah, prof.val]) {
-      const y = r === prof.vah ? this.yOf(prof.lo + (r + 1) * prof.step) : this.yOf(prof.lo + r * prof.step);
-      ctx.moveTo(xFrom, Math.round(y) + 0.5);
-      ctx.lineTo(xTo, Math.round(y) + 0.5);
+  paintProfileLines(ctx, prof, xFrom, xTo, labelRight) {
+    const vp = this.vp;
+    const price = {
+      poc: prof.lo + (prof.poc + 0.5) * prof.step,
+      vah: prof.lo + (prof.vah + 1) * prof.step,
+      val: prof.lo + prof.val * prof.step,
+    };
+    const lines = [];
+    if (vp.showPoc) lines.push(["POC", price.poc, vp.pocColor, false, vp.extendPoc ? this.plotW : xTo]);
+    if (vp.showVa) {
+      lines.push(["VAH", price.vah, vp.vaColor, true, xTo]);
+      lines.push(["VAL", price.val, vp.vaColor, true, xTo]);
     }
-    ctx.stroke();
+    ctx.font = `600 10.5px ${this.theme.font}`;
+    ctx.textBaseline = "bottom";
+    ctx.textAlign = labelRight ? "right" : "left";
+    for (const [name, p, color, dashed, to] of lines) {
+      const y = Math.round(this.yOf(p)) + 0.5;
+      ctx.strokeStyle = color;
+      ctx.fillStyle = color;
+      ctx.lineWidth = name === "POC" ? 1.5 : 1;
+      ctx.setLineDash(dashed ? [4, 3] : []);
+      ctx.beginPath();
+      ctx.moveTo(xFrom, y);
+      ctx.lineTo(to, y);
+      ctx.stroke();
+      if (vp.showLabels) ctx.fillText(`${name} ${this.fmtPrice(p)}`, labelRight ? xTo - 4 : xFrom + 4, y - 2);
+    }
     ctx.setLineDash([]);
-    ctx.globalAlpha = 1;
   }
 
   drawProfiles(ctx) {
-    const mode = this.profileMode;
-    if (mode === "off" || !this.n) return;
+    const vp = this.vp;
+    if (vp.mode === "off" || !this.n) return;
     const { from, to } = this.visible();
     if (to < from) return;
     const plotW = this.plotW;
-    if (mode === "range") {
-      const rows = Math.max(16, Math.min(90, Math.round(this.plotH / 9)));
-      const key = `r|${from}|${to}|${rows}|${this.pMin}|${this.pMax}|${this.n}`;
-      if (!this._rangeProf || this._rangeProf.key !== key) this._rangeProf = { key, prof: this.profileOf(from, to, rows, this.pMin, this.pMax) };
+    const cs = this.candles;
+    const sig = `${vp.layout}|${vp.rows}|${vp.rowSize}|${vp.vaPct}|${vp.session}|${this.src ? 1 : 0}`;
+    if (vp.mode === "range") {
+      const key = `r|${from}|${to}|${this.n}|${sig}`;
+      if (!this._rangeProf || this._rangeProf.key !== key) {
+        let lo = Infinity;
+        let hi = -Infinity;
+        for (let i = from; i <= to; i++) {
+          if (cs[i].low < lo) lo = cs[i].low;
+          if (cs[i].high > hi) hi = cs[i].high;
+        }
+        this._rangeProf = { key, prof: hi > lo ? this.computeProfile(cs[from].time, cs[to].time + this.barSec, lo, hi) : null };
+      }
       const prof = this._rangeProf.prof;
       if (prof) {
-        const maxW = plotW * 0.3;
-        this.paintProfileBars(ctx, prof, plotW, -1, maxW);
-        this.paintProfileLines(ctx, prof, plotW - maxW, plotW);
+        const maxW = Math.max(20, (plotW * vp.width) / 100);
+        const left = vp.placement === "left";
+        this.paintProfileBars(ctx, prof, left ? 0 : plotW, left ? 1 : -1, maxW);
+        this.paintProfileLines(ctx, prof, left ? 0 : plotW - maxW, left ? maxW : plotW, !left);
       }
     } else {
-      // session profiles: one per UTC day, anchored at the start of the day
-      const cs = this.candles;
-      let i = from;
-      while (i <= to) {
-        const day = Math.floor(cs[i].time / 86400);
-        const s = this.lowerBound(day * 86400);
-        const e = Math.min(this.n - 1, this.lowerBound((day + 1) * 86400) - 1);
-        const nextI = e + 1;
-        if (e - s >= 2) {
-          const key = `${s}-${e}`;
-          let item = this.profileCache.get(key);
-          if (!item || item.n !== this.n) {
-            let lo = Infinity;
-            let hi = -Infinity;
-            for (let k = s; k <= e; k++) {
-              if (cs[k].low < lo) lo = cs[k].low;
-              if (cs[k].high > hi) hi = cs[k].high;
-            }
-            item = { n: this.n, prof: hi > lo ? this.profileOf(s, e, 32, lo, hi) : null };
-            if (this.profileCache.size > 400) this.profileCache.delete(this.profileCache.keys().next().value);
-            this.profileCache.set(key, item);
+      // one profile per session; the session decides which minutes belong together
+      const def = VP_SESSIONS[vp.session] || VP_SESSIONS.daily;
+      const tv0 = cs[from].time;
+      const tv1 = cs[to].time;
+      for (let k = Math.floor((tv0 - def.off - def.len) / 86400); k * 86400 + def.off <= tv1; k++) {
+        const tS = k * 86400 + def.off;
+        const tE = tS + def.len;
+        if (tE <= tv0) continue;
+        const s = this.lowerBound(tS);
+        const e = Math.min(this.n - 1, this.lowerBound(tE) - 1);
+        if (e - s < 2) continue;
+        const key = `${tS}|${tE}|${this.n}|${sig}`;
+        let item = this.profileCache.get(key);
+        if (!item) {
+          let lo = Infinity;
+          let hi = -Infinity;
+          for (let i = s; i <= e; i++) {
+            if (cs[i].low < lo) lo = cs[i].low;
+            if (cs[i].high > hi) hi = cs[i].high;
           }
-          if (item.prof) {
-            const xs = this.xOf(s) - this.barSpacing / 2;
-            const x1 = this.xOf(e) + this.barSpacing / 2;
-            const x0 = Math.max(0, xs); // a session that began off-screen still shows from the left edge
-            if (x1 > 0 && xs < plotW && x1 - x0 > 12) {
-              const maxW = Math.min(240, Math.max(24, (x1 - xs) * 0.4));
-              this.paintProfileBars(ctx, item.prof, x0, 1, maxW);
-              this.paintProfileLines(ctx, item.prof, x0, x1);
-            }
-          }
+          item = { prof: hi > lo ? this.computeProfile(tS, tE, lo, hi) : null };
+          if (this.profileCache.size > 400) this.profileCache.delete(this.profileCache.keys().next().value);
+          this.profileCache.set(key, item);
         }
-        i = nextI > i ? nextI : i + 1;
+        if (!item.prof) continue;
+        const xs = this.xOf(s) - this.barSpacing / 2;
+        const x1 = this.xOf(e) + this.barSpacing / 2;
+        const x0 = Math.max(0, xs); // a session that began off-screen still shows from the left edge
+        if (x1 <= 0 || xs >= plotW || x1 - x0 < 12) continue;
+        const maxW = Math.min(plotW, Math.max(24, ((x1 - xs) * vp.width) / 100));
+        const left = vp.placement === "left";
+        this.paintProfileBars(ctx, item.prof, left ? x0 : Math.min(x1, plotW), left ? 1 : -1, maxW);
+        this.paintProfileLines(ctx, item.prof, x0, Math.min(x1, plotW), !left);
       }
     }
-    const text = `${mode === "range" ? "Volume profile (visible range)" : "Session volume profile (daily)"}${this.hasVolume ? "" : " - no volume in this data, showing time at price"}`;
+    const srcNote = this.src && this.barSec > 60 ? "from 1-minute data" : "";
+    const parts = [vp.mode === "range" ? "Volume profile (visible range)" : `Session volume profile (${(VP_SESSIONS[vp.session] || VP_SESSIONS.daily).short})`, srcNote, (this.src && this.barSec > 60 ? this.src.hasVol : this.hasVolume) ? "" : "no volume in this data: showing time at price"].filter(Boolean);
     ctx.font = `11px ${this.theme.font}`;
     ctx.textAlign = "left";
     ctx.textBaseline = "alphabetic";
     ctx.fillStyle = this.theme.text;
     ctx.globalAlpha = 0.75;
-    ctx.fillText(text, 8, this.plotH - 8);
+    ctx.fillText(parts.join(" - "), 8, this.plotH - 8);
     ctx.globalAlpha = 1;
   }
 
