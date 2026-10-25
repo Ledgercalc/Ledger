@@ -88,7 +88,7 @@ export function ticksToMinutes(raw, hourStartSec, info) {
 }
 
 // ---- polite, patient downloading (long ranges mean thousands of requests) ----
-export const tuning = { baseDelay: 120, maxDelay: 2500, backoff: 1500, maxAttempts: 6, retryPause: 3000, cooldown: 45000, maxPauses: 6 };
+export const tuning = { baseDelay: 50, maxDelay: 1500, backoff: 700, maxAttempts: 6, retryPause: 3000, cooldown: 45000, maxPauses: 6 };
 const jitter = () => Math.random() * 400;
 
 function makeLimiter() {
@@ -102,10 +102,10 @@ function makeLimiter() {
       if (at > now) await sleep(at - now);
     },
     slower() {
-      delay = Math.min(tuning.maxDelay, delay * 2);
+      delay = Math.min(tuning.maxDelay, delay * 1.6);
     },
     faster() {
-      delay = Math.max(tuning.baseDelay, delay * 0.9);
+      delay = Math.max(tuning.baseDelay, delay * 0.7); // recover quickly after a hiccup
     },
   };
 }
@@ -256,7 +256,7 @@ export function daysBetween(fromDay, toDay) {
 // Long ranges are paced and retried patiently. If Dukascopy starts limiting requests, the download pauses, waits and
 // carries on by itself (several times) instead of giving up. Days that still fail are listed in the result.
 // onProgress({ done, total, day, bytes, note }). Returns { downloaded, bytes, failed: [{ day, message }], stoppedEarly }.
-export async function downloadDukascopy({ symbol, fromDay, toDay, onProgress, signal, concurrency = 3 }) {
+export async function downloadDukascopy({ symbol, fromDay, toDay, onProgress, signal, concurrency = 6 }) {
   const info = DUKA[symbol];
   if (!info) throw new Error("That instrument isn't available from Dukascopy.");
   const stored = new Set(await listVolumeDays(symbol));
