@@ -138,6 +138,8 @@ export class ChartEngine {
       this._ofCache.clear();
       this._estCache.clear();
       this._ofTot = null;
+      this._estCal = null;
+      this._estAcc = null;
     }
     this._rangeProf = null;
     this.src = list.m1 || null;
@@ -602,6 +604,38 @@ export class ChartEngine {
     this.flow = f || null;
     this._ofCache.clear();
     this._ofTot = null;
+    this._estCal = null;
+    this._estAcc = null;
+  }
+  // Candles that have no downloaded ticks fall back to the candle estimate. To make the two agree, the estimate is
+  // rescaled to tick units using the candles that have both, and we count how often its delta direction matches.
+  calibrate() {
+    if (this._estCal != null) return;
+    this._estCal = 1;
+    this._estAcc = null;
+    const tot = this.flow && this.ofTotals();
+    if (!tot || !tot.dlt) return;
+    const idx = [];
+    for (let i = 0; i < this.candles.length; i++) if (tot.vol[i] > 0) idx.push(i);
+    const stp = Math.max(1, Math.floor(idx.length / 300));
+    let sumT = 0;
+    let sumE = 0;
+    let n = 0;
+    let hit = 0;
+    for (let q = 0; q < idx.length; q += stp) {
+      const i = idx[q];
+      const e = this.estBase(i);
+      let ev = 0;
+      for (let k = 0; k < e.v.length; k++) ev += e.v[k];
+      sumT += tot.vol[i];
+      sumE += ev;
+      if (Math.abs(tot.dlt[i]) > 0 && Math.abs(e.d) > 0) {
+        n++;
+        if (tot.dlt[i] > 0 === e.d > 0) hit++;
+      }
+    }
+    if (sumE > 0) this._estCal = sumT / sumE;
+    if (n >= 10) this._estAcc = { n, pct: Math.round((hit / n) * 100) };
   }
   flowStep() {
     return this.flow ? this.flow.step : this._estStep || 0.0001;
@@ -662,10 +696,21 @@ export class ChartEngine {
     const f = this.flow;
     const c = this.candles[i];
     let m;
+    let usingEst = !f;
     if (f) {
       m = new Map();
       const s = this.flowLB(c.time);
       const e = this.flowLB(c.time + this.barSec);
+      if (s === e) {
+        // no ticks for this candle: use the candle estimate, scaled to match the tick numbers
+        usingEst = true;
+        this.calibrate();
+        m = this.estCandle(i, mult);
+        for (const cur of m.values()) {
+          cur[0] *= this._estCal;
+          cur[1] *= this._estCal;
+        }
+      }
       for (let k = s; k < e; k++) {
         const bin = Math.floor(f.lvl[k] / mult);
         const cur = m.get(bin) || [0, 0];
@@ -686,7 +731,7 @@ export class ChartEngine {
       }
       if (Math.abs(row.d) > dmax) dmax = Math.abs(row.d);
     });
-    r = { rows, poc, max, dmax };
+    r = { rows, poc, max, dmax, est: usingEst && !!f };
     if (this._ofCache.size > 4000) this._ofCache.clear();
     this._ofCache.set(key, r);
     return r;
@@ -795,7 +840,6 @@ export class ChartEngine {
     ctx.textBaseline = "middle";
     ctx.textAlign = "center";
     for (let i = from; i <= to; i++) {
-      if (!(tot.vol[i] > 0)) continue;
       const fp = this.ofCandle(i, mult);
       if (!fp.rows.length || !(fp.max > 0)) continue;
       const x0 = this.xOf(i) + 2; // cells sit to the right of the candle's wick
@@ -864,6 +908,18 @@ export class ChartEngine {
           ctx.lineWidth = 1.2;
           ctx.strokeRect(x0 + 0.5, yT + 0.5, cellW - 1, Math.max(1, h - 1));
         }
+      }
+      if (fp.est) {
+        // estimated candle (no ticks downloaded for it): dashed outline
+        const top = this.yOf(((fp.rows[fp.rows.length - 1].bin + 1) * mult - 0.5) * step);
+        const bot = this.yOf((fp.rows[0].bin * mult - 0.5) * step);
+        ctx.strokeStyle = th.text;
+        ctx.globalAlpha = 0.45;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 3]);
+        ctx.strokeRect(x0 + 0.5, top, cellW - 1, Math.max(1, bot - top - 1));
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 1;
       }
     }
     ctx.globalAlpha = 1;
@@ -946,7 +1002,13 @@ export class ChartEngine {
     let msg = "";
     const tot = this.flow ? this.ofTotals() : null;
     if (!this.flow) msg = this.barSpacing < 8 ? "Zoom in to see the order flow" : "Order flow estimated from candles (relative units)";
-    else if (tot && !(tot.vol[this.n - 1] > 0)) msg = "No footprint data loaded up to this candle - load more days";
+    else if (tot && !(tot.vol[this.n - 1] > 0)) {
+      this.calibrate();
+      const a = this._estAcc;
+      msg = a
+        ? `Dashed candles are estimated. On your downloaded days the estimate got the delta direction right ${a.pct}% of the time (${a.n} candles).`
+        : "Dashed candles are estimated (no ticks downloaded for them)";
+    }
     else if (this.barSpacing < 8) msg = "Zoom in to see the footprint";
     if (!msg) return;
     ctx.font = `11px ${this.theme.font}`;
