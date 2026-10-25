@@ -7,12 +7,12 @@ import { Activity, BarChart3, Copy, Eraser, Eye, EyeOff, Magnet, Maximize2, Mini
 // No chart library. Same props as the earlier chart components:
 //   candles, sessionKey, lines { entry, sl, tp }, markers, colors { text, grid, border, up, down, entry, font, bg },
 //   precision, height, compact, pickMode, onPickPrice, onApplyPlan, footer, drawKey, hideTradeTools, flow
-// flow = order flow data from Dukascopy ticks (optional, see lib/flowStore.js buildFlow): footprint, delta and cumulative delta.
+// flow = Dukascopy tick volume per price level (optional, see lib/flowStore.js buildFlow): drawn as a volume footprint.
 // Drawings are stored as { bar index, price } points while you work, and saved by TIME (per symbol) so they
 // survive timeframe changes and reloads; they sync to your other devices through the app's cloud sync.
 
 const DRAW_COLOR = "#2962ff";
-const OF_MODES = [["off", "Order flow: off"], ["footprint", "Footprint (bid x ask)"], ["delta", "Delta + cumulative delta"], ["both", "Footprint + delta strip"]];
+const OF_MODES = [["off", "Volume footprint: off"], ["footprint", "Volume footprint"], ["both", "Footprint + volume bars"]];
 const SWATCHES = ["#2962ff", "#f5c542", "#ef5350", "#26a69a", "#ab47bc", "#ffffff"];
 const DEFAULT_UI = { color: DRAW_COLOR, opacity: 1, width: 2, dash: "solid" };
 const BT = {
@@ -874,7 +874,7 @@ function paintMarkers(ctx, markers, env) {
   }
 }
 
-function TredziChartInner({ candles, sessionKey, lines, markers, colors, precision, height, compact, pickMode, onPickPrice, onApplyPlan, footer, drawKey, hideTradeTools, limit, flow }) {
+function TredziChartInner({ candles, sessionKey, lines, markers, colors, precision, height, compact, pickMode, onPickPrice, onApplyPlan, footer, drawKey, hideTradeTools, limit, flow, flowShow }) {
   const canvasRef = useRef(null);
   const areaRef = useRef(null);
   const engRef = useRef(null);
@@ -1041,6 +1041,12 @@ function TredziChartInner({ candles, sessionKey, lines, markers, colors, precisi
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [of]);
+
+  // pressing "Load footprint" switches the display on if it was off
+  useEffect(() => {
+    if (flowShow && of.mode === "off") patchOf({ mode: "footprint" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flowShow]);
 
   useEffect(() => {
     eng.setFlow(flow || null);
@@ -1635,7 +1641,7 @@ function TredziChartInner({ candles, sessionKey, lines, markers, colors, precisi
         {!compact && (
           <>
             <div style={{ position: "relative", flexShrink: 0 }}>
-              <button type="button" title="Order flow (footprint, delta)" aria-label="Order flow" aria-haspopup="menu" aria-expanded={ofMenu} aria-pressed={of.mode !== "off"} onClick={() => { setVpMenu(false); setOfMenu((v) => !v); }} style={btn(of.mode !== "off")}>
+              <button type="button" title="Volume footprint (Dukascopy ticks)" aria-label="Volume footprint" aria-haspopup="menu" aria-expanded={ofMenu} aria-pressed={of.mode !== "off"} onClick={() => { setVpMenu(false); setOfMenu((v) => !v); }} style={btn(of.mode !== "off")}>
                 <Activity size={17} />
               </button>
               {ofMenu && (
@@ -1907,9 +1913,9 @@ function TredziChartInner({ candles, sessionKey, lines, markers, colors, precisi
       {ofDialog && (
         <>
           <div onClick={() => setOfDialog(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1200 }} />
-          <div role="dialog" aria-label="Order flow settings" style={{ position: "fixed", zIndex: 1201, background: bg, color: colors.text, fontFamily: colors.font, border: `1px solid ${colors.border}`, boxSizing: "border-box", overflowY: "auto", ...(compact ? { left: 0, right: 0, bottom: 0, borderRadius: "18px 18px 0 0", maxHeight: "86vh", padding: "12px 16px calc(16px + env(safe-area-inset-bottom, 0px))" } : { left: "50%", top: "50%", transform: "translate(-50%, -50%)", width: 400, maxWidth: "94vw", maxHeight: "88vh", borderRadius: 14, padding: 16, boxShadow: "0 18px 50px rgba(0,0,0,0.45)" }) }}>
+          <div role="dialog" aria-label="Volume footprint settings" style={{ position: "fixed", zIndex: 1201, background: bg, color: colors.text, fontFamily: colors.font, border: `1px solid ${colors.border}`, boxSizing: "border-box", overflowY: "auto", ...(compact ? { left: 0, right: 0, bottom: 0, borderRadius: "18px 18px 0 0", maxHeight: "86vh", padding: "12px 16px calc(16px + env(safe-area-inset-bottom, 0px))" } : { left: "50%", top: "50%", transform: "translate(-50%, -50%)", width: 400, maxWidth: "94vw", maxHeight: "88vh", borderRadius: 14, padding: 16, boxShadow: "0 18px 50px rgba(0,0,0,0.45)" }) }}>
             <div style={{ display: "flex", alignItems: "center", marginBottom: 12 }}>
-              <div style={{ flex: 1, fontSize: 14, fontWeight: 700 }}>Order flow settings</div>
+              <div style={{ flex: 1, fontSize: 14, fontWeight: 700 }}>Volume footprint settings</div>
               <button type="button" aria-label="Close" onClick={() => setOfDialog(false)} style={{ ...btn(false), border: "none" }}>
                 <X size={18} />
               </button>
@@ -1936,26 +1942,18 @@ function TredziChartInner({ candles, sessionKey, lines, markers, colors, precisi
                     <div style={{ display: "flex", gap: 6, flex: 1, flexWrap: "wrap" }}>
                       {OF_MODES.map(([id, label]) => (
                         <button key={id} type="button" onClick={() => patchOf({ mode: id })} style={{ flex: "1 1 45%", minHeight: 30, borderRadius: 8, border: `1px solid ${of.mode === id ? DRAW_COLOR : colors.border}`, background: of.mode === id ? soft : "transparent", color: of.mode === id ? DRAW_COLOR : colors.text, fontFamily: colors.font, fontSize: 12, cursor: "pointer" }}>
-                          {label.replace("Order flow: ", "")}
+                          {label.replace("Volume footprint: ", "")}
                         </button>
                       ))}
                     </div>
                   </div>
-                  {check("numbers", "Show bid x ask numbers in the footprint")}
-                  {check("imbalance", "Highlight imbalances")}
-                  <div style={row}>
-                    <span style={lab}>Imbalance ratio</span>
-                    <input type="range" min="2" max="10" step="0.5" value={of.ratio} onChange={(e) => patchOf({ ratio: Number(e.target.value) })} style={{ flex: 1 }} />
-                    <span style={{ width: 40, textAlign: "right" }}>{of.ratio}x</span>
-                  </div>
+                  {check("numbers", "Show volume numbers in the cells")}
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
-                    {color("buyColor", "Buy (ask)")}
-                    {color("sellColor", "Sell (bid)")}
-                    {color("pocColor", "Point of control")}
-                    {color("cvdColor", "Cumulative delta")}
+                    {color("color", "Volume")}
+                    {color("pocColor", "Busiest price (outline)")}
                   </div>
                   <p style={{ opacity: 0.65, fontSize: 11.5, lineHeight: 1.5, margin: "0 0 12px" }}>
-                    Built from Dukascopy tick data: each tick's volume goes to the buy side when the price ticked up and to the sell side when it ticked down. Forex has no central tape, so treat it as an estimate. Zoom in to read the numbers.
+                    Dukascopy tick volume per price level inside each candle, so you can see where trading was busiest. It does not say who was buying or selling. Zoom in to read the numbers.
                   </p>
                   <button type="button" onClick={() => setOf({ ...OF_DEFAULTS, mode: of.mode === "off" ? "footprint" : of.mode })} style={{ width: "100%", height: 36, borderRadius: 9, border: `1px solid ${colors.border}`, background: "transparent", color: colors.text, fontFamily: colors.font, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
                     Reset to defaults
@@ -2087,16 +2085,16 @@ function TredziChartInner({ candles, sessionKey, lines, markers, colors, precisi
               </button>
             </div>
             <div style={{ marginTop: 10 }}>
-              <div style={{ color: colors.text, opacity: 0.6, fontFamily: colors.font, fontSize: 11.5, marginBottom: 6 }}>Order flow</div>
+              <div style={{ color: colors.text, opacity: 0.6, fontFamily: colors.font, fontSize: 11.5, marginBottom: 6 }}>Volume footprint</div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
                 {OF_MODES.map(([id, label]) => (
                   <button key={id} type="button" onClick={() => { patchOf({ mode: id }); setSheet(false); }} style={{ minHeight: 44, borderRadius: 10, border: `1px solid ${of.mode === id ? DRAW_COLOR : colors.border}`, background: of.mode === id ? soft : "transparent", color: of.mode === id ? DRAW_COLOR : colors.text, fontFamily: colors.font, fontSize: 12, cursor: "pointer" }}>
-                    {label.replace("Order flow: ", "")}
+                    {label.replace("Volume footprint: ", "")}
                   </button>
                 ))}
               </div>
               <button type="button" onClick={() => { setOfDialog(true); setSheet(false); }} style={{ marginTop: 8, width: "100%", height: 40, borderRadius: 10, border: `1px solid ${colors.border}`, background: "transparent", color: colors.text, fontFamily: colors.font, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-                Order flow settings...
+                Volume footprint settings...
               </button>
             </div>
             <div style={{ marginTop: 10 }}>
