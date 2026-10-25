@@ -132,13 +132,70 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
     [candles]
   );
 
-  const loadFlow = async () => {
-    if (!canFlow || flowBusy || !candles.length) return;
-    const days = [];
-    for (let i = idx; i < candles.length && days.length < flowDays; i++) {
-      const d = dayString(candles[i].time * 1000);
-      if (days[days.length - 1] !== d) days.push(d);
+  // Order flow on/off lives in the chart (saved in the browser). When it is on, exact ticks download by themselves.
+  const readFlowOn = () => {
+    try {
+      const o = JSON.parse(window.localStorage.getItem("tredzi-bt-of") || "{}");
+      return !!o.mode && o.mode !== "off";
+    } catch (err) {
+      return false;
     }
+  };
+  const [flowWanted, setFlowWanted] = useState(readFlowOn);
+  // exact ticks are optional: by default order flow is the instant candle-based view and nothing extra is downloaded
+  const [flowExact, setFlowExact] = useState(() => {
+    try {
+      return window.localStorage.getItem("tredzi-bt-of-exact") === "1";
+    } catch (err) {
+      return false;
+    }
+  });
+  const toggleExact = (on) => {
+    setFlowExact(on);
+    try {
+      window.localStorage.setItem("tredzi-bt-of-exact", on ? "1" : "0");
+    } catch (err) {
+      // not remembered
+    }
+  };
+  const flowTried = useRef(new Set()); // days already asked for, so a failed day isn't retried in a loop
+  const flowAuto = useRef(false);
+  useEffect(() => {
+    const h = () => setFlowWanted(readFlowOn());
+    window.addEventListener("tredzi-of-change", h);
+    return () => window.removeEventListener("tredzi-of-change", h);
+  }, []);
+  useEffect(() => {
+    flowTried.current.clear();
+  }, [candles]);
+  const idxDay = candles[idx] ? dayString(candles[idx].time * 1000) : "";
+
+  const loadFlow = async (auto = false) => {
+    if (!canFlow || flowBusy || !candles.length) return;
+    let days = [];
+    if (auto) {
+      // today and the day before (what you can see) plus the next few days of the replay
+      const seen = new Set();
+      for (let i = idx; i >= 0 && seen.size < 2; i--) seen.add(dayString(candles[i].time * 1000));
+      let ahead = 0;
+      for (let i = idx + 1; i < candles.length && ahead < flowDays; i++) {
+        const d = dayString(candles[i].time * 1000);
+        if (!seen.has(d)) {
+          seen.add(d);
+          ahead++;
+        }
+      }
+      const have = new Set(flow ? flow.days : []);
+      days = [...seen].sort().filter((d) => !have.has(d) && !flowTried.current.has(d));
+      if (!days.length) return;
+      days.forEach((d) => flowTried.current.add(d));
+    } else {
+      for (let i = idx; i < candles.length && days.length < flowDays; i++) {
+        const d = dayString(candles[i].time * 1000);
+        if (days[days.length - 1] !== d) days.push(d);
+      }
+    }
+    flowAuto.current = !!auto;
     const ctl = new AbortController();
     flowAbort.current = ctl;
     setFlowBusy(true);
@@ -153,7 +210,7 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
       });
       const loaded = await loadOrderFlow(flowRange());
       setFlow(loaded);
-      if (loaded) setFlowShow((n) => n + 1);
+      if (loaded && !auto) setFlowShow((n) => n + 1);
       if (res.failed.length) {
         setFlowFailed(true);
         setFlowNote(`${res.downloaded} day(s) saved, ${res.failed.length} failed: ${res.failed[0].message}`);
@@ -173,6 +230,17 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
       flowAbort.current = null;
     }
   };
+
+  // switch order flow on = exact ticks start loading in the background (the estimate shows meanwhile)
+  useEffect(() => {
+    if (!flowWanted || !flowExact) {
+      flowTried.current.clear();
+      if (flowAuto.current && flowAbort.current) flowAbort.current.abort();
+      return;
+    }
+    if (canFlow && !flowBusy && candles.length && flowExact) loadFlow(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flowWanted, flowExact, canFlow, flowBusy, idxDay, candles, flow]);
 
   // ---- derived ----
   const last = candles.length - 1;
@@ -532,6 +600,10 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
                   {flow ? `${flow.days.length} day${flow.days.length === 1 ? "" : "s"} of exact ticks saved` : "estimated from candles, no download needed"}
                 </span>
               </div>
+              <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontFamily: mono, fontSize: 12, color: palette.textMuted, cursor: "pointer" }}>
+                <input type="checkbox" checked={flowExact} onChange={(e) => toggleExact(e.target.checked)} />
+                Also load exact ticks automatically (downloads in the background)
+              </label>
               <select aria-label="Days of footprint data to download" value={flowDays} disabled={flowBusy} onChange={(e) => setFlowDays(Number(e.target.value))} style={{ ...field, width: "auto", padding: "8px 8px" }}>
                 {[1, 2, 3, 5, 10].map((n) => (
                   <option key={n} value={n}>{n} day{n === 1 ? "" : "s"}</option>
@@ -540,7 +612,7 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
               {flowBusy ? (
                 <button type="button" onClick={() => flowAbort.current && flowAbort.current.abort()} className={TAP} style={ghostBtn(false)}>Stop</button>
               ) : (
-                <button type="button" onClick={loadFlow} className={TAP} style={ghostBtn(true)}>Load from here</button>
+                <button type="button" onClick={() => loadFlow(false)} className={TAP} style={ghostBtn(true)}>Load from here</button>
               )}
             </div>
             {flowNote ? (
@@ -548,7 +620,7 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
             ) : (
               !flow && (
                 <p style={{ color: palette.textFaint, fontFamily: mono, fontSize: 11.5, lineHeight: 1.5, margin: "8px 0 0" }}>
-                  Already works without downloading: turn it on with the {isDesktop ? "pulse icon in the chart toolbar" : "chart tools menu"} and tap Volume, Delta or Bid × Ask. It is estimated from your candles. For exact tick-based numbers, download some days here (optional).
+                  Just turn it on with the {isDesktop ? "pulse icon in the chart toolbar" : "chart tools menu"} and tap Volume, Delta or Bid × Ask. It works instantly for any day you set, using the candles you already loaded (relative numbers, estimated). Tick the box above if you also want exact tick data to load in the background.
                 </p>
               )
             )}
