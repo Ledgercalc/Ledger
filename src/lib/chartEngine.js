@@ -53,11 +53,14 @@ export const OF_DEFAULTS = {
 
 // compact volume text for footprint cells
 function fmtV(v) {
-  if (v >= 1000) return `${(v / 1000).toFixed(1)}k`;
-  if (v >= 0.5) return String(Math.round(v)); // tick counts are whole numbers
+  const a = Math.abs(v);
+  if (a >= 1000) return `${(a / 1000).toFixed(1)}k`;
+  if (a >= 100) return String(Math.round(a));
+  if (a >= 1) return String(+a.toFixed(1)); // 12, 3.5 (tick counts)
+  if (a >= 0.005) return String(+a.toFixed(2)); // 0.12 (Dukascopy volume units in the candle estimate)
   return "0";
 }
-const fmtS = (v) => (v > 0.5 ? "+" : v < -0.5 ? "-" : "") + fmtV(Math.abs(v)); // signed, for delta
+const fmtS = (v) => (Math.abs(v) < 0.005 ? "0" : (v > 0 ? "+" : "-") + fmtV(v)); // signed, for delta
 
 // Sessions in UTC: off = start offset from 00:00 UTC (seconds), len = length.
 export const VP_SESSIONS = {
@@ -78,6 +81,7 @@ export class ChartEngine {
     this.flow = null; // order flow records (see lib/flowStore.js buildFlow)
     this.of = { ...OF_DEFAULTS };
     this._ofCache = new Map();
+    this._estCache = new Map();
     this._ofTot = null;
     this.hasVolume = false;
     this.w = 300;
@@ -132,6 +136,7 @@ export class ChartEngine {
     this.profileCache.clear();
     if (!sameList) {
       this._ofCache.clear();
+      this._estCache.clear();
       this._ofTot = null;
     }
     this._rangeProf = null;
@@ -153,6 +158,18 @@ export class ChartEngine {
     if (n > 0) {
       const px = list[Math.floor(n / 2)].close;
       this._estStep = px > 0 ? Math.pow(10, Math.floor(Math.log10(px * 1e-4))) : 0.0001;
+      // Dukascopy's volume units can be tiny. Rescale so a typical 1-minute candle is about 100, which keeps the
+      // footprint numbers readable at any size (relative units, not tick counts).
+      const mv = [];
+      const sr = this.src && this.barSec > 60 ? this.src : null;
+      if (sr) {
+        for (let i = 0, k = Math.max(1, Math.floor(sr.n / 300)); i < sr.n; i += k) if (sr.vol[i] > 0) mv.push(sr.vol[i]);
+      } else {
+        for (let i = 0, k = Math.max(1, Math.floor(n / 300)); i < n; i += k) if (list[i].volume > 0) mv.push(list[i].volume / Math.max(1, this.barSec / 60));
+      }
+      mv.sort((a, b) => a - b);
+      const med = mv[mv.length >> 1];
+      this._estScale = med > 0 ? 100 / med : 100;
     }
     if (reset || prevN === 0) {
       this.rightEdge = n - 1 + 8;
@@ -618,7 +635,8 @@ export class ChartEngine {
     if (!f) {
       // no ticks loaded: volume per candle straight from the candles (delta is worked out per candle on demand)
       const v = new Float64Array(len);
-      for (let i = 0; i < len; i++) v[i] = this.hasVolume ? Math.max(0, cs[i].volume || 0) : 1;
+      const sc = this._estScale || 1;
+      for (let i = 0; i < len; i++) v[i] = (this.hasVolume ? Math.max(0, cs[i].volume || 0) : 1) * sc;
       this._ofTot = { vol: v, dlt: null };
       return this._ofTot;
     }
@@ -675,49 +693,88 @@ export class ChartEngine {
   }
 
   // No ticks needed: spread each 1-minute candle's volume over the prices it traded and split it buy/sell from how
-  // it closed (an estimate, the same idea as the volume profile). Returns Map(bin -> [volume, buy]).
-  estCandle(i, mult) {
+  // it closed (an estimate, the same idea as the volume profile).
+  // Fast: each minute adds to a difference array (one step per minute, not per price), the result is kept per
+  // candle at the finest level, and zooming only re-groups those rows instead of recalculating anything.
+  estBase(i) {
+    let r = this._estCache.get(i);
+    if (r) return r;
     const c = this.candles[i];
     const step = this._estStep || 0.0001;
-    const m = new Map();
-    const add = (low, high, w, share) => {
-      const a = Math.round(low / step);
-      const z = Math.max(a, Math.round(high / step));
-      const per = w / (z - a + 1);
-      for (let L = a; L <= z; L++) {
-        const bin = Math.floor(L / mult);
-        const cur = m.get(bin) || [0, 0];
-        cur[0] += per;
-        cur[1] += per * share;
-        m.set(bin, cur);
-      }
-    };
-    const src = this.src && this.barSec > 60 ? this.src : null;
-    if (src) {
-      let a = 0;
-      let b = src.n;
-      while (a < b) {
-        const mid = (a + b) >> 1;
-        if (src.time[mid] < c.time) a = mid + 1;
-        else b = mid;
-      }
-      for (let j = a; j < src.n && src.time[j] < c.time + this.barSec; j++) {
-        const w = src.hasVol ? src.vol[j] : 1;
-        if (w > 0) add(src.low[j], src.high[j], w, src.up[j] === 1 ? 0.7 : 0.3);
-      }
+    const sc = this._estScale || 1;
+    const l0 = Math.round(c.low / step) - 1;
+    const span = Math.round(c.high / step) + 2 - l0;
+    if (!(span > 0) || span > 6000) {
+      r = { l0, v: new Float64Array(0), b: new Float64Array(0), d: 0 };
     } else {
-      const w = this.hasVolume ? Math.max(0, c.volume || 0) : 1;
-      const rng = c.high - c.low;
-      if (w > 0) add(c.low, c.high, w, rng > 0 ? 0.2 + 0.6 * ((c.close - c.low) / rng) : 0.5);
+      const dv = new Float64Array(span + 1);
+      const db = new Float64Array(span + 1);
+      const add = (low, high, w, share) => {
+        const a = Math.max(0, Math.round(low / step) - l0);
+        const z = Math.min(span - 1, Math.max(a, Math.round(high / step) - l0));
+        const per = w / (z - a + 1);
+        dv[a] += per;
+        dv[z + 1] -= per;
+        db[a] += per * share;
+        db[z + 1] -= per * share;
+      };
+      const src = this.src && this.barSec > 60 ? this.src : null;
+      if (src) {
+        let lo = 0;
+        let hi = src.n;
+        while (lo < hi) {
+          const mid = (lo + hi) >> 1;
+          if (src.time[mid] < c.time) lo = mid + 1;
+          else hi = mid;
+        }
+        const end = c.time + this.barSec;
+        for (let j = lo; j < src.n && src.time[j] < end; j++) {
+          const w = (src.hasVol ? src.vol[j] : 1) * sc;
+          if (w > 0) add(src.low[j], src.high[j], w, src.up[j] === 1 ? 0.7 : 0.3);
+        }
+      } else {
+        const w = (this.hasVolume ? Math.max(0, c.volume || 0) : 1) * sc;
+        const rng = c.high - c.low;
+        if (w > 0) add(c.low, c.high, w, rng > 0 ? 0.2 + 0.6 * ((c.close - c.low) / rng) : 0.5);
+      }
+      const v = new Float64Array(span);
+      const bb = new Float64Array(span);
+      let sv = 0;
+      let sb = 0;
+      let d = 0;
+      for (let k = 0; k < span; k++) {
+        sv += dv[k];
+        sb += db[k];
+        v[k] = sv > 1e-9 ? sv : 0;
+        bb[k] = sb > 1e-9 ? sb : 0;
+        d += 2 * bb[k] - v[k];
+      }
+      r = { l0, v, b: bb, d };
+    }
+    if (this._estCache.size > 3000) this._estCache.clear();
+    this._estCache.set(i, r);
+    return r;
+  }
+  // Map(bin -> [volume, buy]) with the finest rows grouped into rows of "mult" levels
+  estCandle(i, mult) {
+    const base = this.estBase(i);
+    const m = new Map();
+    for (let k = 0; k < base.v.length; k++) {
+      const v = base.v[k];
+      if (!(v > 0)) continue;
+      const bin = Math.floor((base.l0 + k) / mult);
+      const cur = m.get(bin);
+      if (cur) {
+        cur[0] += v;
+        cur[1] += base.b[k];
+      } else m.set(bin, [v, base.b[k]]);
     }
     return m;
   }
   ofDelta(i) {
     const tot = this._ofTot;
     if (tot && tot.dlt) return tot.dlt[i];
-    let d = 0;
-    for (const row of this.ofCandle(i, 1).rows) d += row.d;
-    return d;
+    return this.estBase(i).d;
   }
 
   drawFootprint(ctx) {
@@ -888,7 +945,7 @@ export class ChartEngine {
     if (this.of.mode === "off" || !this.n) return;
     let msg = "";
     const tot = this.flow ? this.ofTotals() : null;
-    if (!this.flow) msg = this.barSpacing < 8 ? "Zoom in to see the order flow" : "Order flow estimated from candles (load ticks under the chart for exact numbers)";
+    if (!this.flow) msg = this.barSpacing < 8 ? "Zoom in to see the order flow" : "Order flow estimated from candles (relative units)";
     else if (tot && !(tot.vol[this.n - 1] > 0)) msg = "No footprint data loaded up to this candle - load more days";
     else if (this.barSpacing < 8) msg = "Zoom in to see the footprint";
     if (!msg) return;
