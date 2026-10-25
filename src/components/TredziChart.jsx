@@ -1038,6 +1038,7 @@ function TredziChartInner({ candles, sessionKey, lines, markers, colors, precisi
     markDirty();
     try {
       window.localStorage.setItem("tredzi-bt-of", JSON.stringify(of));
+      window.dispatchEvent(new Event("tredzi-of-change")); // lets the backtest tab start/stop the tick download
     } catch (err) {
       // not remembered
     }
