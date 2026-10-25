@@ -12,7 +12,9 @@ import { Activity, BarChart3, Copy, Eraser, Eye, EyeOff, Magnet, Maximize2, Mini
 // survive timeframe changes and reloads; they sync to your other devices through the app's cloud sync.
 
 const DRAW_COLOR = "#2962ff";
-const OF_MODES = [["off", "Volume footprint: off"], ["footprint", "Volume footprint"], ["both", "Footprint + volume bars"]];
+const OF_MODES = [["off", "Order flow: off"], ["footprint", "Order flow"], ["both", "Order flow + bars under"]];
+// what the footprint cells show; tap to switch
+const OF_VIEWS = [["volume", "Volume"], ["delta", "Delta"], ["both", "Bid × Ask"]];
 const SWATCHES = ["#2962ff", "#f5c542", "#ef5350", "#26a69a", "#ab47bc", "#ffffff"];
 const DEFAULT_UI = { color: DRAW_COLOR, opacity: 1, width: 2, dash: "solid" };
 const BT = {
@@ -1641,11 +1643,18 @@ function TredziChartInner({ candles, sessionKey, lines, markers, colors, precisi
         {!compact && (
           <>
             <div style={{ position: "relative", flexShrink: 0 }}>
-              <button type="button" title="Volume footprint (Dukascopy ticks)" aria-label="Volume footprint" aria-haspopup="menu" aria-expanded={ofMenu} aria-pressed={of.mode !== "off"} onClick={() => { setVpMenu(false); setOfMenu((v) => !v); }} style={btn(of.mode !== "off")}>
+              <button type="button" title="Order flow (Dukascopy ticks)" aria-label="Order flow" aria-haspopup="menu" aria-expanded={ofMenu} aria-pressed={of.mode !== "off"} onClick={() => { setVpMenu(false); setOfMenu((v) => !v); }} style={btn(of.mode !== "off")}>
                 <Activity size={17} />
               </button>
               {ofMenu && (
                 <div role="menu" style={{ position: "absolute", right: 0, top: S + 6, zIndex: 30, background: bg, border: `1px solid ${colors.border}`, borderRadius: 10, padding: 6, minWidth: 250, boxShadow: "0 8px 24px rgba(0,0,0,0.25)" }}>
+                  <div role="group" aria-label="Order flow view" style={{ display: "flex", gap: 4, padding: "2px 4px 8px" }}>
+                    {OF_VIEWS.map(([id, label]) => (
+                      <button key={id} type="button" aria-pressed={of.view === id} onClick={() => patchOf({ view: id, mode: of.mode === "off" ? "footprint" : of.mode })} style={{ flex: 1, minHeight: 34, borderRadius: 8, border: `1px solid ${of.view === id ? DRAW_COLOR : colors.border}`, background: of.view === id ? soft : "transparent", color: of.view === id ? DRAW_COLOR : colors.text, fontFamily: colors.font, fontSize: 12.5, fontWeight: of.view === id ? 700 : 500, cursor: "pointer" }}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                   {OF_MODES.map(([id, label]) => (
                     <button key={id} type="button" role="menuitemradio" aria-checked={of.mode === id} onClick={() => { patchOf({ mode: id }); setOfMenu(false); }} style={{ display: "block", width: "100%", textAlign: "left", padding: "8px 10px", borderRadius: 8, border: "none", background: of.mode === id ? soft : "transparent", color: of.mode === id ? DRAW_COLOR : colors.text, fontFamily: colors.font, fontSize: 12.5, fontWeight: of.mode === id ? 700 : 500, cursor: "pointer" }}>
                       {label}
@@ -1913,9 +1922,9 @@ function TredziChartInner({ candles, sessionKey, lines, markers, colors, precisi
       {ofDialog && (
         <>
           <div onClick={() => setOfDialog(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1200 }} />
-          <div role="dialog" aria-label="Volume footprint settings" style={{ position: "fixed", zIndex: 1201, background: bg, color: colors.text, fontFamily: colors.font, border: `1px solid ${colors.border}`, boxSizing: "border-box", overflowY: "auto", ...(compact ? { left: 0, right: 0, bottom: 0, borderRadius: "18px 18px 0 0", maxHeight: "86vh", padding: "12px 16px calc(16px + env(safe-area-inset-bottom, 0px))" } : { left: "50%", top: "50%", transform: "translate(-50%, -50%)", width: 400, maxWidth: "94vw", maxHeight: "88vh", borderRadius: 14, padding: 16, boxShadow: "0 18px 50px rgba(0,0,0,0.45)" }) }}>
+          <div role="dialog" aria-label="Order flow settings" style={{ position: "fixed", zIndex: 1201, background: bg, color: colors.text, fontFamily: colors.font, border: `1px solid ${colors.border}`, boxSizing: "border-box", overflowY: "auto", ...(compact ? { left: 0, right: 0, bottom: 0, borderRadius: "18px 18px 0 0", maxHeight: "86vh", padding: "12px 16px calc(16px + env(safe-area-inset-bottom, 0px))" } : { left: "50%", top: "50%", transform: "translate(-50%, -50%)", width: 400, maxWidth: "94vw", maxHeight: "88vh", borderRadius: 14, padding: 16, boxShadow: "0 18px 50px rgba(0,0,0,0.45)" }) }}>
             <div style={{ display: "flex", alignItems: "center", marginBottom: 12 }}>
-              <div style={{ flex: 1, fontSize: 14, fontWeight: 700 }}>Volume footprint settings</div>
+              <div style={{ flex: 1, fontSize: 14, fontWeight: 700 }}>Order flow settings</div>
               <button type="button" aria-label="Close" onClick={() => setOfDialog(false)} style={{ ...btn(false), border: "none" }}>
                 <X size={18} />
               </button>
@@ -1938,22 +1947,32 @@ function TredziChartInner({ candles, sessionKey, lines, markers, colors, precisi
               return (
                 <>
                   <div style={row}>
+                    <span style={lab}>Cells show</span>
+                    <div role="group" aria-label="Order flow view" style={{ display: "flex", gap: 4, flex: 1 }}>
+                    {OF_VIEWS.map(([id, label]) => (
+                      <button key={id} type="button" aria-pressed={of.view === id} onClick={() => patchOf({ view: id, mode: of.mode === "off" ? "footprint" : of.mode })} style={{ flex: 1, minHeight: 30, borderRadius: 8, border: `1px solid ${of.view === id ? DRAW_COLOR : colors.border}`, background: of.view === id ? soft : "transparent", color: of.view === id ? DRAW_COLOR : colors.text, fontFamily: colors.font, fontSize: 12.5, fontWeight: of.view === id ? 700 : 500, cursor: "pointer" }}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  </div>
+                  <div style={row}>
                     <span style={lab}>Show</span>
                     <div style={{ display: "flex", gap: 6, flex: 1, flexWrap: "wrap" }}>
                       {OF_MODES.map(([id, label]) => (
                         <button key={id} type="button" onClick={() => patchOf({ mode: id })} style={{ flex: "1 1 45%", minHeight: 30, borderRadius: 8, border: `1px solid ${of.mode === id ? DRAW_COLOR : colors.border}`, background: of.mode === id ? soft : "transparent", color: of.mode === id ? DRAW_COLOR : colors.text, fontFamily: colors.font, fontSize: 12, cursor: "pointer" }}>
-                          {label.replace("Volume footprint: ", "")}
+                          {label.replace("Order flow: ", "")}
                         </button>
                       ))}
                     </div>
                   </div>
-                  {check("numbers", "Show volume numbers in the cells")}
+                  {check("numbers", "Show numbers in the cells")}
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
                     {color("color", "Volume")}
                     {color("pocColor", "Busiest price (outline)")}
                   </div>
                   <p style={{ opacity: 0.65, fontSize: 11.5, lineHeight: 1.5, margin: "0 0 12px" }}>
-                    Dukascopy tick volume per price level inside each candle, so you can see where trading was busiest. It does not say who was buying or selling. Zoom in to read the numbers.
+                    Built from Dukascopy ticks. Volume is the number of ticks at each price. Delta is buy ticks minus sell ticks (ask rising counts as buying, bid falling as selling). Bid × Ask shows sells on the left and buys on the right, with green/red where one side is at least 3 times the other. Spot forex and gold have no real trade tape, so this is an estimate. Zoom in to read the numbers.
                   </p>
                   <button type="button" onClick={() => setOf({ ...OF_DEFAULTS, mode: of.mode === "off" ? "footprint" : of.mode })} style={{ width: "100%", height: 36, borderRadius: 9, border: `1px solid ${colors.border}`, background: "transparent", color: colors.text, fontFamily: colors.font, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
                     Reset to defaults
@@ -2085,16 +2104,23 @@ function TredziChartInner({ candles, sessionKey, lines, markers, colors, precisi
               </button>
             </div>
             <div style={{ marginTop: 10 }}>
-              <div style={{ color: colors.text, opacity: 0.6, fontFamily: colors.font, fontSize: 11.5, marginBottom: 6 }}>Volume footprint</div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
+              <div style={{ color: colors.text, opacity: 0.6, fontFamily: colors.font, fontSize: 11.5, marginBottom: 6 }}>Order flow</div>
+              <div role="group" aria-label="Order flow view" style={{ display: "flex", gap: 4, marginBottom: 8 }}>
+                    {OF_VIEWS.map(([id, label]) => (
+                      <button key={id} type="button" aria-pressed={of.view === id} onClick={() => patchOf({ view: id, mode: of.mode === "off" ? "footprint" : of.mode })} style={{ flex: 1, minHeight: 44, borderRadius: 8, border: `1px solid ${of.view === id ? DRAW_COLOR : colors.border}`, background: of.view === id ? soft : "transparent", color: of.view === id ? DRAW_COLOR : colors.text, fontFamily: colors.font, fontSize: 12.5, fontWeight: of.view === id ? 700 : 500, cursor: "pointer" }}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
                 {OF_MODES.map(([id, label]) => (
                   <button key={id} type="button" onClick={() => { patchOf({ mode: id }); setSheet(false); }} style={{ minHeight: 44, borderRadius: 10, border: `1px solid ${of.mode === id ? DRAW_COLOR : colors.border}`, background: of.mode === id ? soft : "transparent", color: of.mode === id ? DRAW_COLOR : colors.text, fontFamily: colors.font, fontSize: 12, cursor: "pointer" }}>
-                    {label.replace("Volume footprint: ", "")}
+                    {label.replace("Order flow: ", "")}
                   </button>
                 ))}
               </div>
               <button type="button" onClick={() => { setOfDialog(true); setSheet(false); }} style={{ marginTop: 8, width: "100%", height: 40, borderRadius: 10, border: `1px solid ${colors.border}`, background: "transparent", color: colors.text, fontFamily: colors.font, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-                Volume footprint settings...
+                Order flow settings...
               </button>
             </div>
             <div style={{ marginTop: 10 }}>
