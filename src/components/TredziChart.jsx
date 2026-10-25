@@ -1945,6 +1945,19 @@ function TredziChartInner({ candles, sessionKey, lines, markers, colors, precisi
                   {text}
                 </label>
               );
+              const seg = (text, opts, isOn, pick) => (
+                <div style={row}>
+                  <span style={lab}>{text}</span>
+                  <div role="group" aria-label={text} style={{ display: "flex", gap: 4, flex: 1 }}>
+                    {opts.map(([id, label]) => (
+                      <button key={String(id)} type="button" aria-pressed={isOn(id)} onClick={() => pick(id)} style={{ flex: 1, minHeight: 30, borderRadius: 8, border: `1px solid ${isOn(id) ? DRAW_COLOR : colors.border}`, background: isOn(id) ? soft : "transparent", color: isOn(id) ? DRAW_COLOR : colors.text, fontFamily: colors.font, fontSize: 12.5, fontWeight: isOn(id) ? 700 : 500, cursor: "pointer" }}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+              const numState = !of.numbers ? "none" : of.nums === "key" ? "key" : "all";
               return (
                 <>
                   <div style={row}>
@@ -1967,7 +1980,8 @@ function TredziChartInner({ candles, sessionKey, lines, markers, colors, precisi
                       ))}
                     </div>
                   </div>
-                  {check("numbers", "Show numbers in the cells")}
+                  {seg("Price rows", [[1, "Auto"], [2, "Fewer x2"], [3, "x3"], [5, "x5"]], (id) => (of.rowScale || 1) === id, (id) => patchOf({ rowScale: id }))}
+                  {seg("Numbers", [["all", "All"], ["key", "Key only"], ["none", "None"]], (id) => numState === id, (id) => patchOf(id === "none" ? { numbers: false } : { numbers: true, nums: id }))}
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
                     {color("color", "Volume")}
                     {color("pocColor", "Busiest price (outline)")}
