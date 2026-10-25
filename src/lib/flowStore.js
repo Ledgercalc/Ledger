@@ -1,6 +1,7 @@
 // Order-flow storage (browser IndexedDB). Separate from candleStore so the candle data is never touched.
 // One entry per symbol and UTC day. A day is a flat Float64Array of records, 4 numbers each:
-//   [minute (unix seconds), price level (integer = price / step), bid volume (sell side), ask volume (buy side)]
+//   [minute (unix seconds), price level (integer = price / step), tick volume, unused]
+// (days saved by the first version split the volume into two slots by tick direction; only the sum of the two is used)
 // Records are sorted by minute. "step" is the price size of one level (1 pip for most forex).
 
 const DB_NAME = "tredzi-flow";
@@ -70,8 +71,7 @@ export function buildFlow(rows) {
   if (!total) return null;
   const time = new Float64Array(total);
   const lvl = new Int32Array(total);
-  const bid = new Float32Array(total);
-  const ask = new Float32Array(total);
+  const vol = new Float32Array(total);
   const days = [];
   let k = 0;
   for (const r of rows) {
@@ -80,10 +80,9 @@ export function buildFlow(rows) {
     for (let i = 0; i + 3 < f.length; i += 4) {
       time[k] = f[i];
       lvl[k] = f[i + 1];
-      bid[k] = f[i + 2];
-      ask[k] = f[i + 3];
+      vol[k] = f[i + 2] + f[i + 3];
       k++;
     }
   }
-  return { step: rows[0].step, n: k, time, lvl, bid, ask, days, first: time[0], last: time[k - 1] };
+  return { step: rows[0].step, n: k, time, lvl, vol, days, first: time[0], last: time[k - 1] };
 }
