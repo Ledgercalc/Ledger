@@ -1,7 +1,9 @@
 // Order-flow storage (browser IndexedDB). Separate from candleStore so the candle data is never touched.
 // One entry per symbol and UTC day. A day is a flat Float64Array of records, 4 numbers each:
-//   [minute (unix seconds), price level (integer = price / step), tick volume, unused]
-// (days saved by the first version split the volume into two slots by tick direction; only the sum of the two is used)
+//   [minute (unix seconds), price level (integer = price / step), buy ticks, sell ticks]
+// Volume = buy + sell (a tick count, NOT Dukascopy's quoted size). Delta = buy - sell.
+// A tick that can't be called buy or sell counts half in each, so volume stays whole and delta stays fair.
+// DB version 2 drops the old store: days saved earlier used quoted size as volume and have no buy/sell split.
 // Records are sorted by minute. "step" is the price size of one level (1 pip for most forex).
 
 const DB_NAME = "tredzi-flow";
@@ -11,8 +13,12 @@ let dbPromise = null;
 function openDb() {
   if (!dbPromise) {
     dbPromise = new Promise((resolve, reject) => {
-      const req = indexedDB.open(DB_NAME, 1);
-      req.onupgradeneeded = () => req.result.createObjectStore(STORE, { keyPath: "key" });
+      const req = indexedDB.open(DB_NAME, 2);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (db.objectStoreNames.contains(STORE)) db.deleteObjectStore(STORE); // old quoted-volume days
+        db.createObjectStore(STORE, { keyPath: "key" });
+      };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => {
         dbPromise = null;
@@ -72,6 +78,7 @@ export function buildFlow(rows) {
   const time = new Float64Array(total);
   const lvl = new Int32Array(total);
   const vol = new Float32Array(total);
+  const buy = new Float32Array(total);
   const days = [];
   let k = 0;
   for (const r of rows) {
@@ -80,9 +87,10 @@ export function buildFlow(rows) {
     for (let i = 0; i + 3 < f.length; i += 4) {
       time[k] = f[i];
       lvl[k] = f[i + 1];
+      buy[k] = f[i + 2];
       vol[k] = f[i + 2] + f[i + 3];
       k++;
     }
   }
-  return { step: rows[0].step, n: k, time, lvl, vol, days, first: time[0], last: time[k - 1] };
+  return { step: rows[0].step, n: k, time, lvl, vol, buy, days, first: time[0], last: time[k - 1] };
 }
