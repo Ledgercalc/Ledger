@@ -642,7 +642,7 @@ export class ChartEngine {
   }
   stripH() {
     if (!this.n || this.of.mode !== "both") return 0;
-    return Math.round(Math.min(110, Math.max(60, this.plotH * 0.2)));
+    return 54;
   }
   footprintOn() {
     const m = this.of.mode;
@@ -750,7 +750,7 @@ export class ChartEngine {
     const l0 = Math.round(c.low / step) - 1;
     const span = Math.round(c.high / step) + 2 - l0;
     if (!(span > 0) || span > 6000) {
-      r = { l0, v: new Float64Array(0), b: new Float64Array(0), d: 0 };
+      r = { l0, v: new Float64Array(0), b: new Float64Array(0), d: 0, t: 0 };
     } else {
       const dv = new Float64Array(span + 1);
       const db = new Float64Array(span + 1);
@@ -787,14 +787,16 @@ export class ChartEngine {
       let sv = 0;
       let sb = 0;
       let d = 0;
+      let t = 0;
       for (let k = 0; k < span; k++) {
         sv += dv[k];
         sb += db[k];
         v[k] = sv > 1e-9 ? sv : 0;
         bb[k] = sb > 1e-9 ? sb : 0;
         d += 2 * bb[k] - v[k];
+        t += v[k];
       }
-      r = { l0, v, b: bb, d };
+      r = { l0, v, b: bb, d, t };
     }
     if (this._estCache.size > 3000) this._estCache.clear();
     this._estCache.set(i, r);
@@ -816,10 +818,23 @@ export class ChartEngine {
     }
     return m;
   }
+  // volume and delta of candle i: exact where ticks are loaded, otherwise the (calibrated) estimate
+  ofVol(i) {
+    const tot = this._ofTot || this.ofTotals();
+    if (!this.flow) return tot ? tot.vol[i] : 0;
+    if (tot && tot.vol[i] > 0) return tot.vol[i];
+    this.calibrate();
+    return this.estBase(i).t * this._estCal;
+  }
   ofDelta(i) {
-    const tot = this._ofTot;
-    if (tot && tot.dlt) return tot.dlt[i];
-    return this.estBase(i).d;
+    const tot = this._ofTot || this.ofTotals();
+    if (!this.flow) return this.estBase(i).d;
+    if (tot && tot.vol[i] > 0) return tot.dlt[i];
+    this.calibrate();
+    return this.estBase(i).d * this._estCal;
+  }
+  cellWidth() {
+    return Math.max(8, this.barSpacing - 9);
   }
 
   drawFootprint(ctx) {
@@ -832,46 +847,49 @@ export class ChartEngine {
     const { from, to } = this.visible();
     const stepPx = (this.plotH * step) / (this.pMax - this.pMin);
     if (!(stepPx > 0)) return;
-    const mult = Math.max(1, Math.ceil(12 / stepPx));
+    const mult = Math.max(1, Math.ceil(14 / stepPx));
     const rowPx = stepPx * mult;
-    const cellW = this.barSpacing * 0.9 - 2;
-    const showNum = o.numbers && cellW >= 22 && rowPx >= 10;
-    ctx.font = `10px ${th.font}`;
+    const cellW = this.cellWidth();
+    const showNum = o.numbers && cellW >= 26 && rowPx >= 11;
+    const FONT = `11px ${th.font}`;
+    const BOLD = `700 11px ${th.font}`;
+    ctx.font = FONT;
     ctx.textBaseline = "middle";
     ctx.textAlign = "center";
     for (let i = from; i <= to; i++) {
       const fp = this.ofCandle(i, mult);
       if (!fp.rows.length || !(fp.max > 0)) continue;
-      const x0 = this.xOf(i) + 2; // cells sit to the right of the candle's wick
+      const x0 = this.xOf(i) + 4; // the slim candle sits on the left, the cells to its right
       for (let r = 0; r < fp.rows.length; r++) {
         const row = fp.rows[r];
         const yT = this.yOf(((row.bin + 1) * mult - 0.5) * step);
         const yB = this.yOf((row.bin * mult - 0.5) * step);
         if (yB < 0 || yT > this.plotH) continue;
         const h = Math.max(1, yB - yT - 1);
+        const cy = yT + h / 2 + 0.5;
         const view = o.view;
-        const wide = cellW >= 34;
         if (view === "delta") {
           const k = fp.dmax > 0 ? Math.abs(row.d) / fp.dmax : 0;
-          ctx.globalAlpha = 0.1 + 0.7 * k;
+          ctx.globalAlpha = 0.14 + 0.7 * k;
           ctx.fillStyle = row.d >= 0 ? th.up : th.down;
           ctx.fillRect(x0, yT, cellW, h);
           ctx.globalAlpha = 1;
           if (showNum) {
-            ctx.fillStyle = k > 0.7 ? "#fff" : th.text;
-            ctx.fillText(fmtS(row.d), x0 + cellW / 2, yT + h / 2 + 0.5);
+            ctx.fillStyle = th.text;
+            ctx.fillText(fmtS(row.d), x0 + cellW / 2, cy);
           }
         } else if (view === "both") {
-          const k = row.v / fp.max;
-          ctx.globalAlpha = 0.06 + 0.3 * k;
-          ctx.fillStyle = o.color;
+          // cell colour = the side that dominated, strength = how busy the price was (like pro footprints)
+          const tv = Math.sqrt(row.v / fp.max);
+          ctx.globalAlpha = 0.14 + 0.5 * tv;
+          ctx.fillStyle = row.b >= row.s ? th.up : th.down;
           ctx.fillRect(x0, yT, cellW, h);
           // diagonal imbalance: buys vs the sells one price lower, sells vs the buys one price higher
           const below = fp.rows[r - 1];
           const above = fp.rows[r + 1];
           const buyImb = below && below.bin === row.bin - 1 && row.b >= 4 && row.b >= 3 * below.s;
           const sellImb = above && above.bin === row.bin + 1 && row.s >= 4 && row.s >= 3 * above.b;
-          ctx.globalAlpha = 0.55;
+          ctx.globalAlpha = 0.92;
           if (sellImb) {
             ctx.fillStyle = th.down;
             ctx.fillRect(x0, yT, cellW / 2, h);
@@ -881,31 +899,32 @@ export class ChartEngine {
             ctx.fillRect(x0 + cellW / 2, yT, cellW / 2, h);
           }
           ctx.globalAlpha = 1;
-          if (showNum && wide) {
-            ctx.fillStyle = th.text;
+          if (showNum) {
             ctx.textAlign = "right";
-            ctx.fillText(fmtV(row.s), x0 + cellW / 2 - 3, yT + h / 2 + 0.5);
+            ctx.font = sellImb ? BOLD : FONT;
+            ctx.fillStyle = sellImb ? "#fff" : th.text;
+            ctx.fillText(fmtV(row.s), x0 + cellW / 2 - 4, cy);
             ctx.textAlign = "left";
-            ctx.fillText(fmtV(row.b), x0 + cellW / 2 + 3, yT + h / 2 + 0.5);
+            ctx.font = buyImb ? BOLD : FONT;
+            ctx.fillStyle = buyImb ? "#fff" : th.text;
+            ctx.fillText(fmtV(row.b), x0 + cellW / 2 + 4, cy);
             ctx.textAlign = "center";
-          } else if (showNum) {
-            ctx.fillStyle = th.text;
-            ctx.fillText(fmtV(row.v), x0 + cellW / 2, yT + h / 2 + 0.5);
+            ctx.font = FONT;
           }
         } else {
           const k = row.v / fp.max;
-          ctx.globalAlpha = 0.08 + 0.62 * k;
+          ctx.globalAlpha = 0.1 + 0.62 * k;
           ctx.fillStyle = o.color;
           ctx.fillRect(x0, yT, cellW, h);
           ctx.globalAlpha = 1;
           if (showNum) {
-            ctx.fillStyle = k > 0.7 ? "#fff" : th.text;
-            ctx.fillText(fmtV(row.v), x0 + cellW / 2, yT + h / 2 + 0.5);
+            ctx.fillStyle = th.text;
+            ctx.fillText(fmtV(row.v), x0 + cellW / 2, cy);
           }
         }
         if (r === fp.poc) {
           ctx.strokeStyle = o.pocColor;
-          ctx.lineWidth = 1.2;
+          ctx.lineWidth = 1.6;
           ctx.strokeRect(x0 + 0.5, yT + 0.5, cellW - 1, Math.max(1, h - 1));
         }
       }
@@ -914,7 +933,7 @@ export class ChartEngine {
         const top = this.yOf(((fp.rows[fp.rows.length - 1].bin + 1) * mult - 0.5) * step);
         const bot = this.yOf((fp.rows[0].bin * mult - 0.5) * step);
         ctx.strokeStyle = th.text;
-        ctx.globalAlpha = 0.45;
+        ctx.globalAlpha = 0.4;
         ctx.lineWidth = 1;
         ctx.setLineDash([3, 3]);
         ctx.strokeRect(x0 + 0.5, top, cellW - 1, Math.max(1, bot - top - 1));
@@ -932,9 +951,10 @@ export class ChartEngine {
     const tot = this.ofTotals();
     if (!tot) return;
     const th = this.theme;
+    const o = this.of;
     const plotW = this.plotW;
     const y0 = this.plotH - sh;
-    ctx.globalAlpha = 0.94;
+    ctx.globalAlpha = 0.96;
     ctx.fillStyle = th.bg;
     ctx.fillRect(0, y0, plotW, sh);
     ctx.globalAlpha = 1;
@@ -947,53 +967,47 @@ export class ChartEngine {
     const { from, to } = this.visible();
     const last = Math.min(to, this.n - 1);
     let maxV = 0;
-    for (let i = from; i <= last; i++) maxV = Math.max(maxV, tot.vol[i]);
-    ctx.font = `10.5px ${th.font}`;
-    ctx.textAlign = "left";
-    ctx.textBaseline = "top";
-    ctx.fillStyle = th.text;
-    if (!(maxV > 0)) {
-      ctx.globalAlpha = 0.8;
-      ctx.fillText("No volume data loaded for these candles", 8, y0 + 6);
-      ctx.globalAlpha = 1;
-      return;
-    }
-    // the number shown is for the candle under the crosshair, otherwise the latest one
-    const ch = this.crosshair;
-    let k = last;
-    if (ch && ch.x >= 0 && ch.x <= plotW) k = Math.min(last, Math.max(0, Math.round(this.lOf(ch.x))));
-    const dView = this.of.view === "delta";
-    ctx.globalAlpha = 0.9;
-    ctx.fillText(dView ? `Delta  ${tot.vol[k] > 0 ? fmtS(this.ofDelta(k)) : "-"}` : `Tick volume  ${tot.vol[k] > 0 ? fmtV(tot.vol[k]) : "-"}`, 8, y0 + 5);
-    ctx.globalAlpha = 1;
-    if (dView) {
-      let maxD = 0;
-      for (let i = from; i <= last; i++) maxD = Math.max(maxD, Math.abs(this.ofDelta(i)));
-      const mid = y0 + 16 + (sh - 22) / 2;
-      const half = (sh - 22) / 2;
-      const bwd = Math.max(1, this.barSpacing * 0.7);
-      ctx.globalAlpha = 0.85;
-      for (let i = from; i <= last; i++) {
-        if (!(tot.vol[i] > 0) || !(maxD > 0)) continue;
-        const dv = this.ofDelta(i);
-        const hh = Math.max(1, (Math.abs(dv) / maxD) * half);
-        ctx.fillStyle = dv >= 0 ? th.up : th.down;
-        ctx.fillRect(this.xOf(i) - bwd / 2, dv >= 0 ? mid - hh : mid, bwd, hh);
-      }
-      ctx.globalAlpha = 1;
-      return;
-    }
-    const base = this.plotH - 3;
-    const amp = sh - 22;
-    const bw = Math.max(1, this.barSpacing * 0.7);
-    ctx.globalAlpha = 0.85;
+    let maxD = 0;
     for (let i = from; i <= last; i++) {
-      if (!(tot.vol[i] > 0)) continue;
-      const c = this.candles[i];
-      const h = Math.max(1, (tot.vol[i] / maxV) * amp);
-      ctx.fillStyle = c.close >= c.open ? th.up : th.down;
-      ctx.fillRect(this.xOf(i) - bw / 2, base - h, bw, h);
+      maxV = Math.max(maxV, this.ofVol(i));
+      maxD = Math.max(maxD, Math.abs(this.ofDelta(i)));
     }
+    const rh = Math.floor((sh - 6) / 2);
+    const yV = y0 + 3;
+    const yD = yV + rh + 1;
+    const fp = this.footprintOn();
+    const w = fp ? this.cellWidth() : Math.max(1, this.barSpacing * 0.8);
+    const showNum = fp && w >= 26;
+    ctx.font = `600 11px ${th.font}`;
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "center";
+    for (let i = from; i <= last; i++) {
+      const v = this.ofVol(i);
+      if (!(v > 0)) continue;
+      const d = this.ofDelta(i);
+      const x = fp ? this.xOf(i) + 4 : this.xOf(i) - w / 2;
+      ctx.globalAlpha = 0.14 + 0.6 * (maxV > 0 ? v / maxV : 0);
+      ctx.fillStyle = o.color;
+      ctx.fillRect(x, yV, w, rh);
+      ctx.globalAlpha = 0.18 + 0.7 * (maxD > 0 ? Math.abs(d) / maxD : 0);
+      ctx.fillStyle = d >= 0 ? th.up : th.down;
+      ctx.fillRect(x, yD, w, rh);
+      ctx.globalAlpha = 1;
+      if (showNum) {
+        ctx.fillStyle = th.text;
+        ctx.fillText(fmtV(v), x + w / 2, yV + rh / 2 + 0.5);
+        ctx.fillText(fmtS(d), x + w / 2, yD + rh / 2 + 0.5);
+      }
+    }
+    ctx.globalAlpha = 1;
+    // row names in the left corner (only when no column is under them)
+    if (this.xOf(from) < 50) return;
+    ctx.textAlign = "left";
+    ctx.font = `10px ${th.font}`;
+    ctx.globalAlpha = 0.7;
+    ctx.fillStyle = th.text;
+    ctx.fillText("Volume", 4, yV + 6);
+    ctx.fillText("Delta", 4, yD + 6);
     ctx.globalAlpha = 1;
   }
 
@@ -1006,17 +1020,17 @@ export class ChartEngine {
       this.calibrate();
       const a = this._estAcc;
       msg = a
-        ? `Dashed candles are estimated. On your downloaded days the estimate got the delta direction right ${a.pct}% of the time (${a.n} candles).`
-        : "Dashed candles are estimated (no ticks downloaded for them)";
+        ? `Dashed = estimated (its delta matched the real ticks ${a.pct}% of the time, ${a.n} candles)`
+        : "Dashed = estimated (no ticks downloaded for these candles)";
     }
     else if (this.barSpacing < 8) msg = "Zoom in to see the footprint";
     if (!msg) return;
     ctx.font = `11px ${this.theme.font}`;
     ctx.textAlign = "left";
-    ctx.textBaseline = "top";
+    ctx.textBaseline = "bottom";
     ctx.fillStyle = this.theme.text;
-    ctx.globalAlpha = 0.85;
-    ctx.fillText(msg, 8, 8);
+    ctx.globalAlpha = 0.8;
+    ctx.fillText(msg, 8, this.plotH - this.stripH() - 6);
     ctx.globalAlpha = 1;
   }
 
@@ -1073,7 +1087,7 @@ export class ChartEngine {
       ctx.fillStyle = col;
       ctx.fillRect(x - 0.5, Math.round(yH), 1, Math.max(1, Math.round(yL) - Math.round(yH)));
       const top = Math.round(Math.min(yO, yC));
-      const bodyW = slimTot && slimTot.vol[i] > 0 ? 3 : body;
+      const bodyW = slimTot ? 5 : body;
       ctx.fillRect(x - (bodyW - 1) / 2, top, bodyW, Math.max(1, Math.round(Math.max(yO, yC)) - top));
     }
 
