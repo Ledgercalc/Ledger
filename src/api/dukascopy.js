@@ -1,5 +1,5 @@
 import { COMMUNITY_API_BASE } from "./community.js";
-import { lzmaDecode } from "../lib/lzma.js";
+import { decodeLzma } from "../lib/lzmaPool.js";
 import { clearSymbol, getRange, listDays, listVolumeDays, putDay } from "../lib/candleStore.js";
 import { instrumentKind, polishCandles } from "../lib/candleClean.js";
 import { buildFlow, getFlowRange, listFlowDays, putFlowDay } from "../lib/flowStore.js";
@@ -201,7 +201,7 @@ async function downloadDay(id, info, day, signal, ctx) {
   const dt0 = new Date(base);
   const fast = await fetchHour(id, dt0.getUTCFullYear(), dt0.getUTCMonth(), dt0.getUTCDate(), 0, signal, "m1", ctx);
   if (fast) {
-    const candles = candleFileToMinutes(lzmaDecode(fast), base / 1000, info);
+    const candles = candleFileToMinutes(await decodeLzma(fast), base / 1000, info);
     return { flat: toFlat(candles), bytes: fast.length, count: candles.length, viaTicks: false };
   }
   // No ready-made file for this day. A holiday or two is normal; a long run of weekdays means Dukascopy
@@ -235,7 +235,7 @@ async function downloadDayFromTicks(id, info, day, signal, ctx) {
       const buf = await fetchHour(id, dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate(), h, signal, "t", ctx);
       if (buf) {
         bytes += buf.length;
-        results[i] = ticksToMinutes(lzmaDecode(buf), base / 1000 + h * 3600, info);
+        results[i] = ticksToMinutes(await decodeLzma(buf), base / 1000 + h * 3600, info);
       } else results[i] = [];
       await sleep(0); // let the page breathe between hours
     }
@@ -524,7 +524,7 @@ async function downloadFlowDay(symbol, info, day, signal, ctx) {
       const buf = await fetchHour(info.code, dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate(), hours[i], signal, "t", ctx);
       if (buf) {
         bytes += buf.length;
-        raws[i] = lzmaDecode(buf);
+        raws[i] = await decodeLzma(buf);
       }
       await sleep(0);
     }
@@ -532,9 +532,10 @@ async function downloadFlowDay(symbol, info, day, signal, ctx) {
   await Promise.all(Array.from({ length: Math.min(4, hours.length) }, lane));
   const st = newFlowState();
   const step = FLOW_STEP[symbol];
-  hours.forEach((h, i) => {
-    if (raws[i]) ticksToFlow(raws[i], base / 1000 + h * 3600, info, step, st);
-  });
+  for (let i = 0; i < hours.length; i++) {
+    if (raws[i]) ticksToFlow(raws[i], base / 1000 + hours[i] * 3600, info, step, st);
+    if (i % 4 === 3) await sleep(0); // keep the page responsive
+  }
   flushMinute(st);
   return { flat: Float64Array.from(st.out), bytes };
 }
