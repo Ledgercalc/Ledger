@@ -1,6 +1,7 @@
 import BacktestChart from "../components/TredziChart.jsx";
 import HistoryLoader from "../components/HistoryLoader.jsx";
 import { INSTRUMENTS, TIMEFRAMES, fetchCandles } from "../api/marketData.js";
+import { dayString, downloadOrderFlow, hasOrderFlow, loadOrderFlow } from "../api/dukascopy.js";
 import { calcR, scanPosition, summarize, validateOrder } from "../lib/backtestEngine.js";
 import { inferTfLabel, parseCandlesCsv, precisionFor } from "../lib/candles.js";
 import { scopedKey } from "../lib/constants.js";
@@ -58,6 +59,14 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
 
   const fileRef = useRef(null);
 
+  // order flow (footprint / delta) from Dukascopy ticks
+  const [flow, setFlow] = useState(null);
+  const [flowDays, setFlowDays] = useState(3);
+  const [flowBusy, setFlowBusy] = useState(false);
+  const [flowNote, setFlowNote] = useState("");
+  const [flowFailed, setFlowFailed] = useState(false);
+  const flowAbort = useRef(null);
+
   // ---- persistence (per account, same window.storage the rest of the app uses) ----
   useEffect(() => {
     let dead = false;
@@ -90,6 +99,77 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
       .set(scopedKey(BACKTEST_STORAGE_KEY, activeAccountId), JSON.stringify({ trades, risk }), false)
       .catch(() => {});
   }, [trades, risk, loadedFor, activeAccountId]);
+
+  // ---- order flow ----
+  const canFlow = meta.source === "Dukascopy" && hasOrderFlow(meta.symbol);
+  const flowRange = useCallback(
+    () => ({ symbol: meta.symbol, fromDay: dayString(candles[0].time * 1000), toDay: dayString(candles[candles.length - 1].time * 1000) }),
+    [candles, meta.symbol]
+  );
+
+  // pick up whatever order flow is already saved in the browser for this dataset
+  useEffect(() => {
+    let dead = false;
+    setFlow(null);
+    setFlowNote("");
+    setFlowFailed(false);
+    if (!canFlow || !candles.length) return undefined;
+    loadOrderFlow(flowRange())
+      .then((f) => {
+        if (!dead) setFlow(f);
+      })
+      .catch(() => {});
+    return () => {
+      dead = true;
+    };
+  }, [candles, canFlow, flowRange]);
+
+  useEffect(
+    () => () => {
+      if (flowAbort.current) flowAbort.current.abort();
+    },
+    [candles]
+  );
+
+  const loadFlow = async () => {
+    if (!canFlow || flowBusy || !candles.length) return;
+    const days = [];
+    for (let i = idx; i < candles.length && days.length < flowDays; i++) {
+      const d = dayString(candles[i].time * 1000);
+      if (days[days.length - 1] !== d) days.push(d);
+    }
+    const ctl = new AbortController();
+    flowAbort.current = ctl;
+    setFlowBusy(true);
+    setFlowFailed(false);
+    setFlowNote(`Downloading ticks for ${days.length} day${days.length === 1 ? "" : "s"}...`);
+    try {
+      const res = await downloadOrderFlow({
+        symbol: meta.symbol,
+        days,
+        signal: ctl.signal,
+        onProgress: (p) => setFlowNote(p.note || (p.total ? `Order flow: day ${Math.min(p.done + 1, p.total)} of ${p.total}${p.day ? ` (${p.day} saved)` : ""}` : "Checking saved days...")),
+      });
+      setFlow(await loadOrderFlow(flowRange()));
+      if (res.failed.length) {
+        setFlowFailed(true);
+        setFlowNote(`${res.downloaded} day(s) saved, ${res.failed.length} failed: ${res.failed[0].message}`);
+      } else {
+        setFlowNote(res.downloaded ? `Order flow saved for ${days[0]} to ${days[days.length - 1]}.` : "Order flow for those days is already saved.");
+      }
+    } catch (err) {
+      if (err && err.name === "AbortError") {
+        setFlowNote("Stopped. Days already downloaded are kept.");
+        loadOrderFlow(flowRange()).then(setFlow).catch(() => {});
+      } else {
+        setFlowFailed(true);
+        setFlowNote((err && err.message) || "Couldn't load order flow.");
+      }
+    } finally {
+      setFlowBusy(false);
+      flowAbort.current = null;
+    }
+  };
 
   // ---- derived ----
   const last = candles.length - 1;
@@ -437,6 +517,48 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
         </div>
   );
 
+  const renderFlow = (pad) => (
+    <div style={{ padding: pad }}>
+      <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${palette.border}` }}>
+        {canFlow ? (
+          <>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <div style={{ flex: "1 1 auto", minWidth: 0, fontFamily: display, fontWeight: 700, color: palette.text, fontSize: 13.5 }}>
+                Order flow{" "}
+                <span style={{ color: palette.textFaint, fontWeight: 500, fontSize: 12 }}>
+                  {flow ? `${flow.days.length} day${flow.days.length === 1 ? "" : "s"} saved` : "none loaded"}
+                </span>
+              </div>
+              <select aria-label="Days of order flow to download" value={flowDays} disabled={flowBusy} onChange={(e) => setFlowDays(Number(e.target.value))} style={{ ...field, width: "auto", padding: "8px 8px" }}>
+                {[1, 2, 3, 5, 10].map((n) => (
+                  <option key={n} value={n}>{n} day{n === 1 ? "" : "s"}</option>
+                ))}
+              </select>
+              {flowBusy ? (
+                <button type="button" onClick={() => flowAbort.current && flowAbort.current.abort()} className={TAP} style={ghostBtn(false)}>Stop</button>
+              ) : (
+                <button type="button" onClick={loadFlow} className={TAP} style={ghostBtn(true)}>Load from here</button>
+              )}
+            </div>
+            {flowNote ? (
+              <p role={flowFailed ? "alert" : "status"} style={{ color: flowFailed ? palette.red : palette.textMuted, fontFamily: mono, fontSize: 12, margin: "8px 0 0" }}>{flowNote}</p>
+            ) : (
+              !flow && (
+                <p style={{ color: palette.textFaint, fontFamily: mono, fontSize: 11.5, lineHeight: 1.5, margin: "8px 0 0" }}>
+                  Footprint, delta and cumulative delta from Dukascopy ticks. Download some days starting at the current candle, then switch Order flow on in the {isDesktop ? "chart toolbar (pulse icon)" : "chart tools menu"}.
+                </p>
+              )
+            )}
+          </>
+        ) : (
+          <p style={{ color: palette.textFaint, fontFamily: mono, fontSize: 11.5, lineHeight: 1.5, margin: 0 }}>
+            Order flow needs candles loaded from Dukascopy (not a CSV or the quick load) on a supported instrument.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+
   const fsTrade = pos ? (
     <button type="button" onClick={closeNow} className={TAP} style={{ ...ghostBtn(false), width: "100%", justifyContent: "center", marginTop: 10 }}>
       Close at {bar ? bar.close.toFixed(precision) : "-"}  ({openR == null ? "-" : `${signed(openR)}R`})
@@ -535,6 +657,7 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
               height={isDesktop ? 480 : Math.max(340, Math.round((typeof window !== "undefined" ? window.innerHeight : 700) * 0.52))}
               footer={fsFooter}
               drawKey={meta.symbol}
+              flow={flow}
               pickMode={pickMode}
               onPickPrice={onPickPrice}
               onApplyPlan={(plan) => {
@@ -590,6 +713,7 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
             ) : (
               renderReplay("0 12px")
             )}
+            {renderFlow(isDesktop ? 0 : "0 12px")}
           </div>
 
           {/* Order + stats column */}
