@@ -2,6 +2,7 @@ import { COMMUNITY_API_BASE } from "./community.js";
 import { lzmaDecode } from "../lib/lzma.js";
 import { clearSymbol, getRange, listDays, listVolumeDays, putDay } from "../lib/candleStore.js";
 import { instrumentKind, polishCandles } from "../lib/candleClean.js";
+import { buildFlow, getFlowRange, listFlowDays, putFlowDay } from "../lib/flowStore.js";
 
 // Full history from Dukascopy's free public datafeed, served to the browser through your Worker's
 // /market/duka-raw (the browser isn't allowed to read Dukascopy directly).
@@ -423,4 +424,171 @@ export async function loadDukascopy({ symbol, fromDay, toDay, tf, clean = true }
     out.m1 = m1;
   }
   return out;
+}
+
+// ======================================================================================================
+// ORDER FLOW (footprint data) from Dukascopy's tick files
+// ======================================================================================================
+// Every Dukascopy tick carries a bid price, an ask price and the volume quoted on each side. For order flow we
+// walk the ticks of a day in order and sort every tick's volume into the "sell" (bid) or "buy" (ask) side with the
+// tick rule: the mid price moved up = buyers lifted the offer, moved down = sellers hit the bid, unchanged = same
+// side as the previous move. Volume is added up per minute and per price level, then stored in the browser.
+// Forex has no central tape, so this is an estimate built from Dukascopy's own quotes (it is not exchange volume).
+
+// Size of one price level (1 pip on most forex pairs). The chart can merge levels into bigger rows, never smaller.
+export const FLOW_STEP = {
+  EURUSD: 0.0001, GBPUSD: 0.0001, USDJPY: 0.01, AUDUSD: 0.0001, USDCAD: 0.0001, USDCHF: 0.0001, NZDUSD: 0.0001,
+  EURJPY: 0.01, GBPJPY: 0.01, EURGBP: 0.0001, XAUUSD: 0.1, XAGUSD: 0.01,
+  US30: 1, NAS100: 1, SPX500: 0.5, GER40: 1, UK100: 1, JP225: 5,
+};
+
+export const hasOrderFlow = (symbol) => !!(DUKA[symbol] && FLOW_STEP[symbol]);
+
+function newFlowState() {
+  return { dir: 0, prevSum: null, minute: -1, cur: new Map(), out: [] };
+}
+
+function flushMinute(st) {
+  for (const [lvl, v] of st.cur) st.out.push(st.minute, lvl, v[0], v[1]);
+  st.cur.clear();
+}
+
+// One hour of decompressed ticks -> adds to st.out. Hours must be fed in time order.
+function ticksToFlow(raw, hourStartSec, info, step, st) {
+  const n = Math.floor(raw.length / 20);
+  if (!n) return;
+  const dv = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
+  const sample = [];
+  const sstep = Math.max(1, Math.floor(n / 101));
+  for (let i = 0; i < n; i += sstep) sample.push(dv.getUint32(i * 20 + 8));
+  sample.sort((a, b) => a - b);
+  const div = pickDivisor(sample[Math.floor(sample.length / 2)], info);
+  if (!div) throw new Error("Prices from Dukascopy didn't look right for this instrument.");
+  // some instruments publish no volume at all: then every tick counts as 1
+  let anyVol = false;
+  for (let i = 0; i < n && !anyVol; i += sstep) anyVol = dv.getFloat32(i * 20 + 12) > 0 || dv.getFloat32(i * 20 + 16) > 0;
+  for (let i = 0; i < n; i++) {
+    const o = i * 20;
+    const askRaw = dv.getUint32(o + 4);
+    const bidRaw = dv.getUint32(o + 8);
+    if (!(bidRaw > 0) || !(askRaw > 0)) continue;
+    const sum = askRaw + bidRaw;
+    if (st.prevSum != null) {
+      if (sum > st.prevSum) st.dir = 1;
+      else if (sum < st.prevSum) st.dir = -1;
+    }
+    st.prevSum = sum;
+    const w = anyVol ? (dv.getFloat32(o + 12) || 0) + (dv.getFloat32(o + 16) || 0) : 1;
+    if (!(w > 0)) continue;
+    const t = hourStartSec + Math.floor(dv.getUint32(o) / 1000);
+    const m = t - (t % 60);
+    if (m !== st.minute) {
+      flushMinute(st);
+      st.minute = m;
+    }
+    const lvl = Math.round(bidRaw / div / step); // levels follow the bid price, like the candles
+    let e = st.cur.get(lvl);
+    if (!e) {
+      e = [0, 0];
+      st.cur.set(lvl, e);
+    }
+    if (st.dir > 0) e[1] += w;
+    else if (st.dir < 0) e[0] += w;
+    else {
+      e[0] += w / 2; // direction not known yet (first tick of the day): split evenly
+      e[1] += w / 2;
+    }
+  }
+}
+
+async function downloadFlowDay(symbol, info, day, signal, ctx) {
+  const base = dayStart(day);
+  const dow = new Date(base).getUTCDay();
+  const hours = [];
+  for (let h = 0; h < 24; h++) {
+    if (dow === 6) break; // Saturday: market closed
+    if (dow === 0 && h < 20) continue; // Sunday: opens in the evening
+    if (base + h * 3600000 > Date.now() - 30 * 60000) continue; // hours that haven't finished yet
+    hours.push(h);
+  }
+  const raws = new Array(hours.length);
+  let next = 0;
+  let bytes = 0;
+  const lane = async () => {
+    while (next < hours.length) {
+      const i = next++;
+      const dt = new Date(base);
+      const buf = await fetchHour(info.code, dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate(), hours[i], signal, "t", ctx);
+      if (buf) {
+        bytes += buf.length;
+        raws[i] = lzmaDecode(buf);
+      }
+      await sleep(0);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(2, hours.length) }, lane));
+  const st = newFlowState();
+  const step = FLOW_STEP[symbol];
+  hours.forEach((h, i) => {
+    if (raws[i]) ticksToFlow(raws[i], base / 1000 + h * 3600, info, step, st);
+  });
+  flushMinute(st);
+  return { flat: Float64Array.from(st.out), bytes };
+}
+
+// Downloads the ticks of the given UTC days (e.g. ["2024-03-04", ...]) and stores the order flow. Days already
+// stored are skipped. Same patience as the candle download. onProgress({ done, total, day, note }).
+// Returns { downloaded, failed: [{ day, message }], stoppedEarly }.
+export async function downloadOrderFlow({ symbol, days, onProgress, signal }) {
+  const info = DUKA[symbol];
+  if (!info || !FLOW_STEP[symbol]) throw new Error("Order flow isn't available for that instrument.");
+  const have = new Set(await listFlowDays(symbol));
+  const today = dayString(Date.now());
+  const todo = days.filter((d) => d <= today && (!have.has(d) || d === today));
+  const state = { done: 0, total: todo.length, day: "", note: "" };
+  const emit = () => onProgress && onProgress({ ...state });
+  const ctx = {
+    limiter: makeLimiter(),
+    halted: () => false,
+    note: (t) => {
+      state.note = t;
+      emit();
+    },
+  };
+  const failed = [];
+  let consecutive = 0;
+  let stoppedEarly = false;
+  emit();
+  for (const day of todo) {
+    if (signal && signal.aborted) throw new DOMException("Cancelled", "AbortError");
+    try {
+      const res = await downloadFlowDay(symbol, info, day, signal, ctx);
+      await putFlowDay(symbol, day, FLOW_STEP[symbol], res.flat);
+      consecutive = 0;
+      state.done++;
+      state.day = day;
+      state.note = "";
+      emit();
+    } catch (err) {
+      if (signal && signal.aborted) throw err;
+      if (err && err.fatal) throw err;
+      failed.push({ day, message: (err && err.message) || "Failed" });
+      if (++consecutive >= 3) {
+        stoppedEarly = true;
+        break;
+      }
+    }
+  }
+  return { downloaded: state.done, failed, stoppedEarly };
+}
+
+// Stored order flow for a symbol and date range, joined into one object for the chart (or null when nothing is stored).
+export async function loadOrderFlow({ symbol, fromDay, toDay }) {
+  if (!hasOrderFlow(symbol)) return null;
+  const rows = await getFlowRange(symbol, fromDay, toDay);
+  return buildFlow(rows.filter((r) => r.flat && r.flat.length));
+}
+
+export async function storedFlowDays(symbol) {
+  return new Set(await listFlowDays(symbol));
 }
