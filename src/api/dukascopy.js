@@ -427,13 +427,12 @@ export async function loadDukascopy({ symbol, fromDay, toDay, tf, clean = true }
 }
 
 // ======================================================================================================
-// ORDER FLOW (footprint data) from Dukascopy's tick files
+// VOLUME FOOTPRINT from Dukascopy's tick files
 // ======================================================================================================
-// Every Dukascopy tick carries a bid price, an ask price and the volume quoted on each side. For order flow we
-// walk the ticks of a day in order and sort every tick's volume into the "sell" (bid) or "buy" (ask) side with the
-// tick rule: the mid price moved up = buyers lifted the offer, moved down = sellers hit the bid, unchanged = same
-// side as the previous move. Volume is added up per minute and per price level, then stored in the browser.
-// Forex has no central tape, so this is an estimate built from Dukascopy's own quotes (it is not exchange volume).
+// Every Dukascopy tick carries a bid price, an ask price and the volume quoted on each side. For the footprint we
+// add up each tick's volume (ask + bid) per minute and per price level and keep it in the browser. This is Dukascopy's
+// tick volume: it shows where price spent its time and where the quotes were busiest. It does NOT say who was
+// buying or selling (forex has no public trade tape), so no buy/sell split is made.
 
 // Size of one price level (1 pip on most forex pairs). The chart can merge levels into bigger rows, never smaller.
 export const FLOW_STEP = {
@@ -445,11 +444,11 @@ export const FLOW_STEP = {
 export const hasOrderFlow = (symbol) => !!(DUKA[symbol] && FLOW_STEP[symbol]);
 
 function newFlowState() {
-  return { dir: 0, prevSum: null, minute: -1, cur: new Map(), out: [] };
+  return { minute: -1, cur: new Map(), out: [] };
 }
 
 function flushMinute(st) {
-  for (const [lvl, v] of st.cur) st.out.push(st.minute, lvl, v[0], v[1]);
+  for (const [lvl, v] of st.cur) st.out.push(st.minute, lvl, v, 0);
   st.cur.clear();
 }
 
@@ -469,15 +468,8 @@ function ticksToFlow(raw, hourStartSec, info, step, st) {
   for (let i = 0; i < n && !anyVol; i += sstep) anyVol = dv.getFloat32(i * 20 + 12) > 0 || dv.getFloat32(i * 20 + 16) > 0;
   for (let i = 0; i < n; i++) {
     const o = i * 20;
-    const askRaw = dv.getUint32(o + 4);
     const bidRaw = dv.getUint32(o + 8);
-    if (!(bidRaw > 0) || !(askRaw > 0)) continue;
-    const sum = askRaw + bidRaw;
-    if (st.prevSum != null) {
-      if (sum > st.prevSum) st.dir = 1;
-      else if (sum < st.prevSum) st.dir = -1;
-    }
-    st.prevSum = sum;
+    if (!(bidRaw > 0)) continue;
     const w = anyVol ? (dv.getFloat32(o + 12) || 0) + (dv.getFloat32(o + 16) || 0) : 1;
     if (!(w > 0)) continue;
     const t = hourStartSec + Math.floor(dv.getUint32(o) / 1000);
@@ -487,17 +479,7 @@ function ticksToFlow(raw, hourStartSec, info, step, st) {
       st.minute = m;
     }
     const lvl = Math.round(bidRaw / div / step); // levels follow the bid price, like the candles
-    let e = st.cur.get(lvl);
-    if (!e) {
-      e = [0, 0];
-      st.cur.set(lvl, e);
-    }
-    if (st.dir > 0) e[1] += w;
-    else if (st.dir < 0) e[0] += w;
-    else {
-      e[0] += w / 2; // direction not known yet (first tick of the day): split evenly
-      e[1] += w / 2;
-    }
+    st.cur.set(lvl, (st.cur.get(lvl) || 0) + w);
   }
 }
 
@@ -536,12 +518,12 @@ async function downloadFlowDay(symbol, info, day, signal, ctx) {
   return { flat: Float64Array.from(st.out), bytes };
 }
 
-// Downloads the ticks of the given UTC days (e.g. ["2024-03-04", ...]) and stores the order flow. Days already
+// Downloads the ticks of the given UTC days (e.g. ["2024-03-04", ...]) and stores the volume footprint. Days already
 // stored are skipped. Same patience as the candle download. onProgress({ done, total, day, note }).
 // Returns { downloaded, failed: [{ day, message }], stoppedEarly }.
 export async function downloadOrderFlow({ symbol, days, onProgress, signal }) {
   const info = DUKA[symbol];
-  if (!info || !FLOW_STEP[symbol]) throw new Error("Order flow isn't available for that instrument.");
+  if (!info || !FLOW_STEP[symbol]) throw new Error("The volume footprint isn't available for that instrument.");
   const have = new Set(await listFlowDays(symbol));
   const today = dayString(Date.now());
   const todo = days.filter((d) => d <= today && (!have.has(d) || d === today));
@@ -582,7 +564,7 @@ export async function downloadOrderFlow({ symbol, days, onProgress, signal }) {
   return { downloaded: state.done, failed, stoppedEarly };
 }
 
-// Stored order flow for a symbol and date range, joined into one object for the chart (or null when nothing is stored).
+// Stored footprint data for a symbol and date range, joined into one object for the chart (or null when nothing is stored).
 export async function loadOrderFlow({ symbol, fromDay, toDay }) {
   if (!hasOrderFlow(symbol)) return null;
   const rows = await getFlowRange(symbol, fromDay, toDay);
