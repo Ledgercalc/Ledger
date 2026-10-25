@@ -42,16 +42,12 @@ export const VP_DEFAULTS = {
   vaColor: "#2962ff",
 };
 
-// Order flow (footprint) settings. mode: off | footprint | delta (delta + cumulative delta strip) | both
+// Volume footprint settings. mode: off | footprint | both (footprint + a volume bar strip under the candles)
 export const OF_DEFAULTS = {
   mode: "off",
-  numbers: true, // bid x ask numbers inside the footprint cells (when there is room)
-  imbalance: true, // highlight diagonal imbalances
-  ratio: 3, // imbalance = one side is at least this many times the opposite side one level away
-  buyColor: "#089981",
-  sellColor: "#f23645",
+  numbers: true, // volume numbers inside the cells (when there is room)
+  color: "#2962ff",
   pocColor: "#f5c542",
-  cvdColor: "#f5c542",
 };
 
 // compact volume text for footprint cells
@@ -59,7 +55,8 @@ function fmtV(v) {
   if (v >= 1000) return `${(v / 1000).toFixed(1)}k`;
   if (v >= 10) return String(Math.round(v));
   if (v >= 1) return v.toFixed(1);
-  return v.toFixed(2);
+  if (v >= 0.005) return v.toFixed(2);
+  return "0";
 }
 
 // Sessions in UTC: off = start offset from 00:00 UTC (seconds), len = length.
@@ -273,7 +270,7 @@ export class ChartEngine {
     this.pMax = hi + pad;
     const sh = this.stripH();
     if (sh) {
-      // keep the candles above the delta strip
+      // keep the candles above the volume strip
       const f = Math.min(0.5, sh / this.plotH);
       this.pMin -= ((this.pMax - this.pMin) * f) / (1 - f);
     }
@@ -569,11 +566,13 @@ export class ChartEngine {
     ctx.globalAlpha = 1;
   }
 
-  // ---- order flow (footprint, delta, cumulative delta) ----
-  // The flow comes from Dukascopy's ticks, kept per minute and per price level (bid = sell side, ask = buy side).
-  // Any timeframe is built from it by time bucket, so it lines up with whatever candles are on the chart.
+  // ---- volume footprint ----
+  // Dukascopy's tick volume, added up per minute and per price level and kept in the browser. Any timeframe is
+  // built from it by time bucket, so it lines up with whatever candles are on the chart. It is volume at price,
+  // with no claim about who was buying or selling.
   setOrderFlow(s) {
     this.of = { ...OF_DEFAULTS, ...s };
+    if (!["off", "footprint", "both"].includes(this.of.mode)) this.of.mode = "footprint"; // an older saved choice
     this._ofCache.clear();
   }
   setFlow(f) {
@@ -582,13 +581,12 @@ export class ChartEngine {
     this._ofTot = null;
   }
   stripH() {
-    const m = this.of.mode;
-    if (!this.flow || (m !== "delta" && m !== "both")) return 0;
-    return Math.round(Math.min(150, Math.max(76, this.plotH * 0.26)));
+    if (!this.flow || this.of.mode !== "both") return 0;
+    return Math.round(Math.min(110, Math.max(60, this.plotH * 0.2)));
   }
   footprintOn() {
     const m = this.of.mode;
-    return !!this.flow && (m === "footprint" || m === "both") && this.barSpacing >= 11;
+    return !!this.flow && (m === "footprint" || m === "both") && this.barSpacing >= 8;
   }
   flowLB(t) {
     const f = this.flow;
@@ -601,14 +599,13 @@ export class ChartEngine {
     }
     return lo;
   }
-  // per candle: total volume, delta (buy - sell) and cumulative delta (restarts every UTC day on intraday charts)
+  // total volume per candle
   ofTotals() {
     if (this._ofTot) return this._ofTot;
     const f = this.flow;
     const cs = this.candles;
     const len = cs.length;
     if (!f || !len) return null;
-    const delta = new Float64Array(len);
     const vol = new Float64Array(len);
     let ci = 0;
     for (let k = 0; k < f.n; k++) {
@@ -616,22 +613,9 @@ export class ChartEngine {
       if (t < cs[0].time) continue;
       while (ci + 1 < len && cs[ci + 1].time <= t) ci++;
       if (t >= cs[ci].time + this.barSec) continue; // weekend or a missing candle
-      vol[ci] += f.ask[k] + f.bid[k];
-      delta[ci] += f.ask[k] - f.bid[k];
+      vol[ci] += f.vol[k];
     }
-    const cvd = new Float64Array(len);
-    let run = 0;
-    let prevDay = -1;
-    for (let i = 0; i < len; i++) {
-      const day = Math.floor(cs[i].time / 86400);
-      if (this.barSec < 86400 && day !== prevDay) {
-        run = 0;
-        prevDay = day;
-      }
-      run += delta[i];
-      cvd[i] = run;
-    }
-    this._ofTot = { delta, vol, cvd };
+    this._ofTot = { vol };
     return this._ofTot;
   }
   // The footprint of one candle, with the price levels merged into rows of "mult" levels.
@@ -646,26 +630,18 @@ export class ChartEngine {
     const m = new Map();
     for (let k = s; k < e; k++) {
       const bin = Math.floor(f.lvl[k] / mult);
-      let x = m.get(bin);
-      if (!x) {
-        x = [0, 0];
-        m.set(bin, x);
-      }
-      x[0] += f.bid[k];
-      x[1] += f.ask[k];
+      m.set(bin, (m.get(bin) || 0) + f.vol[k]);
     }
-    const rows = [...m].map(([bin, v]) => ({ bin, b: v[0], a: v[1] })).sort((p, q) => p.bin - q.bin);
+    const rows = [...m].map(([bin, v]) => ({ bin, v })).sort((p, q) => p.bin - q.bin);
     let poc = -1;
     let max = 0;
-    let maxSide = 0;
     rows.forEach((row, idx) => {
-      if (row.b + row.a > max) {
-        max = row.b + row.a;
+      if (row.v > max) {
+        max = row.v;
         poc = idx;
       }
-      maxSide = Math.max(maxSide, row.b, row.a);
     });
-    r = { rows, poc, max, maxSide, byBin: new Map(rows.map((row) => [row.bin, row])) };
+    r = { rows, poc, max };
     if (this._ofCache.size > 4000) this._ofCache.clear();
     this._ofCache.set(key, r);
     return r;
@@ -683,77 +659,50 @@ export class ChartEngine {
     if (!(stepPx > 0)) return;
     const mult = Math.max(1, Math.ceil(12 / stepPx));
     const rowPx = stepPx * mult;
-    const slot = this.barSpacing * 0.94;
-    const half = slot / 2;
-    const split = half >= 5;
-    const showNum = o.numbers && half >= 22 && rowPx >= 10;
+    const cellW = this.barSpacing * 0.9 - 2;
+    const showNum = o.numbers && cellW >= 22 && rowPx >= 10;
     ctx.font = `10px ${th.font}`;
     ctx.textBaseline = "middle";
+    ctx.textAlign = "center";
     for (let i = from; i <= to; i++) {
       if (!(tot.vol[i] > 0)) continue;
       const fp = this.ofCandle(i, mult);
-      if (!fp.rows.length || !(fp.maxSide > 0)) continue;
-      const x = this.xOf(i);
-      const x0 = x - slot / 2;
+      if (!fp.rows.length || !(fp.max > 0)) continue;
+      const x0 = this.xOf(i) + 2; // cells sit to the right of the candle's wick
       for (let r = 0; r < fp.rows.length; r++) {
         const row = fp.rows[r];
         const yT = this.yOf(((row.bin + 1) * mult - 0.5) * step);
         const yB = this.yOf((row.bin * mult - 0.5) * step);
         if (yB < 0 || yT > this.plotH) continue;
         const h = Math.max(1, yB - yT - 1);
-        let imbB = false;
-        let imbA = false;
-        if (o.imbalance && split) {
-          const below = fp.byBin.get(row.bin - 1);
-          const above = fp.byBin.get(row.bin + 1);
-          const floor = fp.maxSide * 0.08;
-          imbA = !!below && row.a >= floor && row.a >= o.ratio * below.b;
-          imbB = !!above && row.b >= floor && row.b >= o.ratio * above.a;
-        }
-        if (split) {
-          ctx.globalAlpha = imbB ? 0.92 : 0.1 + (0.5 * row.b) / fp.maxSide;
-          ctx.fillStyle = o.sellColor;
-          ctx.fillRect(x0, yT, half - 1.5, h);
-          ctx.globalAlpha = imbA ? 0.92 : 0.1 + (0.5 * row.a) / fp.maxSide;
-          ctx.fillStyle = o.buyColor;
-          ctx.fillRect(x + 1.5, yT, half - 1.5, h);
-        } else {
-          const d = row.a - row.b;
-          ctx.globalAlpha = 0.15 + (0.6 * Math.abs(d)) / fp.maxSide;
-          ctx.fillStyle = d >= 0 ? o.buyColor : o.sellColor;
-          ctx.fillRect(x0, yT, slot, h);
-        }
+        const k = row.v / fp.max;
+        ctx.globalAlpha = 0.08 + 0.62 * k;
+        ctx.fillStyle = o.color;
+        ctx.fillRect(x0, yT, cellW, h);
         ctx.globalAlpha = 1;
         if (showNum) {
-          ctx.textAlign = "right";
-          ctx.fillStyle = imbB ? "#fff" : th.text;
-          ctx.fillText(fmtV(row.b), x - 3, yT + h / 2 + 0.5);
-          ctx.textAlign = "left";
-          ctx.fillStyle = imbA ? "#fff" : th.text;
-          ctx.fillText(fmtV(row.a), x + 3, yT + h / 2 + 0.5);
+          ctx.fillStyle = k > 0.7 ? "#fff" : th.text;
+          ctx.fillText(fmtV(row.v), x0 + cellW / 2, yT + h / 2 + 0.5);
         }
         if (r === fp.poc) {
           ctx.strokeStyle = o.pocColor;
           ctx.lineWidth = 1.2;
-          ctx.strokeRect(x0 + 0.5, yT + 0.5, slot - 1, Math.max(1, h - 1));
+          ctx.strokeRect(x0 + 0.5, yT + 0.5, cellW - 1, Math.max(1, h - 1));
         }
       }
     }
     ctx.globalAlpha = 1;
   }
 
+  // volume bars of each candle in a strip along the bottom
   drawFlowStrip(ctx) {
     const sh = this.stripH();
     if (!sh) return;
     const tot = this.ofTotals();
     if (!tot) return;
-    const o = this.of;
     const th = this.theme;
     const plotW = this.plotW;
     const y0 = this.plotH - sh;
-    const cvdH = Math.round(sh * 0.5);
-    const dTop = y0 + cvdH;
-    const dH = sh - cvdH;
     ctx.globalAlpha = 0.94;
     ctx.fillStyle = th.bg;
     ctx.fillRect(0, y0, plotW, sh);
@@ -763,81 +712,49 @@ export class ChartEngine {
     ctx.beginPath();
     ctx.moveTo(0, y0 + 0.5);
     ctx.lineTo(plotW, y0 + 0.5);
-    ctx.moveTo(0, dTop + 0.5);
-    ctx.lineTo(plotW, dTop + 0.5);
     ctx.stroke();
     const { from, to } = this.visible();
     const last = Math.min(to, this.n - 1);
-    let maxD = 0;
-    let minC = Infinity;
-    let maxC = -Infinity;
-    for (let i = from; i <= last; i++) {
-      if (!(tot.vol[i] > 0)) continue;
-      maxD = Math.max(maxD, Math.abs(tot.delta[i]));
-      minC = Math.min(minC, tot.cvd[i]);
-      maxC = Math.max(maxC, tot.cvd[i]);
-    }
+    let maxV = 0;
+    for (let i = from; i <= last; i++) maxV = Math.max(maxV, tot.vol[i]);
     ctx.font = `10.5px ${th.font}`;
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
     ctx.fillStyle = th.text;
-    if (!(maxD > 0)) {
+    if (!(maxV > 0)) {
       ctx.globalAlpha = 0.8;
-      ctx.fillText("No order flow loaded for these candles", 8, y0 + 6);
+      ctx.fillText("No volume data loaded for these candles", 8, y0 + 6);
       ctx.globalAlpha = 1;
       return;
     }
-    // which candle the numbers describe: the one under the crosshair, otherwise the latest one
+    // the number shown is for the candle under the crosshair, otherwise the latest one
     const ch = this.crosshair;
     let k = last;
     if (ch && ch.x >= 0 && ch.x <= plotW) k = Math.min(last, Math.max(0, Math.round(this.lOf(ch.x))));
-    const has = tot.vol[k] > 0;
-    const sgn = (v) => `${v > 0 ? "+" : v < 0 ? "-" : ""}${fmtV(Math.abs(v))}`;
     ctx.globalAlpha = 0.9;
-    ctx.fillText(`CVD${this.barSec < 86400 ? " (daily)" : ""}  ${has ? sgn(tot.cvd[k]) : "-"}`, 8, y0 + 5);
-    ctx.fillText(`Delta  ${has ? sgn(tot.delta[k]) : "-"}   Vol  ${has ? fmtV(tot.vol[k]) : "-"}`, 8, dTop + 5);
+    ctx.fillText(`Tick volume  ${tot.vol[k] > 0 ? fmtV(tot.vol[k]) : "-"}`, 8, y0 + 5);
     ctx.globalAlpha = 1;
-    // delta bars
-    const mid = dTop + dH / 2 + 4;
-    const amp = dH / 2 - 8;
+    const base = this.plotH - 3;
+    const amp = sh - 22;
     const bw = Math.max(1, this.barSpacing * 0.7);
+    ctx.globalAlpha = 0.85;
     for (let i = from; i <= last; i++) {
       if (!(tot.vol[i] > 0)) continue;
-      const d = tot.delta[i];
-      const h = Math.max(1, (Math.abs(d) / maxD) * amp);
-      ctx.fillStyle = d >= 0 ? o.buyColor : o.sellColor;
-      ctx.globalAlpha = 0.85;
-      ctx.fillRect(this.xOf(i) - bw / 2, d >= 0 ? mid - h : mid, bw, h);
+      const c = this.candles[i];
+      const h = Math.max(1, (tot.vol[i] / maxV) * amp);
+      ctx.fillStyle = c.close >= c.open ? th.up : th.down;
+      ctx.fillRect(this.xOf(i) - bw / 2, base - h, bw, h);
     }
     ctx.globalAlpha = 1;
-    // cumulative delta line
-    const cTop = y0 + 18;
-    const cBot = dTop - 5;
-    const span = maxC - minC > 1e-9 ? maxC - minC : 1;
-    ctx.strokeStyle = o.cvdColor;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    let pen = false;
-    for (let i = from; i <= last; i++) {
-      if (!(tot.vol[i] > 0)) {
-        pen = false;
-        continue;
-      }
-      const y = cBot - ((tot.cvd[i] - minC) / span) * (cBot - cTop);
-      if (pen) ctx.lineTo(this.xOf(i), y);
-      else ctx.moveTo(this.xOf(i), y);
-      pen = true;
-    }
-    ctx.stroke();
   }
 
   drawFlowHint(ctx) {
     if (this.of.mode === "off" || !this.n) return;
     let msg = "";
     const tot = this.flow ? this.ofTotals() : null;
-    if (!this.flow) msg = "Order flow: nothing loaded for this chart yet (press Load order flow under the chart)";
-    else if (tot && !(tot.vol[this.n - 1] > 0)) msg = "No order flow loaded up to this candle - load more days";
-    else if ((this.of.mode === "footprint" || this.of.mode === "both") && this.barSpacing < 11) msg = "Zoom in to see the footprint";
+    if (!this.flow) msg = "Volume footprint: nothing loaded for this chart yet (press Load volume footprint under the chart)";
+    else if (tot && !(tot.vol[this.n - 1] > 0)) msg = "No footprint data loaded up to this candle - load more days";
+    else if (this.barSpacing < 8) msg = "Zoom in to see the footprint";
     if (!msg) return;
     ctx.font = `11px ${this.theme.font}`;
     ctx.textAlign = "left";
