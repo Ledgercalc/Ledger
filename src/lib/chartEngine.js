@@ -47,6 +47,8 @@ export const OF_DEFAULTS = {
   mode: "off",
   view: "volume", // what the cells show: volume (tick count) | delta (buy - sell) | both (sell x buy per price)
   numbers: true, // numbers inside the cells (when there is room)
+  nums: "all", // all numbers, or "key" = only the busiest price, imbalances and the big cells (less clutter when zoomed in)
+  rowScale: 1, // price rows grouped x1 (auto), x2, x3 or x5 for fewer, taller rows
   color: "#2962ff",
   pocColor: "#f5c542",
 };
@@ -598,6 +600,8 @@ export class ChartEngine {
     this.of = { ...OF_DEFAULTS, ...s };
     if (!["off", "footprint", "both"].includes(this.of.mode)) this.of.mode = "footprint"; // an older saved choice
     if (!["volume", "delta", "both"].includes(this.of.view)) this.of.view = "volume";
+    if (!["all", "key"].includes(this.of.nums)) this.of.nums = "all";
+    if (![1, 2, 3, 5].includes(this.of.rowScale)) this.of.rowScale = 1;
     this._ofCache.clear();
   }
   setFlow(f) {
@@ -847,10 +851,11 @@ export class ChartEngine {
     const { from, to } = this.visible();
     const stepPx = (this.plotH * step) / (this.pMax - this.pMin);
     if (!(stepPx > 0)) return;
-    const mult = Math.max(1, Math.ceil(14 / stepPx));
+    const mult = Math.max(1, Math.ceil(14 / stepPx)) * (this.of.rowScale || 1);
     const rowPx = stepPx * mult;
     const cellW = this.cellWidth();
     const showNum = o.numbers && cellW >= 26 && rowPx >= 11;
+    const keyOnly = o.nums === "key";
     const FONT = `11px ${th.font}`;
     const BOLD = `700 11px ${th.font}`;
     ctx.font = FONT;
@@ -874,7 +879,7 @@ export class ChartEngine {
           ctx.fillStyle = row.d >= 0 ? th.up : th.down;
           ctx.fillRect(x0, yT, cellW, h);
           ctx.globalAlpha = 1;
-          if (showNum) {
+          if (showNum && (!keyOnly || r === fp.poc || k >= 0.5)) {
             ctx.fillStyle = th.text;
             ctx.fillText(fmtS(row.d), x0 + cellW / 2, cy);
           }
@@ -899,7 +904,7 @@ export class ChartEngine {
             ctx.fillRect(x0 + cellW / 2, yT, cellW / 2, h);
           }
           ctx.globalAlpha = 1;
-          if (showNum) {
+          if (showNum && (!keyOnly || r === fp.poc || buyImb || sellImb)) {
             ctx.textAlign = "right";
             ctx.font = sellImb ? BOLD : FONT;
             ctx.fillStyle = sellImb ? "#fff" : th.text;
@@ -917,7 +922,7 @@ export class ChartEngine {
           ctx.fillStyle = o.color;
           ctx.fillRect(x0, yT, cellW, h);
           ctx.globalAlpha = 1;
-          if (showNum) {
+          if (showNum && (!keyOnly || r === fp.poc || k >= 0.6)) {
             ctx.fillStyle = th.text;
             ctx.fillText(fmtV(row.v), x0 + cellW / 2, cy);
           }
