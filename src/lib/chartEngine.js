@@ -45,7 +45,8 @@ export const VP_DEFAULTS = {
 // Volume footprint settings. mode: off | footprint | both (footprint + a volume bar strip under the candles)
 export const OF_DEFAULTS = {
   mode: "off",
-  numbers: true, // volume numbers inside the cells (when there is room)
+  view: "volume", // what the cells show: volume (tick count) | delta (buy - sell) | both (sell x buy per price)
+  numbers: true, // numbers inside the cells (when there is room)
   color: "#2962ff",
   pocColor: "#f5c542",
 };
@@ -53,11 +54,10 @@ export const OF_DEFAULTS = {
 // compact volume text for footprint cells
 function fmtV(v) {
   if (v >= 1000) return `${(v / 1000).toFixed(1)}k`;
-  if (v >= 10) return String(Math.round(v));
-  if (v >= 1) return v.toFixed(1);
-  if (v >= 0.005) return v.toFixed(2);
+  if (v >= 0.5) return String(Math.round(v)); // tick counts are whole numbers
   return "0";
 }
+const fmtS = (v) => (v > 0.5 ? "+" : v < -0.5 ? "-" : "") + fmtV(Math.abs(v)); // signed, for delta
 
 // Sessions in UTC: off = start offset from 00:00 UTC (seconds), len = length.
 export const VP_SESSIONS = {
@@ -148,6 +148,11 @@ export class ChartEngine {
       for (let i = 1; i < Math.min(n, 40); i++) if (list[i].time > list[i - 1].time) d.push(list[i].time - list[i - 1].time);
       d.sort((a, b) => a - b);
       this.barSec = d[Math.floor(d.length / 2)] || 60;
+    }
+    // price size of one level when order flow is estimated from candles (1 pip on forex, 0.1 on gold ...)
+    if (n > 0) {
+      const px = list[Math.floor(n / 2)].close;
+      this._estStep = px > 0 ? Math.pow(10, Math.floor(Math.log10(px * 1e-4))) : 0.0001;
     }
     if (reset || prevN === 0) {
       this.rightEdge = n - 1 + 8;
@@ -573,6 +578,7 @@ export class ChartEngine {
   setOrderFlow(s) {
     this.of = { ...OF_DEFAULTS, ...s };
     if (!["off", "footprint", "both"].includes(this.of.mode)) this.of.mode = "footprint"; // an older saved choice
+    if (!["volume", "delta", "both"].includes(this.of.view)) this.of.view = "volume";
     this._ofCache.clear();
   }
   setFlow(f) {
@@ -580,13 +586,16 @@ export class ChartEngine {
     this._ofCache.clear();
     this._ofTot = null;
   }
+  flowStep() {
+    return this.flow ? this.flow.step : this._estStep || 0.0001;
+  }
   stripH() {
-    if (!this.flow || this.of.mode !== "both") return 0;
+    if (!this.n || this.of.mode !== "both") return 0;
     return Math.round(Math.min(110, Math.max(60, this.plotH * 0.2)));
   }
   footprintOn() {
     const m = this.of.mode;
-    return !!this.flow && (m === "footprint" || m === "both") && this.barSpacing >= 8;
+    return this.n > 0 && (m === "footprint" || m === "both") && this.barSpacing >= 8;
   }
   flowLB(t) {
     const f = this.flow;
@@ -605,8 +614,16 @@ export class ChartEngine {
     const f = this.flow;
     const cs = this.candles;
     const len = cs.length;
-    if (!f || !len) return null;
+    if (!len) return null;
+    if (!f) {
+      // no ticks loaded: volume per candle straight from the candles (delta is worked out per candle on demand)
+      const v = new Float64Array(len);
+      for (let i = 0; i < len; i++) v[i] = this.hasVolume ? Math.max(0, cs[i].volume || 0) : 1;
+      this._ofTot = { vol: v, dlt: null };
+      return this._ofTot;
+    }
     const vol = new Float64Array(len);
+    const dlt = new Float64Array(len);
     let ci = 0;
     for (let k = 0; k < f.n; k++) {
       const t = f.time[k];
@@ -614,8 +631,9 @@ export class ChartEngine {
       while (ci + 1 < len && cs[ci + 1].time <= t) ci++;
       if (t >= cs[ci].time + this.barSec) continue; // weekend or a missing candle
       vol[ci] += f.vol[k];
+      dlt[ci] += 2 * f.buy[k] - f.vol[k];
     }
-    this._ofTot = { vol };
+    this._ofTot = { vol, dlt };
     return this._ofTot;
   }
   // The footprint of one candle, with the price levels merged into rows of "mult" levels.
@@ -625,26 +643,81 @@ export class ChartEngine {
     if (r) return r;
     const f = this.flow;
     const c = this.candles[i];
-    const s = this.flowLB(c.time);
-    const e = this.flowLB(c.time + this.barSec);
-    const m = new Map();
-    for (let k = s; k < e; k++) {
-      const bin = Math.floor(f.lvl[k] / mult);
-      m.set(bin, (m.get(bin) || 0) + f.vol[k]);
-    }
-    const rows = [...m].map(([bin, v]) => ({ bin, v })).sort((p, q) => p.bin - q.bin);
+    let m;
+    if (f) {
+      m = new Map();
+      const s = this.flowLB(c.time);
+      const e = this.flowLB(c.time + this.barSec);
+      for (let k = s; k < e; k++) {
+        const bin = Math.floor(f.lvl[k] / mult);
+        const cur = m.get(bin) || [0, 0];
+        cur[0] += f.vol[k];
+        cur[1] += f.buy[k];
+        m.set(bin, cur);
+      }
+    } else m = this.estCandle(i, mult);
+    // v = volume, b = buy ticks, s = sell ticks, d = delta
+    const rows = [...m].map(([bin, [v, b]]) => ({ bin, v, b, s: v - b, d: 2 * b - v })).sort((p, q) => p.bin - q.bin);
     let poc = -1;
     let max = 0;
+    let dmax = 0;
     rows.forEach((row, idx) => {
       if (row.v > max) {
         max = row.v;
         poc = idx;
       }
+      if (Math.abs(row.d) > dmax) dmax = Math.abs(row.d);
     });
-    r = { rows, poc, max };
+    r = { rows, poc, max, dmax };
     if (this._ofCache.size > 4000) this._ofCache.clear();
     this._ofCache.set(key, r);
     return r;
+  }
+
+  // No ticks needed: spread each 1-minute candle's volume over the prices it traded and split it buy/sell from how
+  // it closed (an estimate, the same idea as the volume profile). Returns Map(bin -> [volume, buy]).
+  estCandle(i, mult) {
+    const c = this.candles[i];
+    const step = this._estStep || 0.0001;
+    const m = new Map();
+    const add = (low, high, w, share) => {
+      const a = Math.round(low / step);
+      const z = Math.max(a, Math.round(high / step));
+      const per = w / (z - a + 1);
+      for (let L = a; L <= z; L++) {
+        const bin = Math.floor(L / mult);
+        const cur = m.get(bin) || [0, 0];
+        cur[0] += per;
+        cur[1] += per * share;
+        m.set(bin, cur);
+      }
+    };
+    const src = this.src && this.barSec > 60 ? this.src : null;
+    if (src) {
+      let a = 0;
+      let b = src.n;
+      while (a < b) {
+        const mid = (a + b) >> 1;
+        if (src.time[mid] < c.time) a = mid + 1;
+        else b = mid;
+      }
+      for (let j = a; j < src.n && src.time[j] < c.time + this.barSec; j++) {
+        const w = src.hasVol ? src.vol[j] : 1;
+        if (w > 0) add(src.low[j], src.high[j], w, src.up[j] === 1 ? 0.7 : 0.3);
+      }
+    } else {
+      const w = this.hasVolume ? Math.max(0, c.volume || 0) : 1;
+      const rng = c.high - c.low;
+      if (w > 0) add(c.low, c.high, w, rng > 0 ? 0.2 + 0.6 * ((c.close - c.low) / rng) : 0.5);
+    }
+    return m;
+  }
+  ofDelta(i) {
+    const tot = this._ofTot;
+    if (tot && tot.dlt) return tot.dlt[i];
+    let d = 0;
+    for (const row of this.ofCandle(i, 1).rows) d += row.d;
+    return d;
   }
 
   drawFootprint(ctx) {
@@ -653,7 +726,7 @@ export class ChartEngine {
     if (!tot) return;
     const o = this.of;
     const th = this.theme;
-    const step = this.flow.step;
+    const step = this.flowStep();
     const { from, to } = this.visible();
     const stepPx = (this.plotH * step) / (this.pMax - this.pMin);
     if (!(stepPx > 0)) return;
@@ -675,14 +748,59 @@ export class ChartEngine {
         const yB = this.yOf((row.bin * mult - 0.5) * step);
         if (yB < 0 || yT > this.plotH) continue;
         const h = Math.max(1, yB - yT - 1);
-        const k = row.v / fp.max;
-        ctx.globalAlpha = 0.08 + 0.62 * k;
-        ctx.fillStyle = o.color;
-        ctx.fillRect(x0, yT, cellW, h);
-        ctx.globalAlpha = 1;
-        if (showNum) {
-          ctx.fillStyle = k > 0.7 ? "#fff" : th.text;
-          ctx.fillText(fmtV(row.v), x0 + cellW / 2, yT + h / 2 + 0.5);
+        const view = o.view;
+        const wide = cellW >= 34;
+        if (view === "delta") {
+          const k = fp.dmax > 0 ? Math.abs(row.d) / fp.dmax : 0;
+          ctx.globalAlpha = 0.1 + 0.7 * k;
+          ctx.fillStyle = row.d >= 0 ? th.up : th.down;
+          ctx.fillRect(x0, yT, cellW, h);
+          ctx.globalAlpha = 1;
+          if (showNum) {
+            ctx.fillStyle = k > 0.7 ? "#fff" : th.text;
+            ctx.fillText(fmtS(row.d), x0 + cellW / 2, yT + h / 2 + 0.5);
+          }
+        } else if (view === "both") {
+          const k = row.v / fp.max;
+          ctx.globalAlpha = 0.06 + 0.3 * k;
+          ctx.fillStyle = o.color;
+          ctx.fillRect(x0, yT, cellW, h);
+          // diagonal imbalance: buys vs the sells one price lower, sells vs the buys one price higher
+          const below = fp.rows[r - 1];
+          const above = fp.rows[r + 1];
+          const buyImb = below && below.bin === row.bin - 1 && row.b >= 4 && row.b >= 3 * below.s;
+          const sellImb = above && above.bin === row.bin + 1 && row.s >= 4 && row.s >= 3 * above.b;
+          ctx.globalAlpha = 0.55;
+          if (sellImb) {
+            ctx.fillStyle = th.down;
+            ctx.fillRect(x0, yT, cellW / 2, h);
+          }
+          if (buyImb) {
+            ctx.fillStyle = th.up;
+            ctx.fillRect(x0 + cellW / 2, yT, cellW / 2, h);
+          }
+          ctx.globalAlpha = 1;
+          if (showNum && wide) {
+            ctx.fillStyle = th.text;
+            ctx.textAlign = "right";
+            ctx.fillText(fmtV(row.s), x0 + cellW / 2 - 3, yT + h / 2 + 0.5);
+            ctx.textAlign = "left";
+            ctx.fillText(fmtV(row.b), x0 + cellW / 2 + 3, yT + h / 2 + 0.5);
+            ctx.textAlign = "center";
+          } else if (showNum) {
+            ctx.fillStyle = th.text;
+            ctx.fillText(fmtV(row.v), x0 + cellW / 2, yT + h / 2 + 0.5);
+          }
+        } else {
+          const k = row.v / fp.max;
+          ctx.globalAlpha = 0.08 + 0.62 * k;
+          ctx.fillStyle = o.color;
+          ctx.fillRect(x0, yT, cellW, h);
+          ctx.globalAlpha = 1;
+          if (showNum) {
+            ctx.fillStyle = k > 0.7 ? "#fff" : th.text;
+            ctx.fillText(fmtV(row.v), x0 + cellW / 2, yT + h / 2 + 0.5);
+          }
         }
         if (r === fp.poc) {
           ctx.strokeStyle = o.pocColor;
@@ -731,9 +849,27 @@ export class ChartEngine {
     const ch = this.crosshair;
     let k = last;
     if (ch && ch.x >= 0 && ch.x <= plotW) k = Math.min(last, Math.max(0, Math.round(this.lOf(ch.x))));
+    const dView = this.of.view === "delta";
     ctx.globalAlpha = 0.9;
-    ctx.fillText(`Tick volume  ${tot.vol[k] > 0 ? fmtV(tot.vol[k]) : "-"}`, 8, y0 + 5);
+    ctx.fillText(dView ? `Delta  ${tot.vol[k] > 0 ? fmtS(this.ofDelta(k)) : "-"}` : `Tick volume  ${tot.vol[k] > 0 ? fmtV(tot.vol[k]) : "-"}`, 8, y0 + 5);
     ctx.globalAlpha = 1;
+    if (dView) {
+      let maxD = 0;
+      for (let i = from; i <= last; i++) maxD = Math.max(maxD, Math.abs(this.ofDelta(i)));
+      const mid = y0 + 16 + (sh - 22) / 2;
+      const half = (sh - 22) / 2;
+      const bwd = Math.max(1, this.barSpacing * 0.7);
+      ctx.globalAlpha = 0.85;
+      for (let i = from; i <= last; i++) {
+        if (!(tot.vol[i] > 0) || !(maxD > 0)) continue;
+        const dv = this.ofDelta(i);
+        const hh = Math.max(1, (Math.abs(dv) / maxD) * half);
+        ctx.fillStyle = dv >= 0 ? th.up : th.down;
+        ctx.fillRect(this.xOf(i) - bwd / 2, dv >= 0 ? mid - hh : mid, bwd, hh);
+      }
+      ctx.globalAlpha = 1;
+      return;
+    }
     const base = this.plotH - 3;
     const amp = sh - 22;
     const bw = Math.max(1, this.barSpacing * 0.7);
@@ -752,7 +888,7 @@ export class ChartEngine {
     if (this.of.mode === "off" || !this.n) return;
     let msg = "";
     const tot = this.flow ? this.ofTotals() : null;
-    if (!this.flow) msg = "Volume footprint: nothing loaded for this chart yet (press Load volume footprint under the chart)";
+    if (!this.flow) msg = this.barSpacing < 8 ? "Zoom in to see the order flow" : "Order flow estimated from candles (load ticks under the chart for exact numbers)";
     else if (tot && !(tot.vol[this.n - 1] > 0)) msg = "No footprint data loaded up to this candle - load more days";
     else if (this.barSpacing < 8) msg = "Zoom in to see the footprint";
     if (!msg) return;
