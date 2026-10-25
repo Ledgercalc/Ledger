@@ -427,12 +427,14 @@ export async function loadDukascopy({ symbol, fromDay, toDay, tf, clean = true }
 }
 
 // ======================================================================================================
-// VOLUME FOOTPRINT from Dukascopy's tick files
+// ORDER FLOW from Dukascopy's tick files (volume + delta)
 // ======================================================================================================
-// Every Dukascopy tick carries a bid price, an ask price and the volume quoted on each side. For the footprint we
-// add up each tick's volume (ask + bid) per minute and per price level and keep it in the browser. This is Dukascopy's
-// tick volume: it shows where price spent its time and where the quotes were busiest. It does NOT say who was
-// buying or selling (forex has no public trade tape), so no buy/sell split is made.
+// Spot forex and gold have no public trade tape, and Dukascopy's bid/ask "volume" is the size quoted, not traded.
+// So the footprint is built from the ticks themselves:
+//   volume = number of ticks at each price level (what ATAS / TradingView show for spot gold and forex)
+//   delta  = buy ticks - sell ticks, decided from the quote move: ask rising = buyers lifting (counted at the ask),
+//            bid falling = sellers hitting (counted at the bid). Quote changes that say neither count half and half.
+// Cleaning: crossed quotes, repeated identical quotes and lone price spikes are dropped.
 
 // Size of one price level (1 pip on most forex pairs). The chart can merge levels into bigger rows, never smaller.
 export const FLOW_STEP = {
@@ -444,13 +446,15 @@ export const FLOW_STEP = {
 export const hasOrderFlow = (symbol) => !!(DUKA[symbol] && FLOW_STEP[symbol]);
 
 function newFlowState() {
-  return { minute: -1, cur: new Map(), out: [] };
+  return { minute: -1, cur: new Map(), out: [], pa: 0, pb: 0, bad: 0 };
 }
 
 function flushMinute(st) {
-  for (const [lvl, v] of st.cur) st.out.push(st.minute, lvl, v, 0);
+  for (const [lvl, v] of st.cur) st.out.push(st.minute, lvl, v[0], v[1]);
   st.cur.clear();
 }
+
+const SPIKE = 0.005; // a jump bigger than 0.5% between two ticks is held back unless it sticks for 3 ticks
 
 // One hour of decompressed ticks -> adds to st.out. Hours must be fed in time order.
 function ticksToFlow(raw, hourStartSec, info, step, st) {
@@ -463,23 +467,40 @@ function ticksToFlow(raw, hourStartSec, info, step, st) {
   sample.sort((a, b) => a - b);
   const div = pickDivisor(sample[Math.floor(sample.length / 2)], info);
   if (!div) throw new Error("Prices from Dukascopy didn't look right for this instrument.");
-  // some instruments publish no volume at all: then every tick counts as 1
-  let anyVol = false;
-  for (let i = 0; i < n && !anyVol; i += sstep) anyVol = dv.getFloat32(i * 20 + 12) > 0 || dv.getFloat32(i * 20 + 16) > 0;
+  const add = (lvl, b, s) => {
+    const v = st.cur.get(lvl);
+    if (v) {
+      v[0] += b;
+      v[1] += s;
+    } else st.cur.set(lvl, [b, s]);
+  };
   for (let i = 0; i < n; i++) {
     const o = i * 20;
-    const bidRaw = dv.getUint32(o + 8);
-    if (!(bidRaw > 0)) continue;
-    const w = anyVol ? (dv.getFloat32(o + 12) || 0) + (dv.getFloat32(o + 16) || 0) : 1;
-    if (!(w > 0)) continue;
+    const ask = dv.getUint32(o + 4);
+    const bid = dv.getUint32(o + 8);
+    if (!(bid > 0) || ask < bid) continue; // empty or crossed quote
+    if (st.pa && ask === st.pa && bid === st.pb) continue; // same quote repeated (volume-only update)
+    if (st.pa) {
+      const jump = Math.abs(bid - st.pb) / st.pb;
+      if (jump > SPIKE && ++st.bad < 3) continue; // lone spike: skip it (a real gap sticks and is accepted)
+    }
+    st.bad = 0;
     const t = hourStartSec + Math.floor(dv.getUint32(o) / 1000);
     const m = t - (t % 60);
     if (m !== st.minute) {
       flushMinute(st);
       st.minute = m;
     }
-    const lvl = Math.round(bidRaw / div / step); // levels follow the bid price, like the candles
-    st.cur.set(lvl, (st.cur.get(lvl) || 0) + w);
+    const dA = st.pa ? ask - st.pa : 0;
+    const dB = st.pa ? bid - st.pb : 0;
+    st.pa = ask;
+    st.pb = bid;
+    const askLvl = Math.round(ask / div / step);
+    const bidLvl = Math.round(bid / div / step);
+    if (dA > 0 && dB >= 0) add(askLvl, 1, 0); // buyers lifting the offer
+    else if (dB < 0 && dA <= 0) add(bidLvl, 0, 1); // sellers hitting the bid
+    else if (dA > 0 && dB > 0) add(askLvl, 1, 0);
+    else add(bidLvl, 0.5, 0.5); // spread change / quote improved: busy, but no side
   }
 }
 
@@ -508,7 +529,7 @@ async function downloadFlowDay(symbol, info, day, signal, ctx) {
       await sleep(0);
     }
   };
-  await Promise.all(Array.from({ length: Math.min(2, hours.length) }, lane));
+  await Promise.all(Array.from({ length: Math.min(4, hours.length) }, lane));
   const st = newFlowState();
   const step = FLOW_STEP[symbol];
   hours.forEach((h, i) => {
