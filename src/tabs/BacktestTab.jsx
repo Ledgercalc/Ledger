@@ -59,13 +59,14 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
 
   const fileRef = useRef(null);
 
-  // order flow (footprint / delta) from Dukascopy ticks
+  // volume footprint (tick volume per price level) from Dukascopy ticks
   const [flow, setFlow] = useState(null);
   const [flowDays, setFlowDays] = useState(3);
   const [flowBusy, setFlowBusy] = useState(false);
   const [flowNote, setFlowNote] = useState("");
   const [flowFailed, setFlowFailed] = useState(false);
   const flowAbort = useRef(null);
+  const [flowShow, setFlowShow] = useState(0);
 
   // ---- persistence (per account, same window.storage the rest of the app uses) ----
   useEffect(() => {
@@ -148,14 +149,16 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
         symbol: meta.symbol,
         days,
         signal: ctl.signal,
-        onProgress: (p) => setFlowNote(p.note || (p.total ? `Order flow: day ${Math.min(p.done + 1, p.total)} of ${p.total}${p.day ? ` (${p.day} saved)` : ""}` : "Checking saved days...")),
+        onProgress: (p) => setFlowNote(p.note || (p.total ? `Footprint: day ${Math.min(p.done + 1, p.total)} of ${p.total}${p.day ? ` (${p.day} saved)` : ""}` : "Checking saved days...")),
       });
-      setFlow(await loadOrderFlow(flowRange()));
+      const loaded = await loadOrderFlow(flowRange());
+      setFlow(loaded);
+      if (loaded) setFlowShow((n) => n + 1);
       if (res.failed.length) {
         setFlowFailed(true);
         setFlowNote(`${res.downloaded} day(s) saved, ${res.failed.length} failed: ${res.failed[0].message}`);
       } else {
-        setFlowNote(res.downloaded ? `Order flow saved for ${days[0]} to ${days[days.length - 1]}.` : "Order flow for those days is already saved.");
+        setFlowNote(res.downloaded ? `Footprint data saved for ${days[0]} to ${days[days.length - 1]}.` : "Footprint data for those days is already saved.");
       }
     } catch (err) {
       if (err && err.name === "AbortError") {
@@ -163,7 +166,7 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
         loadOrderFlow(flowRange()).then(setFlow).catch(() => {});
       } else {
         setFlowFailed(true);
-        setFlowNote((err && err.message) || "Couldn't load order flow.");
+        setFlowNote((err && err.message) || "Couldn't load the footprint data.");
       }
     } finally {
       setFlowBusy(false);
@@ -524,12 +527,12 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
           <>
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
               <div style={{ flex: "1 1 auto", minWidth: 0, fontFamily: display, fontWeight: 700, color: palette.text, fontSize: 13.5 }}>
-                Order flow{" "}
+                Volume footprint{" "}
                 <span style={{ color: palette.textFaint, fontWeight: 500, fontSize: 12 }}>
                   {flow ? `${flow.days.length} day${flow.days.length === 1 ? "" : "s"} saved` : "none loaded"}
                 </span>
               </div>
-              <select aria-label="Days of order flow to download" value={flowDays} disabled={flowBusy} onChange={(e) => setFlowDays(Number(e.target.value))} style={{ ...field, width: "auto", padding: "8px 8px" }}>
+              <select aria-label="Days of footprint data to download" value={flowDays} disabled={flowBusy} onChange={(e) => setFlowDays(Number(e.target.value))} style={{ ...field, width: "auto", padding: "8px 8px" }}>
                 {[1, 2, 3, 5, 10].map((n) => (
                   <option key={n} value={n}>{n} day{n === 1 ? "" : "s"}</option>
                 ))}
@@ -545,14 +548,14 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
             ) : (
               !flow && (
                 <p style={{ color: palette.textFaint, fontFamily: mono, fontSize: 11.5, lineHeight: 1.5, margin: "8px 0 0" }}>
-                  Footprint, delta and cumulative delta from Dukascopy ticks. Download some days starting at the current candle, then switch Order flow on in the {isDesktop ? "chart toolbar (pulse icon)" : "chart tools menu"}.
+                  Tick volume at each price inside every candle, from Dukascopy ticks. Download some days starting at the current candle; it switches on by itself, or use the {isDesktop ? "pulse icon in the chart toolbar" : "chart tools menu"}.
                 </p>
               )
             )}
           </>
         ) : (
           <p style={{ color: palette.textFaint, fontFamily: mono, fontSize: 11.5, lineHeight: 1.5, margin: 0 }}>
-            Order flow needs candles loaded from Dukascopy (not a CSV or the quick load) on a supported instrument.
+            The volume footprint needs candles loaded from Dukascopy (not a CSV or the quick load) on a supported instrument.
           </p>
         )}
       </div>
@@ -658,6 +661,7 @@ export default function BacktestTab({ activeAccountId, isDesktop }) {
               footer={fsFooter}
               drawKey={meta.symbol}
               flow={flow}
+              flowShow={flowShow}
               pickMode={pickMode}
               onPickPrice={onPickPrice}
               onApplyPlan={(plan) => {
