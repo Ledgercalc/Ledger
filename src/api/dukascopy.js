@@ -91,6 +91,25 @@ export function ticksToMinutes(raw, hourStartSec, info) {
 export const tuning = { baseDelay: 50, maxDelay: 1500, backoff: 700, maxAttempts: 6, retryPause: 3000, cooldown: 45000, maxPauses: 6 };
 const jitter = () => Math.random() * 400;
 
+function makeSem(n) {
+  let free = n;
+  const queue = [];
+  return {
+    async acquire() {
+      if (free > 0) {
+        free--;
+        return;
+      }
+      await new Promise((r) => queue.push(r));
+    },
+    release() {
+      const r = queue.shift();
+      if (r) r();
+      else free++;
+    },
+  };
+}
+
 function makeLimiter() {
   let nextAt = 0;
   let delay = tuning.baseDelay;
@@ -111,10 +130,10 @@ function makeLimiter() {
 }
 
 // kind "m1" = the day's ready-made 1-minute candle file, "t" = one hour of ticks.
-async function fetchHour(id, y, m0, d, h, signal, kind, ctx) {
+async function fetchHour(id, y, m0, d, h, signal, kind, ctx, maxAttempts = tuning.maxAttempts) {
   const url = `${COMMUNITY_API_BASE}/market/duka-raw?s=${encodeURIComponent(id)}&y=${y}&m=${m0}&d=${d}&h=${h}&k=${kind}`;
   let lastErr = null;
-  for (let attempt = 0; attempt < tuning.maxAttempts; attempt++) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     if (ctx.halted()) throw Object.assign(new Error("Stopped."), { halted: true });
     try {
       await ctx.limiter.wait();
@@ -225,22 +244,38 @@ async function downloadDayFromTicks(id, info, day, signal, ctx) {
     hours.push(h);
   }
   const results = new Array(hours.length);
+  const isToday = day === dayString(Date.now());
   let next = 0;
   let bytes = 0;
+  let finished = 0;
+  let missing = 0;
   const lane = async () => {
     while (next < hours.length) {
       const i = next++;
       const h = hours[i];
       const dt = new Date(base);
-      const buf = await fetchHour(id, dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate(), h, signal, "t", ctx);
+      let buf = null;
+      await ctx.sem.acquire();
+      try {
+        buf = await fetchHour(id, dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate(), h, signal, "t", ctx, 3);
+      } catch (err) {
+        // only today may be missing its newest hours (Dukascopy publishes them late); any other day must be complete
+        if ((signal && signal.aborted) || (err && (err.fatal || err.halted)) || !isToday) throw err;
+        missing++;
+      } finally {
+        ctx.sem.release();
+      }
       if (buf) {
         bytes += buf.length;
         results[i] = ticksToMinutes(await decodeLzma(buf), base / 1000 + h * 3600, info);
       } else results[i] = [];
+      finished++;
+      ctx.note(`Building ${day} from ticks (newest days have no ready-made file): ${finished} of ${hours.length} hours`);
       await sleep(0); // let the page breathe between hours
     }
   };
-  await Promise.all(Array.from({ length: Math.min(8, hours.length) }, lane)); // many hours at once
+  await Promise.all(Array.from({ length: Math.min(8, hours.length) }, lane));
+  if (missing) ctx.note(`${day}: ${missing} of the newest hours aren't published by Dukascopy yet and were skipped`);
   const candles = results.flat().filter(Boolean);
   return { flat: toFlat(candles), bytes, count: candles.length };
 }
@@ -276,6 +311,7 @@ export async function downloadDukascopy({ symbol, fromDay, toDay, onProgress, si
   let pending = [...recent, ...todo.slice(0, Math.max(0, todo.length - 3))];
   const ctx = {
     limiter: makeLimiter(),
+    sem: makeSem(8), // at most 8 hourly tick files in flight, across all days
     halted: () => halt,
     noFileStreak: () => noFile,
     note: (t) => {
