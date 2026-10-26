@@ -240,7 +240,7 @@ async function downloadDayFromTicks(id, info, day, signal, ctx) {
       await sleep(0); // let the page breathe between hours
     }
   };
-  await Promise.all(Array.from({ length: Math.min(2, hours.length) }, lane));
+  await Promise.all(Array.from({ length: Math.min(8, hours.length) }, lane)); // many hours at once
   const candles = results.flat().filter(Boolean);
   return { flat: toFlat(candles), bytes, count: candles.length };
 }
@@ -269,7 +269,11 @@ export async function downloadDukascopy({ symbol, fromDay, toDay, onProgress, si
   let consecutiveFails = 0;
   let fatalErr = null;
   let failed = [];
-  let pending = todo.slice();
+  // The newest days have no ready-made candle file yet, so they are rebuilt from 24 hourly tick files and are far
+  // slower than the rest. Start them first so they download alongside everything else instead of making you wait
+  // for them at the very end.
+  const recent = todo.slice(-3).reverse();
+  let pending = [...recent, ...todo.slice(0, Math.max(0, todo.length - 3))];
   const ctx = {
     limiter: makeLimiter(),
     halted: () => halt,
