@@ -130,6 +130,9 @@ async function api(token, path, { method = "GET", body } = {}) {
   });
   let data = {};
   try { data = await res.json(); } catch (e) { /* empty body */ }
+  if (res.status === 401 && data.error === "Not signed in." && typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("community:auth-expired")); // login expired: the app signs out and asks to sign in
+  }
   if (!res.ok) {
     const err = new Error(data.error || "Something went wrong. Try again.");
     err.status = res.status;
