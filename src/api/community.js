@@ -28,6 +28,11 @@ export async function communityApi(path, options = {}) {
   // The Worker attaches { plans: { username: "pro" | "creator" } } to responses that mention users,
   // so plan badges can show next to any name without extra requests.
   if (data && data.plans) mergePlans(data.plans);
+  // The saved login is no longer valid on the server (expired or unknown). Tell the app so it can sign out
+  // cleanly and show the sign-in screen, instead of every tab quietly failing with "Not signed in."
+  if (res.status === 401 && data && data.error === "Not signed in." && typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("community:auth-expired"));
+  }
   if (!res.ok) throw new Error(data.error || "Request failed.");
   return data;
 }
