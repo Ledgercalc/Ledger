@@ -4125,6 +4125,19 @@ useEffect(() => {
     await persistSession(null);
   };
 
+  // The Worker no longer accepts the saved login (it expired, or the account lives in another database now).
+  // Clear it so the sign-in screen shows up, rather than leaving the feed and Partner tab empty.
+  useEffect(() => {
+    const onExpired = () => {
+      resetMyPlan();
+      persistSession(null);
+      setCommunityApiError("Your session expired. Please sign in again.");
+    };
+    window.addEventListener("community:auth-expired", onExpired);
+    return () => window.removeEventListener("community:auth-expired", onExpired);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const persistOnboardingSeen = async () => {
     setOnboardingSeen(true);
     try {
