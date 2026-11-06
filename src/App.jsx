@@ -42,54 +42,41 @@ function SettingsSubLabel({ children }) {
   );
 }
 
-function SettingsSection({ icon: Icon, title, children, defaultOpen = false, isDesktop, hidden, danger }) {
-  const [open, setOpen] = useState(defaultOpen);
+function SettingsSection({ icon: Icon, title, children, isDesktop, hidden, danger }) {
   const accent = danger ? palette.red : palette.gold;
-  const bodyVisible = !isDesktop || open;
-  const tile = (
-    <span
-      className="flex items-center justify-center flex-shrink-0"
-      style={{ width: "40px", height: "40px", borderRadius: "12px", background: palette.field, color: accent }}
-    >
-      {Icon ? <Icon size={18} strokeWidth={2.2} /> : null}
-    </span>
-  );
   return (
-    <section
-      style={{
-        display: hidden ? "none" : "block",
-        background: palette.surface,
-        border: `1px solid ${danger ? `${palette.red}45` : palette.border}`,
-        borderRadius: "14px",
-        padding: "16px",
-        marginBottom: "12px",
-      }}
-    >
+    <section style={{ display: hidden ? "none" : "block", marginTop: isDesktop ? "32px" : 0 }}>
       {isDesktop && (
-        <button
-          type="button"
-          onClick={() => setOpen((o) => !o)}
-          aria-expanded={open}
-          className={`w-full flex items-center gap-3 text-left ${TAP}`}
-          style={{ background: "transparent", border: "none", padding: 0, minHeight: "44px" }}
-        >
-          {tile}
-          <span
-            className="flex-1 min-w-0 truncate"
-            style={{ fontFamily: sans, fontSize: "18px", fontWeight: 600, letterSpacing: "-0.01em", color: danger ? palette.red : palette.text }}
-          >
-            {title}
+        <div className="flex items-center gap-3" style={{ minHeight: "44px", marginBottom: "4px" }}>
+          <span className="flex items-center justify-center flex-shrink-0" style={{ width: "40px", height: "40px", borderRadius: "12px", background: palette.surface, border: `1px solid ${palette.border}`, color: accent }}>
+            {Icon ? <Icon size={18} strokeWidth={2.2} /> : null}
           </span>
-          <ChevronDown
-            size={18}
-            style={{ color: palette.textFaint, flexShrink: 0, transform: open ? "rotate(180deg)" : "none", transition: "transform .15s" }}
-          />
-        </button>
+          <span className="truncate" style={{ fontFamily: sans, fontSize: "18px", fontWeight: 600, letterSpacing: "-0.01em", color: danger ? palette.red : palette.text }}>{title}</span>
+        </div>
       )}
-      <div className="tz-set-body" style={{ display: bodyVisible ? "block" : "none", marginTop: isDesktop ? "4px" : 0 }}>
-        {children}
-      </div>
+      <div className="tz-set-body">{children}</div>
     </section>
+  );
+}
+
+function SettingsSwitchRow({ label, desc, on, onToggle }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={!!on}
+      onClick={onToggle}
+      className={`tz-sw-row flex items-center justify-between gap-3 w-full text-left ${TAP}`}
+      style={{ background: "transparent", border: "none", borderBottom: `1px solid ${palette.border}`, borderRadius: 0, padding: "12px 0", minHeight: "44px", fontFamily: sans }}
+    >
+      <span className="min-w-0">
+        <span className="block" style={{ fontSize: "14px", color: palette.text }}>{label}</span>
+        {desc && <span className="block" style={{ fontSize: "12px", color: palette.textMuted, marginTop: "2px", lineHeight: 1.4 }}>{desc}</span>}
+      </span>
+      <span aria-hidden="true" style={{ position: "relative", width: "46px", height: "28px", borderRadius: "14px", flex: "none", background: on ? palette.gold : palette.field, border: `1px solid ${on ? palette.gold : palette.border}` }}>
+        <i style={{ position: "absolute", top: "3px", left: on ? "21px" : "3px", width: "20px", height: "20px", borderRadius: "50%", background: on ? palette.letterbox : palette.textMuted, transition: "left .15s" }} />
+      </span>
+    </button>
   );
 }
 
@@ -1035,7 +1022,7 @@ const [profileError, setProfileError] = useState("");
 const [profilePosts, setProfilePosts] = useState([]);
 const [profilePostsLoaded, setProfilePostsLoaded] = useState(false);
 const [profilePostsNext, setProfilePostsNext] = useState(null);
-const [profileSubTab, setProfileSubTab] = useState("posts"); // "posts" | "stats"
+const [profileSubTab, setProfileSubTab] = useState("overview"); // "overview" | "stats" | "posts"
 const [profilePostOpen, setProfilePostOpen] = useState(null);
 const [bioEditing, setBioEditing] = useState(false);
 const [bioDraft, setBioDraft] = useState("");
@@ -1549,13 +1536,13 @@ const openCommunityMemberProfile = (username) => {
   if (profileOpen) setProfileHistory((h) => [...h, profileView]);
   else setProfileHistory([]);
   setProfileView(next);
-  setProfileSubTab("posts");
+  setProfileSubTab("overview");
   setProfileOpen(true);
 };
 const openMyProfile = () => {
   setProfileHistory([]);
   setProfileView(null);
-  setProfileSubTab("posts");
+  setProfileSubTab("overview");
   setProfileOpen(true);
 };
 const closeProfileBack = () => {
@@ -8102,7 +8089,14 @@ if (activeTab === "community") {
     className="fixed inset-0 z-50 flex flex-col"
     style={{ background: palette.bg, transition: THEME_TRANSITION }}
   >
-    <style>{".tz-set-body > .tz-set-lb:first-child{margin-top:0!important}"}</style>
+    <style>{`
+.tz-set-body > .tz-set-lb:first-child{margin-top:0!important}
+.tz-set-body p{font-family:${sans}!important;font-size:12px!important;line-height:1.45!important}
+.tz-set-body input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]),.tz-set-body select,.tz-set-body textarea{min-height:44px;border-radius:12px!important;padding-top:10px;padding-bottom:10px;font-family:${sans}!important;font-size:14px!important}
+.tz-set-body textarea{min-height:88px}
+.tz-set-body button:not(.rounded-full):not(.tz-sw-row){min-height:44px;border-radius:10px!important;font-family:${sans}!important;font-size:13px!important;font-weight:500!important}
+.tz-set-body button.rounded-full[class*="px-3"]{min-height:40px;border-radius:10px!important;font-family:${sans}!important;font-size:13px!important;font-weight:500!important;padding:8px 14px!important}
+`}</style>
     <div
       className="flex items-center justify-between flex-shrink-0"
       style={{
@@ -8154,8 +8148,8 @@ if (activeTab === "community") {
       <div
         className="mx-auto"
         style={{
-          maxWidth: isDesktop ? "1080px" : "100%",
-          padding: isDesktop ? "28px 32px 56px" : "16px 16px 32px",
+          maxWidth: isDesktop ? "680px" : "100%",
+          padding: isDesktop ? "12px 24px 64px" : "16px 16px 32px",
         }}
       >
         {mobileListMode && (
@@ -8249,8 +8243,8 @@ if (activeTab === "community") {
           </div>
         )}
         <div style={{ display: mobileListMode ? "none" : "block" }}>
-        <div className={isDesktop ? "flex items-start" : ""} style={isDesktop ? { gap: "20px" } : {}}>
-        <div className={isDesktop ? "flex flex-col" : ""} style={isDesktop ? { flex: "0 0 340px", minWidth: 0, position: "sticky", top: 0 } : {}}>
+        <div>
+        <div>
         {/* PROFILE */}
         {communityUsername && (
           <SettingsSection icon={Users} title="Profile" defaultOpen isDesktop={isDesktop} hidden={!isDesktop && settingsMobileSection !== "profile"}>
@@ -8607,28 +8601,16 @@ if (activeTab === "community") {
 
         </div>
 
-        <div className={isDesktop ? "flex flex-col flex-1" : ""} style={isDesktop ? { minWidth: 0 } : {}}>
+        <div>
         {/* RISK & DISCIPLINE */}
         <SettingsSection icon={ShieldAlert} title="Risk & Discipline" isDesktop={isDesktop} hidden={!isDesktop && settingsMobileSection !== "risk-discipline"}>
           <SettingsSubLabel>Revenge Trade Cooldown</SettingsSubLabel>
-          <button
-            type="button"
-            onClick={() => persistSettings({ ...settings, revengeLockEnabled: !settings.revengeLockEnabled })}
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg mb-1 transition-colors ${TAP}`}
-            style={{
-              background: settings.revengeLockEnabled ? palette.gold : palette.surface,
-              color: settings.revengeLockEnabled ? palette.letterbox : palette.textMuted,
-              border: `1px solid ${settings.revengeLockEnabled ? palette.gold : palette.border}`,
-              fontFamily: mono,
-              fontSize: "12.5px",
-            }}
-          >
-            <Bell size={14} />
-            {settings.revengeLockEnabled ? "Cooldown warning is on" : "Cooldown warning is off"}
-          </button>
-          <p className="text-xs mb-3" style={{ color: palette.textFaint }}>
-            Logging a trade within the revenge window after a loss shows a warning first.
-          </p>
+          <SettingsSwitchRow
+            label="Cooldown warning"
+            desc="Logging a trade within the revenge window after a loss shows a warning first."
+            on={!!settings.revengeLockEnabled}
+            onToggle={() => persistSettings({ ...settings, revengeLockEnabled: !settings.revengeLockEnabled })}
+          />
 
           <SettingsSubLabel>Revenge Window (minutes)</SettingsSubLabel>
           <PillGroup
@@ -8641,21 +8623,12 @@ if (activeTab === "community") {
             Currently {RUNTIME.REVENGE_WINDOW_MINUTES} minutes — drives the "revenge" tag, the discipline streak, and the cooldown warning.
           </p>
 
-          <button
-            type="button"
-            onClick={() => persistSettings({ ...settings, showRevengeTag: settings.showRevengeTag === false ? true : false })}
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg mb-3 transition-colors ${TAP}`}
-            style={{
-              background: settings.showRevengeTag !== false ? palette.gold : palette.surface,
-              color: settings.showRevengeTag !== false ? palette.letterbox : palette.textMuted,
-              border: `1px solid ${settings.showRevengeTag !== false ? palette.gold : palette.border}`,
-              fontFamily: mono,
-              fontSize: "12.5px",
-            }}
-          >
-            <Flame size={14} />
-            {settings.showRevengeTag !== false ? "Revenge tag is shown on trades" : "Revenge tag is hidden"}
-          </button>
+          <SettingsSwitchRow
+            label="Revenge tag on trades"
+            desc="Mark trades logged inside the revenge window after a loss."
+            on={settings.showRevengeTag !== false}
+            onToggle={() => persistSettings({ ...settings, showRevengeTag: settings.showRevengeTag === false ? true : false })}
+          />
 
           <SettingsSubLabel>Daily Loss Limit</SettingsSubLabel>
           <div
@@ -8830,24 +8803,12 @@ if (activeTab === "community") {
         {/* SHARING & REPORTS */}
         <SettingsSection icon={Share2} title="Sharing & Reports" isDesktop={isDesktop} hidden={!isDesktop && settingsMobileSection !== "sharing-reports"}>
           <SettingsSubLabel>Weekly Share Card</SettingsSubLabel>
-          <button
-            type="button"
-            onClick={() => persistSettings({ ...settings, hideDollarInShare: !settings.hideDollarInShare })}
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg mb-1 transition-colors ${TAP}`}
-            style={{
-              background: settings.hideDollarInShare ? palette.gold : palette.surface,
-              color: settings.hideDollarInShare ? palette.letterbox : palette.textMuted,
-              border: `1px solid ${settings.hideDollarInShare ? palette.gold : palette.border}`,
-              fontFamily: mono,
-              fontSize: "12.5px",
-            }}
-          >
-            <Share2 size={14} />
-            {settings.hideDollarInShare ? "Dollar amounts hidden" : "Dollar amounts shown"}
-          </button>
-          <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-            Controls whether "Share My Week" and "Copy Summary" include your net P&amp;L in dollars.
-          </p>
+          <SettingsSwitchRow
+            label="Hide dollar amounts"
+            desc={'Stops "Share My Week" and "Copy Summary" from including your net P&L in dollars.'}
+            on={!!settings.hideDollarInShare}
+            onToggle={() => persistSettings({ ...settings, hideDollarInShare: !settings.hideDollarInShare })}
+          />
 
           <SettingsSubLabel>Trader Alias</SettingsSubLabel>
           <input
