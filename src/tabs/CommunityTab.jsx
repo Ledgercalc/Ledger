@@ -1,9 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { PlanName } from "../components/PlanBadge.jsx";
 import { Avatar } from "../components/ui.jsx";
+import LedgerCommunity from "./LedgerCommunity.jsx";
 import { FEED_REACTIONS, avatarStyleFor, feedTimeAgo } from "../lib/feed.js";
 import { TAP, display, mono, palette, sans } from "../lib/theme.js";
 import { AlertTriangle, ArrowDown, BookOpen, Camera, Check, ChevronLeft, ChevronRight, Copy, CornerUpLeft, FileText, Heart, HelpCircle, Info, LayoutGrid, MessageCircle, Newspaper, Pencil, Pin, Plus, Search, Send, ShieldAlert, Smile, Sparkles, Sticker, Trash2, TrendingUp, Users, X } from "lucide-react";
+
+// Community now renders the Ledger layout (Feed / Rooms / Ranks / Mentor). Set to false to bring back the old group chat UI.
+const LEDGER_COMMUNITY = true;
 
 export default function CommunityTab(props) {
   const {
@@ -1690,7 +1694,21 @@ export default function CommunityTab(props) {
         </p>
       </>
     );
-} else if (isDesktop) {
+} else if (LEDGER_COMMUNITY) {
+    // ---------- LEDGER COMMUNITY (Feed / Rooms / Ranks / Mentor) ----------
+    const mine = getCommunityMemberStats({ username: communityUsername });
+    body = (
+      <div className="flex flex-col flex-1 min-h-0" style={{ height: "100%" }}>
+        <LedgerCommunity
+          isDesktop={isDesktop}
+          communityAvatar={communityAvatar}
+          openMember={openCommunityMemberProfile}
+          openMyProfile={() => openCommunityMemberProfile(communityUsername)}
+          myDiscipline={mine?.disciplineScore}
+        />
+      </div>
+    );
+  } else if (isDesktop) {
     // ---------- DESKTOP COMMUNITY ----------
     body = (
       <div className="flex gap-4 flex-1" style={{ minHeight: 0, height: "100%" }}>
