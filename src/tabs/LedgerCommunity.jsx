@@ -280,32 +280,38 @@ const CSS = `.lc button,.lc input,.lc textarea{font:inherit;color:inherit}
 @media (max-width:1180px){.lc .dkg{grid-template-columns:minmax(0,1fr) 300px;gap:20px}.lc .dkcards3{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:980px){.lc .dkg,.lc .dkg2{grid-template-columns:minmax(0,1fr)}.lc .dkside{position:static}.lc .dkcards{grid-template-columns:minmax(0,1fr)}}
 /* ---- Mobile: X-style flat feed ---- */
-.lc .xtabs{display:flex;margin:0 -12px;padding:0;background:var(--bg);border:0;border-bottom:1px solid var(--ln);border-radius:0;position:sticky;top:0;z-index:20}
-.lc .xtabs button{flex:1;height:46px;border-radius:0;background:transparent!important;color:var(--t2);font-weight:500;text-align:center;position:relative}
+.lc .xtabs{display:flex;margin:0 -12px;padding:0;background:var(--bg);border:0;border-bottom:1px solid var(--ln);border-radius:0;box-shadow:none;position:sticky;top:0;z-index:20}
+.lc .xtabs button{flex:1;height:48px;border-radius:0;background:transparent!important;box-shadow:none!important;color:var(--t2);font-size:15px;font-weight:500;text-align:center;position:relative}
 .lc .xtabs button.on{color:var(--tx);font-weight:700}
-.lc .xtabs button.on::after{content:"";position:absolute;left:50%;transform:translateX(-50%);bottom:0;width:44px;height:4px;border-radius:2px;background:var(--am)}
-.lc .xp{display:flex;gap:10px;margin:0 -12px;padding:10px 12px 2px;border:0;border-bottom:1px solid var(--ln);border-radius:0;box-shadow:none;background:transparent}
+.lc .xtabs button.on::after{content:"";position:absolute;left:50%;transform:translateX(-50%);bottom:0;width:40px;height:3px;border-radius:2px;background:var(--am)}
+.lc .xp{display:flex;gap:12px;margin:0 -12px;padding:12px 14px 4px 12px;border:0;border-bottom:1px solid var(--ln);border-radius:0;box-shadow:none;background:transparent}
 .lc .xp:active{background:color-mix(in srgb,var(--tx) 3%,transparent)}
-.lc .xav{flex:none;width:40px;height:40px;padding:0;border-radius:50%}
-.lc .xav .av{width:40px;height:40px;font-size:13px;font-weight:600}
+.lc .xav{flex:none;width:42px;height:42px;padding:0;border-radius:50%;align-self:flex-start}
+.lc .xav .av{width:42px;height:42px;font-size:13px;font-weight:600;border:1px solid var(--ln)}
 .lc .xbody{flex:1;min-width:0}
-.lc .xhd{display:flex;align-items:center;gap:6px;min-height:24px}
-.lc .xnm{display:flex;align-items:baseline;gap:5px;min-width:0;flex:1;overflow:hidden;white-space:nowrap;text-align:left}
-.lc .xnm b{font-weight:700;font-size:14.5px;overflow:hidden;text-overflow:ellipsis}
-.lc .xnm span{font-size:13px;color:var(--t2);overflow:hidden;text-overflow:ellipsis}
-.lc .xp .fwb{height:26px;padding:0 12px;font-size:12px}
-.lc .xp .pmn{width:30px;height:30px;margin-right:-6px;border-radius:99px}
-.lc .xp .bl{margin-top:3px}
-.lc .xp .bt{padding:3px 9px;font-size:11px}
-.lc .xp .ttl{font-size:15px;line-height:1.35;margin:3px 0 2px}
-.lc .xp .nt{font-size:14.5px;line-height:1.4}
-.lc .xp .rmr{min-height:28px;font-size:13px}
-.lc .xp .ts{margin:6px 0 4px;padding:10px 12px;border-radius:14px}
-.lc .xp .pf{border-top:0;margin-top:0;padding-top:0;gap:0;justify-content:flex-start}
-.lc .xp .pf .act{min-height:36px;padding:0 14px 0 0;font-size:13px;color:var(--t2);border-radius:99px}
+.lc .xhd{display:flex;align-items:flex-start;gap:8px}
+.lc .xnm{display:flex;flex-direction:column;align-items:flex-start;gap:0;min-width:0;flex:1;line-height:1.25;text-align:left}
+.lc .xl1{display:flex;align-items:baseline;gap:5px;max-width:100%;white-space:nowrap}
+.lc .xl1 b{font-weight:700;font-size:15px;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.lc .xl1 .xt{font-size:13px;color:var(--t2);flex:none}
+.lc .xrole{display:block;max-width:100%;font-size:12.5px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lc .xp .fwb{height:28px;padding:0 14px;font-size:12.5px;margin-top:1px}
+.lc .xp .pmn{width:32px;height:32px;margin:-4px -8px 0 0;border-radius:99px}
+.lc .xp .bl{margin-top:8px}
+.lc .xp .bt{padding:3px 10px;font-size:11.5px}
+.lc .xp .ttl{display:block;font-size:16px;font-weight:700;line-height:1.3;margin:6px 0 0;letter-spacing:-.005em}
+.lc .xp .nt{font-size:15px;line-height:1.4;color:var(--tx);margin-top:4px}
+.lc .xp .rmr{min-height:30px;font-size:13.5px}
+.lc .xp .ts{margin:10px 0 2px;padding:10px 12px;border-radius:14px;background:color-mix(in srgb,var(--s1) 70%,transparent)}
+.lc .xp .ts .tss{display:none}
+.lc .xp .ts .rail{margin:12px 4px 6px}
+.lc .xp .tsf{margin-top:8px}
+.lc .xp .ts + .nt{margin-top:8px}
+.lc .xp .pf{border-top:0;margin:2px 0 0;padding:0;gap:0;justify-content:space-between;max-width:300px}
+.lc .xp .pf .act{min-height:38px;padding:0 10px 0 0;font-size:13px;font-weight:500;color:var(--t2);border-radius:99px}
 .lc .xp .pf .act.on{background:transparent;color:var(--am)}
-.lc .xp .pf .act.sv{width:36px;padding:0;margin-right:-8px}
-.lc .xsug{margin:0 -12px;padding:0 12px;border-bottom:1px solid var(--ln)}
+.lc .xp .pf .act.sv{width:38px;padding:0;margin-left:auto;justify-content:center}
+.lc .xsug{margin:0 -12px;padding:2px 14px 8px;border-bottom:1px solid var(--ln);background:color-mix(in srgb,var(--s1) 55%,transparent)}
 .lc .xsug .lb{margin:12px 0 2px}
 .lc .xsug .row{padding:8px 0}
 `;
@@ -483,8 +489,11 @@ export default function LedgerCommunity({ isDesktop, communityAvatar, openMember
           <button type="button" className="xav" aria-label={`Open ${p.h} profile`} onClick={() => goProf(p.h)}>{avatar}</button>
           <div className="xbody">
             <div className="xhd">
-              <button type="button" className="xnm" onClick={() => goProf(p.h)}><b>{p.h}</b><span>{pf ? `${pf.role} \u00b7 ` : ""}{when}</span></button>
-              {followBtn}{dotsBtn}
+              <button type="button" className="xnm" onClick={() => goProf(p.h)}>
+                <span className="xl1"><b>{p.h}</b><span className="xt">{`\u00b7 ${when === "Just now" ? "now" : p.ago}`}</span></span>
+                {pf && <span className="xrole">{pf.role}</span>}
+              </button>
+              {!fol[p.h] && followBtn}{dotsBtn}
             </div>
             {boardRow}{titleBtn}{tradeBox}{noteEl}{footer}
           </div>
@@ -1176,7 +1185,7 @@ export default function LedgerCommunity({ isDesktop, communityAvatar, openMember
         {tab === "mentor" && (isDesktop ? <div style={{ maxWidth: 1100, margin: "0 auto" }}>{MentorView()}</div> : MentorView())}
       </div>
       {tab === "feed" && !sheet && !isDesktop && (
-        <button type="button" onClick={() => setSheet({ t: "mkp" })} aria-label="Add post" style={{ position: "fixed", right: 16, bottom: "calc(88px + env(safe-area-inset-bottom, 0px))", width: 56, height: 56, padding: 0, borderRadius: 99, background: "var(--am)", color: "var(--on)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 14px rgba(0,0,0,.28)", zIndex: 60 }}><Ic n="plus" s={26} /></button>
+        <button type="button" onClick={() => setSheet({ t: "mkp" })} aria-label="Add post" style={{ position: "fixed", right: 16, bottom: "calc(88px + env(safe-area-inset-bottom, 0px))", width: 52, height: 52, padding: 0, borderRadius: 99, background: "var(--am)", color: "var(--on)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 14px rgba(0,0,0,.28)", zIndex: 60 }}><Ic n="plus" s={26} /></button>
       )}
       {sheet && (
         <div onClick={(e) => { if (e.target === e.currentTarget && sheet.t !== "room") close(); }} style={{ position: "fixed", inset: 0, zIndex: 130, display: "flex", justifyContent: "center", alignItems: isDesktop ? "center" : "flex-end", background: "rgba(0,0,0,.5)" }}>
