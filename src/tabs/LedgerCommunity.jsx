@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { palette, sans } from "../lib/theme.js";
+import RoomSheet from "../components/RoomCall.jsx";
+import { communityApi } from "../api/community.js";
 
 // Ledger-style Community (Feed / Rooms / Ranks / Mentor), ported from the tredzi2.html reference.
 // Feed, Rooms and Mentor run on the same demo data as the reference; "You" in Ranks uses your real discipline score.
@@ -367,7 +369,7 @@ function Rail({ t }) {
   );
 }
 
-export default function LedgerCommunity({ isDesktop, communityAvatar, openMember, openMyProfile, myDiscipline }) {
+export default function LedgerCommunity({ isDesktop, communityAvatar, openMember, openMyProfile, myDiscipline, sessionToken, username }) {
   const nid = useRef(100);
   const [tab, setTab] = useState("feed");
   const [F, setF] = useState(() => DEMO.F.map((p, i) => ({ ...p, id: i + 1, my: false, sv: false, cmts: p.cmts.map((c) => ({ ...c })) })));
@@ -382,7 +384,10 @@ export default function LedgerCommunity({ isDesktop, communityAvatar, openMember
   const [ci, setCi] = useState("");
   const [ask, setAsk] = useState({ t: "", n: "", b: "Setups", edi: null });
   const [dc, setDc] = useState(false);
-  const [RO, setRO] = useState(DEMO.RO);
+  const [RO] = useState(DEMO.RO); // scheduled (upcoming) rooms are still sample data; live rooms come from the Worker
+  const [liveRooms, setLiveRooms] = useState([]);
+  const [roomsState, setRoomsState] = useState("idle"); // idle | loading | ok | error
+  const [startingRoom, setStartingRoom] = useState(false);
   const [rf, setRf] = useState("All");
   const [rem, setRem] = useState({});
   const [rtitle, setRtitle] = useState("");
@@ -595,20 +600,60 @@ export default function LedgerCommunity({ isDesktop, communityAvatar, openMember
 
   // ---------- Rooms ----------
   const openRoom = (r) => { setRc(""); setRm(r); setSheet({ t: "room" }); };
-  const mkRoom = (k, t, h, n) => ({ k, t, h, n, sp: 0, mu: true, hand: false, shr: false, sec: 2700, t2: 0, rule: "", notes: "", chat: [["@maya_r", "My line is 1.0890. I wait for the close."], ["@nightowl_fx", "Same. No entry before the close."]] });
-  const leaveRoom = () => {
-    const r = rm, t = r && ((r.notes || "").trim() || (r.rule ? `Rule: ${r.rule}` : ""));
-    if (t) {
-      try { const a = JSON.parse(localStorage.getItem("ledger-room-notes") || "[]"); a.unshift({ at: Date.now(), room: r.t, text: t.slice(0, 200) }); localStorage.setItem("ledger-room-notes", JSON.stringify(a.slice(0, 50))); } catch (e) {}
+  const loadRooms = async () => {
+    if (!sessionToken) return;
+    try {
+      const j = await communityApi("/rooms", { headers: { Authorization: `Bearer ${sessionToken}` } });
+      setLiveRooms(Array.isArray(j && j.rooms) ? j.rooms : []);
+      setRoomsState("ok");
+    } catch (e) { setRoomsState((x) => (x === "ok" ? x : "error")); }
+  };
+  // Keep the live-room list fresh while the Rooms tab is open (and not inside a room).
+  useEffect(() => {
+    if (tab !== "rooms" || !sessionToken || (sheet && sheet.t === "room")) return undefined;
+    setRoomsState((x) => (x === "ok" ? x : "loading"));
+    loadRooms();
+    const id = setInterval(loadRooms, 8000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, sessionToken, sheet && sheet.t]);
+  const joinRoom = (r) => {
+    if (!sessionToken) { toast("Sign in to your account to join rooms"); return; }
+    openRoom({ id: r.id, kind: r.k, title: r.t, startedAt: r.startedAt, isHost: !!r.isHost });
+  };
+  const startRoom = async (kind, title) => {
+    if (!sessionToken) { toast("Sign in to your account to start a room"); return; }
+    if (startingRoom) return;
+    setStartingRoom(true);
+    try {
+      const j = await communityApi("/rooms", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${sessionToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ kind, title }),
+      });
+      const r = j && j.room;
+      if (!r || !r.id) throw new Error("Couldn't start the room.");
+      openRoom({ id: r.id, kind: r.kind, title: r.title, startedAt: r.startedAt, isHost: true });
+    } catch (e) {
+      toast((e && e.message) || "Couldn't start the room.");
+    } finally { setStartingRoom(false); }
+  };
+  const leaveRoom = (extra) => {
+    const r = rm, notes = ((extra && extra.notes) || "").trim(), rule = ((extra && extra.rule) || "").trim();
+    const t = notes || (rule ? `Rule: ${rule}` : "");
+    if (r && t) {
+      try { const a = JSON.parse(localStorage.getItem("ledger-room-notes") || "[]"); a.unshift({ at: Date.now(), room: r.title, text: t.slice(0, 200) }); localStorage.setItem("ledger-room-notes", JSON.stringify(a.slice(0, 50))); } catch (e) {}
       toast("Room notes saved on this device");
     }
     setRm(null); close();
+    setTimeout(loadRooms, 600);
   };
   const RoomsView = () => {
-    const L = RO.map((r, i) => [r, i]).filter((x) => rf === "All" || x[0].k === rf);
-    const lv = L.filter((x) => x[0].live), up = L.filter((x) => !x[0].live);
+    const nowMs = Date.now();
+    const lv = liveRooms.filter((r) => rf === "All" || r.kind === rf).map((r) => [{ id: r.id, k: r.kind, t: r.title, h: r.host, n: r.n, min: Math.max(0, Math.floor((nowMs - r.startedAt) / 60000)), startedAt: r.startedAt, isHost: r.isHost }, r.id]);
+    const up = RO.map((r, i) => [r, i]).filter((x) => !x[0].live && (rf === "All" || x[0].k === rf));
     const startBtn = (
-      <button type="button" className="btn" style={isDesktop ? { width: "auto", height: 42, padding: "0 20px" } : { margin: "14px 0 4px" }} onClick={() => { setRtitle(""); setSheet({ t: "mk" }); }}><Ic n="plus" s={18} />Start a room</button>
+      <button type="button" className="btn" style={isDesktop ? { width: "auto", height: 42, padding: "0 20px" } : { margin: "14px 0 4px" }} onClick={() => { if (!sessionToken) { toast("Sign in to your account to start a room"); return; } setRtitle(""); setSheet({ t: "mk" }); }}><Ic n="plus" s={18} />Start a room</button>
     );
     const filters = (
       <div className="chips" style={isDesktop ? { margin: 0 } : { marginTop: 12 }}>
@@ -623,12 +668,12 @@ export default function LedgerCommunity({ isDesktop, communityAvatar, openMember
           <div className="ttl" style={{ margin: "10px 0 4px" }}>{r.t}</div>
           <div className="t2 s12">Hosted by {r.h}</div>
           <div className="rw" style={{ marginTop: 12 }}>
-            <span style={{ display: "flex" }}>{["NI", "MR", "QB"].map((s2, i) => <span key={s2} className="av" style={{ width: 28, height: 28, fontSize: 10, marginLeft: i ? -8 : 0, border: "2px solid var(--s1)" }}>{s2}</span>)}</span>
-            <button type="button" className="btn" style={{ width: 96, height: 40 }} onClick={() => openRoom(mkRoom(r.k, r.t, r.h, r.n + 1))}>Join</button>
+            <span style={{ display: "flex" }}><span className="av" style={{ width: 28, height: 28, fontSize: 10 }}>{String(r.h || "?").replace("@", "").slice(0, 2).toUpperCase()}</span></span>
+            <button type="button" className="btn" style={{ width: 96, height: 40 }} onClick={() => joinRoom(r)}>Join</button>
           </div>
         </div>
       );
-    }) : <div className="t2">No live rooms of this type. Start one.</div>);
+    }) : <div className="t2">{!sessionToken ? "Sign in to your account to see and join live rooms." : roomsState === "loading" ? "Looking for live rooms…" : roomsState === "error" ? "Couldn't load rooms. Check your connection." : "No live rooms of this type. Start one."}</div>);
     const upRows = () => (up.length ? up.map((x) => {
       const r = x[0], i = x[1], pp = r.at.split(", "), d = pp[0].split(" ");
       return (
@@ -986,76 +1031,13 @@ export default function LedgerCommunity({ isDesktop, communityAvatar, openMember
           <label className="f">Room title, optional<input className="in" placeholder="New York open, levels and plans" value={rtitle} onChange={(e) => setRtitle(e.target.value)} /></label>
           <div className="lb"><span>Pick a type to go live</span></div>
           {o.map((x) => (
-            <button type="button" className="row" key={x[0]} onClick={() => {
-              const title = rtitle.trim() || (x[0] === "Focus" ? "Silent focus block" : x[0] === "Video" ? "Chart review" : "Open talk");
-              setRO((L) => [{ t: title, k: x[0], h: "@you", n: 1, min: 0, live: 1 }, ...L]);
-              openRoom(mkRoom(x[0], title, "@you", 1));
-            }}><span><Kind k={x[0]} /><b>{x[1]}</b><div className="t2 s12">{x[2]}</div></span><Ic n="chev" s={18} /></button>
+            <button type="button" className="row" key={x[0]} disabled={startingRoom} onClick={() => startRoom(x[0], rtitle.trim())}><span><Kind k={x[0]} /><b>{x[1]}</b><div className="t2 s12">{x[2]}</div></span><Ic n="chev" s={18} /></button>
           ))}
         </div>
       </>);
     }
     if (t === "room" && rm) {
-      const r = rm, f = r.k === "Focus", C2 = 2 * Math.PI * 70;
-      const P = r.k === "Check-in" ? ["@maya_r", "You"] : [r.h === "@you" ? "You" : r.h].concat(POOL.filter((h) => h !== r.h).slice(0, 3), r.h === "@you" ? [] : ["You"]);
-      const k = r.sp % (P.length - (P.indexOf("You") > 0 ? 1 : 0));
-      const rb = (on, ic, l, fn, c) => <button type="button" className={`rbn${on ? " on" : ""}${c ? ` ${c}` : ""}`} onClick={fn}><span className="c"><Ic n={ic} s={22} /></span>{l}</button>;
-      const sendChat = () => { const v = rc.trim(); if (!v) return; setRm((x) => ({ ...x, chat: [...x.chat, ["@you", v]] })); setRc(""); };
-      return (<>
-        <div className="shd">
-          <button type="button" className="ib" onClick={leaveRoom} aria-label="Leave room"><Ic n="x" /></button>
-          <span style={{ flex: 1 }}><b>{r.t}</b><div className="t2 s12" style={{ display: "flex", alignItems: "center" }}><span className="live" />Live <span style={{ margin: "0 6px 0 4px" }}>{clk(r.t2)}</span>{r.k} room</div></span>
-        </div>
-        <div className="shb">
-          {f ? (<>
-            <div style={{ textAlign: "center", margin: "16px 0 8px" }}>
-              <svg viewBox="0 0 160 160" width="190" height="190" role="img" aria-label="Focus timer">
-                <circle cx="80" cy="80" r="70" fill="none" stroke="var(--s2)" strokeWidth="8" />
-                <circle cx="80" cy="80" r="70" fill="none" stroke="var(--am)" strokeWidth="8" strokeLinecap="round" strokeDasharray={C2} strokeDashoffset={C2 * (1 - r.sec / 2700)} transform="rotate(-90 80 80)" />
-                <text x="80" y="90" textAnchor="middle" fontSize="30" fontWeight="600" fill="var(--tx)">{clk(r.sec)}</text>
-              </svg>
-            </div>
-            <label className="f">My one rule for this block<input className="in" placeholder="Wait for the candle close" value={r.rule} onChange={(e) => setRm((x) => ({ ...x, rule: e.target.value }))} /></label>
-          </>) : (r.shr || r.k === "Video") ? (
-            <div className="pc" style={{ margin: "14px 0", padding: 12 }}>
-              {r.shr ? (<>
-                <div className="t2 s12" style={{ marginBottom: 6 }}>{r.k === "Video" ? r.h : "You"} is sharing a chart, EUR/USD 15m</div>
-                <svg viewBox="0 0 330 120" width="100%" height="120" role="img" aria-label="Shared chart"><polyline points="0,90 30,80 60,86 90,60 120,66 150,44 180,52 210,30 240,38 270,24 330,20" fill="none" stroke="var(--g)" strokeWidth="2" /><line x1="0" y1="66" x2="330" y2="66" stroke="var(--t2)" strokeDasharray="4 4" /></svg>
-              </>) : <div className="t2" style={{ padding: "30px 0", textAlign: "center" }}>No one is sharing yet. Tap Share to show a chart.</div>}
-            </div>
-          ) : null}
-          <div style={{ marginTop: 14 }}>
-            <div className="lb" style={{ marginTop: 0 }}><span>{f ? "Focusing together" : "In the room"}</span><span>{f ? `${r.n} people` : `${r.n} here`}</span></div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 14 }}>
-              {P.map((h, i) => {
-                const y = h === "You", sp = !f && ((y && !r.mu) || (!y && i === k));
-                return (
-                  <div key={h} style={{ textAlign: "center", width: 62 }}>
-                    <div className="av" style={{ width: 54, height: 54, fontSize: 14, margin: "0 auto 4px", boxShadow: sp ? "0 0 0 3px var(--g)" : undefined }}>{y && communityAvatar ? <img src={communityAvatar} alt="You" /> : h.replace("@", "").slice(0, 2).toUpperCase()}</div>
-                    <div style={{ fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.replace("@", "")}</div>
-                    <div className="t2" style={{ fontSize: 11, minHeight: 16 }}>{sp ? <span className="eq"><i /><i /><i /></span> : y ? (r.hand ? "Hand up" : r.mu ? "Muted" : "Live") : (f ? "Focusing" : (i === 0 ? "Host" : ""))}</div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-          {!f && (<>
-            <div className="lb"><span>Chat</span></div>
-            <div>{r.chat.map((c, i) => <div key={i} style={{ background: "var(--s1)", border: "1px solid var(--ln)", borderRadius: 12, padding: "8px 12px", margin: "6px 0" }}><b className="am s12">{c[0]}</b><div>{c[1]}</div></div>)}</div>
-            <input className="in" placeholder="Say something about your process" aria-label="Chat message" value={rc} onChange={(e) => setRc(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") sendChat(); }} />
-          </>)}
-          <div className="lb"><span>Notes, saved on this device when you leave</span></div>
-          <textarea className="in" rows={2} aria-label="Room notes" placeholder="One thing worth keeping" value={r.notes} onChange={(e) => setRm((x) => ({ ...x, notes: e.target.value }))} />
-        </div>
-        {f ? <div className="shf"><button type="button" className="btn o" onClick={leaveRoom}>Leave block</button></div> : (
-          <div className="shf" style={{ gap: 4 }}>
-            {rb(!r.mu, r.mu ? "micx" : "mic", r.mu ? "Unmute" : "Mute", () => setRm((x) => ({ ...x, mu: !x.mu })))}
-            {rb(r.hand, "hand", "Raise hand", () => setRm((x) => ({ ...x, hand: !x.hand })))}
-            {rb(r.shr, "scr", "Share chart", () => setRm((x) => ({ ...x, shr: !x.shr })))}
-            {rb(false, "x", "Leave", leaveRoom, "lv")}
-          </div>
-        )}
-      </>);
+      return <RoomSheet key={rm.id} room={rm} token={sessionToken} me={{ username: username ? `@${username}` : "You", avatar: communityAvatar }} onLeave={leaveRoom} toast={toast} />;
     }
     if (t === "mis") {
       const ini = (mnn || "").trim().split(/\s+/).map((w) => w[0] || "").join("").slice(0, 2).toUpperCase() || "?";
