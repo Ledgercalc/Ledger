@@ -1572,7 +1572,28 @@ const getCommunityMemberStats = (member) => {
       arr.push((arr[arr.length - 1] || 0) + pnl);
       return arr;
     }, []);
-    return { winRate, pnlPct, streak, trades: ordered.length, avgR: null, equityCurve, statsPublic: true };
+    // Extra fields for the Ledger-style profile (discipline, heatmap, setups, drawdown)
+    let disciplineScore = null, journalStreak = null, bestStreak = null;
+    try { const g = computeDisciplineGrade(trades); disciplineScore = Number.isFinite(g?.score) ? g.score : null; } catch (e) {}
+    try { const d = computeDisciplineStreak(trades); journalStreak = d?.current ?? null; bestStreak = d?.best ?? null; } catch (e) {}
+    const pnls = ordered.map((t) => num(t.pnl) || 0);
+    const winsArr = pnls.filter((v) => v > 0);
+    const lossArr = pnls.filter((v) => v < 0);
+    const grossWin = winsArr.reduce((s, v) => s + v, 0);
+    const grossLoss = -lossArr.reduce((s, v) => s + v, 0);
+    const profitFactor = grossLoss > 0 ? grossWin / grossLoss : null;
+    let peak = 0, maxDd = 0;
+    equityCurve.forEach((v) => { peak = Math.max(peak, v); maxDd = Math.max(maxDd, peak - v); });
+    const toPct = (v) => (bal > 0 ? (v / bal) * 100 : null);
+    const avgWinPct = winsArr.length ? toPct(grossWin / winsArr.length) : null;
+    const avgLossPct = lossArr.length ? toPct(lossArr.reduce((s, v) => s + v, 0) / lossArr.length) : null;
+    const maxDrawdownPct = toPct(maxDd);
+    const bySetup = {};
+    ordered.forEach((t) => { if (!t.setup) return; const s = (bySetup[t.setup] = bySetup[t.setup] || { w: 0, n: 0 }); s.n += 1; if (num(t.pnl) > 0) s.w += 1; });
+    const setups = Object.entries(bySetup).filter(([, s]) => s.n >= 2).map(([name, s]) => [name, Math.round((s.w / s.n) * 100)]).sort((x, y) => y[1] - x[1]).slice(0, 3);
+    const journalDays = {};
+    ordered.forEach((t) => { if (!t.ts) return; const d = new Date(t.ts); const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; journalDays[k] = (journalDays[k] || 0) + 1; });
+    return { winRate, pnlPct, streak, trades: ordered.length, avgR: null, equityCurve, statsPublic: true, disciplineScore, journalStreak, bestStreak, profitFactor, avgWinPct, avgLossPct, maxDrawdownPct, setups, journalDays };
   }
   const pick = (...keys) => {
     for (const key of keys) {
@@ -1591,6 +1612,15 @@ const getCommunityMemberStats = (member) => {
     avgR: num(pick("avgR", "avgRR", "avg_r")),
     equityCurve: Array.isArray(curve) ? curve.map((v) => num(v)).filter((v) => Number.isFinite(v)) : [],
     statsPublic: publicFields.some((key) => pick(key) !== null),
+    disciplineScore: num(pick("disciplineScore", "discipline_score")),
+    journalStreak: num(pick("journalStreak", "journal_streak")),
+    bestStreak: num(pick("bestStreak", "best_streak")),
+    profitFactor: num(pick("profitFactor", "profit_factor")),
+    avgWinPct: num(pick("avgWinPct", "avg_win_pct")),
+    avgLossPct: num(pick("avgLossPct", "avg_loss_pct")),
+    maxDrawdownPct: num(pick("maxDrawdownPct", "max_drawdown_pct")),
+    setups: Array.isArray(pick("setups", "topSetups")) ? pick("setups", "topSetups") : [],
+    journalDays: pick("journalDays", "journal_days") || null,
   };
 };
 
