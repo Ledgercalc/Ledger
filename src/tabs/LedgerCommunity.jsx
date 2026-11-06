@@ -279,41 +279,29 @@ const CSS = `.lc button,.lc input,.lc textarea{font:inherit;color:inherit}
 @media (hover:hover){.lc .pc{transition:border-color .15s,box-shadow .15s}.lc .pc:hover{border-color:color-mix(in srgb,var(--am) 40%,var(--ln))}.lc .jt:hover,.lc .card.mcd:hover{border-color:color-mix(in srgb,var(--am) 40%,var(--ln))}}
 @media (max-width:1180px){.lc .dkg{grid-template-columns:minmax(0,1fr) 300px;gap:20px}.lc .dkcards3{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:980px){.lc .dkg,.lc .dkg2{grid-template-columns:minmax(0,1fr)}.lc .dkside{position:static}.lc .dkcards{grid-template-columns:minmax(0,1fr)}}
-/* ---- Mobile: X-style flat feed ---- */
-.lc .xtabs{display:flex;margin:0 -12px;padding:0;background:var(--bg);border:0;border-bottom:1px solid var(--ln);border-radius:0;box-shadow:none;position:sticky;top:0;z-index:20}
-.lc .xtabs button{flex:1;height:48px;border-radius:0;background:transparent!important;box-shadow:none!important;color:var(--t2);font-size:15px;font-weight:500;text-align:center;position:relative}
-.lc .xtabs button.on{color:var(--tx);font-weight:700}
-.lc .xtabs button.on::after{content:"";position:absolute;left:50%;transform:translateX(-50%);bottom:0;width:40px;height:3px;border-radius:2px;background:var(--am)}
-.lc .xp{display:flex;gap:12px;margin:0 -12px;padding:12px 14px 4px 12px;border:0;border-bottom:1px solid var(--ln);border-radius:0;box-shadow:none;background:transparent}
-.lc .xp:active{background:color-mix(in srgb,var(--tx) 3%,transparent)}
-.lc .xav{flex:none;width:42px;height:42px;padding:0;border-radius:50%;align-self:flex-start}
-.lc .xav .av{width:42px;height:42px;font-size:13px;font-weight:600;border:1px solid var(--ln)}
-.lc .xbody{flex:1;min-width:0}
-.lc .xhd{display:flex;align-items:flex-start;gap:8px}
-.lc .xnm{display:flex;flex-direction:column;align-items:flex-start;gap:0;min-width:0;flex:1;line-height:1.25;text-align:left}
-.lc .xl1{display:flex;align-items:baseline;gap:5px;max-width:100%;white-space:nowrap}
-.lc .xl1 b{font-weight:700;font-size:15px;overflow:hidden;text-overflow:ellipsis;min-width:0}
-.lc .xl1 .xt{font-size:13px;color:var(--t2);flex:none}
-.lc .xrole{display:block;max-width:100%;font-size:12.5px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.lc .xp .fwb{height:28px;padding:0 14px;font-size:12.5px;margin-top:1px}
-.lc .xp .pmn{width:32px;height:32px;margin:-4px -8px 0 0;border-radius:99px}
-.lc .xp .bl{margin-top:8px}
-.lc .xp .bt{padding:3px 10px;font-size:11.5px}
-.lc .xp .ttl{display:block;font-size:16px;font-weight:700;line-height:1.3;margin:6px 0 0;letter-spacing:-.005em}
-.lc .xp .nt{font-size:15px;line-height:1.4;color:var(--tx);margin-top:4px}
-.lc .xp .rmr{min-height:30px;font-size:13.5px}
-.lc .xp .ts{margin:10px 0 2px;padding:10px 12px;border-radius:14px;background:color-mix(in srgb,var(--s1) 70%,transparent)}
-.lc .xp .ts .tss{display:none}
-.lc .xp .ts .rail{margin:12px 4px 6px}
-.lc .xp .tsf{margin-top:8px}
-.lc .xp .ts + .nt{margin-top:8px}
-.lc .xp .pf{border-top:0;margin:2px 0 0;padding:0;gap:0;justify-content:space-between;max-width:300px}
-.lc .xp .pf .act{min-height:38px;padding:0 10px 0 0;font-size:13px;font-weight:500;color:var(--t2);border-radius:99px}
-.lc .xp .pf .act.on{background:transparent;color:var(--am)}
-.lc .xp .pf .act.sv{width:38px;padding:0;margin-left:auto;justify-content:center}
-.lc .xsug{margin:0 -12px;padding:2px 14px 8px;border-bottom:1px solid var(--ln);background:color-mix(in srgb,var(--s1) 55%,transparent)}
-.lc .xsug .lb{margin:12px 0 2px}
-.lc .xsug .row{padding:8px 0}
+/* ---- Mobile: compact bordered cards ---- */
+.lc .rl span{display:flex;flex-direction:column;gap:1px;min-width:0}
+.lc .rl span:nth-child(2){align-items:center}
+.lc .rl span:last-child{align-items:flex-end}
+.lc .rl em{font-style:normal;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--t2)}
+.lc .rl b{font-size:12.5px;font-weight:600;color:var(--tx)}
+.lc.lcm .npw{top:14px;margin-top:14px}
+.lc.lcm .pc{padding:12px 14px 6px;margin-top:10px;border-radius:16px}
+.lc.lcm .pc .pa .av{width:40px;height:40px}
+.lc.lcm .pn b{font-size:15px;font-weight:700}
+.lc.lcm .fwb{height:30px;padding:0 11px;font-size:12px}
+.lc.lcm .pn span{font-size:12.5px}
+.lc.lcm .pc .bl{margin-top:10px}
+.lc.lcm .pc .ttl{font-size:16px;font-weight:700;line-height:1.3;margin:8px 0 2px}
+.lc.lcm .pc .nt{font-size:14.5px;line-height:1.45;color:var(--tx);margin-top:6px}
+.lc.lcm .pc .ts{margin:10px 0 2px;padding:10px 12px;border-radius:12px}
+.lc.lcm .pc .ts .tss{margin-top:2px}
+.lc.lcm .pc .ts .rail{margin:12px 4px 8px}
+.lc.lcm .pc .tsf{margin-top:10px}
+.lc.lcm .pf{margin-top:8px;padding-top:2px}
+.lc.lcm .pf .act{padding:0 12px 0 8px;font-size:13px}
+.lc.lcm .fbn{width:44px;padding:0;justify-content:center;position:relative;flex:none}
+.lc.lcm .fbn .bdg{position:absolute;top:-6px;right:-6px;min-width:18px;height:18px;font-size:10.5px}
 `;
 
 const PA = {
@@ -374,7 +362,7 @@ function Rail({ t }) {
         <i className="re" style={{ left: `${fe * 100}%` }} />
         <i className="rd" style={{ left: `${fc * 100}%`, background: col }} />
       </div>
-      <div className="rl"><span>Stop {px(t.s)}</span><span>Entry {px(t.e)}</span><span>Target {px(t.tp)}</span></div>
+      <div className="rl"><span><em>Stop</em><b>{px(t.s)}</b></span><span><em>Entry</em><b>{px(t.e)}</b></span><span><em>Target</em><b>{px(t.tp)}</b></span></div>
     </>
   );
 }
@@ -483,29 +471,14 @@ export default function LedgerCommunity({ isDesktop, communityAvatar, openMember
         <button type="button" className={`act sv${p.sv ? " on" : ""}`} aria-pressed={!!p.sv} aria-label={p.sv ? "Remove from saved" : "Save post"} onClick={() => patchPost(p.id, (x) => ({ ...x, sv: !x.sv }))}><Ic n="bm" s={22} fill={p.sv} /></button>
       </div>
     );
-    if (!isDesktop) {
-      return (
-        <article className="pc xp" key={p.id}>
-          <button type="button" className="xav" aria-label={`Open ${p.h} profile`} onClick={() => goProf(p.h)}>{avatar}</button>
-          <div className="xbody">
-            <div className="xhd">
-              <button type="button" className="xnm" onClick={() => goProf(p.h)}>
-                <span className="xl1"><b>{p.h}</b><span className="xt">{`\u00b7 ${when === "Just now" ? "now" : p.ago}`}</span></span>
-                {pf && <span className="xrole">{pf.role}</span>}
-              </button>
-              {!fol[p.h] && followBtn}{dotsBtn}
-            </div>
-            {boardRow}{titleBtn}{tradeBox}{noteEl}{footer}
-          </div>
-        </article>
-      );
-    }
     return (
       <article className="pc" key={p.id}>
         <div className="ph">
           <button type="button" className="pa" onClick={() => goProf(p.h)}>
             {avatar}
-            <span className="pn"><b>{p.h}</b><span className="t2 s12">{pf ? `${pf.role} · ` : ""}{when}</span></span>
+            {isDesktop
+              ? <span className="pn"><b>{p.h}</b><span className="t2 s12">{pf ? `${pf.role} · ` : ""}{when}</span></span>
+              : <span className="pn"><b style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{p.h}</b><span className="t2">{`${when === "Just now" ? "now" : p.ago}${pf ? ` \u00b7 ${pf.role}` : ""}`}</span></span>}
           </button>
           {followBtn}{dotsBtn}
         </div>
@@ -555,9 +528,9 @@ export default function LedgerCommunity({ isDesktop, communityAvatar, openMember
     const main = (
       <>
         {np.length > 0 && <div className="npw"><button type="button" className="npp" onClick={showNew}><Ic n="up" s={16} />{np.length} {np.length === 1 ? "new post" : "new posts"}</button></div>}
-        <div style={{ display: "flex", gap: 8, marginTop: isDesktop ? 6 : 8, marginBottom: isDesktop ? 0 : 4 }}>
-          <input type="search" className="in" style={{ margin: 0, flex: 1, width: "auto", ...(isDesktop ? {} : { borderRadius: 99, minHeight: 40, padding: "6px 16px" }) }} placeholder="Search posts and people" aria-label="Search posts" value={fq} onChange={(e) => setFq(e.target.value)} />
-          {!isDesktop && <button type="button" className="fbn" aria-label="Open filters" onClick={() => setSheet({ t: "filter" })}><Ic n="flt" s={18} />Filter{FPN() ? <b className="bdg">{FPN()}</b> : null}</button>}
+        <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+          <input type="search" className="in" style={{ margin: 0, flex: 1, width: "auto", minWidth: 0 }} placeholder="Search posts and people" aria-label="Search posts" value={fq} onChange={(e) => setFq(e.target.value)} />
+          {!isDesktop && <button type="button" className="fbn" aria-label="Open filters" onClick={() => setSheet({ t: "filter" })}><Ic n="flt" s={18} />{FPN() ? <b className="bdg">{FPN()}</b> : null}</button>}
           {isDesktop && <div className="tg" style={{ flex: "none", width: 230 }}>{[["new", "Latest"], ["top", "Most helpful"]].map(([v, l]) => <button key={v} type="button" className={fsort === v ? "on" : ""} onClick={() => setFsort(v)}>{l}</button>)}</div>}
         </div>
         {act.length > 0 && (
@@ -581,7 +554,7 @@ export default function LedgerCommunity({ isDesktop, communityAvatar, openMember
               ) : (
                 <>
                   {q.slice(0, 2).map(PostCard)}
-                  {bd === "All" && !sr && (() => { const sg = Suggest(); return sg ? <div className="xsug">{sg}</div> : null; })()}
+                  {bd === "All" && !sr && Suggest()}
                   {q.slice(2).map(PostCard)}
                 </>
               )}
@@ -1164,9 +1137,9 @@ export default function LedgerCommunity({ isDesktop, communityAvatar, openMember
   };
   const TABS = [["feed", "Feed"], ["rooms", "Rooms"], ["ranks", "Ranks"], ["mentor", "Mentor"]];
   return (
-    <div className="lc" style={{ ...vars, flex: 1, minHeight: 0, height: "100%", overflowY: "auto", color: "var(--tx)", fontFamily: sans, fontSize: 14, lineHeight: 1.45, fontVariantNumeric: "tabular-nums", background: "var(--bg)" }}>
+    <div className={isDesktop ? "lc" : "lc lcm"} style={{ ...vars, flex: 1, minHeight: 0, height: "100%", overflowY: "auto", color: "var(--tx)", fontFamily: sans, fontSize: 14, lineHeight: 1.45, fontVariantNumeric: "tabular-nums", background: "var(--bg)" }}>
       <style>{CSS}</style>
-      <div style={{ maxWidth: isDesktop ? 1480 : "none", margin: "0 auto", padding: isDesktop ? "0 20px 48px" : "0 12px 110px", boxSizing: "border-box" }}>
+      <div style={{ maxWidth: isDesktop ? 1480 : "none", margin: "0 auto", padding: isDesktop ? "0 20px 48px" : "10px 2px 110px", boxSizing: "border-box" }}>
         {isDesktop ? (
           <div className="dkbar">
             <div className="tg" role="tablist" aria-label="Community sections">
@@ -1175,7 +1148,7 @@ export default function LedgerCommunity({ isDesktop, communityAvatar, openMember
             {tab === "feed" && <button type="button" className="btn" onClick={() => setSheet({ t: "mkp" })}><Ic n="plus" s={18} />Add post</button>}
           </div>
         ) : (
-          <div className="tg xtabs" role="tablist" aria-label="Community sections">
+          <div className="tg" role="tablist" aria-label="Community sections" style={{ marginBottom: 6 }}>
             {TABS.map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={tab === id} className={tab === id ? "on" : ""} onClick={() => setTab(id)}>{label}</button>)}
           </div>
         )}
