@@ -278,7 +278,37 @@ const CSS = `.lc button,.lc input,.lc textarea{font:inherit;color:inherit}
 .lc .bds .dotc{margin-right:8px}
 @media (hover:hover){.lc .pc{transition:border-color .15s,box-shadow .15s}.lc .pc:hover{border-color:color-mix(in srgb,var(--am) 40%,var(--ln))}.lc .jt:hover,.lc .card.mcd:hover{border-color:color-mix(in srgb,var(--am) 40%,var(--ln))}}
 @media (max-width:1180px){.lc .dkg{grid-template-columns:minmax(0,1fr) 300px;gap:20px}.lc .dkcards3{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media (max-width:980px){.lc .dkg,.lc .dkg2{grid-template-columns:minmax(0,1fr)}.lc .dkside{position:static}.lc .dkcards{grid-template-columns:minmax(0,1fr)}}`;
+@media (max-width:980px){.lc .dkg,.lc .dkg2{grid-template-columns:minmax(0,1fr)}.lc .dkside{position:static}.lc .dkcards{grid-template-columns:minmax(0,1fr)}}
+/* ---- Mobile: X-style flat feed ---- */
+.lc .xtabs{display:flex;margin:0 -12px;padding:0;background:var(--bg);border:0;border-bottom:1px solid var(--ln);border-radius:0;position:sticky;top:0;z-index:20}
+.lc .xtabs button{flex:1;height:46px;border-radius:0;background:transparent!important;color:var(--t2);font-weight:500;text-align:center;position:relative}
+.lc .xtabs button.on{color:var(--tx);font-weight:700}
+.lc .xtabs button.on::after{content:"";position:absolute;left:50%;transform:translateX(-50%);bottom:0;width:44px;height:4px;border-radius:2px;background:var(--am)}
+.lc .xp{display:flex;gap:10px;margin:0 -12px;padding:10px 12px 2px;border:0;border-bottom:1px solid var(--ln);border-radius:0;box-shadow:none;background:transparent}
+.lc .xp:active{background:color-mix(in srgb,var(--tx) 3%,transparent)}
+.lc .xav{flex:none;width:40px;height:40px;padding:0;border-radius:50%}
+.lc .xav .av{width:40px;height:40px;font-size:13px;font-weight:600}
+.lc .xbody{flex:1;min-width:0}
+.lc .xhd{display:flex;align-items:center;gap:6px;min-height:24px}
+.lc .xnm{display:flex;align-items:baseline;gap:5px;min-width:0;flex:1;overflow:hidden;white-space:nowrap;text-align:left}
+.lc .xnm b{font-weight:700;font-size:14.5px;overflow:hidden;text-overflow:ellipsis}
+.lc .xnm span{font-size:13px;color:var(--t2);overflow:hidden;text-overflow:ellipsis}
+.lc .xp .fwb{height:26px;padding:0 12px;font-size:12px}
+.lc .xp .pmn{width:30px;height:30px;margin-right:-6px;border-radius:99px}
+.lc .xp .bl{margin-top:3px}
+.lc .xp .bt{padding:3px 9px;font-size:11px}
+.lc .xp .ttl{font-size:15px;line-height:1.35;margin:3px 0 2px}
+.lc .xp .nt{font-size:14.5px;line-height:1.4}
+.lc .xp .rmr{min-height:28px;font-size:13px}
+.lc .xp .ts{margin:6px 0 4px;padding:10px 12px;border-radius:14px}
+.lc .xp .pf{border-top:0;margin-top:0;padding-top:0;gap:0;justify-content:flex-start}
+.lc .xp .pf .act{min-height:36px;padding:0 14px 0 0;font-size:13px;color:var(--t2);border-radius:99px}
+.lc .xp .pf .act.on{background:transparent;color:var(--am)}
+.lc .xp .pf .act.sv{width:36px;padding:0;margin-right:-8px}
+.lc .xsug{margin:0 -12px;padding:0 12px;border-bottom:1px solid var(--ln)}
+.lc .xsug .lb{margin:12px 0 2px}
+.lc .xsug .row{padding:8px 0}
+`;
 
 const PA = {
   plus: "M12 5v14M5 12h14", chev: "M9 6l6 6-6 6", check: "M5 12l5 5L20 7", x: "M6 6l12 12M18 6L6 18",
@@ -411,44 +441,66 @@ export default function LedgerCommunity({ isDesktop, communityAvatar, openMember
   const PostCard = (p) => {
     const tr = p.e != null, pf = PF[p.h], me = p.h === "@you", bc = BCOL[p.board] || "var(--t2)";
     const nc = p.cmts.length, an = p.cmts.some((c) => c.best), nf = (p.rules || []).filter(Boolean).length;
+    const avatar = me ? <Av size={40} fs={13} text="YO" photo={communityAvatar} /> : <span className="av">{ini2(p.h)}</span>;
+    const when = p.ago === "now" ? "Just now" : `${p.ago} ago`;
+    const followBtn = !me && <button type="button" className={`fwb${fol[p.h] ? " on" : ""}`} onClick={() => setFol((f) => ({ ...f, [p.h]: f[p.h] ? 0 : 1 }))}>{fol[p.h] ? "Following" : "Follow"}</button>;
+    const dotsBtn = <button type="button" className="pmn" aria-label="More options" onClick={() => { setDc(false); setSheet({ t: "pm", id: p.id }); }}><Dots /></button>;
+    const boardRow = (
+      <div className="bl">
+        <span className="bt" style={{ "--bc": bc }}><i className="dotc" style={{ background: bc }} />{p.board}</span>
+        {an && <span className="ans"><Ic n="check" s={12} />Answered</span>}
+      </div>
+    );
+    const titleBtn = <button type="button" className="ttl" onClick={() => setSheet({ t: "post", id: p.id })}>{p.title}</button>;
+    const tradeBox = tr && (
+      <div className="ts">
+        <div className="tsh">
+          <span className="tsl"><b className="tsy">{p.sym}</b><span className={`dir ${p.side > 0 ? "l" : "s"}`}>{p.side > 0 ? "Long" : "Short"}</span></span>
+          <b className={`tsr ${cl(p.r)}`}>{rr(p.r)}</b>
+        </div>
+        {p.su && <div className="tss">{p.su} setup</div>}
+        <Rail t={p} />
+        <span className={`tsf${nf < 3 ? " w" : ""}`}><Ic n="check" s={12} />Followed {nf} of 3 rules</span>
+      </div>
+    );
+    const noteEl = p.note && (
+      <>
+        <div className={`nt${ex[p.id] ? " ex" : ""}`}>{p.note}</div>
+        {p.note.length > 150 && <button type="button" className="rmr" onClick={() => setEx((e) => ({ ...e, [p.id]: !e[p.id] }))}>{ex[p.id] ? "Show less" : "Read more"}</button>}
+      </>
+    );
+    const footer = (
+      <div className="pf">
+        <button type="button" className={`act${p.my ? " on" : ""}`} onClick={() => patchPost(p.id, (x) => ({ ...x, my: !x.my }))}><Ic n="up" s={16} />Helpful {p.hc + (p.my ? 1 : 0)}</button>
+        <button type="button" className="act" onClick={() => setSheet({ t: "post", id: p.id })}><Ic n="chat" s={16} />{nc}{p.board === "Reviews" ? " feedback" : nc === 1 ? " comment" : " comments"}</button>
+        <span style={{ flex: 1 }} />
+        <button type="button" className={`act sv${p.sv ? " on" : ""}`} aria-pressed={!!p.sv} aria-label={p.sv ? "Remove from saved" : "Save post"} onClick={() => patchPost(p.id, (x) => ({ ...x, sv: !x.sv }))}><Ic n="bm" s={22} fill={p.sv} /></button>
+      </div>
+    );
+    if (!isDesktop) {
+      return (
+        <article className="pc xp" key={p.id}>
+          <button type="button" className="xav" aria-label={`Open ${p.h} profile`} onClick={() => goProf(p.h)}>{avatar}</button>
+          <div className="xbody">
+            <div className="xhd">
+              <button type="button" className="xnm" onClick={() => goProf(p.h)}><b>{p.h}</b><span>{pf ? `${pf.role} \u00b7 ` : ""}{when}</span></button>
+              {followBtn}{dotsBtn}
+            </div>
+            {boardRow}{titleBtn}{tradeBox}{noteEl}{footer}
+          </div>
+        </article>
+      );
+    }
     return (
       <article className="pc" key={p.id}>
         <div className="ph">
           <button type="button" className="pa" onClick={() => goProf(p.h)}>
-            {me ? <Av size={40} fs={13} text="YO" photo={communityAvatar} /> : <span className="av">{ini2(p.h)}</span>}
-            <span className="pn"><b>{p.h}</b><span className="t2 s12">{pf ? `${pf.role} · ` : ""}{p.ago === "now" ? "Just now" : `${p.ago} ago`}</span></span>
+            {avatar}
+            <span className="pn"><b>{p.h}</b><span className="t2 s12">{pf ? `${pf.role} · ` : ""}{when}</span></span>
           </button>
-          {!me && <button type="button" className={`fwb${fol[p.h] ? " on" : ""}`} onClick={() => setFol((f) => ({ ...f, [p.h]: f[p.h] ? 0 : 1 }))}>{fol[p.h] ? "Following" : "Follow"}</button>}
-          <button type="button" className="pmn" aria-label="More options" onClick={() => { setDc(false); setSheet({ t: "pm", id: p.id }); }}><Dots /></button>
+          {followBtn}{dotsBtn}
         </div>
-        <div className="bl">
-          <span className="bt" style={{ "--bc": bc }}><i className="dotc" style={{ background: bc }} />{p.board}</span>
-          {an && <span className="ans"><Ic n="check" s={12} />Answered</span>}
-        </div>
-        <button type="button" className="ttl" onClick={() => setSheet({ t: "post", id: p.id })}>{p.title}</button>
-        {tr && (
-          <div className="ts">
-            <div className="tsh">
-              <span className="tsl"><b className="tsy">{p.sym}</b><span className={`dir ${p.side > 0 ? "l" : "s"}`}>{p.side > 0 ? "Long" : "Short"}</span></span>
-              <b className={`tsr ${cl(p.r)}`}>{rr(p.r)}</b>
-            </div>
-            {p.su && <div className="tss">{p.su} setup</div>}
-            <Rail t={p} />
-            <span className={`tsf${nf < 3 ? " w" : ""}`}><Ic n="check" s={12} />Followed {nf} of 3 rules</span>
-          </div>
-        )}
-        {p.note && (
-          <>
-            <div className={`nt${ex[p.id] ? " ex" : ""}`}>{p.note}</div>
-            {p.note.length > 150 && <button type="button" className="rmr" onClick={() => setEx((e) => ({ ...e, [p.id]: !e[p.id] }))}>{ex[p.id] ? "Show less" : "Read more"}</button>}
-          </>
-        )}
-        <div className="pf">
-          <button type="button" className={`act${p.my ? " on" : ""}`} onClick={() => patchPost(p.id, (x) => ({ ...x, my: !x.my }))}><Ic n="up" s={16} />Helpful {p.hc + (p.my ? 1 : 0)}</button>
-          <button type="button" className="act" onClick={() => setSheet({ t: "post", id: p.id })}><Ic n="chat" s={16} />{nc}{p.board === "Reviews" ? " feedback" : nc === 1 ? " comment" : " comments"}</button>
-          <span style={{ flex: 1 }} />
-          <button type="button" className={`act sv${p.sv ? " on" : ""}`} aria-pressed={!!p.sv} aria-label={p.sv ? "Remove from saved" : "Save post"} onClick={() => patchPost(p.id, (x) => ({ ...x, sv: !x.sv }))}><Ic n="bm" s={22} fill={p.sv} /></button>
-        </div>
+        {boardRow}{titleBtn}{tradeBox}{noteEl}{footer}
       </article>
     );
   };
@@ -494,8 +546,8 @@ export default function LedgerCommunity({ isDesktop, communityAvatar, openMember
     const main = (
       <>
         {np.length > 0 && <div className="npw"><button type="button" className="npp" onClick={showNew}><Ic n="up" s={16} />{np.length} {np.length === 1 ? "new post" : "new posts"}</button></div>}
-        <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
-          <input type="search" className="in" style={{ margin: 0, flex: 1, width: "auto" }} placeholder="Search posts and people" aria-label="Search posts" value={fq} onChange={(e) => setFq(e.target.value)} />
+        <div style={{ display: "flex", gap: 8, marginTop: isDesktop ? 6 : 8, marginBottom: isDesktop ? 0 : 4 }}>
+          <input type="search" className="in" style={{ margin: 0, flex: 1, width: "auto", ...(isDesktop ? {} : { borderRadius: 99, minHeight: 40, padding: "6px 16px" }) }} placeholder="Search posts and people" aria-label="Search posts" value={fq} onChange={(e) => setFq(e.target.value)} />
           {!isDesktop && <button type="button" className="fbn" aria-label="Open filters" onClick={() => setSheet({ t: "filter" })}><Ic n="flt" s={18} />Filter{FPN() ? <b className="bdg">{FPN()}</b> : null}</button>}
           {isDesktop && <div className="tg" style={{ flex: "none", width: 230 }}>{[["new", "Latest"], ["top", "Most helpful"]].map(([v, l]) => <button key={v} type="button" className={fsort === v ? "on" : ""} onClick={() => setFsort(v)}>{l}</button>)}</div>}
         </div>
@@ -520,7 +572,7 @@ export default function LedgerCommunity({ isDesktop, communityAvatar, openMember
               ) : (
                 <>
                   {q.slice(0, 2).map(PostCard)}
-                  {bd === "All" && !sr && Suggest()}
+                  {bd === "All" && !sr && (() => { const sg = Suggest(); return sg ? <div className="xsug">{sg}</div> : null; })()}
                   {q.slice(2).map(PostCard)}
                 </>
               )}
@@ -1105,7 +1157,7 @@ export default function LedgerCommunity({ isDesktop, communityAvatar, openMember
   return (
     <div className="lc" style={{ ...vars, flex: 1, minHeight: 0, height: "100%", overflowY: "auto", color: "var(--tx)", fontFamily: sans, fontSize: 14, lineHeight: 1.45, fontVariantNumeric: "tabular-nums", background: "var(--bg)" }}>
       <style>{CSS}</style>
-      <div style={{ maxWidth: isDesktop ? 1480 : "none", margin: "0 auto", padding: isDesktop ? "0 20px 48px" : "12px 16px 120px", boxSizing: "border-box" }}>
+      <div style={{ maxWidth: isDesktop ? 1480 : "none", margin: "0 auto", padding: isDesktop ? "0 20px 48px" : "0 12px 110px", boxSizing: "border-box" }}>
         {isDesktop ? (
           <div className="dkbar">
             <div className="tg" role="tablist" aria-label="Community sections">
@@ -1114,7 +1166,7 @@ export default function LedgerCommunity({ isDesktop, communityAvatar, openMember
             {tab === "feed" && <button type="button" className="btn" onClick={() => setSheet({ t: "mkp" })}><Ic n="plus" s={18} />Add post</button>}
           </div>
         ) : (
-          <div className="tg" role="tablist" aria-label="Community sections" style={{ marginBottom: 6 }}>
+          <div className="tg xtabs" role="tablist" aria-label="Community sections">
             {TABS.map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={tab === id} className={tab === id ? "on" : ""} onClick={() => setTab(id)}>{label}</button>)}
           </div>
         )}
@@ -1124,7 +1176,7 @@ export default function LedgerCommunity({ isDesktop, communityAvatar, openMember
         {tab === "mentor" && (isDesktop ? <div style={{ maxWidth: 1100, margin: "0 auto" }}>{MentorView()}</div> : MentorView())}
       </div>
       {tab === "feed" && !sheet && !isDesktop && (
-        <button type="button" onClick={() => setSheet({ t: "mkp" })} style={{ position: "fixed", right: 16, bottom: isDesktop ? 24 : "calc(92px + env(safe-area-inset-bottom, 0px))", height: 52, padding: "0 20px", borderRadius: 14, background: "var(--am)", color: "var(--on)", fontWeight: 600, display: "flex", alignItems: "center", gap: 8, boxShadow: "0 4px 14px rgba(0,0,0,.25)", zIndex: 60 }}><Ic n="plus" />Add post</button>
+        <button type="button" onClick={() => setSheet({ t: "mkp" })} aria-label="Add post" style={{ position: "fixed", right: 16, bottom: "calc(88px + env(safe-area-inset-bottom, 0px))", width: 56, height: 56, padding: 0, borderRadius: 99, background: "var(--am)", color: "var(--on)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 14px rgba(0,0,0,.28)", zIndex: 60 }}><Ic n="plus" s={26} /></button>
       )}
       {sheet && (
         <div onClick={(e) => { if (e.target === e.currentTarget && sheet.t !== "room") close(); }} style={{ position: "fixed", inset: 0, zIndex: 130, display: "flex", justifyContent: "center", alignItems: isDesktop ? "center" : "flex-end", background: "rgba(0,0,0,.5)" }}>
