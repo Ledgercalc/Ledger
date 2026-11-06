@@ -1030,7 +1030,7 @@ export default function CommunityTab(props) {
                 <div className="flex-1 px-4 py-4 overflow-y-auto" style={{ minHeight: 0, background: palette.bg }}>
                   <div className="flex items-center gap-2 mb-4" style={{ overflowX: "auto", scrollbarWidth: "none" }}>
                     {[{ id: "winRate", label: "Win rate" }, { id: "pnlPct", label: "P&L %" }, { id: "streak", label: "Streak" }].map((t) => (
-                      <button key={t.id} type="button" onClick={() => setLeaderboardMetric(t.id)} className={`px-3 py-1.5 rounded-full flex-shrink-0 ${TAP}`} style={{ background: leaderboardMetric === t.id ? palette.text : palette.field, color: leaderboardMetric === t.id ? palette.letterbox : palette.textMuted, border: `1px solid ${leaderboardMetric === t.id ? palette.text : palette.border}`, fontFamily: sans, fontSize: "11px", fontWeight: 700 }}>{t.label}</button>
+                      <button key={t.id} type="button" onClick={() => setLeaderboardMetric(t.id)} className={`px-3 py-1.5 rounded-full flex-shrink-0 ${TAP}`} style={{ background: leaderboardMetric === t.id ? palette.gold : palette.field, color: leaderboardMetric === t.id ? palette.letterbox : palette.textMuted, border: `1px solid ${leaderboardMetric === t.id ? palette.gold : palette.border}`, fontFamily: sans, fontSize: "11px", fontWeight: 700 }}>{t.label}</button>
                     ))}
                     <span className="flex-1" />
                     <span style={{ color: palette.textFaint, fontSize: "10.5px", fontFamily: mono, whiteSpace: "nowrap" }}>This group</span>
@@ -1790,8 +1790,8 @@ export default function CommunityTab(props) {
           const p = profileData && String(profileData.username).toLowerCase() === String(viewingName || "").toLowerCase() ? profileData : null;
           // ---- Profile UI copied from the Ledger reference (tredzi2.html): one column, 44px buttons,
           // segmented Overview / Stats / Posts tabs, label + row lists, card posts. Same on phone and PC.
-          const colW = isDesktop ? "720px" : "100%";
-          const ibStyle = { width: "44px", height: "44px", borderRadius: "12px", background: palette.surface, border: `1px solid ${palette.border}`, color: palette.text };
+          const colW = isDesktop ? "1280px" : "100%";
+          const ibStyle = { width: "44px", height: "44px", borderRadius: "12px", background: `${palette.gold}16`, border: `1px solid ${palette.gold}55`, color: palette.gold };
           const lb = (left, right) => (
             <div className="flex items-center justify-between" style={{ fontFamily: sans, fontSize: "12px", fontWeight: 500, color: palette.textMuted, margin: "22px 0 8px" }}>
               <span>{left}</span>{right != null && <span>{right}</span>}
@@ -1805,41 +1805,46 @@ export default function CommunityTab(props) {
           );
           const btn = (primary, busy) => ({
             height: "44px", borderRadius: "12px", fontFamily: sans, fontSize: "14px", fontWeight: 600, flex: 1, whiteSpace: "nowrap",
-            background: primary ? palette.gold : palette.surface,
-            border: primary ? "1px solid transparent" : `1px solid ${palette.border}`,
-            color: primary ? palette.letterbox : palette.text,
+            background: primary ? palette.gold : `${palette.gold}16`,
+            border: primary ? "1px solid transparent" : `1px solid ${palette.gold}55`,
+            color: primary ? palette.letterbox : palette.gold,
             opacity: busy ? 0.6 : 1,
           });
           const pill = (primary, busy) => ({
             height: "34px", padding: "0 18px", borderRadius: "10px", whiteSpace: "nowrap",
             fontSize: "13px", fontWeight: 600, fontFamily: sans,
-            background: primary ? palette.gold : palette.field,
-            border: `1px solid ${primary ? "transparent" : palette.border}`,
-            color: primary ? palette.letterbox : palette.text,
+            background: primary ? palette.gold : `${palette.gold}16`,
+            border: `1px solid ${primary ? "transparent" : `${palette.gold}55`}`,
+            color: primary ? palette.letterbox : palette.gold,
             opacity: busy ? 0.6 : 1,
           });
           const tag = (text) => (
             <span style={{ fontFamily: sans, fontSize: "11px", fontWeight: 500, padding: "2px 8px", borderRadius: "6px", border: `1px solid ${palette.border}`, color: palette.textMuted }}>{text}</span>
           );
-          const shell = (children) => (
+          const shell = (children, aside) => (
             <div className="fixed inset-0 flex flex-col" style={{ background: palette.bg, zIndex: 108 }}>
               <div
                 className="flex items-center gap-3 flex-shrink-0"
-                style={{ padding: "12px 16px", paddingTop: "max(12px, env(safe-area-inset-top))", background: palette.bg, borderBottom: `1px solid ${palette.border}` }}
+                style={{ padding: isDesktop ? "0 32px" : "12px 16px", height: isDesktop ? "68px" : undefined, paddingTop: isDesktop ? undefined : "max(12px, env(safe-area-inset-top))", background: palette.surface, borderBottom: `1px solid ${palette.border}` }}
               >
-                <div className="flex items-center gap-3 mx-auto w-full" style={{ maxWidth: colW }}>
-                  <button type="button" onClick={closeProfileBack} className={`flex items-center justify-center flex-shrink-0 ${TAP}`} style={ibStyle} aria-label="Back">
-                    <ChevronLeft size={22} strokeWidth={2.2} />
-                  </button>
-                  <h1 className="truncate flex-1 min-w-0" style={{ margin: 0, fontFamily: sans, fontSize: "22px", fontWeight: 600, letterSpacing: "-0.01em", lineHeight: 1.2, color: palette.text }}>
-                    {p ? p.username : (viewingName || "Profile")}
-                  </h1>
-                </div>
+                <button type="button" onClick={closeProfileBack} className={`flex items-center justify-center gap-1.5 flex-shrink-0 ${TAP}`} style={isDesktop ? { ...ibStyle, width: "auto", height: "40px", padding: "0 16px 0 10px", fontFamily: sans, fontSize: "13.5px", fontWeight: 600 } : ibStyle} aria-label="Back">
+                  <ChevronLeft size={isDesktop ? 18 : 22} strokeWidth={2.2} />{isDesktop && "Back"}
+                </button>
+                <h1 className="truncate flex-1 min-w-0" style={{ margin: 0, fontFamily: sans, fontSize: isDesktop ? "18px" : "22px", fontWeight: 600, letterSpacing: "-0.01em", lineHeight: 1.2, color: palette.text }}>
+                  {isDesktop && <span style={{ color: palette.textMuted, fontWeight: 500 }}>Profile / </span>}{p ? p.username : (viewingName || "Profile")}
+                </h1>
               </div>
               <div className="flex-1" style={{ overflowY: "auto", minHeight: 0 }}>
-                <div className="mx-auto w-full" style={{ maxWidth: colW, padding: "16px 16px max(40px, env(safe-area-inset-bottom))" }}>
-                  {children}
-                </div>
+                {isDesktop && aside ? (
+                  <div className="mx-auto w-full" style={{ maxWidth: colW, padding: "28px 32px 56px", display: "grid", gridTemplateColumns: "minmax(320px, 380px) minmax(0, 1fr)", gap: "28px", alignItems: "start" }}>
+                    <aside style={{ background: palette.surface, border: `1px solid ${palette.border}`, borderRadius: "18px", padding: "24px", boxShadow: palette.shadow }}>{aside}</aside>
+                    <main style={{ minWidth: 0 }}>{children}</main>
+                  </div>
+                ) : (
+                  <div className="mx-auto w-full" style={{ maxWidth: isDesktop ? "960px" : colW, padding: isDesktop ? "28px 32px 56px" : "16px 16px max(40px, env(safe-area-inset-bottom))" }}>
+                    {children}
+                  </div>
+                )}
               </div>
             </div>
           );
@@ -1870,6 +1875,19 @@ export default function CommunityTab(props) {
             <span className="inline-flex items-center justify-center flex-shrink-0" role="img" aria-label="Verified P&L" style={{ width: "18px", height: "18px", borderRadius: "50%", background: palette.green, color: "#fff" }}>
               <Check size={11} strokeWidth={3} />
             </span>
+          );
+
+          const tabsBar = (
+            <div className="flex" role="tablist" aria-label="Profile sections" style={{ margin: isDesktop ? "0 0 18px" : "16px 0 4px", padding: "3px", background: palette.surface, border: `1px solid ${palette.border}`, borderRadius: "12px", maxWidth: isDesktop ? "560px" : undefined }}>
+              {sections.map(([id, label]) => {
+                const on = tab === id;
+                return (
+                  <button key={id} type="button" role="tab" aria-selected={on} onClick={() => setProfileSubTab(id)} className={TAP} style={{ flex: 1, height: "40px", borderRadius: "9px", fontFamily: sans, fontSize: "14px", fontWeight: on ? 600 : 500, textAlign: "center", background: on ? palette.gold : "transparent", color: on ? palette.letterbox : palette.textMuted, border: "none", boxShadow: on ? `0 2px 8px ${palette.gold}44` : "none" }}>
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
           );
 
           const headerBlock = (
@@ -1944,16 +1962,7 @@ export default function CommunityTab(props) {
                 </div>
               )}
 
-              <div className="flex" role="tablist" aria-label="Profile sections" style={{ margin: "16px 0 4px", padding: "3px", background: palette.surface, border: `1px solid ${palette.border}`, borderRadius: "12px" }}>
-                {sections.map(([id, label]) => {
-                  const on = tab === id;
-                  return (
-                    <button key={id} type="button" role="tab" aria-selected={on} onClick={() => setProfileSubTab(id)} className={TAP} style={{ flex: 1, height: "40px", borderRadius: "9px", fontFamily: sans, fontSize: "14px", fontWeight: 500, textAlign: "center", background: on ? palette.text : "transparent", color: on ? palette.bg : palette.textMuted, border: "none" }}>
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
+              {!isDesktop && tabsBar}
             </>
           );
 
@@ -2023,7 +2032,7 @@ export default function CommunityTab(props) {
           const showHeat = isMe || !!stats.journalDays;
           const privacyLabels = ["Show results as % of balance, never dollars", "Show my streak on my profile", "Show my top setups"];
 
-          const overviewPanel = (
+          const aboutBlock = (
             <>
               {bioBlock}
               {!isMe && mutuals.length > 0 && (
@@ -2044,6 +2053,10 @@ export default function CommunityTab(props) {
                   {tradingRows.map(([label, v]) => rowItem(label, list(v)))}
                 </>
               )}
+            </>
+          );
+          const overviewRest = (
+            <>
               {dScore != null && (
                 <>
                   {lb("Discipline score", stats.journalStreak != null ? `${stats.journalStreak} day journal streak` : null)}
@@ -2056,6 +2069,7 @@ export default function CommunityTab(props) {
               {showHeat && (
                 <>
                   {lb("Journaling, last 12 weeks")}
+                  <div style={{ maxWidth: isDesktop ? "640px" : undefined }}>
                   <div className="flex items-center justify-between" style={{ marginBottom: "10px", fontFamily: sans }}>
                     <span>
                       <b style={{ fontSize: "14px", fontWeight: 600, color: palette.text }}>{heat.done} of {heat.past} days journaled</b>
@@ -2080,7 +2094,7 @@ export default function CommunityTab(props) {
                             type="button"
                             onClick={() => setHmSel(cell.n)}
                             aria-label={`${DOWS[cell.d.getDay()]} ${cell.d.getDate()} ${MONTHS[cell.d.getMonth()]}${cell.lvl < 0 ? ", upcoming" : cell.lvl ? ", journaled" : ", not journaled"}`}
-                            style={{ height: "24px", borderRadius: "6px", padding: 0, background: cell.lvl < 0 ? "none" : heatBg(cell.lvl), border: sel ? `1.5px solid ${palette.text}` : cell.lvl < 0 ? `1px dashed ${palette.border}` : "1.5px solid transparent" }}
+                            style={{ height: "24px", borderRadius: "6px", padding: 0, background: cell.lvl < 0 ? "none" : heatBg(cell.lvl), border: sel ? `1.5px solid ${palette.gold}` : cell.lvl < 0 ? `1px dashed ${palette.border}` : "1.5px solid transparent" }}
                           />
                         );
                       })}
@@ -2093,6 +2107,7 @@ export default function CommunityTab(props) {
                       {[0, 1, 2, 3].map((k) => <i key={k} style={{ width: "12px", height: "12px", borderRadius: "3px", display: "inline-block", background: heatBg(k) }} />)}
                       More
                     </span>
+                  </div>
                   </div>
                 </>
               )}
@@ -2124,12 +2139,16 @@ export default function CommunityTab(props) {
             </>
           );
 
+          const overviewPanel = <>{aboutBlock}{overviewRest}</>;
+          const card = (children) => (
+            <div style={isDesktop ? { background: palette.surface, border: `1px solid ${palette.border}`, borderRadius: "18px", padding: "4px 24px 22px", marginBottom: "18px", boxShadow: palette.shadow } : undefined}>{children}</div>
+          );
           const pctVal = (v, signed) => (v == null || !Number.isFinite(v) ? "—" : signed ? fmtPct(v) : `${Math.abs(v).toFixed(1)}%`);
           const statsPanel = (
             <>
               {lb("Equity curve across every group", curve.length ? <span style={{ color: pnlColor }}>{fmtPct(stats.pnlPct)}</span> : null)}
               {curveLine ? (
-                <svg viewBox="0 0 330 120" preserveAspectRatio="none" role="img" aria-label="Cumulative equity curve" style={{ display: "block", width: "100%", height: "120px" }}>
+                <svg viewBox="0 0 330 120" preserveAspectRatio="none" role="img" aria-label="Cumulative equity curve" style={{ display: "block", width: "100%", height: isDesktop ? "200px" : "120px" }}>
                   <line x1="0" x2="330" y1={cy(0)} y2={cy(0)} stroke={palette.border} strokeDasharray="4 4" />
                   <polygon points={`0,${cy(0)} ${curveLine} 330,${cy(0)}`} fill={palette.green} fillOpacity="0.12" />
                   <polyline points={curveLine} fill="none" stroke={palette.green} strokeWidth="2" vectorEffect="non-scaling-stroke" />
@@ -2138,6 +2157,7 @@ export default function CommunityTab(props) {
                 <div className="flex items-center justify-center" style={{ height: "120px", color: palette.textMuted, fontFamily: sans, fontSize: "13px" }}>No public curve available</div>
               )}
               {lb("Performance")}
+              <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "1fr 1fr" : "1fr", columnGap: "40px" }}>
               {rowItem("Expectancy", stats.avgR == null ? "—" : `${stats.avgR >= 0 ? "+" : "−"}${Math.abs(stats.avgR).toFixed(1)}R`)}
               {rowItem("Win rate", stats.winRate == null || !Number.isFinite(stats.winRate) ? "—" : `${Math.round(stats.winRate)}%`)}
               {rowItem("Profit factor", stats.profitFactor == null || !Number.isFinite(stats.profitFactor) ? "n/a" : stats.profitFactor.toFixed(1))}
@@ -2145,6 +2165,7 @@ export default function CommunityTab(props) {
               {rowItem("Average loss", pctVal(stats.avgLossPct, true))}
               {rowItem("Max drawdown", stats.maxDrawdownPct == null || !Number.isFinite(stats.maxDrawdownPct) ? "—" : `−${Math.abs(stats.maxDrawdownPct).toFixed(1)}%`)}
               {rowItem("Trades logged", stats.trades == null ? "—" : String(stats.trades))}
+              </div>
               {lb("Discipline")}
               {rowItem("Discipline score", dScore == null ? "—" : `${dScore}%`)}
               {rowItem("Journal streak", stats.journalStreak == null ? "—" : `${stats.journalStreak} days`)}
@@ -2245,10 +2266,23 @@ export default function CommunityTab(props) {
             </>
           );
 
+          const panel = tab === "overview" ? (isDesktop ? overviewRest : overviewPanel) : tab === "stats" ? statsPanel : tab === "badges" ? badgesPanel : postsPanel;
+          if (isDesktop) {
+            return shell(
+              <>
+                {tabsBar}
+                {tab === "posts" ? panel : card(panel)}
+              </>,
+              <>
+                {headerBlock}
+                {aboutBlock}
+              </>
+            );
+          }
           return shell(
             <>
               {headerBlock}
-              {tab === "overview" ? overviewPanel : tab === "stats" ? statsPanel : tab === "badges" ? badgesPanel : postsPanel}
+              {panel}
             </>
           );
         })()}
@@ -2346,9 +2380,9 @@ export default function CommunityTab(props) {
                               className={`flex-shrink-0 ${TAP}`}
                               style={{
                                 height: "32px", minWidth: "92px", padding: "0 16px", borderRadius: "8px",
-                                background: row.isFollowedByMe ? palette.field : palette.gold,
-                                border: `1px solid ${row.isFollowedByMe ? palette.border : "transparent"}`,
-                                color: row.isFollowedByMe ? palette.text : palette.letterbox,
+                                background: row.isFollowedByMe ? `${palette.gold}16` : palette.gold,
+                                border: `1px solid ${row.isFollowedByMe ? `${palette.gold}55` : "transparent"}`,
+                                color: row.isFollowedByMe ? palette.gold : palette.letterbox,
                                 fontSize: "12.5px", fontWeight: 700, fontFamily: sans, opacity: followBusy ? 0.6 : 1,
                               }}
                             >
