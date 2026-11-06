@@ -238,6 +238,17 @@ export default function CommunityTab(props) {
   } = props;
   // chat-only UI state (selected message, jump-to-latest button, composer height)
   const [activeMsgId, setActiveMsgId] = useState(null);
+  const [hmSel, setHmSel] = useState(-1);
+  const [copiedProfile, setCopiedProfile] = useState(false);
+  const [pvt, setPvt] = useState(() => {
+    try { const s = JSON.parse(localStorage.getItem("ledger-profile-privacy") || "null"); if (Array.isArray(s) && s.length === 3) return s; } catch (e) {}
+    return [true, true, true];
+  });
+  const togglePvt = (i) => setPvt((cur) => {
+    const n = cur.map((v, k) => (k === i ? !v : v));
+    try { localStorage.setItem("ledger-profile-privacy", JSON.stringify(n)); } catch (e) {}
+    return n;
+  });
   const [showJump, setShowJump] = useState(false);
   const composerRef = useRef(null);
   const swipe = useRef({ x: 0, y: 0, id: null });
@@ -1829,13 +1840,13 @@ export default function CommunityTab(props) {
           const cMin = Math.min(0, ...(curve.length ? curve : [0]));
           const cMax = Math.max(0, ...(curve.length ? curve : [0]));
           const cRange = cMax - cMin || 1;
-          const cy = (v) => Math.round(110 - ((v - cMin) / cRange) * 96 - 7);
+          const cy = (v) => Math.round(100 - ((v - cMin) / cRange) * 88);
           const cx = (i) => Math.round((i / Math.max(1, curve.length - 1)) * 330);
           const curveLine = curve.length > 1 ? curve.map((v, i) => `${cx(i)},${cy(v)}`).join(" ") : "";
           const fmtPct = (v) => (v == null || !Number.isFinite(v) ? "—" : `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(1)}%`);
           const pnlColor = stats.pnlPct != null && stats.pnlPct < 0 ? palette.red : palette.green;
-          const sections = [["overview", "Overview"], ["stats", "Stats"], ["posts", "Posts"]];
-          const tab = ["overview", "stats", "posts"].includes(profileSubTab) ? profileSubTab : "overview";
+          const sections = [["overview", "Overview"], ["stats", "Stats"], ["posts", "Posts"], ["badges", "Badges"]];
+          const tab = ["overview", "stats", "posts", "badges"].includes(profileSubTab) ? profileSubTab : "overview";
 
           const verifiedBadge = (
             <span className="inline-flex items-center justify-center flex-shrink-0" role="img" aria-label="Verified P&L" style={{ width: "18px", height: "18px", borderRadius: "50%", background: palette.green, color: "#fff" }}>
@@ -1870,9 +1881,10 @@ export default function CommunityTab(props) {
                     {p.verifiedPnl && verifiedBadge}
                   </div>
                   <div className="flex items-center gap-2 flex-wrap" style={{ fontFamily: sans, fontSize: "12px", color: palette.textMuted, marginTop: "3px" }}>
-                    <span>{joinedText ? `Joined ${joinedText}` : "Community member"}</span>
+                    <span>{`@${p.username}`}{joinedText ? `, Joined ${joinedText}` : ""}</span>
                     {!isMe && p.followsMe && tag("Follows you")}
                   </div>
+                  {(p.role || p.tagline) && <div style={{ fontFamily: sans, fontSize: "14px", fontWeight: 500, marginTop: "2px", color: palette.text }}>{p.role || p.tagline}</div>}
                 </div>
               </div>
 
@@ -1891,10 +1903,18 @@ export default function CommunityTab(props) {
                 !bioEditing && (
                   <div className="flex" style={{ gap: "8px" }}>
                     <button type="button" onClick={() => { setBioDraft(p.bio || ""); setBioEditing(true); }} className={`flex items-center justify-center gap-1.5 ${TAP}`} style={btn(true, false)}>
-                      <Pencil size={14} /> Edit bio
+                      <Pencil size={14} /> Edit profile
                     </button>
-                    <button type="button" onClick={() => setProfileComposerOpen(true)} className={`flex items-center justify-center gap-1.5 ${TAP}`} style={btn(false, false)}>
-                      <Plus size={15} /> New post
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const txt = `${p.username} (@${p.username}) on Ledger.${p.role ? ` ${p.role}.` : ""}${stats.disciplineScore != null ? ` Discipline ${Math.round(stats.disciplineScore)}%` : ""}${stats.journalStreak != null ? `${stats.disciplineScore != null ? "," : ""} ${stats.journalStreak} day journal streak.` : stats.disciplineScore != null ? "." : ""}`;
+                        try { navigator.clipboard.writeText(txt).then(() => { setCopiedProfile(true); setTimeout(() => setCopiedProfile(false), 1600); }, () => {}); } catch (e) {}
+                      }}
+                      className={`flex items-center justify-center gap-1.5 ${TAP}`}
+                      style={btn(false, false)}
+                    >
+                      <Copy size={14} /> {copiedProfile ? "Copied" : "Copy summary"}
                     </button>
                   </div>
                 )
@@ -1951,13 +1971,43 @@ export default function CommunityTab(props) {
             </>
           );
 
+          const present = (v) => v != null && v !== "" && !(Array.isArray(v) && v.length === 0);
+          const list = (v) => (Array.isArray(v) ? v.join(", ") : String(v));
+          const dScore = stats.disciplineScore == null || !Number.isFinite(stats.disciplineScore) ? null : Math.max(0, Math.min(100, Math.round(stats.disciplineScore)));
+          const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+          const DOWS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+          const heat = (() => {
+            const today = new Date(); today.setHours(0, 0, 0, 0);
+            const start = new Date(today); start.setDate(today.getDate() - ((today.getDay() + 6) % 7) - 11 * 7);
+            const key = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+            const days = stats.journalDays || {};
+            const cells = [];
+            let done = 0, past = 0, run = 0, best = 0;
+            for (let n = 0; n < 84; n += 1) {
+              const d = new Date(start); d.setDate(start.getDate() + n);
+              const upcoming = d > today;
+              const cnt = upcoming ? -1 : (days[key(d)] || 0);
+              cells.push({ n, d, lvl: cnt < 0 ? -1 : Math.min(3, cnt), cnt });
+              const wk = d.getDay() !== 0 && d.getDay() !== 6;
+              if (!upcoming && wk) { past += 1; if (cnt > 0) { done += 1; run += 1; best = Math.max(best, run); } else run = 0; }
+            }
+            let pm = -1;
+            const months = Array.from({ length: 12 }, (_, col) => { const m = cells[col * 7].d.getMonth(); const t = m !== pm ? MONTHS[m] : ""; pm = m; return t; });
+            return { cells, done, past, best, months };
+          })();
+          const selCell = hmSel >= 0 ? heat.cells[hmSel] : null;
+          const heatInfo = selCell
+            ? <><b style={{ fontWeight: 600, color: palette.text }}>{DOWS[selCell.d.getDay()]} {selCell.d.getDate()} {MONTHS[selCell.d.getMonth()]}</b>, {selCell.lvl < 0 ? "upcoming" : selCell.cnt === 0 ? "no journal entry" : `${selCell.cnt} ${selCell.cnt > 1 ? "entries" : "entry"} written`}</>
+            : "Tap a square to see that day";
+          const heatBg = (lvl) => (lvl > 0 ? `color-mix(in srgb, ${palette.gold} ${lvl * 30}%, ${palette.field})` : palette.field);
+          const tradingRows = [["Style", p.style || p.styles], ["Markets", p.markets || p.market], ["Risk per trade", p.risk || p.riskPerTrade], ["Main session", p.session || p.mainSession]].filter(([, v]) => present(v));
+          const setupRows = (stats.setups || []).filter((x) => Array.isArray(x) && x.length >= 2);
+          const showHeat = isMe || !!stats.journalDays;
+          const privacyLabels = ["Show results as % of balance, never dollars", "Show my streak on my profile", "Show my top setups"];
+
           const overviewPanel = (
             <>
               {bioBlock}
-              {lb("About")}
-              {joinedText && rowItem("Member since", joinedText)}
-              {rowItem("Status", p.isOnline ? "Online" : "Offline", p.isOnline ? palette.green : undefined)}
-              {rowItem("Verified P&L", p.verifiedPnl ? "Yes" : "Not verified", p.verifiedPnl ? palette.green : undefined)}
               {!isMe && mutuals.length > 0 && (
                 <div style={{ padding: "12px 0", borderBottom: `1px solid ${palette.border}`, fontFamily: sans, fontSize: "14px", color: palette.textMuted }}>
                   Followed by{" "}
@@ -1970,28 +2020,157 @@ export default function CommunityTab(props) {
                   {mutuals.length > 2 && ` and ${mutuals.length - 2} other${mutuals.length - 2 === 1 ? "" : "s"} you follow`}
                 </div>
               )}
+              {tradingRows.length > 0 && (
+                <>
+                  {lb("Trading profile")}
+                  {tradingRows.map(([label, v]) => rowItem(label, list(v)))}
+                </>
+              )}
+              {dScore != null && (
+                <>
+                  {lb("Discipline score", stats.journalStreak != null ? `${stats.journalStreak} day journal streak` : null)}
+                  <div style={{ fontFamily: sans, fontSize: "44px", fontWeight: 600, lineHeight: 1.1, letterSpacing: "-0.02em", color: palette.text }}>{dScore}%</div>
+                  <div style={{ marginTop: "8px", height: "10px", borderRadius: "5px", background: palette.field, overflow: "hidden" }}>
+                    <i style={{ display: "block", height: "100%", width: `${dScore}%`, borderRadius: "5px", background: palette.gold }} />
+                  </div>
+                </>
+              )}
+              {showHeat && (
+                <>
+                  {lb("Journaling, last 12 weeks")}
+                  <div className="flex items-center justify-between" style={{ marginBottom: "10px", fontFamily: sans }}>
+                    <span>
+                      <b style={{ fontSize: "14px", fontWeight: 600, color: palette.text }}>{heat.done} of {heat.past} days journaled</b>
+                      <div style={{ fontSize: "12px", color: palette.textMuted }}>Longest weekday streak: {heat.best} days</div>
+                    </span>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "30px 1fr", gap: "3px 6px", fontSize: "11px", color: palette.textMuted, fontFamily: sans }}>
+                    <div />
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(12, 1fr)", gap: "3px", height: "16px" }}>
+                      {heat.months.map((m, k) => <span key={k} style={{ whiteSpace: "nowrap" }}>{m}</span>)}
+                    </div>
+                    <div style={{ display: "grid", gridTemplateRows: "repeat(7, 24px)", gap: "3px", alignItems: "center" }}>
+                      {["Mon", "", "Wed", "", "Fri", "", ""].map((x, k) => <span key={k}>{x}</span>)}
+                    </div>
+                    <div role="group" aria-label="Journaling activity over the last 12 weeks" style={{ display: "grid", gridTemplateColumns: "repeat(12, 1fr)", gap: "3px" }}>
+                      {Array.from({ length: 84 }, (_, k) => {
+                        const r = Math.floor(k / 12), col = k % 12, cell = heat.cells[col * 7 + r];
+                        const sel = hmSel === cell.n;
+                        return (
+                          <button
+                            key={cell.n}
+                            type="button"
+                            onClick={() => setHmSel(cell.n)}
+                            aria-label={`${DOWS[cell.d.getDay()]} ${cell.d.getDate()} ${MONTHS[cell.d.getMonth()]}${cell.lvl < 0 ? ", upcoming" : cell.lvl ? ", journaled" : ", not journaled"}`}
+                            style={{ height: "24px", borderRadius: "6px", padding: 0, background: cell.lvl < 0 ? "none" : heatBg(cell.lvl), border: sel ? `1.5px solid ${palette.text}` : cell.lvl < 0 ? `1px dashed ${palette.border}` : "1.5px solid transparent" }}
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between" style={{ marginTop: "10px", fontFamily: sans, fontSize: "12px", color: palette.textMuted }}>
+                    <span>{heatInfo}</span>
+                    <span className="flex items-center" style={{ gap: "4px" }}>
+                      Less
+                      {[0, 1, 2, 3].map((k) => <i key={k} style={{ width: "12px", height: "12px", borderRadius: "3px", display: "inline-block", background: heatBg(k) }} />)}
+                      More
+                    </span>
+                  </div>
+                </>
+              )}
+              {setupRows.length > 0 && (
+                <>
+                  {lb("Best setups by win rate")}
+                  {setupRows.map(([name, pct]) => (
+                    <div key={name} style={{ display: "grid", gridTemplateColumns: "90px 1fr 78px", gap: "10px", alignItems: "center", padding: "7px 0", fontFamily: sans, fontSize: "13px", color: palette.text }}>
+                      <span className="truncate">{name}</span>
+                      <i style={{ display: "block", height: "10px", borderRadius: "5px", width: `${pct}%`, background: palette.green }} />
+                      <span style={{ textAlign: "right" }}>{pct}%</span>
+                    </div>
+                  ))}
+                </>
+              )}
+              {isMe && (
+                <>
+                  {lb("Privacy")}
+                  {privacyLabels.map((label, i) => (
+                    <button key={label} type="button" onClick={() => togglePvt(i)} className={`flex items-center justify-between gap-3 w-full text-left ${TAP}`} style={{ padding: "12px 0", minHeight: "44px", background: "none", border: "none", borderBottom: `1px solid ${palette.border}`, fontFamily: sans, fontSize: "14px", color: palette.text }}>
+                      <span>{label}</span>
+                      <span className="flex items-center justify-center flex-shrink-0" style={{ width: "24px", height: "24px", borderRadius: "50%", border: `1.5px solid ${pvt[i] ? palette.gold : palette.border}`, background: pvt[i] ? palette.gold : "transparent", color: palette.letterbox }}>
+                        {pvt[i] && <Check size={14} strokeWidth={3} />}
+                      </span>
+                    </button>
+                  ))}
+                </>
+              )}
             </>
           );
 
+          const pctVal = (v, signed) => (v == null || !Number.isFinite(v) ? "—" : signed ? fmtPct(v) : `${Math.abs(v).toFixed(1)}%`);
           const statsPanel = (
             <>
-              {lb("Equity curve, across every group", curve.length ? (curve[curve.length - 1] >= 0 ? "Up" : "Down") : null)}
+              {lb("Equity curve across every group", curve.length ? <span style={{ color: pnlColor }}>{fmtPct(stats.pnlPct)}</span> : null)}
               {curveLine ? (
-                <svg viewBox="0 0 330 110" preserveAspectRatio="none" role="img" aria-label="Equity curve" style={{ display: "block", width: "100%", height: isDesktop ? "160px" : "110px" }}>
+                <svg viewBox="0 0 330 120" preserveAspectRatio="none" role="img" aria-label="Cumulative equity curve" style={{ display: "block", width: "100%", height: "120px" }}>
                   <line x1="0" x2="330" y1={cy(0)} y2={cy(0)} stroke={palette.border} strokeDasharray="4 4" />
                   <polygon points={`0,${cy(0)} ${curveLine} 330,${cy(0)}`} fill={palette.green} fillOpacity="0.12" />
                   <polyline points={curveLine} fill="none" stroke={palette.green} strokeWidth="2" vectorEffect="non-scaling-stroke" />
                 </svg>
               ) : (
-                <div className="flex items-center justify-center" style={{ height: "110px", color: palette.textMuted, fontFamily: sans, fontSize: "13px" }}>No public curve available</div>
+                <div className="flex items-center justify-center" style={{ height: "120px", color: palette.textMuted, fontFamily: sans, fontSize: "13px" }}>No public curve available</div>
               )}
               {lb("Performance")}
-              {rowItem("P&L", fmtPct(stats.pnlPct), pnlColor)}
+              {rowItem("Expectancy", stats.avgR == null ? "—" : `${stats.avgR >= 0 ? "+" : "−"}${Math.abs(stats.avgR).toFixed(1)}R`)}
               {rowItem("Win rate", stats.winRate == null || !Number.isFinite(stats.winRate) ? "—" : `${Math.round(stats.winRate)}%`)}
+              {rowItem("Profit factor", stats.profitFactor == null || !Number.isFinite(stats.profitFactor) ? "n/a" : stats.profitFactor.toFixed(1))}
+              {rowItem("Average win", pctVal(stats.avgWinPct, true))}
+              {rowItem("Average loss", pctVal(stats.avgLossPct, true))}
+              {rowItem("Max drawdown", stats.maxDrawdownPct == null || !Number.isFinite(stats.maxDrawdownPct) ? "—" : `−${Math.abs(stats.maxDrawdownPct).toFixed(1)}%`)}
               {rowItem("Trades logged", stats.trades == null ? "—" : String(stats.trades))}
-              {rowItem("Average R", stats.avgR == null ? "—" : stats.avgR.toFixed(1))}
-              {rowItem("Win streak", stats.streak == null ? "—" : `${stats.streak} ${stats.streak === 1 ? "trade" : "trades"}`)}
+              {lb("Discipline")}
+              {rowItem("Discipline score", dScore == null ? "—" : `${dScore}%`)}
+              {rowItem("Journal streak", stats.journalStreak == null ? "—" : `${stats.journalStreak} days`)}
+              {rowItem("Best weekday streak", stats.bestStreak == null ? "—" : `${stats.bestStreak} days`)}
+              <div className="flex items-center" style={{ gap: "8px", marginTop: "14px", fontFamily: sans, fontSize: "12px", color: palette.textMuted }}>
+                {verifiedBadge}
+                <span>Stats come from journaled trades. Results are shown as percentages, never dollars.</span>
+              </div>
               {!isMe && !stats.statsPublic && <p style={{ marginTop: "14px", fontFamily: sans, fontSize: "12px", color: palette.textMuted }}>{p.username} hasn't shared public performance stats.</p>}
+            </>
+          );
+
+          const BADGE_CATALOG = [
+            ["7-day streak", "Journal 7 sessions in a row"],
+            ["30-day streak", "Journal 30 sessions in a row"],
+            ["First 100 trades", "Log 100 trades"],
+            ["No revenge week", "A full week without a revenge trade"],
+            ["Strict stops", "Never move a stop for 20 trades"],
+            ["Process first", "Keep a discipline score of 80% or more for a month"],
+          ];
+          const given = Array.isArray(p.badges) ? p.badges.map((b) => (typeof b === "string" ? b : b?.name)) : [];
+          const bestRun = Math.max(stats.journalStreak || 0, stats.bestStreak || 0);
+          const hasBadge = (name) => given.includes(name)
+            || (name === "7-day streak" && bestRun >= 7)
+            || (name === "30-day streak" && bestRun >= 30)
+            || (name === "First 100 trades" && (stats.trades || 0) >= 100);
+          const earnedCount = BADGE_CATALOG.filter(([n]) => hasBadge(n)).length;
+          const badgesPanel = (
+            <>
+              {lb(`${earnedCount} of ${BADGE_CATALOG.length} earned`)}
+              {BADGE_CATALOG.map(([name, desc]) => {
+                const e = hasBadge(name);
+                return (
+                  <div key={name} className="flex items-center justify-between gap-3" style={{ padding: "12px 0", minHeight: "44px", borderBottom: `1px solid ${palette.border}`, fontFamily: sans }}>
+                    <span style={{ minWidth: 0 }}>
+                      <b style={{ fontSize: "14px", fontWeight: 600, color: e ? palette.text : palette.textMuted }}>{name}</b>
+                      <div style={{ fontSize: "12px", color: palette.textMuted }}>{desc}</div>
+                    </span>
+                    <span className="flex items-center justify-center flex-shrink-0" style={{ width: "24px", height: "24px", borderRadius: "50%", border: `1.5px solid ${e ? palette.gold : palette.border}`, background: e ? palette.gold : "transparent", color: palette.letterbox }}>
+                      {e && <Check size={14} strokeWidth={3} />}
+                    </span>
+                  </div>
+                );
+              })}
             </>
           );
 
@@ -2010,6 +2189,11 @@ export default function CommunityTab(props) {
             </div>
           ) : (
             <>
+              {isMe && (
+                <button type="button" onClick={() => setProfileComposerOpen(true)} className={`flex items-center justify-center gap-1.5 ${TAP}`} style={{ ...btn(false, false), width: "100%", flex: "none", marginTop: "14px" }}>
+                  <Plus size={15} /> New post
+                </button>
+              )}
               {profilePosts.map((post) => (
                 <article key={post.id} style={{ background: palette.surface, border: `1px solid ${palette.border}`, borderRadius: "16px", padding: "16px", marginTop: "12px" }}>
                   <div className="flex items-center" style={{ gap: "10px" }}>
@@ -2046,7 +2230,7 @@ export default function CommunityTab(props) {
           return shell(
             <>
               {headerBlock}
-              {tab === "overview" ? overviewPanel : tab === "stats" ? statsPanel : postsPanel}
+              {tab === "overview" ? overviewPanel : tab === "stats" ? statsPanel : tab === "badges" ? badgesPanel : postsPanel}
             </>
           );
         })()}
