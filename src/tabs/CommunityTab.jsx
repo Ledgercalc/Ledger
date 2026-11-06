@@ -20,6 +20,8 @@ export default function CommunityTab(props) {
     bioDraft,
     bioEditing,
     bioSaving,
+    openEditProfile,
+    profileExtras,
     claimCommunityUsername,
     closeProfileBack,
     commentDrafts,
@@ -1787,7 +1789,9 @@ export default function CommunityTab(props) {
         {profileOpen && (() => {
           const viewingName = profileView || communityUsername;
           const isMe = !profileView || profileView === communityUsername;
-          const p = profileData && String(profileData.username).toLowerCase() === String(viewingName || "").toLowerCase() ? profileData : null;
+          const pBase = profileData && String(profileData.username).toLowerCase() === String(viewingName || "").toLowerCase() ? profileData : null;
+          // My own role / style / markets come from the Edit profile sheet
+          const p = pBase && isMe ? { ...pBase, role: (profileExtras && profileExtras.role) || pBase.role, style: profileExtras && profileExtras.style && profileExtras.style.length ? profileExtras.style : pBase.style, markets: profileExtras && profileExtras.markets && profileExtras.markets.length ? profileExtras.markets : pBase.markets } : pBase;
           // ---- Profile UI copied from the Ledger reference (tredzi2.html): one column, 44px buttons,
           // segmented Overview / Stats / Posts tabs, label + row lists, card posts. Same on phone and PC.
           const colW = isDesktop ? "1280px" : "100%";
@@ -1938,7 +1942,7 @@ export default function CommunityTab(props) {
               {isMe ? (
                 !bioEditing && (
                   <div className="flex" style={{ gap: "8px" }}>
-                    <button type="button" onClick={() => { setBioDraft(p.bio || ""); setBioEditing(true); }} className={`flex items-center justify-center gap-1.5 ${TAP}`} style={btn(true, false)}>
+                    <button type="button" onClick={() => openEditProfile()} className={`flex items-center justify-center gap-1.5 ${TAP}`} style={btn(true, false)}>
                       <Pencil size={14} /> Edit profile
                     </button>
                     <button
