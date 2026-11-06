@@ -24,17 +24,24 @@ const CSS = `.lc button,.lc input,.lc textarea{font:inherit;color:inherit}
 .lc .row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 0;border-bottom:1px solid var(--ln);min-height:44px;width:100%}
 .lc .chips{display:flex;flex-wrap:wrap}
 .lc .chip{padding:8px 14px;border-radius:10px;border:1px solid var(--ln);font-size:13px;font-weight:500;color:var(--t2);background:var(--s1);margin:0 8px 8px 0;min-height:40px;display:flex;align-items:center}
-.lc .chip.on{background:var(--tx);color:var(--bg);border-color:var(--tx)}
+.lc .chip{transition:background .15s,border-color .15s,color .15s}
+.lc .chip:hover{border-color:var(--am);color:var(--tx)}
+.lc .chip.on,.lc .chip.on:hover{background:var(--am);color:var(--on);border-color:var(--am)}
 .lc .card{background:var(--s1);border:1px solid var(--ln);border-radius:14px;padding:16px}
 .lc .btn{height:48px;border-radius:12px;background:var(--am);color:var(--on);font-weight:600;width:100%;display:flex;align-items:center;justify-content:center;gap:8px;text-align:center}
-.lc .btn.o{background:var(--s1);border:1px solid var(--ln);color:var(--tx)}
+.lc .btn{transition:filter .15s,transform .1s}
+.lc .btn:hover{filter:brightness(1.08)}
+.lc .btn.o{background:color-mix(in srgb,var(--am) 12%,var(--s1));border:1px solid color-mix(in srgb,var(--am) 45%,var(--ln));color:var(--am)}
+.lc .btn.o:hover{filter:none;background:color-mix(in srgb,var(--am) 20%,var(--s1))}
 .lc .btn:active{transform:scale(.98)}
 .lc .in{width:100%;min-height:44px;border:1px solid var(--ln);background:var(--s1);border-radius:12px;padding:10px 12px;display:block;margin-top:4px}
 .lc label.f{display:block;font-size:12px;color:var(--t2);margin-top:12px}
 .lc .g2{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
 .lc .tg{display:flex;background:var(--s1);border:1px solid var(--ln);border-radius:12px;padding:3px}
 .lc .tg button{flex:1;height:40px;border-radius:9px;font-weight:500;text-align:center;color:var(--t2)}
-.lc .tg button.on{background:var(--tx);color:var(--bg)}
+.lc .tg button{transition:background .15s,color .15s}
+.lc .tg button:not(.on):hover{color:var(--tx);background:color-mix(in srgb,var(--am) 10%,transparent)}
+.lc .tg button.on{background:var(--am);color:var(--on);font-weight:600;box-shadow:0 2px 8px color-mix(in srgb,var(--am) 35%,transparent)}
 .lc .ck{width:24px;height:24px;border-radius:50%;border:1.5px solid var(--ln);display:flex;align-items:center;justify-content:center;flex:none}
 .lc .ck.d{background:var(--am);border-color:var(--am);color:var(--on)}
 .lc .rail{position:relative;height:6px;background:var(--s2);border-radius:3px;margin:16px 6px 8px}
@@ -59,12 +66,12 @@ const CSS = `.lc button,.lc input,.lc textarea{font:inherit;color:inherit}
 .lc .c b{font-weight:400;font-size:11px;line-height:1}
 .lc .c small{font-size:13px;font-weight:500;line-height:1}
 .lc .c.off{background:none;border:1px dashed var(--ln);color:var(--t2)}
-.lc .c.sel{border-color:var(--tx)}
+.lc .c.sel{border-color:var(--am)}
 .lc .hb{display:grid;grid-template-columns:90px 1fr 78px;gap:10px;align-items:center;padding:7px 0;font-size:13px}
 .lc .hb i{display:block;height:10px;border-radius:5px}
 .lc .strip{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}
 .lc .strip button{flex:1;min-width:44px;height:62px;border-radius:14px;border:1px solid var(--ln);background:var(--s1);text-align:center;font-size:12px;color:var(--t2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
-.lc .strip button.on{background:var(--tx);color:var(--bg);border-color:var(--tx)}
+.lc .strip button.on{background:var(--am);color:var(--on);border-color:var(--am)}
 .lc .strip b{font-size:16px;font-weight:500}
 .lc .strip i{width:5px;height:5px;border-radius:50%;background:var(--am)}
 .lc .shd{display:flex;align-items:center;gap:12px;padding:0 16px}
@@ -94,12 +101,12 @@ const CSS = `.lc button,.lc input,.lc textarea{font:inherit;color:inherit}
 .lc .hmd{display:grid;grid-template-rows:repeat(7,24px);gap:3px;align-items:center}
 .lc .hm{display:grid;grid-template-columns:repeat(12,1fr);gap:3px}
 .lc .hm button{height:24px;border-radius:6px;background:var(--s2);padding:0;border:1.5px solid transparent}
-.lc .hm button.sel{border-color:var(--tx)}
+.lc .hm button.sel{border-color:var(--am)}
 .lc .pc{background:var(--s1);border:1px solid var(--ln);border-radius:14px;padding:14px;margin-top:12px}
 .lc .bt{display:flex;align-items:center;font-size:12px;font-weight:500;color:var(--t2);padding:4px 10px;border:1px solid var(--ln);border-radius:8px;flex:none}
 .lc .dotc{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px;flex:none}
 .lc .act{display:flex;gap:6px;align-items:center;min-height:36px;padding:0 12px;border:1px solid var(--ln);border-radius:10px;font-weight:500;font-size:12px;color:var(--t2)}
-.lc .act.on{background:var(--tx);color:var(--bg);border-color:var(--tx)}
+.lc .act.on{background:var(--am);color:var(--on);border-color:var(--am)}
 .lc .live{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--r);margin-right:6px}
 .lc .db{width:56px;text-align:center;border:1px solid var(--ln);border-radius:10px;padding:6px 0;background:var(--s1);display:flex;flex-direction:column;font-size:11px;color:var(--t2);flex:none}
 .lc .db b{color:var(--tx);font-size:13px}
@@ -110,7 +117,7 @@ const CSS = `.lc button,.lc input,.lc textarea{font:inherit;color:inherit}
 @keyframes eq{0%,100%{height:4px}50%{height:14px}}
 .lc .rbn{display:flex;flex-direction:column;align-items:center;gap:4px;flex:1;font-size:11px;color:var(--t2);text-align:center}
 .lc .rbn .c{width:52px;height:52px;border-radius:50%;background:var(--s1);border:1px solid var(--ln);display:flex;align-items:center;justify-content:center;color:var(--tx)}
-.lc .rbn.on .c{background:var(--tx);color:var(--bg);border-color:var(--tx)}
+.lc .rbn.on .c{background:var(--am);color:var(--on);border-color:var(--am)}
 .lc .rbn.lv .c{background:var(--r);border-color:var(--r);color:var(--on)}
 .lc .sw{width:46px;height:28px;border-radius:14px;background:var(--s2);border:1px solid var(--ln);position:relative;flex:none}
 .lc .sw i{position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:var(--t2);transition:left .15s}
@@ -162,8 +169,10 @@ const CSS = `.lc button,.lc input,.lc textarea{font:inherit;color:inherit}
 .lc .chb.on{color:var(--am);font-weight:600}
 .lc .ph{display:flex;align-items:center;gap:8px}
 .lc .pa{flex:1}
-.lc .fwb{flex:none;height:34px;padding:0 14px;border-radius:99px;border:1px solid var(--ln);font-size:12px;font-weight:600;color:var(--tx)}
-.lc .fwb.on{color:var(--t2);font-weight:500}
+.lc .fwb{flex:none;height:34px;padding:0 16px;border-radius:99px;border:1px solid var(--am);background:var(--am);font-size:12px;font-weight:600;color:var(--on);transition:filter .15s}
+.lc .fwb:hover{filter:brightness(1.08)}
+.lc .fwb.on{background:transparent;border-color:var(--ln);color:var(--t2);font-weight:500}
+.lc .fwb.on:hover{filter:none;border-color:var(--am);color:var(--am)}
 .lc .pmn{flex:none;width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--t2)}
 .lc .pmn:active{background:var(--s2)}
 .lc .bl{display:flex;align-items:center;gap:8px;margin-top:10px}
@@ -179,7 +188,7 @@ const CSS = `.lc button,.lc input,.lc textarea{font:inherit;color:inherit}
 .lc .cg7 .c b{font-size:12px;font-weight:600;color:var(--t2)}
 .lc .cg7 .c small{font-size:12px;font-weight:600}
 .lc .cg7 .c.off{justify-content:flex-start;opacity:.65}
-.lc .cg7 .c.sel{border-color:var(--tx);box-shadow:0 0 0 1px var(--tx)}
+.lc .cg7 .c.sel{border-color:var(--am);box-shadow:0 0 0 1px var(--am)}
 .lc .jd,.lc .jm{display:inline-block;width:7px;height:7px;border-radius:50%;box-sizing:border-box;flex:none}
 .lc .jd{background:var(--g)}
 .lc .jm{border:1.5px solid var(--am)}
@@ -245,7 +254,31 @@ const CSS = `.lc button,.lc input,.lc textarea{font:inherit;color:inherit}
 .lc .pfs{display:flex;align-items:center;gap:20px;margin:8px 0}
 .lc .pfi{display:inline-flex;align-items:center;gap:4px;min-height:40px;padding:0;margin:0;font:inherit;font-size:12.5px;line-height:1;color:var(--tx);background:none;border:0;text-align:left;white-space:nowrap}
 .lc .pfi b{font-weight:600;font-size:inherit;line-height:1}
-.lc .pfi .t2{line-height:1}`;
+.lc .pfi .t2{line-height:1}
+.lc .dkbar{display:flex;align-items:center;justify-content:space-between;gap:16px;position:sticky;top:0;z-index:20;background:var(--bg);padding:14px 0 14px;margin-bottom:6px;border-bottom:1px solid var(--ln)}
+.lc .dkbar .tg{width:auto;min-width:420px;max-width:520px;flex:0 1 480px}
+.lc .dkbar .btn{width:auto;height:42px;padding:0 20px;border-radius:12px}
+.lc .dkg{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:28px;align-items:start;margin-top:18px}
+.lc .dkg2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:28px;align-items:start;margin-top:6px}
+.lc .dkside{position:sticky;top:78px;display:flex;flex-direction:column;gap:16px;min-width:0}
+.lc .dkside .card{padding:16px 16px 6px}
+.lc .dkside .lb:first-child{margin-top:0}
+.lc .dkside .row:last-child{border-bottom:0}
+.lc .stk{display:flex;flex-direction:column;gap:14px}
+.lc .stk>.pc{margin-top:0}
+.lc .dkcards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.lc .dkcards>.pc{margin-top:0}
+.lc .dkcards3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:start}
+.lc .dkcards3>.card{margin-top:0}
+.lc .bds{display:flex;flex-direction:column;gap:2px;margin:0 -6px 10px}
+.lc .bds button{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:40px;padding:0 12px;border-radius:10px;font-weight:500;color:var(--t2);transition:background .15s,color .15s}
+.lc .bds button:hover{background:color-mix(in srgb,var(--am) 10%,transparent);color:var(--tx)}
+.lc .bds button.on{background:var(--am);color:var(--on);font-weight:600}
+.lc .bds button .n{font-size:12px;opacity:.85}
+.lc .bds .dotc{margin-right:8px}
+@media (hover:hover){.lc .pc{transition:border-color .15s,box-shadow .15s}.lc .pc:hover{border-color:color-mix(in srgb,var(--am) 40%,var(--ln))}.lc .jt:hover,.lc .card.mcd:hover{border-color:color-mix(in srgb,var(--am) 40%,var(--ln))}}
+@media (max-width:1180px){.lc .dkg{grid-template-columns:minmax(0,1fr) 300px;gap:20px}.lc .dkcards3{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:980px){.lc .dkg,.lc .dkg2{grid-template-columns:minmax(0,1fr)}.lc .dkside{position:static}.lc .dkcards{grid-template-columns:minmax(0,1fr)}}`;
 
 const PA = {
   plus: "M12 5v14M5 12h14", chev: "M9 6l6 6-6 6", check: "M5 12l5 5L20 7", x: "M6 6l12 12M18 6L6 18",
@@ -458,12 +491,13 @@ export default function LedgerCommunity({ isDesktop, communityAvatar, openMember
     const act = [];
     if (bd !== "All") act.push(["bd", bd]);
     if (fsort !== "new") act.push(["so", "Most helpful"]);
-    return (
+    const main = (
       <>
         {np.length > 0 && <div className="npw"><button type="button" className="npp" onClick={showNew}><Ic n="up" s={16} />{np.length} {np.length === 1 ? "new post" : "new posts"}</button></div>}
         <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
           <input type="search" className="in" style={{ margin: 0, flex: 1, width: "auto" }} placeholder="Search posts and people" aria-label="Search posts" value={fq} onChange={(e) => setFq(e.target.value)} />
-          <button type="button" className="fbn" aria-label="Open filters" onClick={() => setSheet({ t: "filter" })}><Ic n="flt" s={18} />Filter{FPN() ? <b className="bdg">{FPN()}</b> : null}</button>
+          {!isDesktop && <button type="button" className="fbn" aria-label="Open filters" onClick={() => setSheet({ t: "filter" })}><Ic n="flt" s={18} />Filter{FPN() ? <b className="bdg">{FPN()}</b> : null}</button>}
+          {isDesktop && <div className="tg" style={{ flex: "none", width: 230 }}>{[["new", "Latest"], ["top", "Most helpful"]].map(([v, l]) => <button key={v} type="button" className={fsort === v ? "on" : ""} onClick={() => setFsort(v)}>{l}</button>)}</div>}
         </div>
         {act.length > 0 && (
           <div className="chips" style={{ marginTop: 12 }}>
@@ -481,9 +515,15 @@ export default function LedgerCommunity({ isDesktop, communityAvatar, openMember
           )}
           {q.length ? (
             <>
-              {q.slice(0, 2).map(PostCard)}
-              {bd === "All" && !sr && Suggest()}
-              {q.slice(2).map(PostCard)}
+              {isDesktop ? (
+                <div className="stk" style={{ marginTop: 14 }}>{q.map(PostCard)}</div>
+              ) : (
+                <>
+                  {q.slice(0, 2).map(PostCard)}
+                  {bd === "All" && !sr && Suggest()}
+                  {q.slice(2).map(PostCard)}
+                </>
+              )}
             </>
           ) : (
             <div className="t2" style={{ padding: "30px 0", textAlign: "center" }}>
@@ -493,6 +533,29 @@ export default function LedgerCommunity({ isDesktop, communityAvatar, openMember
           <div className="t2 s12" style={{ marginTop: 14, textAlign: "center" }}>Trade posts show R, never dollars.</div>
         </div>
       </>
+    );
+    if (!isDesktop) return main;
+    const cnt = { All: F.length, Saved: F.filter((x) => x.sv).length };
+    F.forEach((x) => { cnt[x.board] = (cnt[x.board] || 0) + 1; });
+    return (
+      <div className="dkg">
+        <div style={{ minWidth: 0 }}>{main}</div>
+        <aside className="dkside">
+          <div className="card">
+            <div className="lb"><span>Boards</span><span>{F.length} posts</span></div>
+            <div className="bds">
+              {["All", "Saved", "Setups", "Reviews", "Psychology", "Risk"].map((b) => (
+                <button key={b} type="button" className={bd === b ? "on" : ""} onClick={() => setBd(b)}>
+                  <span style={{ display: "flex", alignItems: "center" }}>{BCOL[b] && <i className="dotc" style={{ background: bd === b ? "var(--on)" : BCOL[b] }} />}{b}</span>
+                  <span className="n">{cnt[b] || 0}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          {Object.keys(PF).some((h) => !fol[h]) && <div className="card">{Suggest()}</div>}
+          <div className="t2 s12" style={{ padding: "0 4px", lineHeight: 1.5 }}>Keep posts about process. Trade posts show R multiples, never dollars or account size.</div>
+        </aside>
+      </div>
     );
   };
 
@@ -510,40 +573,67 @@ export default function LedgerCommunity({ isDesktop, communityAvatar, openMember
   const RoomsView = () => {
     const L = RO.map((r, i) => [r, i]).filter((x) => rf === "All" || x[0].k === rf);
     const lv = L.filter((x) => x[0].live), up = L.filter((x) => !x[0].live);
+    const startBtn = (
+      <button type="button" className="btn" style={isDesktop ? { width: "auto", height: 42, padding: "0 20px" } : { margin: "14px 0 4px" }} onClick={() => { setRtitle(""); setSheet({ t: "mk" }); }}><Ic n="plus" s={18} />Start a room</button>
+    );
+    const filters = (
+      <div className="chips" style={isDesktop ? { margin: 0 } : { marginTop: 12 }}>
+        {["All", "Audio", "Video", "Focus"].map((k) => <button key={k} type="button" className={`chip${rf === k ? " on" : ""}`} onClick={() => setRf(k)}>{k}</button>)}
+      </div>
+    );
+    const liveCards = () => (lv.length ? lv.map((x) => {
+      const r = x[0];
+      return (
+        <div className="pc" style={{ marginTop: 10 }} key={x[1]}>
+          <div className="rw s12"><span style={{ display: "flex", alignItems: "center" }}><Kind k={r.k} /><span className="live" /><span className="t2">Live, {r.min} min</span></span><span className="t2">{r.n} here</span></div>
+          <div className="ttl" style={{ margin: "10px 0 4px" }}>{r.t}</div>
+          <div className="t2 s12">Hosted by {r.h}</div>
+          <div className="rw" style={{ marginTop: 12 }}>
+            <span style={{ display: "flex" }}>{["NI", "MR", "QB"].map((s2, i) => <span key={s2} className="av" style={{ width: 28, height: 28, fontSize: 10, marginLeft: i ? -8 : 0, border: "2px solid var(--s1)" }}>{s2}</span>)}</span>
+            <button type="button" className="btn" style={{ width: 96, height: 40 }} onClick={() => openRoom(mkRoom(r.k, r.t, r.h, r.n + 1))}>Join</button>
+          </div>
+        </div>
+      );
+    }) : <div className="t2">No live rooms of this type. Start one.</div>);
+    const upRows = () => (up.length ? up.map((x) => {
+      const r = x[0], i = x[1], pp = r.at.split(", "), d = pp[0].split(" ");
+      return (
+        <div className="row" key={i}>
+          <span style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0 }}>
+            <span className="db"><b>{d.slice(1).join(" ")}</b><span>{pp[1]}</span></span>
+            <span style={{ minWidth: 0 }}><Kind k={r.k} /><div style={{ marginTop: 4 }}><b>{r.t}</b></div><div className="t2 s12">Hosted by {r.h}</div></span>
+          </span>
+          <button type="button" className={`chip${rem[i] ? " on" : ""}`} style={{ margin: 0, flex: "none" }} onClick={() => { setRem((m) => ({ ...m, [i]: !m[i] })); toast(rem[i] ? "Reminder removed" : "Reminder set"); }}>{rem[i] ? "Set" : "Remind"}</button>
+        </div>
+      );
+    }) : <div className="t2">Nothing scheduled.</div>);
+    if (isDesktop) {
+      return (
+        <>
+          <div className="rw" style={{ margin: "18px 0 0", gap: 16 }}>{filters}{startBtn}</div>
+          <div className="dkg" style={{ marginTop: 6 }}>
+            <div style={{ minWidth: 0 }}>
+              <div className="lb"><span>Live now</span><span>{lv.length} rooms</span></div>
+              <div className="dkcards">{liveCards()}</div>
+            </div>
+            <aside className="dkside">
+              <div className="card">
+                <div className="lb"><span>Upcoming</span><span>{up.length} scheduled</span></div>
+                {upRows()}
+              </div>
+            </aside>
+          </div>
+        </>
+      );
+    }
     return (
       <>
-        <button type="button" className="btn" style={{ margin: "14px 0 4px" }} onClick={() => { setRtitle(""); setSheet({ t: "mk" }); }}><Ic n="plus" s={18} />Start a room</button>
-        <div className="chips" style={{ marginTop: 12 }}>
-          {["All", "Audio", "Video", "Focus"].map((k) => <button key={k} type="button" className={`chip${rf === k ? " on" : ""}`} onClick={() => setRf(k)}>{k}</button>)}
-        </div>
+        {startBtn}
+        {filters}
         <div className="lb"><span>Live now</span><span>{lv.length} rooms</span></div>
-        {lv.length ? lv.map((x) => {
-          const r = x[0];
-          return (
-            <div className="pc" style={{ marginTop: 10 }} key={x[1]}>
-              <div className="rw s12"><span style={{ display: "flex", alignItems: "center" }}><Kind k={r.k} /><span className="live" /><span className="t2">Live, {r.min} min</span></span><span className="t2">{r.n} here</span></div>
-              <div className="ttl" style={{ margin: "10px 0 4px" }}>{r.t}</div>
-              <div className="t2 s12">Hosted by {r.h}</div>
-              <div className="rw" style={{ marginTop: 12 }}>
-                <span style={{ display: "flex" }}>{["NI", "MR", "QB"].map((s, i) => <span key={s} className="av" style={{ width: 28, height: 28, fontSize: 10, marginLeft: i ? -8 : 0, border: "2px solid var(--s1)" }}>{s}</span>)}</span>
-                <button type="button" className="btn" style={{ width: 96, height: 40 }} onClick={() => openRoom(mkRoom(r.k, r.t, r.h, r.n + 1))}>Join</button>
-              </div>
-            </div>
-          );
-        }) : <div className="t2">No live rooms of this type. Start one.</div>}
+        {liveCards()}
         <div className="lb"><span>Upcoming</span></div>
-        {up.length ? up.map((x) => {
-          const r = x[0], i = x[1], p = r.at.split(", "), d = p[0].split(" ");
-          return (
-            <div className="row" key={i}>
-              <span style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                <span className="db"><b>{d.slice(1).join(" ")}</b><span>{p[1]}</span></span>
-                <span><Kind k={r.k} /><div style={{ marginTop: 4 }}><b>{r.t}</b></div><div className="t2 s12">Hosted by {r.h}</div></span>
-              </span>
-              <button type="button" className={`chip${rem[i] ? " on" : ""}`} style={{ margin: 0 }} onClick={() => { setRem((m) => ({ ...m, [i]: !m[i] })); toast(rem[i] ? "Reminder removed" : "Reminder set"); }}>{rem[i] ? "Set" : "Remind"}</button>
-            </div>
-          );
-        }) : <div className="t2">Nothing scheduled.</div>}
+        {upRows()}
       </>
     );
   };
@@ -553,37 +643,55 @@ export default function LedgerCommunity({ isDesktop, communityAvatar, openMember
   const board = lp === "week"
     ? [["@maya_r", 94], ["You", you], ["@nightowl_fx", 83], ["@quietbreakout", 79], ["@tape_reader", 71]]
     : [["@maya_r", 91], ["@nightowl_fx", 85], ["You", Math.max(0, you - 2)], ["@quietbreakout", 80], ["@tape_reader", 69]];
-  const RanksView = () => (
-    <>
-      <div className="lb"><span>Challenges</span><span>Build habits with others</span></div>
-      {CHL.map((c, i) => {
-        const j = chj[i];
-        return (
-          <div className="pc" style={{ marginTop: 10 }} key={c[0]}>
-            <div className="rw"><span><b>{c[0]}</b><div className="t2 s12">{c[1]}</div></span><button type="button" className={`chip${j ? " on" : ""}`} style={{ margin: 0 }} onClick={() => setChj((m) => ({ ...m, [i]: !m[i] }))}>{j ? "Joined" : "Join"}</button></div>
-            {j && (<><div className="bar" style={{ marginTop: 12 }}><i style={{ width: `${(c[2] / c[3]) * 100}%` }} /></div><div className="t2 s12" style={{ marginTop: 6 }}>{c[2]} of {c[3]} days complete</div></>)}
-          </div>
-        );
-      })}
-      <div className="lb"><span>Discipline leaderboard</span><span>Ranked by process, not profit</span></div>
-      <div className="chips">
-        <button type="button" className={`chip${lp === "week" ? " on" : ""}`} onClick={() => setLp("week")}>This week</button>
-        <button type="button" className={`chip${lp === "month" ? " on" : ""}`} onClick={() => setLp("month")}>This month</button>
-      </div>
-      {board.map((x, i) => {
-        const y = x[0] === "You";
-        return (
-          <div className="row" key={x[0]} style={y ? { background: "var(--s1)", borderRadius: 10, paddingLeft: 10, paddingRight: 10 } : undefined}>
-            <span style={{ display: "flex", gap: 12, alignItems: "center" }}>
-              <span className="t2" style={{ width: 16 }}>{i + 1}</span>
-              {y ? <b className="am">You</b> : <button type="button" onClick={() => goProf(x[0])}><b>{x[0]}</b></button>}
-            </span>
-            <b>{x[1]}%</b>
-          </div>
-        );
-      })}
-    </>
-  );
+  const RanksView = () => {
+    const challenges = (
+      <>
+        <div className="lb" style={isDesktop ? { marginTop: 0 } : undefined}><span>Challenges</span><span>Build habits with others</span></div>
+        <div className={isDesktop ? "stk" : undefined}>
+          {CHL.map((c, i) => {
+            const j = chj[i];
+            return (
+              <div className="pc" style={{ marginTop: 10 }} key={c[0]}>
+                <div className="rw"><span><b>{c[0]}</b><div className="t2 s12">{c[1]}</div></span><button type="button" className={`chip${j ? " on" : ""}`} style={{ margin: 0 }} onClick={() => setChj((m) => ({ ...m, [i]: !m[i] }))}>{j ? "Joined" : "Join"}</button></div>
+                {j && (<><div className="bar" style={{ marginTop: 12 }}><i style={{ width: `${(c[2] / c[3]) * 100}%` }} /></div><div className="t2 s12" style={{ marginTop: 6 }}>{c[2]} of {c[3]} days complete</div></>)}
+              </div>
+            );
+          })}
+        </div>
+      </>
+    );
+    const rows = board.map((x, i) => {
+      const y = x[0] === "You";
+      return (
+        <div className="row" key={x[0]} style={y ? { background: "color-mix(in srgb,var(--am) 12%,var(--s1))", borderRadius: 10, paddingLeft: 10, paddingRight: 10 } : undefined}>
+          <span style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <span className="t2" style={{ width: 16 }}>{i + 1}</span>
+            {y ? <b className="am">You</b> : <button type="button" onClick={() => goProf(x[0])}><b>{x[0]}</b></button>}
+          </span>
+          <b>{x[1]}%</b>
+        </div>
+      );
+    });
+    const leaderboard = (
+      <>
+        <div className="lb" style={isDesktop ? { marginTop: 0 } : undefined}><span>Discipline leaderboard</span><span>Ranked by process, not profit</span></div>
+        <div className="chips">
+          <button type="button" className={`chip${lp === "week" ? " on" : ""}`} onClick={() => setLp("week")}>This week</button>
+          <button type="button" className={`chip${lp === "month" ? " on" : ""}`} onClick={() => setLp("month")}>This month</button>
+        </div>
+        {isDesktop ? <div className="card" style={{ padding: "4px 16px" }}>{rows}</div> : rows}
+      </>
+    );
+    if (isDesktop) {
+      return (
+        <div className="dkg2" style={{ marginTop: 20 }}>
+          <div style={{ minWidth: 0 }}>{challenges}</div>
+          <div style={{ minWidth: 0 }}>{leaderboard}</div>
+        </div>
+      );
+    }
+    return <>{challenges}{leaderboard}</>;
+  };
 
   // ---------- Mentor ----------
   const startMentor = () => {
@@ -618,6 +726,7 @@ export default function LedgerCommunity({ isDesktop, communityAvatar, openMember
             <div className="t2 s12" style={{ marginTop: 14 }}>Mentors see R multiples only, never dollars or account size.</div>
           </div>
           <div className="lb"><span>Mentors on Ledger</span><span>Tap one to see their profile</span></div>
+          <div className={isDesktop ? "dkcards3" : undefined}>
           {MCAND.map((h) => {
             const f = PF[h];
             return (
@@ -640,6 +749,7 @@ export default function LedgerCommunity({ isDesktop, communityAvatar, openMember
               </div>
             );
           })}
+          </div>
           <div className="card minv">
             <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
               <span className="mic"><Ic n="plus" s={18} /></span>
@@ -991,26 +1101,34 @@ export default function LedgerCommunity({ isDesktop, communityAvatar, openMember
     "--bg": palette.bg, "--s1": palette.surface, "--s2": palette.field, "--ln": palette.border, "--tx": palette.text,
     "--t2": palette.textMuted, "--g": palette.green, "--r": palette.red, "--am": palette.gold, "--on": palette.letterbox,
   };
-  const colW = isDesktop ? 720 : 440;
   const TABS = [["feed", "Feed"], ["rooms", "Rooms"], ["ranks", "Ranks"], ["mentor", "Mentor"]];
   return (
     <div className="lc" style={{ ...vars, flex: 1, minHeight: 0, height: "100%", overflowY: "auto", color: "var(--tx)", fontFamily: sans, fontSize: 14, lineHeight: 1.45, fontVariantNumeric: "tabular-nums", background: "var(--bg)" }}>
       <style>{CSS}</style>
-      <div style={{ maxWidth: isDesktop ? colW : "none", margin: "0 auto", padding: "12px 16px 120px", boxSizing: "border-box" }}>
-        <div className="tg" role="tablist" aria-label="Community sections" style={{ marginBottom: 6 }}>
-          {TABS.map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={tab === id} className={tab === id ? "on" : ""} onClick={() => setTab(id)}>{label}</button>)}
-        </div>
+      <div style={{ maxWidth: isDesktop ? 1480 : "none", margin: "0 auto", padding: isDesktop ? "0 20px 48px" : "12px 16px 120px", boxSizing: "border-box" }}>
+        {isDesktop ? (
+          <div className="dkbar">
+            <div className="tg" role="tablist" aria-label="Community sections">
+              {TABS.map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={tab === id} className={tab === id ? "on" : ""} onClick={() => setTab(id)}>{label}</button>)}
+            </div>
+            {tab === "feed" && <button type="button" className="btn" onClick={() => setSheet({ t: "mkp" })}><Ic n="plus" s={18} />Add post</button>}
+          </div>
+        ) : (
+          <div className="tg" role="tablist" aria-label="Community sections" style={{ marginBottom: 6 }}>
+            {TABS.map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={tab === id} className={tab === id ? "on" : ""} onClick={() => setTab(id)}>{label}</button>)}
+          </div>
+        )}
         {tab === "feed" && FeedView()}
         {tab === "rooms" && RoomsView()}
         {tab === "ranks" && RanksView()}
-        {tab === "mentor" && MentorView()}
+        {tab === "mentor" && (isDesktop ? <div style={{ maxWidth: 1100, margin: "0 auto" }}>{MentorView()}</div> : MentorView())}
       </div>
-      {tab === "feed" && !sheet && (
+      {tab === "feed" && !sheet && !isDesktop && (
         <button type="button" onClick={() => setSheet({ t: "mkp" })} style={{ position: "fixed", right: 16, bottom: isDesktop ? 24 : "calc(92px + env(safe-area-inset-bottom, 0px))", height: 52, padding: "0 20px", borderRadius: 14, background: "var(--am)", color: "var(--on)", fontWeight: 600, display: "flex", alignItems: "center", gap: 8, boxShadow: "0 4px 14px rgba(0,0,0,.25)", zIndex: 60 }}><Ic n="plus" />Add post</button>
       )}
       {sheet && (
         <div onClick={(e) => { if (e.target === e.currentTarget && sheet.t !== "room") close(); }} style={{ position: "fixed", inset: 0, zIndex: 130, display: "flex", justifyContent: "center", alignItems: isDesktop ? "center" : "flex-end", background: "rgba(0,0,0,.5)" }}>
-          <div style={{ width: "100%", maxWidth: isDesktop ? 560 : 440, height: isDesktop ? "86vh" : "94vh", background: "var(--bg)", borderRadius: isDesktop ? 24 : "24px 24px 0 0", display: "flex", flexDirection: "column", overflow: "hidden", paddingTop: 16 }}>{renderSheet()}</div>
+          <div style={{ width: "100%", maxWidth: isDesktop ? 640 : 440, height: isDesktop ? "86vh" : "94vh", background: "var(--bg)", borderRadius: isDesktop ? 24 : "24px 24px 0 0", display: "flex", flexDirection: "column", overflow: "hidden", paddingTop: 16 }}>{renderSheet()}</div>
         </div>
       )}
       {toastMsg && <div role="status" style={{ position: "fixed", left: "50%", bottom: "calc(90px + env(safe-area-inset-bottom, 0px))", transform: "translateX(-50%)", background: "var(--tx)", color: "var(--bg)", padding: "10px 16px", borderRadius: 10, fontWeight: 500, zIndex: 140, fontSize: 13 }}>{toastMsg}</div>}
