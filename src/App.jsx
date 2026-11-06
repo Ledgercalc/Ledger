@@ -11,6 +11,7 @@ import { getMyPlan, openPlans, resetMyPlan, setMyPlan, useMyPlan } from "./lib/p
 import { computeGoalProgress } from "./lib/analytics.js";
 import { OnboardingAmbientBG } from "./components/onboarding.jsx";
 import { Avatar, PillGroup } from "./components/ui.jsx";
+import EditProfileSheet from "./components/EditProfileSheet.jsx";
 import { FX_CACHE_MS, FX_LIVE_STORAGE_KEY, fetchLiveFxRates } from "./data/currencies.js";
 import { ONBOARDING_SLIDES, TOUR_STEPS as ALL_TOUR_STEPS } from "./data/onboarding.js";
 import { buildWeekRecap, computeConsistencyScore, computeDisciplineGrade, computeDisciplineStreak, computeDisciplineStreakTrend, computeHeadlineInsight, computeInsights, computeJournalCompleteness, computeMonthComparison, computeNoteTagAnalysis, computeOverconfidenceCheck, computePerformanceMetrics, computeRevengeCostSplit, computeSessionWinRates, computeStatementData, filledJournalRows, generateThreeCurveProjection, journalMistakeFrequency } from "./lib/analytics.js";
@@ -1027,6 +1028,12 @@ const [profilePostOpen, setProfilePostOpen] = useState(null);
 const [bioEditing, setBioEditing] = useState(false);
 const [bioDraft, setBioDraft] = useState("");
 const [bioSaving, setBioSaving] = useState(false);
+// Edit-profile sheet (same fields as tredzi2.html): role line, trading style and markets live on this device
+const [profileExtras, setProfileExtras] = useState({ role: "", style: [], markets: [] });
+const [editProfileOpen, setEditProfileOpen] = useState(false);
+const [editProfileBusy, setEditProfileBusy] = useState(false);
+const [editProfileError, setEditProfileError] = useState("");
+const [settingsProfileCopied, setSettingsProfileCopied] = useState(false);
 const profileAvatarInputRef = useRef(null);
 // New-post composer for the Profile tab's own Posts grid — Instagram-style, and separate
 // from posting to a group's feed (different table on the backend: profile_posts).
@@ -1739,8 +1746,8 @@ useEffect(() => {
 // changes. This is a universal, account-wide profile now — it does NOT depend on
 // activeGroupId, so switching groups while it's open no longer resets or reloads it.
 useEffect(() => {
-  if (!profileOpen || !session?.token) return;
-  const target = profileView || communityUsername;
+  if ((!profileOpen && !settingsOpen) || !session?.token) return;
+  const target = profileOpen ? (profileView || communityUsername) : communityUsername;
   if (!target) return;
   let cancelled = false;
   const headers = { Authorization: `Bearer ${session.token}` };
@@ -1770,7 +1777,7 @@ useEffect(() => {
   })();
   return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [profileOpen, profileView, communityUsername, session?.token]);
+}, [profileOpen, settingsOpen, profileView, communityUsername, session?.token]);
 
 // Profile post viewer: load the comment thread whenever a post is opened.
 useEffect(() => {
@@ -4117,7 +4124,7 @@ useEffect(() => {
     setCommunityUsernameError("");
     if (!session?.token) {
       setCommunityUsernameError("You need to be signed in to set a username.");
-      return;
+      return "You need to be signed in to set a username.";
     }
     setCommunityUsernameBusy(true);
     try {
@@ -4127,8 +4134,10 @@ useEffect(() => {
         body: JSON.stringify({ username: name }),
       });
       await persistCommunityUsername(data.username);
+      return "";
     } catch (err) {
       setCommunityUsernameError(err.message);
+      return err.message || "Couldn't change your name.";
     } finally {
       setCommunityUsernameBusy(false);
     }
@@ -4765,6 +4774,74 @@ if (!isSignal && !communityMsgText.trim()) return;
       setProfileError(err.message || "Couldn't save your bio.");
     } finally {
       setBioSaving(false);
+    }
+  };
+
+  // ---- Edit profile (ported from tredzi2.html's Edit profile sheet) ----
+  const PROFILE_EXTRAS_KEY = "ledger-profile-extras";
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await window.storage.get(PROFILE_EXTRAS_KEY, false);
+        if (r && r.value) setProfileExtras({ role: "", style: [], markets: [], ...JSON.parse(r.value) });
+      } catch (err) {}
+    })();
+  }, []);
+
+  const myProfileView = () => {
+    const mine = profileData && String(profileData.username).toLowerCase() === String(communityUsername || "").toLowerCase() ? profileData : null;
+    return {
+      mine,
+      role: profileExtras.role || mine?.role || "",
+      style: profileExtras.style?.length ? profileExtras.style : (Array.isArray(mine?.style) ? mine.style : []),
+      markets: profileExtras.markets?.length ? profileExtras.markets : (Array.isArray(mine?.markets) ? mine.markets : []),
+      bio: mine?.bio || "",
+    };
+  };
+
+  const openEditProfile = () => { setEditProfileError(""); setEditProfileOpen(true); };
+
+  const saveProfileEdits = async (vals) => {
+    if (!session?.token || editProfileBusy) return;
+    setEditProfileBusy(true);
+    setEditProfileError("");
+    try {
+      if (vals.username && vals.username !== communityUsername) {
+        const err = await claimCommunityUsername(vals.username);
+        if (err) { setEditProfileError(err); return; }
+      }
+      const current = myProfileView();
+      if (vals.bio !== current.bio) {
+        const data = await communityApi("/auth/bio", {
+          method: "PATCH",
+          headers: { Authorization: `Bearer ${session.token}` },
+          body: JSON.stringify({ bio: vals.bio }),
+        });
+        setProfileData((cur) => (cur ? { ...cur, bio: data.bio } : cur));
+      }
+      const extras = { role: vals.role, style: vals.style, markets: vals.markets };
+      setProfileExtras(extras);
+      try { await window.storage.set(PROFILE_EXTRAS_KEY, JSON.stringify(extras), false); } catch (err) {}
+      setEditProfileOpen(false);
+    } catch (err) {
+      setEditProfileError(err.message || "Couldn't save your profile.");
+    } finally {
+      setEditProfileBusy(false);
+    }
+  };
+
+  const removeProfileAvatar = async () => {
+    if (!session?.token) return;
+    try {
+      await communityApi("/auth/avatar", {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${session.token}` },
+        body: JSON.stringify({ avatar: "" }),
+      });
+      setCommunityAvatar("");
+      try { await window.storage.delete(COMMUNITY_AVATAR_KEY, false); } catch (err) {}
+    } catch (err) {
+      setEditProfileError(err.message || "Couldn't remove your photo.");
     }
   };
 
@@ -7381,7 +7458,7 @@ if (activeTab === "partner") {
   }
 
 if (activeTab === "community") {
-    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><CommunityTab {...{ REACTION_EMOJIS, activeGroupId, addingGroup, advanceStory, answerGroupQuestion, askGroupQuestion, authorHasUnseen, avatarForAuthor, bioDraft, bioEditing, bioSaving, cancelStoryDraft, claimCommunityUsername, closeProfileBack, closeStoryViewer, commentDrafts, communityApiError, communityAvatar, communityAvatarUploading, communityChatSubView, communityFeedSubView, communityLobbyTab, communityMessagesEndRef, communityMobileFeedOpen, communityMsgText, communityPanelTab, communitySearch, communityUsername, communityUsernameBusy, communityUsernameDraft, communityUsernameError, createCommunityGroup, createCommunityPost, createFeedPost, createProfilePost, createStickerPack, createVaultItem, creatingGroup, deleteCommunityPost, deleteFeedComment, deleteFeedPost, deleteGroupQuestion, deleteProfileComment, deleteProfilePost, deleteSticker, deleteStickerPack, deleteStory, deleteVaultItem, deleteWallEntry, feedComments, feedCommentsLoading, feedCommentsOpenId, feedImageInputRef, feedImageUploading, fetchStickerPacks, followBusy, followListData, followListLoading, followListOpen, followListQuery, getCommunityMemberStats, globalFeed, globalFeedLoaded, groupAvatarMap, groupCodeError, groupFeed, groupFeedLoaded, groupInfo, groupMembersList, groupMessages, groupMessagesLoaded, groupPosts, groupPostsLoaded, groupQuestions, groupQuestionsLoaded, groupVault, groupVaultLoaded, groupWall, groupWallLoaded, handleCommunityAvatarChange, handleFeedImageChange, handlePostImageChange, handleProfilePostImageChange, handleStickerFileChange, handleStoryImageChange, isAuthorOnline, isDesktop, joinCodeError, joinCodeInput, joinGroupByCode, joiningGroup, leaderboardMetric, lightboxPost, likeGlobalFeedPost, likeProfilePost, likedFeedIds, loadGlobalFeed, loadMoreProfilePosts, myFeedReactions, myGroups, myStoryReactions, myWallIds, newFeedImage, newFeedPnl, newFeedText, newGroupCode, newGroupDesc, newGroupName, newGroupPublic, newGroupTags, newPostImage, newPostText, newQuestionText, newVaultText, newVaultTitle, newVaultUrl, newWallText, openCommunityMemberProfile, openFollowList, openGlobalFeedComments, openMyProfile, openSignalThread, openStoryComposer, openStoryViewerFor, openThreadId, pinCommunityMessage, pingTyping, pinnedMessageId, postFeedComment, postImageInputRef, postImageUploading, postProfileComment, postStory, postWallEntry, profileAvatarInputRef, profileCommentDraft, profileCommentInputRef, profileCommentSending, profileComments, profileCommentsLoading, profileComposerOpen, profileData, profileEmojiOpen, profileError, profileLoading, profileOpen, profilePostImage, profilePostImageInputRef, profilePostImageUploading, profilePostMenuOpen, profilePostOpen, profilePostSubmitting, profilePostText, profilePosts, profilePostsLoaded, profilePostsNext, profileSubTab, profileView, qaOpenId, qaReplyDrafts, reactionPickerFor, relateWallEntry, relatedWallIds, renderCommunitySearch, renderGlobalFeed, replyingTo, saveProfileBio, searchCommunity, sendCommunityMessage, sendSticker, sendThreadReply, setActiveGroupId, setAddingGroup, setBioDraft, setBioEditing, setCommentDrafts, setCommunityChatSubView, setCommunityFeedSubView, setCommunityLobbyTab, setCommunityMobileFeedOpen, setCommunityMsgText, setCommunityOpenTabDropdown, setCommunityPanelTab, setCommunitySearch, setCommunityUsernameDraft, setCommunityUsernameError, setFollowListOpen, setFollowListQuery, setGroupCodeError, setGroupManageOpen, setGroupManageTab, setJoinCodeError, setJoinCodeInput, setLeaderboardMetric, setLightboxPost, setManageDescDraft, setManageMsg, setManageNameDraft, setNewFeedImage, setNewFeedPnl, setNewFeedText, setNewGroupCode, setNewGroupDesc, setNewGroupName, setNewGroupPublic, setNewGroupTags, setNewPostImage, setNewPostText, setNewQuestionText, setNewVaultText, setNewVaultTitle, setNewVaultUrl, setNewWallText, setOpenThreadId, setPendingDeleteMsg, setProfileCommentDraft, setProfileComposerOpen, setProfileEmojiOpen, setProfilePostImage, setProfilePostMenuOpen, setProfilePostOpen, setProfilePostText, setProfileSubTab, setQaOpenId, setQaReplyDrafts, setReactionPickerFor, setReplyingTo, setSignalComposerOpen, setSignalDirection, setSignalEntry, setSignalPair, setSignalSL, setSignalStatsOpen, setSignalTP, setStickerActivePackId, setStickerManageMode, setStickerNewPackName, setStickerPickerOpen, setStoryCaption, setStoryPaused, setStoryViewer, setThreadDraft, shadowSignalToTrade, signalComposerOpen, signalDirection, signalEntry, signalPair, signalSL, signalStatsOpen, signalTP, stickerActivePackId, stickerError, stickerFileInputRef, stickerManageMode, stickerNewPackName, stickerPacks, stickerPacksLoaded, stickerPickerOpen, stickerUploading, storiesByAuthor, storyAuthorOrder, storyCaption, storyDraft, storyImageInputRef, storyPosting, storyProgressPct, storyViewer, threadDraft, threadLoading, threadReplies, toggleFeedComments, toggleFeedReaction, toggleFollowMember, toggleMessageReaction, toggleStoryReaction, typingUsers, unpinCommunityMessage, uploadProfilePostImage }} /></Suspense>;
+    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><CommunityTab {...{ REACTION_EMOJIS, activeGroupId, addingGroup, advanceStory, answerGroupQuestion, askGroupQuestion, authorHasUnseen, avatarForAuthor, bioDraft, bioEditing, bioSaving, cancelStoryDraft, claimCommunityUsername, closeProfileBack, closeStoryViewer, commentDrafts, communityApiError, communityAvatar, communityAvatarUploading, communityChatSubView, communityFeedSubView, communityLobbyTab, communityMessagesEndRef, communityMobileFeedOpen, communityMsgText, communityPanelTab, communitySearch, communityUsername, communityUsernameBusy, communityUsernameDraft, communityUsernameError, createCommunityGroup, createCommunityPost, createFeedPost, createProfilePost, createStickerPack, createVaultItem, creatingGroup, deleteCommunityPost, deleteFeedComment, deleteFeedPost, deleteGroupQuestion, deleteProfileComment, deleteProfilePost, deleteSticker, deleteStickerPack, deleteStory, deleteVaultItem, deleteWallEntry, feedComments, feedCommentsLoading, feedCommentsOpenId, feedImageInputRef, feedImageUploading, fetchStickerPacks, followBusy, followListData, followListLoading, followListOpen, followListQuery, getCommunityMemberStats, globalFeed, globalFeedLoaded, groupAvatarMap, groupCodeError, groupFeed, groupFeedLoaded, groupInfo, groupMembersList, groupMessages, groupMessagesLoaded, groupPosts, groupPostsLoaded, groupQuestions, groupQuestionsLoaded, groupVault, groupVaultLoaded, groupWall, groupWallLoaded, handleCommunityAvatarChange, handleFeedImageChange, handlePostImageChange, handleProfilePostImageChange, handleStickerFileChange, handleStoryImageChange, isAuthorOnline, isDesktop, joinCodeError, joinCodeInput, joinGroupByCode, joiningGroup, leaderboardMetric, lightboxPost, likeGlobalFeedPost, likeProfilePost, likedFeedIds, loadGlobalFeed, loadMoreProfilePosts, myFeedReactions, myGroups, myStoryReactions, myWallIds, newFeedImage, newFeedPnl, newFeedText, newGroupCode, newGroupDesc, newGroupName, newGroupPublic, newGroupTags, newPostImage, newPostText, newQuestionText, newVaultText, newVaultTitle, newVaultUrl, newWallText, openCommunityMemberProfile, openFollowList, openGlobalFeedComments, openMyProfile, openSignalThread, openStoryComposer, openStoryViewerFor, openThreadId, pinCommunityMessage, pingTyping, pinnedMessageId, postFeedComment, postImageInputRef, postImageUploading, postProfileComment, postStory, postWallEntry, profileAvatarInputRef, profileCommentDraft, profileCommentInputRef, profileCommentSending, profileComments, profileCommentsLoading, profileComposerOpen, profileData, profileEmojiOpen, profileError, profileLoading, profileOpen, profilePostImage, profilePostImageInputRef, profilePostImageUploading, profilePostMenuOpen, profilePostOpen, profilePostSubmitting, profilePostText, profilePosts, profilePostsLoaded, profilePostsNext, profileSubTab, profileView, qaOpenId, qaReplyDrafts, reactionPickerFor, relateWallEntry, relatedWallIds, renderCommunitySearch, renderGlobalFeed, replyingTo, saveProfileBio, openEditProfile, profileExtras, searchCommunity, sendCommunityMessage, sendSticker, sendThreadReply, setActiveGroupId, setAddingGroup, setBioDraft, setBioEditing, setCommentDrafts, setCommunityChatSubView, setCommunityFeedSubView, setCommunityLobbyTab, setCommunityMobileFeedOpen, setCommunityMsgText, setCommunityOpenTabDropdown, setCommunityPanelTab, setCommunitySearch, setCommunityUsernameDraft, setCommunityUsernameError, setFollowListOpen, setFollowListQuery, setGroupCodeError, setGroupManageOpen, setGroupManageTab, setJoinCodeError, setJoinCodeInput, setLeaderboardMetric, setLightboxPost, setManageDescDraft, setManageMsg, setManageNameDraft, setNewFeedImage, setNewFeedPnl, setNewFeedText, setNewGroupCode, setNewGroupDesc, setNewGroupName, setNewGroupPublic, setNewGroupTags, setNewPostImage, setNewPostText, setNewQuestionText, setNewVaultText, setNewVaultTitle, setNewVaultUrl, setNewWallText, setOpenThreadId, setPendingDeleteMsg, setProfileCommentDraft, setProfileComposerOpen, setProfileEmojiOpen, setProfilePostImage, setProfilePostMenuOpen, setProfilePostOpen, setProfilePostText, setProfileSubTab, setQaOpenId, setQaReplyDrafts, setReactionPickerFor, setReplyingTo, setSignalComposerOpen, setSignalDirection, setSignalEntry, setSignalPair, setSignalSL, setSignalStatsOpen, setSignalTP, setStickerActivePackId, setStickerManageMode, setStickerNewPackName, setStickerPickerOpen, setStoryCaption, setStoryPaused, setStoryViewer, setThreadDraft, shadowSignalToTrade, signalComposerOpen, signalDirection, signalEntry, signalPair, signalSL, signalStatsOpen, signalTP, stickerActivePackId, stickerError, stickerFileInputRef, stickerManageMode, stickerNewPackName, stickerPacks, stickerPacksLoaded, stickerPickerOpen, stickerUploading, storiesByAuthor, storyAuthorOrder, storyCaption, storyDraft, storyImageInputRef, storyPosting, storyProgressPct, storyViewer, threadDraft, threadLoading, threadReplies, toggleFeedComments, toggleFeedReaction, toggleFollowMember, toggleMessageReaction, toggleStoryReaction, typingUsers, unpinCommunityMessage, uploadProfilePostImage }} /></Suspense>;
   }
   // end community tab
 
@@ -8093,6 +8170,23 @@ if (activeTab === "community") {
 
 <PlansHost session={session} />
 
+<EditProfileSheet
+  open={editProfileOpen}
+  onClose={() => setEditProfileOpen(false)}
+  username={communityUsername}
+  avatarSrc={communityAvatar || undefined}
+  avatarUploading={communityAvatarUploading}
+  onAvatarFile={handleCommunityAvatarChange}
+  onRemoveAvatar={removeProfileAvatar}
+  role={myProfileView().role}
+  bio={myProfileView().bio}
+  styles={myProfileView().style}
+  markets={myProfileView().markets}
+  saving={editProfileBusy}
+  error={editProfileError}
+  onSave={saveProfileEdits}
+/>
+
 {settingsOpen && (() => {
   const settingsCategories = [
     communityUsername && { id: "profile", label: "Profile", icon: Users, group: "Account", subtitle: "Avatar, email, password" },
@@ -8278,66 +8372,74 @@ if (activeTab === "community") {
         {/* PROFILE */}
         {communityUsername && (
           <SettingsSection icon={Users} title="Profile" defaultOpen isDesktop={isDesktop} hidden={!isDesktop && settingsMobileSection !== "profile"}>
-            <div
-              className="flex items-center gap-3 rounded-xl px-3 py-3 mb-3"
-              style={{ background: palette.field, border: `1px solid ${palette.border}` }}
-            >
-              <div className="relative flex-shrink-0">
-                <Avatar name={communityUsername} size={52} ring src={communityAvatar} />
-                <label
-                  htmlFor="profile-avatar-input"
-                  className={`absolute flex items-center justify-center rounded-full ${TAP}`}
-                  style={{
-                    width: "22px",
-                    height: "22px",
-                    bottom: "-2px",
-                    right: "-2px",
-                    background: palette.gold,
-                    color: palette.letterbox,
-                    border: `2px solid ${palette.field}`,
-                    cursor: communityAvatarUploading ? "default" : "pointer",
-                    opacity: communityAvatarUploading ? 0.6 : 1,
-                  }}
-                  aria-label="Change profile picture"
-                >
-                  <Camera size={11} />
-                </label>
-                <input
-                  id="profile-avatar-input"
-                  type="file"
-                  accept="image/*"
-                  onChange={handleCommunityAvatarChange}
-                  disabled={communityAvatarUploading}
-                  style={{ display: "none" }}
-                />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <div className="truncate" style={{ color: palette.text, fontSize: "14px", fontWeight: 700 }}>
-                    {communityUsername}
+            {(() => {
+              const mv = myProfileView();
+              const mp = mv.mine;
+              const joined = mp?.joinedAt ? new Date(mp.joinedAt).toLocaleDateString([], { month: "short", year: "numeric" }) : null;
+              const rows = [["Style", mv.style.join(", ")], ["Markets", mv.markets.join(", ")]].filter(([, v]) => v);
+              const statBtn = { fontFamily: sans, fontSize: "12.5px", color: palette.textMuted, whiteSpace: "nowrap" };
+              const btnBase = { height: "44px", borderRadius: "12px", fontFamily: sans, fontSize: "14px", fontWeight: 600, flex: 1, whiteSpace: "nowrap", textAlign: "center" };
+              return (
+                <div className="mb-3">
+                  <div className="flex items-center" style={{ gap: "14px" }}>
+                    <div className="relative flex-shrink-0">
+                      <Avatar name={communityUsername} size={72} src={communityAvatar} />
+                      <label
+                        htmlFor="profile-avatar-input"
+                        className={`absolute flex items-center justify-center rounded-full ${TAP}`}
+                        style={{ width: "28px", height: "28px", bottom: "-2px", right: "-2px", background: palette.gold, color: palette.letterbox, border: `2px solid ${palette.bg}`, cursor: communityAvatarUploading ? "default" : "pointer", opacity: communityAvatarUploading ? 0.6 : 1 }}
+                        aria-label="Change profile picture"
+                      >
+                        <Camera size={13} />
+                      </label>
+                      <input id="profile-avatar-input" type="file" accept="image/*" onChange={handleCommunityAvatarChange} disabled={communityAvatarUploading} style={{ display: "none" }} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="truncate" style={{ fontFamily: sans, fontSize: "24px", fontWeight: 600, lineHeight: 1.15, letterSpacing: "-0.01em", color: palette.text }}>{communityUsername}</div>
+                      <div style={{ fontFamily: sans, fontSize: "12px", color: palette.textMuted, marginTop: "3px" }}>{`@${communityUsername}`}{joined ? `, Joined ${joined}` : ""}</div>
+                      {mv.role && <div style={{ fontFamily: sans, fontSize: "14px", fontWeight: 500, marginTop: "2px", color: palette.text }}>{mv.role}</div>}
+                    </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCommunityUsernameDraft(communityUsername);
-                      setCommunityUsernameError("");
-                      persistCommunityUsername("");
-                      setActiveTab("community");
-                      setSettingsOpen(false);
-                    }}
-                    className={`flex items-center justify-center rounded-lg flex-shrink-0 ${TAP}`}
-                    style={{ width: "22px", height: "22px", background: palette.surface, border: `1px solid ${palette.border}`, color: palette.textMuted }}
-                    aria-label="Edit name"
-                  >
-                    <Pencil size={10} />
-                  </button>
+
+                  <div className="flex items-center" style={{ gap: "20px", margin: "14px 0 12px" }}>
+                    <span style={statBtn}><b style={{ color: palette.text, fontWeight: 600 }}>{(mp?.followerCount || 0).toLocaleString()}</b> followers</span>
+                    <span style={statBtn}><b style={{ color: palette.text, fontWeight: 600 }}>{(mp?.followingCount || 0).toLocaleString()}</b> following</span>
+                    <span style={statBtn}><b style={{ color: palette.text, fontWeight: 600 }}>{(mp?.postCount || 0).toLocaleString()}</b> {mp?.postCount === 1 ? "post" : "posts"}</span>
+                  </div>
+
+                  <div className="flex" style={{ gap: "8px" }}>
+                    <button type="button" onClick={openEditProfile} className={`flex items-center justify-center gap-1.5 ${TAP}`} style={{ ...btnBase, background: palette.gold, border: "1px solid transparent", color: palette.letterbox }}>
+                      <Pencil size={14} /> Edit profile
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const txt = `${communityUsername} (@${communityUsername}) on Ledger.${mv.role ? ` ${mv.role}.` : ""}`;
+                        try { navigator.clipboard.writeText(txt).then(() => { setSettingsProfileCopied(true); setTimeout(() => setSettingsProfileCopied(false), 1600); }, () => {}); } catch (err) {}
+                      }}
+                      className={`flex items-center justify-center gap-1.5 ${TAP}`}
+                      style={{ ...btnBase, background: `${palette.gold}16`, border: `1px solid ${palette.gold}55`, color: palette.gold }}
+                    >
+                      {settingsProfileCopied ? "Copied" : "Copy summary"}
+                    </button>
+                  </div>
+
+                  {mv.bio && <p style={{ margin: "14px 0 4px", fontFamily: sans, fontSize: "14px", lineHeight: 1.5, color: palette.text, whiteSpace: "pre-wrap" }}>{mv.bio}</p>}
+                  {rows.length > 0 && (
+                    <>
+                      <div style={{ fontFamily: sans, fontSize: "12px", fontWeight: 500, color: palette.textMuted, margin: "22px 0 8px" }}>Trading profile</div>
+                      {rows.map(([label, v]) => (
+                        <div key={label} className="flex items-center justify-between gap-3" style={{ padding: "12px 0", minHeight: "44px", borderBottom: `1px solid ${palette.border}`, fontFamily: sans, fontSize: "14px" }}>
+                          <span style={{ color: palette.textMuted }}>{label}</span>
+                          <b style={{ color: palette.text, fontWeight: 600 }}>{v}</b>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                  {communityAvatarUploading && <div style={{ marginTop: "8px", fontFamily: sans, fontSize: "12px", color: palette.textMuted }}>Uploading photo…</div>}
                 </div>
-                <div style={{ color: palette.textFaint, fontSize: "11px", fontFamily: mono }}>
-                  {myGroups.length} group{myGroups.length === 1 ? "" : "s"}
-                  {communityAvatarUploading ? " · uploading photo…" : ""}
-                </div>
-              </div>
-            </div>
+              );
+            })()}
 
             {session?.email && (
               <>
