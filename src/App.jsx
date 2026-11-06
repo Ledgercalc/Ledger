@@ -10,7 +10,7 @@ import { PLAN_LIMITS, PLAN_NAMES, hasFeature } from "./data/plans.js";
 import { getMyPlan, openPlans, resetMyPlan, setMyPlan, useMyPlan } from "./lib/planStore.js";
 import { computeGoalProgress } from "./lib/analytics.js";
 import { OnboardingAmbientBG } from "./components/onboarding.jsx";
-import { Avatar, PillGroup, SettingsSection, SettingsSubLabel } from "./components/ui.jsx";
+import { Avatar, PillGroup } from "./components/ui.jsx";
 import { FX_CACHE_MS, FX_LIVE_STORAGE_KEY, fetchLiveFxRates } from "./data/currencies.js";
 import { ONBOARDING_SLIDES, TOUR_STEPS as ALL_TOUR_STEPS } from "./data/onboarding.js";
 import { buildWeekRecap, computeConsistencyScore, computeDisciplineGrade, computeDisciplineStreak, computeDisciplineStreakTrend, computeHeadlineInsight, computeInsights, computeJournalCompleteness, computeMonthComparison, computeNoteTagAnalysis, computeOverconfidenceCheck, computePerformanceMetrics, computeRevengeCostSplit, computeSessionWinRates, computeStatementData, filledJournalRows, generateThreeCurveProjection, journalMistakeFrequency } from "./lib/analytics.js";
@@ -26,9 +26,72 @@ import { bySession, byConfidence, tradesAsJournalRows } from "./lib/tradeInsight
 import { drawShareCard } from "./lib/shareCard.js";
 import { DARK_PALETTE, LIGHT_PALETTE, TAP, THEME_TRANSITION, TREDZI_LOGO_SRC, VOID_PALETTE, display, mono, palette, sans } from "./lib/theme.js";
 import { formatCountdown, formatMinSec, nextOccurrenceMs } from "./lib/time.js";
-import { AlertTriangle, ArrowLeftRight, CalendarDays, Link2, Bell, Building2, Camera, CandlestickChart, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, Flame, Heart, LayoutGrid, Lightbulb, LogOut, MessageCircle, Moon, Newspaper, Palette, Pencil, Plus, RotateCcw, Scale, Search, Send, Settings, Share2, ShieldAlert, Sparkles, Sun, Table2, Tags, Trash2, Upload, Users, X , Activity, TrendingDown, TrendingUp, UserCheck } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, CalendarDays, Link2, Bell, Building2, Camera, CandlestickChart, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, Flame, Heart, LogOut, MessageCircle, Moon, Newspaper, Palette, Pencil, Plus, RotateCcw, Scale, Search, Send, Settings, Share2, ShieldAlert, Sparkles, Sun, Tags, Trash2, Upload, Users, X , Activity, TrendingDown, TrendingUp, UserCheck } from "lucide-react";
 import React, { Suspense, lazy, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import "./typography.css";
+
+// ---- Settings UI: card sections, small muted labels, 44px tap targets (design copied from tredzi2.html) ----
+function SettingsSubLabel({ children }) {
+  return (
+    <div
+      className="tz-set-lb"
+      style={{ fontFamily: sans, fontSize: "12px", fontWeight: 500, color: palette.textMuted, margin: "20px 0 8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function SettingsSection({ icon: Icon, title, children, defaultOpen = false, isDesktop, hidden, danger }) {
+  const [open, setOpen] = useState(defaultOpen);
+  const accent = danger ? palette.red : palette.gold;
+  const bodyVisible = !isDesktop || open;
+  const tile = (
+    <span
+      className="flex items-center justify-center flex-shrink-0"
+      style={{ width: "40px", height: "40px", borderRadius: "12px", background: palette.field, color: accent }}
+    >
+      {Icon ? <Icon size={18} strokeWidth={2.2} /> : null}
+    </span>
+  );
+  return (
+    <section
+      style={{
+        display: hidden ? "none" : "block",
+        background: palette.surface,
+        border: `1px solid ${danger ? `${palette.red}45` : palette.border}`,
+        borderRadius: "14px",
+        padding: "16px",
+        marginBottom: "12px",
+      }}
+    >
+      {isDesktop && (
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          className={`w-full flex items-center gap-3 text-left ${TAP}`}
+          style={{ background: "transparent", border: "none", padding: 0, minHeight: "44px" }}
+        >
+          {tile}
+          <span
+            className="flex-1 min-w-0 truncate"
+            style={{ fontFamily: sans, fontSize: "18px", fontWeight: 600, letterSpacing: "-0.01em", color: danger ? palette.red : palette.text }}
+          >
+            {title}
+          </span>
+          <ChevronDown
+            size={18}
+            style={{ color: palette.textFaint, flexShrink: 0, transform: open ? "rotate(180deg)" : "none", transition: "transform .15s" }}
+          />
+        </button>
+      )}
+      <div className="tz-set-body" style={{ display: bodyVisible ? "block" : "none", marginTop: isDesktop ? "4px" : 0 }}>
+        {children}
+      </div>
+    </section>
+  );
+}
 
 // Risk management settings belong to each account (a new account starts at the defaults).
 const RISK_KEYS = ["dailyLossLimit", "maxTradesPerDay", "revengeLockEnabled", "revengeWindowMinutes", "showRevengeTag"];
@@ -8020,71 +8083,58 @@ if (activeTab === "community") {
     { id: "plan", label: "Plan", icon: Sparkles, group: "Account", subtitle: "Free, Pro & Creator" },
     session && !communityUsername && { id: "community", label: "Community", icon: Users, group: "Account", subtitle: "Public profile & handle" },
     { id: "appearance", label: "Appearance", icon: Palette, group: "Preferences", subtitle: "Theme & color palette" },
-    { id: "navigation", label: "Navigation", icon: LayoutGrid, group: "Preferences", subtitle: "Tabs & default screens" },
-    { id: "trading-defaults", label: "Trading Defaults", icon: Scale, group: "Trading", subtitle: "Balance, period, sizing" },
     { id: "risk-discipline", label: "Risk & Discipline", icon: ShieldAlert, group: "Trading", subtitle: "Cooldowns & daily limits" },
     { id: "custom-tags", label: "Custom Tags", icon: Tags, group: "Trading", subtitle: "Setup & mood tags" },
     { id: "notifications", label: "Notifications", icon: Bell, group: "Data & Alerts", subtitle: "News alarm lead time" },
     { id: "sharing-reports", label: "Sharing & Reports", icon: Share2, group: "Data & Alerts", subtitle: "Share card & trader alias" },
-    { id: "journal-data", label: "Journal & Data", icon: Table2, group: "Data & Alerts", subtitle: "Heatmap range & layout" },
     { id: "backup", label: "Full Backup", icon: Download, group: "Data & Alerts", subtitle: "Export everything" },
-    { id: "help-tips", label: "Help & Tips", icon: Lightbulb, group: "Support", subtitle: "Guides & onboarding tour" },
     { id: "danger-zone", label: "Danger Zone", icon: AlertTriangle, danger: true, group: "Danger Zone", subtitle: "Reset settings to defaults" },
   ].filter(Boolean);
   const mobileListMode = !isDesktop && !settingsMobileSection;
   const activeCategory = settingsCategories.find((c) => c.id === settingsMobileSection);
-  const settingsGroupOrder = ["Account", "Preferences", "Trading", "Data & Alerts", "Support", "Danger Zone"];
+  const settingsGroupOrder = ["Account", "Preferences", "Trading", "Data & Alerts", "Danger Zone"];
   const settingsGroups = settingsGroupOrder
     .map((name) => ({ name, items: settingsCategories.filter((c) => c.group === name) }))
     .filter((g) => g.items.length > 0);
+  const ibStyle = { width: "44px", height: "44px", borderRadius: "12px", background: palette.surface, border: `1px solid ${palette.border}`, color: palette.text };
   return (
   <div
     className="fixed inset-0 z-50 flex flex-col"
     style={{ background: palette.bg, transition: THEME_TRANSITION }}
   >
+    <style>{".tz-set-body > .tz-set-lb:first-child{margin-top:0!important}"}</style>
     <div
-      className={isDesktop ? "flex items-center justify-between px-8 flex-shrink-0" : "flex items-center justify-between px-5 pt-4 pb-3 flex-shrink-0"}
+      className="flex items-center justify-between flex-shrink-0"
       style={{
+        padding: isDesktop ? "0 32px" : "calc(12px + env(safe-area-inset-top, 0px)) 16px 12px",
         height: isDesktop ? "76px" : "auto",
         borderBottom: `1px solid ${palette.border}`,
-        background: palette.surface,
-        boxShadow: palette.shadow,
+        background: palette.bg,
         transition: THEME_TRANSITION,
         zIndex: 2,
       }}
     >
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-3 min-w-0">
         {!isDesktop && activeCategory ? (
           <button
             type="button"
             onClick={() => setSettingsMobileSection(null)}
-            className={`flex items-center justify-center rounded-full flex-shrink-0 ${TAP}`}
-            style={{ width: "40px", height: "40px", marginLeft: "-8px", color: palette.text, background: "transparent", border: "none" }}
+            className={`flex items-center justify-center flex-shrink-0 ${TAP}`}
+            style={ibStyle}
             aria-label="Back to Settings"
           >
-            <ChevronLeft size={24} strokeWidth={2.4} />
+            <ChevronLeft size={22} strokeWidth={2.2} />
           </button>
         ) : (
-          <span
-            className="flex items-center justify-center rounded-xl flex-shrink-0"
-            style={{
-              width: isDesktop ? "38px" : "34px",
-              height: isDesktop ? "38px" : "34px",
-              background: palette.gold,
-              boxShadow: `0 3px 10px ${palette.gold}44`,
-            }}
-          >
-            <Settings size={isDesktop ? 18 : 16} style={{ color: palette.letterbox }} strokeWidth={2.3} />
+          <span className="flex items-center justify-center flex-shrink-0" style={{ ...ibStyle, color: palette.gold }}>
+            <Settings size={20} strokeWidth={2.2} />
           </span>
         )}
-        <div>
-<div style={{ fontFamily: display, fontSize: isDesktop ? "17px" : "15px", fontWeight: 700, color: palette.text, lineHeight: 1.15 }}>
-  {!isDesktop && activeCategory ? activeCategory.label : "Settings"}
-</div>
-          <div
-            className="uppercase"
-            style={{ fontFamily: mono, fontSize: "10px", color: palette.textFaint, letterSpacing: "0.09em" }}
-          >
+        <div className="min-w-0">
+          <div style={{ fontFamily: sans, fontSize: "22px", fontWeight: 600, letterSpacing: "-0.01em", color: palette.text, lineHeight: 1.2 }}>
+            {!isDesktop && activeCategory ? activeCategory.label : "Settings"}
+          </div>
+          <div style={{ fontFamily: sans, fontSize: "12px", color: palette.textMuted, marginTop: "1px" }}>
             {!isDesktop && activeCategory ? "Settings" : "Customize Tredzi"}
           </div>
         </div>
@@ -8092,11 +8142,11 @@ if (activeTab === "community") {
       <button
         type="button"
         onClick={() => { setSettingsOpen(false); setSettingsMobileSection(null); setSettingsSearchQuery(""); }}
-        className={`flex items-center justify-center rounded-full flex-shrink-0 ${TAP}`}
-        style={{ width: "38px", height: "38px", color: palette.textMuted, background: palette.field, border: `1px solid ${palette.border}`, boxShadow: palette.shadow }}
+        className={`flex items-center justify-center flex-shrink-0 ${TAP}`}
+        style={ibStyle}
         aria-label="Close settings"
       >
-        <X size={17} />
+        <X size={20} />
       </button>
     </div>
 
@@ -8111,20 +8161,21 @@ if (activeTab === "community") {
         {mobileListMode && (
           <div className="flex flex-col">
             <div
-              className="flex items-center gap-2 rounded-xl px-3.5 mb-5"
-              style={{ height: "40px", background: palette.field, border: `1px solid ${palette.border}` }}
+              className="flex items-center gap-2 px-3"
+              style={{ minHeight: "44px", borderRadius: "12px", background: palette.surface, border: `1px solid ${palette.border}` }}
             >
-              <Search size={15} style={{ color: palette.textFaint, flexShrink: 0 }} />
+              <Search size={16} style={{ color: palette.textFaint, flexShrink: 0 }} />
               <input
                 value={settingsSearchQuery}
                 onChange={(e) => setSettingsSearchQuery(e.target.value)}
                 placeholder="Search settings"
+                aria-label="Search settings"
                 className="flex-1 bg-transparent outline-none"
-                style={{ color: palette.text, fontSize: "13.5px" }}
+                style={{ color: palette.text, fontFamily: sans, fontSize: "14px", minHeight: "40px" }}
               />
               {settingsSearchQuery && (
                 <button type="button" onClick={() => setSettingsSearchQuery("")} className={TAP} style={{ color: palette.textFaint }} aria-label="Clear search">
-                  <X size={14} />
+                  <X size={16} />
                 </button>
               )}
             </div>
@@ -8137,24 +8188,24 @@ if (activeTab === "community") {
               });
               if (filteredItems.length === 0) return null;
               return (
-                <div key={name} className="mb-6">
+                <div key={name}>
                   <div
-                    className="uppercase mb-2 px-1"
                     style={{
-                      fontFamily: mono,
-                      fontSize: "10.5px",
-                      fontWeight: 600,
-                      letterSpacing: "0.08em",
-                      color: name === "Danger Zone" ? palette.red : palette.textFaint,
+                      fontFamily: sans,
+                      fontSize: "12px",
+                      fontWeight: 500,
+                      color: name === "Danger Zone" ? palette.red : palette.textMuted,
+                      margin: "22px 0 8px",
                     }}
                   >
                     {name}
                   </div>
                   <div
-                    className="rounded-xl overflow-hidden"
+                    className="overflow-hidden"
                     style={{
-                      background: palette.field,
+                      background: palette.surface,
                       border: `1px solid ${name === "Danger Zone" ? `${palette.red}45` : palette.border}`,
+                      borderRadius: "14px",
                     }}
                   >
                     {filteredItems.map((cat, i) => {
@@ -8164,42 +8215,30 @@ if (activeTab === "community") {
                           key={cat.id}
                           type="button"
                           onClick={() => setSettingsMobileSection(cat.id)}
-                          className={`w-full flex items-center gap-3 px-4 py-3 text-left ${TAP}`}
+                          className={`w-full flex items-center gap-3 px-4 text-left ${TAP}`}
                           style={{
                             background: "transparent",
+                            minHeight: "64px",
                             borderTop: i === 0 ? "none" : `1px solid ${palette.border}`,
                           }}
                         >
                           <span
-                            className="flex items-center justify-center rounded-lg flex-shrink-0"
-                            style={{
-                              width: "30px",
-                              height: "30px",
-                              background: `${cat.danger ? palette.red : palette.gold}1E`,
-                              color: cat.danger ? palette.red : palette.gold,
-                            }}
+                            className="flex items-center justify-center flex-shrink-0"
+                            style={{ width: "40px", height: "40px", borderRadius: "12px", background: palette.field, color: cat.danger ? palette.red : palette.gold }}
                           >
-                            <CatIcon size={14} strokeWidth={2.2} />
+                            <CatIcon size={18} strokeWidth={2.2} />
                           </span>
                           <span className="flex-1 min-w-0">
-                            <span
-                              className="block truncate"
-                              style={{
-                                fontFamily: display,
-                                fontSize: "13.5px",
-                                fontWeight: 600,
-                                color: cat.danger ? palette.red : palette.text,
-                              }}
-                            >
+                            <span className="block truncate" style={{ fontFamily: sans, fontSize: "15px", fontWeight: 600, color: cat.danger ? palette.red : palette.text }}>
                               {cat.label}
                             </span>
                             {cat.subtitle && (
-                              <span className="block truncate" style={{ fontSize: "11px", color: palette.textFaint, marginTop: "1px" }}>
+                              <span className="block truncate" style={{ fontFamily: sans, fontSize: "12px", color: palette.textMuted, marginTop: "1px" }}>
                                 {cat.subtitle}
                               </span>
                             )}
                           </span>
-                          <ChevronRight size={15} style={{ color: palette.textFaint, flexShrink: 0 }} />
+                          <ChevronRight size={18} style={{ color: palette.textFaint, flexShrink: 0 }} />
                         </button>
                       );
                     })}
@@ -8566,238 +8605,9 @@ if (activeTab === "community") {
           </div>
         </SettingsSection>
 
-        {/* NAVIGATION */}
-        <SettingsSection icon={LayoutGrid} title="Navigation" isDesktop={isDesktop} hidden={!isDesktop && settingsMobileSection !== "navigation"}>
-          <SettingsSubLabel>Default Landing Tab</SettingsSubLabel>
-          <div className="flex gap-2 flex-wrap mb-1">
-            {navTabs.map((t) => {
-              const active = settings.defaultLandingTab === t.id;
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => persistSettings({ ...settings, defaultLandingTab: t.id })}
-                  className={`px-3 py-1.5 rounded-full transition-colors ${TAP}`}
-                  style={{
-                    background: active ? palette.gold : palette.surface,
-                    color: active ? palette.letterbox : palette.textMuted,
-                    border: `1px solid ${active ? palette.gold : palette.border}`,
-                    fontFamily: mono,
-                    fontSize: "12.5px",
-                  }}
-                >
-                  {t.label}
-                </button>
-              );
-            })}
-          </div>
-          <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-            Opens automatically the next time you launch Tredzi.
-          </p>
-
-          <SettingsSubLabel>Visible Tabs</SettingsSubLabel>
-          <div className="flex gap-2 flex-wrap mb-1">
-            {TABS.map((t) => {
-              const hidden = (settings.hiddenTabs || []).includes(t.id);
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => toggleHiddenTab(t.id)}
-                  className={`px-3 py-1.5 rounded-full transition-colors ${TAP}`}
-                  style={{
-                    background: hidden ? palette.surface : palette.gold,
-                    color: hidden ? palette.textFaint : palette.letterbox,
-                    border: `1px solid ${hidden ? palette.border : palette.gold}`,
-                    fontFamily: mono,
-                    fontSize: "12.5px",
-                    textDecoration: hidden ? "line-through" : "none",
-                  }}
-                >
-                  {t.label}
-                </button>
-              );
-            })}
-          </div>
-          <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-            Tap to hide a tab from your navigation. At least one must stay visible.
-          </p>
-
-          <SettingsSubLabel>Mobile Bottom Bar</SettingsSubLabel>
-          <div className="flex gap-2 flex-wrap mb-1">
-            {navTabs.map((t) => {
-              const pinnedList = settings.mobileNavPinnedTabs || [];
-              const isPinned = pinnedList.includes(t.id);
-              const pinnedIndex = pinnedList.indexOf(t.id);
-              const atLimit = pinnedList.length >= MOBILE_NAV_PRIMARY_COUNT;
-              const disabled = !isPinned && atLimit;
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => togglePinnedMobileTab(t.id)}
-                  disabled={disabled}
-                  className={`px-3 py-1.5 rounded-full transition-colors ${disabled ? "" : TAP}`}
-                  style={{
-                    background: isPinned ? palette.gold : palette.surface,
-                    color: isPinned ? palette.letterbox : disabled ? palette.textFaint : palette.textMuted,
-                    border: `1px solid ${isPinned ? palette.gold : palette.border}`,
-                    fontFamily: mono,
-                    fontSize: "12.5px",
-                    opacity: disabled ? 0.5 : 1,
-                  }}
-                >
-                  {isPinned ? `${pinnedIndex + 1}. ` : ""}
-                  {t.label}
-                </button>
-              );
-            })}
-          </div>
-          {(settings.mobileNavPinnedTabs || []).length > 0 && (
-            <button
-              type="button"
-              onClick={() => persistSettings({ ...settings, mobileNavPinnedTabs: [] })}
-              className={`mb-2 block ${TAP}`}
-              style={{ color: palette.textFaint, fontSize: "11px", fontFamily: mono, textDecoration: "underline" }}
-            >
-              Reset to default
-            </button>
-          )}
-          <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-            Pick up to {MOBILE_NAV_PRIMARY_COUNT} tabs to pin in the mobile bottom bar (numbered in tap order) —
-            everything else lands in "More." Leave empty to use the first {MOBILE_NAV_PRIMARY_COUNT} tabs
-            automatically.
-          </p>
-
-          <SettingsSubLabel>Default Insights Tab</SettingsSubLabel>
-          <div className="grid grid-cols-2 gap-2">
-            {[
-              { id: "overview", label: "Overview" },
-              { id: "coach", label: "Coach" },
-            ].map((opt) => {
-              const savedTab = ["journal", "patterns", "behavior"].includes(settings.defaultInsightsTab) ? "overview" : settings.defaultInsightsTab;
-              const active = (savedTab || "overview") === opt.id;
-              return (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => persistSettings({ ...settings, defaultInsightsTab: opt.id })}
-                  className={`px-1 py-2 rounded-lg transition-colors ${TAP}`}
-                  style={{
-                    background: active ? palette.gold : palette.surface,
-                    color: active ? palette.letterbox : palette.textMuted,
-                    border: `1px solid ${active ? palette.gold : palette.border}`,
-                    fontFamily: mono,
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    minWidth: 0,
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                  }}
-                >
-                  {opt.label}
-                </button>
-              );
-            })}
-          </div>
-        </SettingsSection>
         </div>
 
         <div className={isDesktop ? "flex flex-col flex-1" : ""} style={isDesktop ? { minWidth: 0 } : {}}>
-        {/* TRADING DEFAULTS */}
-        <SettingsSection icon={Scale} title="Trading Defaults" isDesktop={isDesktop} hidden={!isDesktop && settingsMobileSection !== "trading-defaults"}>
-          <SettingsSubLabel>Default Account Balance</SettingsSubLabel>
-          <div
-            className="flex items-center rounded-lg px-3 mb-1"
-            style={{ background: palette.surface, border: `1px solid ${palette.border}` }}
-          >
-            <span className="text-sm pr-1" style={{ color: palette.textFaint }}>$</span>
-            <input
-              ref={defaultBalanceInputRef}
-              type="text"
-              inputMode="decimal"
-              defaultValue={settings.defaultAccountBalance}
-              onChange={scheduleDefaultBalanceApply}
-              onBlur={() => {
-                if (defaultBalanceDebounceRef.current) clearTimeout(defaultBalanceDebounceRef.current);
-                const el = defaultBalanceInputRef.current;
-                if (el) applyDefaultAccountBalance(el.value);
-              }}
-              placeholder="10000"
-              className="w-full bg-transparent py-2.5 outline-none"
-              style={{ color: palette.text, fontFamily: mono, fontSize: "14px" }}
-            />
-          </div>
-          <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-            Pre-fills the balance field on the Challenge, Edge, and Size calculators when empty.
-          </p>
-
-          <SettingsSubLabel>Statement Period</SettingsSubLabel>
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { id: "month", label: "Monthly" },
-              { id: "quarter", label: "Quarterly" },
-              { id: "year", label: "Annual" },
-            ].map((opt) => {
-              const active = (settings.statementPeriodType || "month") === opt.id;
-              return (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => persistSettings({ ...settings, statementPeriodType: opt.id })}
-                  className={`px-1 py-2 rounded-lg transition-colors ${TAP}`}
-                  style={{
-                    background: active ? palette.gold : palette.surface,
-                    color: active ? palette.letterbox : palette.textMuted,
-                    border: `1px solid ${active ? palette.gold : palette.border}`,
-                    fontFamily: mono,
-                    fontSize: "12.5px",
-                    fontWeight: 600,
-                    minWidth: 0,
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                  }}
-                >
-                  {opt.label}
-                </button>
-              );
-            })}
-          </div>
-
-          <SettingsSubLabel>Size Tab Risk Input</SettingsSubLabel>
-          <div className="flex gap-2">
-            {[
-              { id: "percent", label: "Percent (%)" },
-              { id: "dollar", label: "Dollar ($)" },
-            ].map((opt) => {
-              const active = (settings.sizeRiskInputMode || "percent") === opt.id;
-              return (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => persistSettings({ ...settings, sizeRiskInputMode: opt.id })}
-                  className={`flex-1 px-3 py-2 rounded-lg transition-colors ${TAP}`}
-                  style={{
-                    background: active ? palette.gold : palette.surface,
-                    color: active ? palette.letterbox : palette.textMuted,
-                    border: `1px solid ${active ? palette.gold : palette.border}`,
-                    fontFamily: mono,
-                    fontSize: "12.5px",
-                    fontWeight: 600,
-                  }}
-                >
-                  {opt.label}
-                </button>
-              );
-            })}
-          </div>
-          <p className="text-xs mt-1" style={{ color: palette.textFaint }}>
-            Choose whether the Size tab's "Risk per Trade" field takes a percentage of your balance or a fixed dollar amount.
-          </p>
-        </SettingsSection>
-
         {/* RISK & DISCIPLINE */}
         <SettingsSection icon={ShieldAlert} title="Risk & Discipline" isDesktop={isDesktop} hidden={!isDesktop && settingsMobileSection !== "risk-discipline"}>
           <SettingsSubLabel>Revenge Trade Cooldown</SettingsSubLabel>
@@ -9052,84 +8862,6 @@ if (activeTab === "community") {
           <p className="text-xs mt-1" style={{ color: palette.textFaint }}>
             Shown on printed Statements and the Weekly Share Card. Leave blank to omit.
           </p>
-        </SettingsSection>
-
-        {/* JOURNAL & DATA */}
-        <SettingsSection icon={Table2} title="Journal & Data" isDesktop={isDesktop} hidden={!isDesktop && settingsMobileSection !== "journal-data"}>
-          <SettingsSubLabel>Journal Table Layout</SettingsSubLabel>
-          <div className="flex gap-2 mb-1">
-            {[
-              { id: "auto", label: "Auto" },
-              { id: "cards", label: "Cards" },
-              { id: "table", label: "Table" },
-            ].map((opt) => {
-              const active = (settings.journalTableLayout || "auto") === opt.id;
-              return (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => persistSettings({ ...settings, journalTableLayout: opt.id })}
-                  className={`flex-1 px-3 py-2 rounded-lg transition-colors ${TAP}`}
-                  style={{
-                    background: active ? palette.gold : palette.surface,
-                    color: active ? palette.letterbox : palette.textMuted,
-                    border: `1px solid ${active ? palette.gold : palette.border}`,
-                    fontFamily: mono,
-                    fontSize: "12.5px",
-                    fontWeight: 600,
-                  }}
-                >
-                  {opt.label}
-                </button>
-              );
-            })}
-          </div>
-          <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-            Auto uses Cards on narrow screens, Table on wider ones.
-          </p>
-
-        </SettingsSection>
-
-        {/* HELP */}
-        <SettingsSection icon={Lightbulb} title="Help & Tips" isDesktop={isDesktop} hidden={!isDesktop && settingsMobileSection !== "help-tips"}>
-          <button
-            type="button"
-            onClick={() => persistSettings({ ...settings, showOnboardingTips: !settings.showOnboardingTips })}
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg mb-2 transition-colors ${TAP}`}
-            style={{
-              background: settings.showOnboardingTips ? palette.gold : palette.surface,
-              color: settings.showOnboardingTips ? palette.letterbox : palette.textMuted,
-              border: `1px solid ${settings.showOnboardingTips ? palette.gold : palette.border}`,
-              fontFamily: mono,
-              fontSize: "12.5px",
-            }}
-          >
-            <Lightbulb size={14} />
-            {settings.showOnboardingTips ? "Tips are showing" : "Tips are hidden"}
-          </button>
-          <p className="text-xs mb-3" style={{ color: palette.textFaint }}>
-            Dismissible callouts pointing out tagging, the Trade plan, and other features. Dismissing one hides
-            only that tip.
-          </p>
-          <button
-            type="button"
-            onClick={() => {
-              setSettingsOpen(false);
-              startTour();
-            }}
-            className={`w-full flex items-center justify-center gap-2 rounded-lg py-2.5 ${TAP}`}
-            style={{
-              background: palette.surface,
-              border: `1px solid ${palette.border}`,
-              color: palette.text,
-              fontFamily: mono,
-              fontSize: "12.5px",
-              fontWeight: 600,
-            }}
-          >
-            <ChevronRight size={14} />
-            Restart App Tour
-          </button>
         </SettingsSection>
 
                 {/* FULL BACKUP */}
