@@ -11,6 +11,7 @@ const LEDGER_COMMUNITY = true;
 
 export default function CommunityTab(props) {
   const {
+    session,
     REACTION_EMOJIS,
     activeGroupId,
     addingGroup,
@@ -1707,6 +1708,8 @@ export default function CommunityTab(props) {
           openMember={openCommunityMemberProfile}
           openMyProfile={() => openCommunityMemberProfile(communityUsername)}
           myDiscipline={mine?.disciplineScore}
+          sessionToken={session?.token}
+          username={communityUsername}
         />
       </div>
     );
