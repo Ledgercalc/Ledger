@@ -3,7 +3,7 @@ import { PlanName } from "../components/PlanBadge.jsx";
 import { Avatar } from "../components/ui.jsx";
 import { FEED_REACTIONS, avatarStyleFor, feedTimeAgo } from "../lib/feed.js";
 import { TAP, display, mono, palette, sans } from "../lib/theme.js";
-import { AlertTriangle, ArrowDown, BookOpen, Camera, ChevronLeft, ChevronRight, Copy, CornerUpLeft, FileText, Heart, HelpCircle, Info, LayoutGrid, MessageCircle, Newspaper, Pencil, Pin, Plus, Search, Send, ShieldAlert, Smile, Sparkles, Sticker, Trash2, TrendingUp, Users, X } from "lucide-react";
+import { AlertTriangle, ArrowDown, BookOpen, Camera, Check, ChevronLeft, ChevronRight, Copy, CornerUpLeft, FileText, Heart, HelpCircle, Info, LayoutGrid, MessageCircle, Newspaper, Pencil, Pin, Plus, Search, Send, ShieldAlert, Smile, Sparkles, Sticker, Trash2, TrendingUp, Users, X } from "lucide-react";
 
 export default function CommunityTab(props) {
   const {
@@ -1759,53 +1759,64 @@ export default function CommunityTab(props) {
           const viewingName = profileView || communityUsername;
           const isMe = !profileView || profileView === communityUsername;
           const p = profileData && String(profileData.username).toLowerCase() === String(viewingName || "").toLowerCase() ? profileData : null;
-          const chip = { color: palette.gold, background: `${palette.gold}14`, border: `1px solid ${palette.gold}33`, borderRadius: "999px", padding: "2px 8px", fontSize: "10.5px", fontWeight: 700 };
+          // ---- Profile UI copied from the Ledger reference (tredzi2.html): one column, 44px buttons,
+          // segmented Overview / Stats / Posts tabs, label + row lists, card posts. Same on phone and PC.
+          const colW = isDesktop ? "720px" : "100%";
+          const ibStyle = { width: "44px", height: "44px", borderRadius: "12px", background: palette.surface, border: `1px solid ${palette.border}`, color: palette.text };
+          const lb = (left, right) => (
+            <div className="flex items-center justify-between" style={{ fontFamily: sans, fontSize: "12px", fontWeight: 500, color: palette.textMuted, margin: "22px 0 8px" }}>
+              <span>{left}</span>{right != null && <span>{right}</span>}
+            </div>
+          );
+          const rowItem = (label, value, color) => (
+            <div key={label} className="flex items-center justify-between gap-3" style={{ padding: "12px 0", minHeight: "44px", borderBottom: `1px solid ${palette.border}`, fontFamily: sans, fontSize: "14px" }}>
+              <span style={{ color: palette.textMuted }}>{label}</span>
+              <b style={{ color: color || palette.text, fontWeight: 600 }}>{value}</b>
+            </div>
+          );
+          const btn = (primary, busy) => ({
+            height: "44px", borderRadius: "12px", fontFamily: sans, fontSize: "14px", fontWeight: 600, flex: 1, whiteSpace: "nowrap",
+            background: primary ? palette.gold : palette.surface,
+            border: primary ? "1px solid transparent" : `1px solid ${palette.border}`,
+            color: primary ? palette.letterbox : palette.text,
+            opacity: busy ? 0.6 : 1,
+          });
           const pill = (primary, busy) => ({
-            height: isDesktop ? "32px" : "34px", padding: "0 18px", borderRadius: "8px", whiteSpace: "nowrap",
-            fontSize: "12.5px", fontWeight: 700, fontFamily: sans,
+            height: "34px", padding: "0 18px", borderRadius: "10px", whiteSpace: "nowrap",
+            fontSize: "13px", fontWeight: 600, fontFamily: sans,
             background: primary ? palette.gold : palette.field,
             border: `1px solid ${primary ? "transparent" : palette.border}`,
             color: primary ? palette.letterbox : palette.text,
             opacity: busy ? 0.6 : 1,
           });
-          // Universal profile: same account, same card, no matter which group opened it —
-          // so on desktop it reads like Instagram's web profile (centered card, big round
-          // avatar beside the stats/bio, no phone-frame chrome), not a mobile screen stretched wide.
+          const tag = (text) => (
+            <span style={{ fontFamily: sans, fontSize: "11px", fontWeight: 500, padding: "2px 8px", borderRadius: "6px", border: `1px solid ${palette.border}`, color: palette.textMuted }}>{text}</span>
+          );
           const shell = (children) => (
-            isDesktop ? (
-              <div className="fixed inset-0 flex flex-col" style={{ background: palette.bg, zIndex: 108 }}>
-                <div className="flex items-center gap-3 px-6 flex-shrink-0" style={{ height: "56px", borderBottom: `1px solid ${palette.border}`, background: palette.surface }}>
-                  <button type="button" onClick={closeProfileBack} className={`flex items-center gap-1.5 ${TAP}`} style={{ background: "none", border: "none", color: palette.textMuted, fontSize: "13px", fontWeight: 600, fontFamily: sans }} aria-label="Back">
-                    <ChevronLeft size={18} /> Back
+            <div className="fixed inset-0 flex flex-col" style={{ background: palette.bg, zIndex: 108 }}>
+              <div
+                className="flex items-center gap-3 flex-shrink-0"
+                style={{ padding: "12px 16px", paddingTop: "max(12px, env(safe-area-inset-top))", background: palette.bg, borderBottom: `1px solid ${palette.border}` }}
+              >
+                <div className="flex items-center gap-3 mx-auto w-full" style={{ maxWidth: colW }}>
+                  <button type="button" onClick={closeProfileBack} className={`flex items-center justify-center flex-shrink-0 ${TAP}`} style={ibStyle} aria-label="Back">
+                    <ChevronLeft size={22} strokeWidth={2.2} />
                   </button>
-                  <span aria-hidden="true" style={{ width: "1px", height: "18px", background: palette.border }} />
-                  <span className="truncate" style={{ color: palette.text, fontSize: "14px", fontWeight: 700 }}>{p ? p.username : (viewingName || "Profile")}</span>
-                </div>
-                <div className="flex-1" style={{ overflowY: "auto", minHeight: 0 }}>
-                  <div className="mx-auto w-full" style={{ maxWidth: "935px", padding: "0 20px" }}>
-                    {children}
-                  </div>
+                  <h1 className="truncate flex-1 min-w-0" style={{ margin: 0, fontFamily: sans, fontSize: "22px", fontWeight: 600, letterSpacing: "-0.01em", lineHeight: 1.2, color: palette.text }}>
+                    {p ? p.username : (viewingName || "Profile")}
+                  </h1>
                 </div>
               </div>
-            ) : (
-              <div className="fixed inset-0 flex justify-center" style={{ background: palette.bg, zIndex: 108 }}>
-                <div className="flex flex-col w-full min-h-0">
-                  <div className="flex items-center gap-3 px-3 py-2.5 flex-shrink-0" style={{ borderBottom: `1px solid ${palette.border}`, background: palette.surface, paddingTop: "max(10px, env(safe-area-inset-top))" }}>
-                    <button type="button" onClick={closeProfileBack} className={`flex items-center justify-center rounded-full flex-shrink-0 ${TAP}`} style={{ width: "32px", height: "32px", background: palette.field, border: `1px solid ${palette.border}`, color: palette.textMuted }} aria-label="Back">
-                      <ChevronLeft size={17} />
-                    </button>
-                    <div className="min-w-0">
-                      <div className="truncate" style={{ color: palette.text, fontSize: "16px", fontWeight: 800, lineHeight: 1.2 }}>{p ? p.username : (viewingName || "Profile")}</div>
-                    </div>
-                  </div>
+              <div className="flex-1" style={{ overflowY: "auto", minHeight: 0 }}>
+                <div className="mx-auto w-full" style={{ maxWidth: colW, padding: "16px 16px max(40px, env(safe-area-inset-bottom))" }}>
                   {children}
                 </div>
               </div>
-            )
+            </div>
           );
           if (!p) {
             return shell(
-              <p className="text-xs px-4 py-6" style={{ color: profileError ? palette.red : palette.textFaint }}>
+              <p style={{ fontFamily: sans, fontSize: "14px", color: profileError ? palette.red : palette.textMuted, padding: "24px 0" }}>
                 {profileError || (profileLoading ? "Loading profile…" : "Couldn't load this profile.")}
               </p>
             );
@@ -1814,285 +1825,229 @@ export default function CommunityTab(props) {
           const joinedText = p.joinedAt ? new Date(p.joinedAt).toLocaleDateString([], { month: "short", year: "numeric" }) : null;
           const mutuals = p.mutuals || [];
           const avatarSrc = isMe ? (communityAvatar || p.avatar || undefined) : (p.avatar || avatarForAuthor(p.username));
-          const coverBg = avatarStyleFor(p.username).bg;
           const curve = stats.equityCurve || [];
-          const cMin = curve.length ? Math.min(...curve) : 0;
-          const cMax = curve.length ? Math.max(...curve) : 0;
+          const cMin = Math.min(0, ...(curve.length ? curve : [0]));
+          const cMax = Math.max(0, ...(curve.length ? curve : [0]));
           const cRange = cMax - cMin || 1;
-          const curvePoints = curve.map((v, i) => `${(i / Math.max(1, curve.length - 1)) * 100},${100 - ((v - cMin) / cRange) * 70 - 15}`).join(" ");
-          const fmtPct = (v) => (v == null || !Number.isFinite(v) ? "—" : `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`);
-          // Profile shows only these three numbers, and only on the Stats tab.
-          const statTiles = [
-            ["P&L", fmtPct(stats.pnlPct), stats.pnlPct != null && stats.pnlPct < 0 ? palette.red : palette.green],
-            ["Trades", stats.trades == null ? "—" : String(stats.trades), palette.text],
-            ["Avg R", stats.avgR == null ? "—" : stats.avgR.toFixed(1), palette.text],
-          ];
-          const avatarBlock = (
-            <div className="relative flex-shrink-0">
-              {isDesktop ? (
-                <span className="inline-flex rounded-full" style={{ padding: "3px", background: palette.border }}>
-                  <span className="inline-flex rounded-full" style={{ padding: "4px", background: palette.bg }}>
-                    <Avatar name={p.username} size={150} src={avatarSrc} online={p.isOnline} />
-                  </span>
-                </span>
-              ) : (
-                <span className="inline-flex rounded-full" style={{ padding: "2px", background: palette.border }}>
-                  <span className="inline-flex rounded-full" style={{ padding: "3px", background: palette.bg }}>
-                    <Avatar name={p.username} size={80} src={avatarSrc} online={p.isOnline} />
-                  </span>
-                </span>
-              )}
-              {isMe && (
-                <>
-                  <input ref={profileAvatarInputRef} type="file" accept="image/*" onChange={handleCommunityAvatarChange} style={{ display: "none" }} />
-                  <button
-                    type="button"
-                    onClick={() => profileAvatarInputRef.current && profileAvatarInputRef.current.click()}
-                    disabled={communityAvatarUploading}
-                    className={`absolute flex items-center justify-center rounded-full ${TAP}`}
-                    style={{ right: isDesktop ? "8px" : "0px", bottom: isDesktop ? "8px" : "0px", width: isDesktop ? "30px" : "26px", height: isDesktop ? "30px" : "26px", background: palette.gold, color: palette.letterbox, border: `2px solid ${palette.bg}`, opacity: communityAvatarUploading ? 0.6 : 1 }}
-                    aria-label="Change profile photo"
-                  >
-                    <Camera size={12} />
-                  </button>
-                </>
-              )}
-            </div>
+          const cy = (v) => Math.round(110 - ((v - cMin) / cRange) * 96 - 7);
+          const cx = (i) => Math.round((i / Math.max(1, curve.length - 1)) * 330);
+          const curveLine = curve.length > 1 ? curve.map((v, i) => `${cx(i)},${cy(v)}`).join(" ") : "";
+          const fmtPct = (v) => (v == null || !Number.isFinite(v) ? "—" : `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(1)}%`);
+          const pnlColor = stats.pnlPct != null && stats.pnlPct < 0 ? palette.red : palette.green;
+          const sections = [["overview", "Overview"], ["stats", "Stats"], ["posts", "Posts"]];
+          const tab = ["overview", "stats", "posts"].includes(profileSubTab) ? profileSubTab : "overview";
+
+          const verifiedBadge = (
+            <span className="inline-flex items-center justify-center flex-shrink-0" role="img" aria-label="Verified P&L" style={{ width: "18px", height: "18px", borderRadius: "50%", background: palette.green, color: "#fff" }}>
+              <Check size={11} strokeWidth={3} />
+            </span>
           );
+
+          const headerBlock = (
+            <>
+              <div className="flex items-center" style={{ gap: "14px" }}>
+                <div className="relative flex-shrink-0">
+                  <Avatar name={p.username} size={72} src={avatarSrc} online={p.isOnline} />
+                  {isMe && (
+                    <>
+                      <input ref={profileAvatarInputRef} type="file" accept="image/*" onChange={handleCommunityAvatarChange} style={{ display: "none" }} />
+                      <button
+                        type="button"
+                        onClick={() => profileAvatarInputRef.current && profileAvatarInputRef.current.click()}
+                        disabled={communityAvatarUploading}
+                        className={`absolute flex items-center justify-center rounded-full ${TAP}`}
+                        style={{ right: "-2px", bottom: "-2px", width: "28px", height: "28px", background: palette.gold, color: palette.letterbox, border: `2px solid ${palette.bg}`, opacity: communityAvatarUploading ? 0.6 : 1 }}
+                        aria-label="Change profile photo"
+                      >
+                        <Camera size={13} />
+                      </button>
+                    </>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2" style={{ fontFamily: sans, fontSize: "24px", fontWeight: 600, lineHeight: 1.15, letterSpacing: "-0.01em", color: palette.text }}>
+                    <span className="truncate"><PlanName name={p.username} /></span>
+                    {p.verifiedPnl && verifiedBadge}
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap" style={{ fontFamily: sans, fontSize: "12px", color: palette.textMuted, marginTop: "3px" }}>
+                    <span>{joinedText ? `Joined ${joinedText}` : "Community member"}</span>
+                    {!isMe && p.followsMe && tag("Follows you")}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center" style={{ gap: "20px", margin: "14px 0 12px" }}>
+                {[[p.followerCount, "followers", "followers"], [p.followingCount, "following", "following"]].map(([value, label, kind]) => (
+                  <button key={kind} type="button" onClick={() => openFollowList(p.username, kind)} aria-label={`See ${label}`} className={TAP} style={{ background: "none", border: "none", padding: 0, minHeight: "40px", fontFamily: sans, fontSize: "12.5px", color: palette.textMuted, whiteSpace: "nowrap" }}>
+                    <b style={{ color: palette.text, fontWeight: 600 }}>{(value || 0).toLocaleString()}</b> {label}
+                  </button>
+                ))}
+                <span style={{ fontFamily: sans, fontSize: "12.5px", color: palette.textMuted, whiteSpace: "nowrap" }}>
+                  <b style={{ color: palette.text, fontWeight: 600 }}>{(p.postCount || 0).toLocaleString()}</b> {p.postCount === 1 ? "post" : "posts"}
+                </span>
+              </div>
+
+              {isMe ? (
+                !bioEditing && (
+                  <div className="flex" style={{ gap: "8px" }}>
+                    <button type="button" onClick={() => { setBioDraft(p.bio || ""); setBioEditing(true); }} className={`flex items-center justify-center gap-1.5 ${TAP}`} style={btn(true, false)}>
+                      <Pencil size={14} /> Edit bio
+                    </button>
+                    <button type="button" onClick={() => setProfileComposerOpen(true)} className={`flex items-center justify-center gap-1.5 ${TAP}`} style={btn(false, false)}>
+                      <Plus size={15} /> New post
+                    </button>
+                  </div>
+                )
+              ) : (
+                <div className="flex" style={{ gap: "8px" }}>
+                  <button type="button" onClick={() => toggleFollowMember(p.username, !!p.isFollowedByMe)} disabled={followBusy} className={TAP} style={btn(!p.isFollowedByMe, followBusy)}>
+                    {p.isFollowedByMe ? "Following" : p.followsMe ? "Follow back" : "Follow"}
+                  </button>
+                </div>
+              )}
+
+              <div className="flex" role="tablist" aria-label="Profile sections" style={{ margin: "16px 0 4px", padding: "3px", background: palette.surface, border: `1px solid ${palette.border}`, borderRadius: "12px" }}>
+                {sections.map(([id, label]) => {
+                  const on = tab === id;
+                  return (
+                    <button key={id} type="button" role="tab" aria-selected={on} onClick={() => setProfileSubTab(id)} className={TAP} style={{ flex: 1, height: "40px", borderRadius: "9px", fontFamily: sans, fontSize: "14px", fontWeight: 500, textAlign: "center", background: on ? palette.text : "transparent", color: on ? palette.bg : palette.textMuted, border: "none" }}>
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          );
+
           const bioBlock = (
             <>
               {isMe && bioEditing ? (
-                <div className="mt-2">
+                <div style={{ marginTop: "14px" }}>
                   <textarea
                     value={bioDraft}
                     onChange={(e) => setBioDraft(e.target.value.slice(0, 160))}
                     rows={3}
                     autoFocus
                     placeholder="Tell people what you trade and how you think about risk…"
-                    className="w-full rounded-xl px-3 py-2 outline-none"
-                    style={{ background: palette.field, border: `1px solid ${palette.border}`, color: palette.text, fontSize: "13px", fontFamily: sans, resize: "none", lineHeight: 1.45, maxWidth: isDesktop ? "360px" : "none" }}
+                    className="w-full outline-none"
+                    style={{ display: "block", background: palette.surface, border: `1px solid ${palette.border}`, borderRadius: "12px", padding: "10px 12px", color: palette.text, fontSize: "14px", fontFamily: sans, resize: "none", lineHeight: 1.45 }}
                   />
-                  <div className="flex items-center justify-between mt-1.5" style={{ maxWidth: isDesktop ? "360px" : "none" }}>
-                    <span style={{ color: palette.textFaint, fontSize: "11px", fontFamily: mono }}>{bioDraft.length}/160</span>
+                  <div className="flex items-center justify-between" style={{ marginTop: "8px" }}>
+                    <span style={{ color: palette.textMuted, fontSize: "12px", fontFamily: sans }}>{bioDraft.length}/160</span>
                     <div className="flex items-center gap-2">
-                      <button type="button" onClick={() => setBioEditing(false)} className={TAP} style={{ ...pill(false, false), height: "30px", padding: "0 14px" }}>Cancel</button>
-                      <button type="button" onClick={saveProfileBio} disabled={bioSaving} className={TAP} style={{ ...pill(true, bioSaving), height: "30px", padding: "0 16px" }}>
+                      <button type="button" onClick={() => setBioEditing(false)} className={TAP} style={pill(false, false)}>Cancel</button>
+                      <button type="button" onClick={saveProfileBio} disabled={bioSaving} className={TAP} style={pill(true, bioSaving)}>
                         {bioSaving ? "Saving…" : "Save"}
                       </button>
                     </div>
                   </div>
                 </div>
               ) : p.bio ? (
-                <p className="mt-1.5" style={{ color: palette.text, fontSize: "13.5px", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{p.bio}</p>
+                <p style={{ margin: "14px 0 4px", fontFamily: sans, fontSize: "14px", lineHeight: 1.5, color: palette.text, whiteSpace: "pre-wrap" }}>{p.bio}</p>
               ) : isMe ? (
-                <p className="mt-1.5" style={{ color: palette.textFaint, fontSize: "12.5px" }}>Add a short bio so people know who you are.</p>
+                <p style={{ margin: "14px 0 4px", fontFamily: sans, fontSize: "14px", color: palette.textMuted }}>Add a short bio so people know who you are.</p>
               ) : null}
-              {joinedText && <p className="mt-1.5" style={{ color: palette.textFaint, fontSize: "12px" }}>Joined {joinedText}</p>}
+              {profileError && <p style={{ marginTop: "8px", fontFamily: sans, fontSize: "12px", color: palette.red }}>{profileError}</p>}
+            </>
+          );
+
+          const overviewPanel = (
+            <>
+              {bioBlock}
+              {lb("About")}
+              {joinedText && rowItem("Member since", joinedText)}
+              {rowItem("Status", p.isOnline ? "Online" : "Offline", p.isOnline ? palette.green : undefined)}
+              {rowItem("Verified P&L", p.verifiedPnl ? "Yes" : "Not verified", p.verifiedPnl ? palette.green : undefined)}
               {!isMe && mutuals.length > 0 && (
-                <p className="mt-2" style={{ color: palette.textMuted, fontSize: "12px" }}>
+                <div style={{ padding: "12px 0", borderBottom: `1px solid ${palette.border}`, fontFamily: sans, fontSize: "14px", color: palette.textMuted }}>
                   Followed by{" "}
                   {mutuals.slice(0, 2).map((name, i) => (
                     <span key={name}>
                       {i > 0 && ", "}
-                      <button type="button" onClick={() => openCommunityMemberProfile(name)} className={TAP} style={{ background: "none", border: "none", padding: 0, color: palette.text, fontWeight: 700, fontSize: "12px" }}>{name}</button>
+                      <button type="button" onClick={() => openCommunityMemberProfile(name)} className={TAP} style={{ background: "none", border: "none", padding: 0, color: palette.text, fontWeight: 600, fontSize: "14px" }}>{name}</button>
                     </span>
                   ))}
                   {mutuals.length > 2 && ` and ${mutuals.length - 2} other${mutuals.length - 2 === 1 ? "" : "s"} you follow`}
-                </p>
+                </div>
               )}
-              {profileError && <p className="text-xs mt-2" style={{ color: palette.red }}>{profileError}</p>}
             </>
           );
-          const actionButton = isMe ? (
-            !bioEditing && (
-              <button type="button" onClick={() => { setBioDraft(p.bio || ""); setBioEditing(true); }} className={`flex items-center justify-center gap-1.5 ${TAP}`} style={{ ...pill(false, false), flex: isDesktop ? "none" : 1 }}>
-                <Pencil size={12} /> Edit bio
-              </button>
-            )
-          ) : (
-            <button type="button" onClick={() => toggleFollowMember(p.username, !!p.isFollowedByMe)} disabled={followBusy} className={TAP} style={{ ...pill(!p.isFollowedByMe, followBusy), minWidth: "96px", flex: isDesktop ? "none" : 1 }}>
-              {p.isFollowedByMe ? "Following" : p.followsMe ? "Follow back" : "Follow"}
-            </button>
+
+          const statsPanel = (
+            <>
+              {lb("Equity curve, across every group", curve.length ? (curve[curve.length - 1] >= 0 ? "Up" : "Down") : null)}
+              {curveLine ? (
+                <svg viewBox="0 0 330 110" preserveAspectRatio="none" role="img" aria-label="Equity curve" style={{ display: "block", width: "100%", height: isDesktop ? "160px" : "110px" }}>
+                  <line x1="0" x2="330" y1={cy(0)} y2={cy(0)} stroke={palette.border} strokeDasharray="4 4" />
+                  <polygon points={`0,${cy(0)} ${curveLine} 330,${cy(0)}`} fill={palette.green} fillOpacity="0.12" />
+                  <polyline points={curveLine} fill="none" stroke={palette.green} strokeWidth="2" vectorEffect="non-scaling-stroke" />
+                </svg>
+              ) : (
+                <div className="flex items-center justify-center" style={{ height: "110px", color: palette.textMuted, fontFamily: sans, fontSize: "13px" }}>No public curve available</div>
+              )}
+              {lb("Performance")}
+              {rowItem("P&L", fmtPct(stats.pnlPct), pnlColor)}
+              {rowItem("Win rate", stats.winRate == null || !Number.isFinite(stats.winRate) ? "—" : `${Math.round(stats.winRate)}%`)}
+              {rowItem("Trades logged", stats.trades == null ? "—" : String(stats.trades))}
+              {rowItem("Average R", stats.avgR == null ? "—" : stats.avgR.toFixed(1))}
+              {rowItem("Win streak", stats.streak == null ? "—" : `${stats.streak} ${stats.streak === 1 ? "trade" : "trades"}`)}
+              {!isMe && !stats.statsPublic && <p style={{ marginTop: "14px", fontFamily: sans, fontSize: "12px", color: palette.textMuted }}>{p.username} hasn't shared public performance stats.</p>}
+            </>
           );
-          const statsRow = (
-            <div className="flex items-center gap-4 mt-2.5">
-              {[[p.followingCount, "Following", "following"], [p.followerCount, "Followers", "followers"]].map(([value, label, kind]) => (
-                <button key={kind} type="button" onClick={() => openFollowList(p.username, kind)} className={TAP} style={{ background: "none", border: "none", padding: 0, fontSize: "13px", color: palette.textMuted }}>
-                  <span style={{ color: palette.text, fontWeight: 800 }}>{value || 0}</span> {label}
-                </button>
-              ))}
-            </div>
-          );
-          const nameRow = (
-            <div className="flex items-center gap-2 flex-wrap">
-              <span style={{ color: palette.text, fontSize: isDesktop ? "20px" : "18px", fontWeight: 800 }}><PlanName name={p.username} /></span>
-              {p.verifiedPnl && <span style={chip}>Verified P&L</span>}
-              {!isMe && p.followsMe && <span style={{ color: palette.textMuted, background: palette.field, border: `1px solid ${palette.border}`, borderRadius: "999px", padding: "2px 8px", fontSize: "10.5px", fontWeight: 600 }}>Follows you</span>}
-            </div>
-          );
-          const postsGridGap = "2px";
-          const postsGrid = !profilePostsLoaded ? (
-            <p className="text-xs px-4 py-5" style={{ color: palette.textFaint }}>Loading posts…</p>
+
+          const postsPanel = !profilePostsLoaded ? (
+            <p style={{ padding: "24px 0", fontFamily: sans, fontSize: "14px", color: palette.textMuted }}>Loading posts…</p>
           ) : profilePosts.length === 0 ? (
-            <div className="flex flex-col items-center text-center px-6 py-10">
-              <span className="flex items-center justify-center rounded-full mb-3" style={{ width: "48px", height: "48px", background: `${palette.gold}14`, border: `1px solid ${palette.gold}33` }}>
-                <LayoutGrid size={20} style={{ color: palette.gold }} />
-              </span>
-              <p className="text-xs" style={{ color: palette.textFaint, maxWidth: "240px" }}>
-                {isMe ? "Share your first post and it'll show up here." : `${p.username} hasn't posted yet.`}
+            <div className="flex flex-col items-center text-center" style={{ padding: "36px 0" }}>
+              <p style={{ fontFamily: sans, fontSize: "14px", color: palette.textMuted, maxWidth: "260px" }}>
+                {isMe ? "No posts yet. Share your first post and it'll show up here." : `${p.username} hasn't posted yet.`}
               </p>
               {isMe && (
-                <button type="button" onClick={() => setProfileComposerOpen(true)} className={`flex items-center gap-1.5 mt-3 ${TAP}`} style={pill(true, false)}>
-                  <Plus size={13} /> Share a post
+                <button type="button" onClick={() => setProfileComposerOpen(true)} className={`flex items-center justify-center gap-1.5 ${TAP}`} style={{ ...btn(true, false), flex: "none", padding: "0 20px", marginTop: "14px" }}>
+                  <Plus size={15} /> Share a post
                 </button>
               )}
             </div>
           ) : (
             <>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: postsGridGap, paddingTop: "0" }}>
-                {profilePosts.map((post) => {
-                  return (
-                    <button key={post.id} type="button" onClick={() => setProfilePostOpen(post)} className={`group ${TAP}`} aria-label="Open post" style={{ position: "relative", aspectRatio: "3 / 4", overflow: "hidden", padding: 0, border: "none", borderRadius: "0", background: palette.field, textAlign: "left", display: "block" }}>
-                      {post.image ? (
-                        <img src={post.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                      ) : (
-                        <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", padding: isDesktop ? "18px" : "10px", background: avatarStyleFor(post.author).bg, boxShadow: "inset 0 0 0 999px rgba(5,7,12,0.45)", color: "#FFFFFF", fontSize: isDesktop ? "14px" : "11.5px", fontWeight: 600, lineHeight: 1.4 }}>
-                          <span style={{ display: "-webkit-box", WebkitLineClamp: isDesktop ? 6 : 5, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{post.text}</span>
-                        </span>
-                      )}
-                      {isDesktop && (
-                        <span className="absolute inset-0 flex items-center justify-center gap-6 opacity-0 group-hover:opacity-100" style={{ background: "rgba(5,7,12,0.5)", transition: "opacity 0.15s", color: "#fff", fontSize: "16px", fontWeight: 700, fontFamily: sans }}>
-                          <span className="flex items-center gap-1.5"><Heart size={19} fill="#FFFFFF" color="#FFFFFF" /> {post.likeCount || 0}</span>
-                          <span className="flex items-center gap-1.5"><MessageCircle size={19} fill="#FFFFFF" color="#FFFFFF" /> {post.commentCount || 0}</span>
-                        </span>
-                      )}
+              {profilePosts.map((post) => (
+                <article key={post.id} style={{ background: palette.surface, border: `1px solid ${palette.border}`, borderRadius: "16px", padding: "16px", marginTop: "12px" }}>
+                  <div className="flex items-center" style={{ gap: "10px" }}>
+                    <Avatar name={post.author || p.username} size={40} src={avatarSrc} />
+                    <div className="flex flex-col min-w-0" style={{ lineHeight: 1.3 }}>
+                      <b className="truncate" style={{ fontFamily: sans, fontSize: "14px", fontWeight: 600, color: palette.text }}>{post.author || p.username}</b>
+                      <span style={{ fontFamily: sans, fontSize: "12px", color: palette.textMuted }}>{feedTimeAgo(post.ts)}</span>
+                    </div>
+                  </div>
+                  <button type="button" onClick={() => setProfilePostOpen(post)} className={`block w-full text-left ${TAP}`} style={{ background: "none", border: "none", padding: 0, marginTop: "10px" }} aria-label="Open post">
+                    {post.text && (
+                      <div style={{ fontFamily: sans, fontSize: "14px", lineHeight: 1.5, color: palette.text, display: "-webkit-box", WebkitLineClamp: 5, WebkitBoxOrient: "vertical", overflow: "hidden", whiteSpace: "pre-wrap" }}>{post.text}</div>
+                    )}
+                    {post.image && (
+                      <img src={post.image} alt="" style={{ display: "block", width: "100%", maxHeight: "360px", objectFit: "cover", borderRadius: "12px", marginTop: post.text ? "10px" : 0, border: `1px solid ${palette.border}` }} />
+                    )}
+                  </button>
+                  <div className="flex items-center" style={{ gap: "4px", marginTop: "12px", paddingTop: "8px", borderTop: `1px solid ${palette.border}` }}>
+                    <button type="button" onClick={() => likeProfilePost(post.id)} className={`flex items-center ${TAP}`} aria-label={post.liked ? "Unlike" : "Like"} style={{ gap: "6px", minHeight: "40px", padding: "0 10px", borderRadius: "10px", background: post.liked ? `${palette.gold}29` : "transparent", border: "none", color: post.liked ? palette.gold : palette.textMuted, fontFamily: sans, fontSize: "13px", fontWeight: 500 }}>
+                      <Heart size={16} fill={post.liked ? "currentColor" : "none"} /> {post.likeCount || 0}
                     </button>
-                  );
-                })}
-              </div>
+                    <button type="button" onClick={() => setProfilePostOpen(post)} className={`flex items-center ${TAP}`} aria-label="Open comments" style={{ gap: "6px", minHeight: "40px", padding: "0 10px", borderRadius: "10px", background: "transparent", border: "none", color: palette.textMuted, fontFamily: sans, fontSize: "13px", fontWeight: 500 }}>
+                      <MessageCircle size={16} /> {post.commentCount || 0}
+                    </button>
+                  </div>
+                </article>
+              ))}
               {profilePostsNext && (
-                <div className="flex justify-center py-4">
-                  <button type="button" onClick={loadMoreProfilePosts} className={TAP} style={pill(false, false)}>Load more</button>
-                </div>
+                <button type="button" onClick={loadMoreProfilePosts} className={TAP} style={{ ...btn(false, false), width: "100%", flex: "none", marginTop: "14px" }}>Load more</button>
               )}
             </>
           );
-          const statsPanel = (
-            <div className="px-4 pt-4" style={{ paddingLeft: isDesktop ? 0 : undefined, paddingRight: isDesktop ? 0 : undefined, paddingTop: isDesktop ? "32px" : undefined }}>
-              <div className="grid gap-2.5 mb-3.5" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
-                {statTiles.map(([label, value, color]) => (
-                  <div key={label} className="rounded-xl p-3 text-center" style={{ background: palette.field, border: `1px solid ${palette.border}` }}>
-                    <div style={{ color: palette.textFaint, fontSize: "10.5px", marginBottom: "5px" }}>{label}</div>
-                    <div style={{ color, fontSize: isDesktop ? "24px" : "16px", fontWeight: 800 }}>{value}</div>
-                  </div>
-                ))}
-              </div>
-              <div className="rounded-2xl p-3.5" style={{ background: palette.field, border: `1px solid ${palette.border}` }}>
-                <div style={{ color: palette.textMuted, fontSize: "11px", marginBottom: "7px" }}>Equity curve (across every group)</div>
-                {curvePoints ? (
-                  <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: "100%", height: isDesktop ? "220px" : "110px", display: "block" }}>
-                    <polyline points={curvePoints} fill="none" stroke={palette.green} strokeWidth="2.4" vectorEffect="non-scaling-stroke" />
-                  </svg>
-                ) : (
-                  <div className="flex items-center justify-center" style={{ height: isDesktop ? "220px" : "110px", color: palette.textFaint, fontSize: "11px" }}>No public curve available</div>
-                )}
-              </div>
-              {!isMe && !stats.statsPublic && <p className="text-xs mt-3" style={{ color: palette.textFaint }}>{p.username} hasn't shared public performance stats.</p>}
-            </div>
-          );
-          // Icon-only tabs across the full width, active one underlined — like Instagram.
-          const tabBar = (
-            <div className="flex" role="tablist" aria-label="Profile sections" style={{ borderBottom: `1px solid ${palette.border}` }}>
-              {[["posts", "Posts", LayoutGrid], ["stats", "Stats", TrendingUp]].map(([id, label, Icon]) => {
-                const on = profileSubTab === id;
-                return (
-                  <button key={id} type="button" role="tab" aria-selected={on} aria-label={label} title={label} onClick={() => setProfileSubTab(id)} className={`flex-1 flex items-center justify-center ${TAP}`} style={{ position: "relative", height: isDesktop ? "54px" : "48px", background: "none", border: "none", color: on ? palette.text : palette.textFaint }}>
-                    <Icon size={isDesktop ? 24 : 22} strokeWidth={on ? 2.4 : 2} />
-                    <span aria-hidden="true" style={{ position: "absolute", bottom: "-1px", left: isDesktop ? "50%" : 0, right: isDesktop ? "auto" : 0, width: isDesktop ? "96px" : "auto", transform: isDesktop ? "translateX(-50%)" : "none", height: "2px", background: palette.text, opacity: on ? 1 : 0, transition: "opacity 0.15s" }} />
-                  </button>
-                );
-              })}
-            </div>
-          );
 
-          if (isDesktop) {
-            // Instagram-web layout: big ringed avatar left; username + actions, then
-            // "N posts · N followers · N following", then bio on the right, then the tab bar
-            // and a tight 3-column grid. Trading numbers live only on the Stats tab.
-            return shell(
-              <div style={{ paddingBottom: "64px" }}>
-                <div className="flex items-start" style={{ gap: "80px", padding: "44px 24px 36px 40px" }}>
-                  <div style={{ width: "160px", flexShrink: 0 }}>{avatarBlock}</div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <span style={{ color: palette.text, fontSize: "22px", fontWeight: 600, marginRight: "6px" }}><PlanName name={p.username} /></span>
-                      {actionButton}
-                      {isMe && (
-                        <button type="button" onClick={() => setProfileComposerOpen(true)} className={`flex items-center gap-1.5 ${TAP}`} style={pill(true, false)}>
-                          <Plus size={13} /> New post
-                        </button>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-10" style={{ marginTop: "20px", fontSize: "15px", color: palette.textMuted }}>
-                      <span><span style={{ color: palette.text, fontWeight: 800 }}>{p.postCount || 0}</span> {p.postCount === 1 ? "post" : "posts"}</span>
-                      {[[p.followerCount, "followers", "followers"], [p.followingCount, "following", "following"]].map(([value, label, kind]) => (
-                        <button key={kind} type="button" onClick={() => openFollowList(p.username, kind)} className={TAP} style={{ background: "none", border: "none", padding: 0, fontSize: "15px", color: palette.textMuted, fontFamily: sans }}>
-                          <span style={{ color: palette.text, fontWeight: 800 }}>{value || 0}</span> {label}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="flex items-center gap-2 flex-wrap" style={{ marginTop: "14px" }}>
-                      {p.verifiedPnl && <span style={chip}>Verified P&L</span>}
-                      {!isMe && p.followsMe && <span style={{ color: palette.textMuted, background: palette.field, border: `1px solid ${palette.border}`, borderRadius: "999px", padding: "2px 8px", fontSize: "10.5px", fontWeight: 600 }}>Follows you</span>}
-                    </div>
-                    <div style={{ maxWidth: "440px" }}>{bioBlock}</div>
-                  </div>
-                </div>
-
-                
-                {tabBar}
-                <div>
-                  {profileSubTab === "posts" ? postsGrid : statsPanel}
-                </div>
-              </div>
-            );
-          }
-
-          // Mobile: Instagram layout — photo on the left, Posts / Followers / Following beside it,
-          // name + bio underneath, then a full-width action row, tabs, and the grid.
           return shell(
-            <div className="flex-1" style={{ overflowY: "auto", minHeight: 0, paddingBottom: "max(28px, env(safe-area-inset-bottom))" }}>
-              <div className="flex items-center gap-4 px-4" style={{ paddingTop: "18px" }}>
-                {avatarBlock}
-                <div className="flex flex-1 items-center justify-around">
-                  {[[p.postCount, "Posts", null], [p.followerCount, "Followers", "followers"], [p.followingCount, "Following", "following"]].map(([value, label, kind]) => (
-                    <button key={label} type="button" disabled={!kind} onClick={() => kind && openFollowList(p.username, kind)} className={`flex flex-col items-center ${kind ? TAP : ""}`} style={{ background: "none", border: "none", padding: "2px 4px", cursor: kind ? "pointer" : "default" }}>
-                      <span style={{ color: palette.text, fontSize: "18px", fontWeight: 800, lineHeight: 1.2 }}>{(value || 0).toLocaleString()}</span>
-                      <span style={{ color: palette.textMuted, fontSize: "12.5px", marginTop: "1px" }}>{label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="px-4" style={{ paddingTop: "12px" }}>
-                {nameRow}
-                {bioBlock}
-              </div>
-
-              <div className="flex items-center gap-2 px-4" style={{ paddingTop: "14px", paddingBottom: "16px" }}>
-                {actionButton}
-                {isMe && !bioEditing && (
-                  <button type="button" onClick={() => setProfileComposerOpen(true)} className={`flex items-center justify-center gap-1.5 ${TAP}`} style={{ ...pill(true, false), flex: 1 }}>
-                    <Plus size={14} /> New post
-                  </button>
-                )}
-              </div>
-
-              
-              {tabBar}
-
-              {profileSubTab === "posts" ? postsGrid : statsPanel}
-            </div>
+            <>
+              {headerBlock}
+              {tab === "overview" ? overviewPanel : tab === "stats" ? statsPanel : postsPanel}
+            </>
           );
         })()}
 
