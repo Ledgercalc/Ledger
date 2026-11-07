@@ -1936,17 +1936,28 @@ export default function CommunityTab(props) {
           const actionsRow = () => (isMe ? (
             !bioEditing && (
               <div className="flex" style={{ gap: "8px" }}>
-                <button type="button" onClick={() => openEditProfile()} className={`flex items-center justify-center gap-1.5 ${TAP}`} style={btn(true, false)}>
+                <button type="button" onClick={() => openEditProfile()} className={`flex items-center justify-center gap-1.5 ${TAP}`} style={isDesktop ? { ...btn(true, false), flex: "none", width: "150px" } : btn(true, false)}>
                   <Pencil size={14} /> Edit profile
                 </button>
                 <button
                   type="button"
                   onClick={() => {
                     const txt = `${p.username} (@${p.username}) on Ledger.${p.role ? ` ${p.role}.` : ""}${stats.disciplineScore != null ? ` Discipline ${Math.round(stats.disciplineScore)}%` : ""}${stats.journalStreak != null ? `${stats.disciplineScore != null ? "," : ""} ${stats.journalStreak} day journal streak.` : stats.disciplineScore != null ? "." : ""}`;
-                    try { navigator.clipboard.writeText(txt).then(() => { setCopiedProfile(true); setTimeout(() => setCopiedProfile(false), 1600); }, () => {}); } catch (e) {}
+                    const done = () => { setCopiedProfile(true); setTimeout(() => setCopiedProfile(false), 1600); };
+                    const fallback = () => {
+                      try {
+                        const ta = document.createElement("textarea");
+                        ta.value = txt; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.opacity = "0";
+                        document.body.appendChild(ta); ta.select();
+                        const ok = document.execCommand("copy");
+                        document.body.removeChild(ta);
+                        if (ok) done();
+                      } catch (e) { /* nothing more to try */ }
+                    };
+                    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, fallback); else fallback();
                   }}
                   className={`flex items-center justify-center gap-1.5 ${TAP}`}
-                  style={btn(false, false)}
+                  style={isDesktop ? { ...btn(false, false), flex: "none", width: "150px" } : btn(false, false)}
                 >
                   <Copy size={14} /> {copiedProfile ? "Copied" : "Copy summary"}
                 </button>
@@ -1959,17 +1970,6 @@ export default function CommunityTab(props) {
               </button>
             </div>
           ));
-
-          const statTiles = (compact) => (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", margin: compact ? 0 : "20px 0 18px", minWidth: compact ? "330px" : undefined, border: `1px solid ${palette.border}`, borderRadius: "14px", background: palette.field, overflow: "hidden" }}>
-              {[[p.followerCount, "Followers", () => openFollowList(p.username, "followers")], [p.followingCount, "Following", () => openFollowList(p.username, "following")], [p.postCount, p.postCount === 1 ? "Post" : "Posts", () => setProfileSubTab("posts")]].map(([value, label, go], i) => (
-                <button key={label} type="button" onClick={go} aria-label={`See ${label}`} className={TAP} style={{ padding: "12px 6px", textAlign: "center", background: "transparent", border: "none", borderLeft: i ? `1px solid ${palette.border}` : "none", fontFamily: sans }}>
-                  <div style={{ fontSize: "20px", fontWeight: 600, color: palette.text, lineHeight: 1.2 }}>{(value || 0).toLocaleString()}</div>
-                  <div style={{ fontSize: "12px", color: palette.textMuted, marginTop: "2px" }}>{label}</div>
-                </button>
-              ))}
-            </div>
-          );
 
           // Phone: compact header. (Bio and Description are shown in the About block below.)
           const headerBlock = (
@@ -1987,7 +1987,7 @@ export default function CommunityTab(props) {
                   </div>
                 </div>
               </div>
-              {isDesktop ? statTiles(false) : countsRow("20px", "14px 0 12px")}
+              {countsRow("20px", "14px 0 12px")}
               {actionsRow()}
               {!isDesktop && tabsBar}
             </>
@@ -2370,10 +2370,9 @@ export default function CommunityTab(props) {
                   <span>{`@${p.username}`}{joinedText ? `, Joined ${joinedText}` : ""}</span>
                   {!isMe && p.followsMe && tag("Follows you")}
                 </div>
-                {(p.role || p.tagline) && <div style={{ fontFamily: sans, fontSize: "14.5px", fontWeight: 500, color: palette.text, marginTop: "10px" }}>{p.role || p.tagline}</div>}
+                {countsRow("28px", "6px 0 0")}
               </div>
-              {statTiles(true)}
-              <div style={{ minWidth: "280px" }}>{actionsRow()}</div>
+              <div style={{ flex: "none" }}>{actionsRow()}</div>
             </section>
           );
           const desktopOverview = grid12(
