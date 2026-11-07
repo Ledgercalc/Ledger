@@ -1,12 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { palette, sans } from "../lib/theme.js";
-import RoomSheet from "../components/RoomCall.jsx";
 import { communityApi } from "../api/community.js";
+import RoomSheet from "../components/RoomCall.jsx";
+import PostComposer from "../components/PostComposer.jsx";
+import { BOARDS, decodePost } from "../lib/ledgerPost.js";
 
-// Ledger-style Community (Feed / Rooms / Ranks / Mentor), ported from the tredzi2.html reference.
-// Feed, Rooms and Mentor run on the same demo data as the reference; "You" in Ranks uses your real discipline score.
-
-const DEMO = {"T":[{"id":1,"day":"Today","t":"09:20","sym":"EUR/USD","side":1,"setup":"Breakout","e":1.085,"s":1.0812,"tp":1.093,"x":null,"c":1.0871,"z":50000,"emo":"Calm","rules":[1,1,0],"mist":[],"note":"","rate":0,"j":0},{"id":2,"day":"Today","t":"10:05","sym":"XAU/USD","side":-1,"setup":"Reversal","e":2412,"s":2420,"tp":2392,"x":null,"c":2415.5,"z":10,"emo":"Focused","rules":[1,1,1],"mist":[],"note":"","rate":0,"j":0},{"id":12,"day":"Sun 1 Nov","t":"11:40","sym":"BTC/USD","side":1,"setup":"Pullback","e":67200,"s":66800,"tp":68400,"x":68050,"z":0.5,"emo":"Calm","rules":[1,1,1],"mist":[],"note":"Weekend liquidity was thin, so I kept size small.","rate":4,"j":1},{"id":10,"day":"Sat 31 Oct","t":"16:10","sym":"ETH/USD","side":-1,"setup":"Reversal","e":2480,"s":2510,"tp":2400,"x":2512,"z":4,"emo":"Rushed","rules":[0,1,0],"mist":["Early entry"],"note":"","rate":0,"j":0},{"id":11,"day":"Sat 31 Oct","t":"10:25","sym":"BTC/USD","side":1,"setup":"Breakout","e":67600,"s":67300,"tp":68500,"x":68200,"z":0.5,"emo":"Focused","rules":[1,1,1],"mist":[],"note":"Broke the Friday high on volume and took profit at the first target.","rate":4,"j":1},{"id":3,"day":"Fri 30 Oct","t":"09:45","sym":"EUR/USD","side":1,"setup":"Breakout","e":1.085,"s":1.0812,"tp":1.093,"x":1.0928,"z":60000,"emo":"Calm","rules":[1,1,0],"mist":[],"note":"Clean break above the Asian range. I nudged the stop to breakeven too early.","rate":3,"j":1},{"id":4,"day":"Fri 30 Oct","t":"14:20","sym":"GBP/JPY","side":-1,"setup":"Reversal","e":191.4,"s":191.9,"tp":190.4,"x":191.15,"z":1000,"emo":"Focused","rules":[1,1,1],"mist":[],"note":"Took profit early. Fine, but left R on the table.","rate":4,"j":1},{"id":5,"day":"Fri 30 Oct","t":"15:05","sym":"NAS100","side":1,"setup":"Pullback","e":20120,"s":20090,"tp":20200,"x":20082,"z":10,"emo":"Rushed","rules":[0,1,0],"mist":["Moved stop"],"note":"","rate":0,"j":0},{"id":6,"day":"Thu 29 Oct","t":"10:10","sym":"XAU/USD","side":1,"setup":"Breakout","e":2395,"s":2388,"tp":2409,"x":2409,"z":20,"emo":"Calm","rules":[1,1,1],"mist":[],"note":"Textbook. Waited for the close, held to target.","rate":5,"j":1},{"id":7,"day":"Thu 29 Oct","t":"11:30","sym":"EUR/USD","side":-1,"setup":"Pullback","e":1.089,"s":1.0915,"tp":1.083,"x":1.092,"z":40000,"emo":"Anxious","rules":[0,1,1],"mist":["Early entry"],"note":"","rate":0,"j":0},{"id":8,"day":"Wed 28 Oct","t":"09:30","sym":"NAS100","side":1,"setup":"Breakout","e":20010,"s":19985,"tp":20060,"x":20060,"z":10,"emo":"Focused","rules":[1,1,1],"mist":[],"note":"Volume confirmed the break.","rate":4,"j":1},{"id":9,"day":"Wed 28 Oct","t":"13:15","sym":"GBP/JPY","side":1,"setup":"Reversal","e":190.8,"s":190.4,"tp":191.6,"x":190.6,"z":1000,"emo":"Tilted","rules":[1,0,1],"mist":["Oversized"],"note":"Size was too big after the morning win.","rate":2,"j":1}],"F":[{"h":"@nightowl_fx","board":"Setups","title":"GBP/JPY short, +1.8R","sym":"GBP/JPY","su":"Retest","side":-1,"e":191.4,"s":191.9,"tp":190.4,"x":190.5,"z":1,"r":1.8,"rules":[1,1,1],"age":120,"ago":"2h","hc":42,"note":"Waited for the retest, no chasing. Rules 3 of 3.","cmts":[{"h":"@quietbreakout","t":"Did you scale out at 1R?"},{"h":"@maya_r","t":"Clean. The retest is where most people chase."},{"h":"@tape_reader","t":"What was your invalidation?"}]},{"h":"@maya_r","board":"Reviews","title":"XAU/USD long, +0.6R. Should I have held through the news?","sym":"XAU/USD","su":"Pullback","side":1,"e":2395,"s":2388,"tp":2409,"x":2399.2,"z":1,"r":0.6,"rules":[1,1,0],"age":300,"ago":"5h","hc":18,"note":"My stop was fine, but I held through the data release and got lucky. Would you have flattened?","cmts":[{"h":"@nightowl_fx","t":"I flatten before high-impact news. Less stress."},{"h":"@quietbreakout","t":"Your stop was fine. The hold was the risk."}]},{"h":"@quietbreakout","board":"Psychology","title":"How I stopped revenge trading after a stop-out","age":600,"ago":"10h","hc":67,"note":"I write one line in my journal before I touch the next trade. It takes 30 seconds and it works.","cmts":[{"h":"@maya_r","t":"This is the loss I want to see more of."},{"h":"@tape_reader","t":"Stealing this rule."}]},{"h":"@tape_reader","board":"Risk","title":"Do you cut size after a big win?","age":1440,"ago":"1d","hc":11,"note":"I keep oversizing after a good morning. What rule do you use to stay level?","cmts":[{"h":"@nightowl_fx","t":"Fixed risk per trade, always 1%."}]}],"PF":{"@nightowl_fx":{"n":"Night Owl","role":"London session reversals","bio":"Journaling since 2024. I trade less than I used to, and it shows.","joined":"Joined Jan 2025","ds":83,"st":21,"fo":412,"fg":96,"tc":214,"pf":"1.9","aw":"+1.7R","al":"−0.9R","bs":9,"badges":["7-day streak","30-day streak","Process first"],"su":[["Retest",68],["Reversal",54]],"ex":"+0.5R","wr":"54%","risk":"0.5%","mk":["FX"],"sty":["Day trader"],"ses":"London"},"@maya_r":{"n":"Maya R.","role":"Gold and FX pullbacks","bio":"Gold and FX pullback trader. I review trades every Sunday.","joined":"Joined Mar 2025","ds":92,"st":34,"fo":268,"fg":121,"tc":342,"pf":"2.3","aw":"+1.9R","al":"−0.8R","bs":14,"badges":["7-day streak","30-day streak","No revenge week","Strict stops"],"su":[["Pullback",61],["Breakout",48]],"ex":"+0.7R","wr":"58%","risk":"0.75%","mk":["Gold","FX"],"sty":["Swing","Day trader"],"ses":"New York"},"@quietbreakout":{"n":"Quiet Breakout","role":"Index breakouts","bio":"Small size, strict stops, one trade at a time.","joined":"Joined Jun 2025","ds":79,"st":12,"fo":951,"fg":58,"tc":167,"pf":"1.6","aw":"+2.1R","al":"−1.0R","bs":7,"badges":["7-day streak","Strict stops","First 100 trades"],"su":[["Breakout",52]],"ex":"+0.4R","wr":"47%","risk":"0.5%","mk":["Indices"],"sty":["Day trader"],"ses":"New York"},"@tape_reader":{"n":"Tape Reader","role":"Volume and tape reading","bio":"I watch volume and trade less.","joined":"Joined Oct 2026","ds":71,"st":5,"fo":137,"fg":203,"tc":48,"pf":"1.2","aw":"+1.4R","al":"−1.0R","bs":5,"badges":["7-day streak"],"su":[["Retest",51]],"ex":"+0.2R","wr":"51%","risk":"1%","mk":["Stocks","Indices"],"sty":["Scalper"],"ses":"New York"}},"RO":[{"t":"London open: levels and plans","k":"Audio","h":"@nightowl_fx","n":14,"min":23,"live":1},{"t":"Chart review: my worst trade","k":"Video","h":"@maya_r","n":6,"min":9,"live":1},{"t":"Silent focus, 45 minutes","k":"Focus","h":"@quietbreakout","n":23,"min":12,"live":1},{"t":"Sunday week review","k":"Audio","h":"@tape_reader","n":0,"at":"Sun 8 Nov, 18:00","live":0},{"t":"Journal night: weekly recap","k":"Video","h":"@nightowl_fx","n":0,"at":"Wed 4 Nov, 20:00","live":0}]};
 const CSS = `.lc button,.lc input,.lc textarea{font:inherit;color:inherit}
 .lc button{cursor:pointer;background:none;border:0;padding:0;text-align:left}
 .lc button:focus-visible,.lc input:focus-visible,.lc textarea:focus-visible{outline:2px solid var(--am);outline-offset:2px}
@@ -321,30 +319,47 @@ const Dots = () => (
   <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg>
 );
 
+const CSS_EXTRA = `
+.lc .pimg{display:block;width:100%;max-height:360px;object-fit:cover;border-radius:12px;margin-top:10px;border:1px solid var(--ln);cursor:pointer}
+.lc .tsm{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;padding:8px 12px;border:1px solid var(--ln);border-radius:12px;background:var(--s2);font-size:13px}
+.lc .tsm .t2{color:var(--t2)}
+.lc .jt{display:block;width:100%;text-align:left;margin-top:10px}
+@media (min-width:981px){
+.lc.lcd-feed{overflow:hidden!important}
+.lc.lcd-feed .lcin{height:100%;display:flex;flex-direction:column;box-sizing:border-box}
+.lc.lcd-feed .dkg{flex:1;min-height:0;align-items:stretch;grid-template-rows:minmax(0,1fr);margin-top:12px}
+.lc.lcd-feed .dkg>div,.lc.lcd-feed .dkg>aside{min-height:0;height:100%;overflow-y:auto;position:static;padding:0 4px 48px 0;scrollbar-width:thin}
+}
+.lc .shf button[disabled],.lc .btn[disabled]{opacity:.55}
+`;
 const num = (v) => +v || 0;
-const px = (v) => { v = num(v); return v >= 1000 ? v.toFixed(1) : v >= 100 ? v.toFixed(2) : v.toFixed(4); };
-const rr = (v) => `${v < 0 ? "\u2212" : "+"}${Math.abs(v).toFixed(1)}R`;
-const cl = (v) => (v >= 0 ? "g" : "r");
-const K = (t) => {
-  const d = t.side, risk = Math.abs(num(t.e) - num(t.s)) * num(t.z);
-  const p = t.x != null ? num(t.x) : (t.c != null ? num(t.c) : num(t.e));
-  const pnl = (p - num(t.e)) * d * num(t.z);
-  return { risk, pnl, r: risk ? pnl / risk : 0 };
-};
+const rrUnused = null; // eslint-disable-line
 const AGO = (m) => (m < 1 ? "Just now" : m < 60 ? `${Math.round(m)}m` : m < 1440 ? `${Math.floor(m / 60)}h` : `${Math.floor(m / 1440)}d`);
-const clk = (s) => `${Math.floor(s / 60)}:${(`0${s % 60}`).slice(-2)}`;
 const ini2 = (h) => String(h).replace("@", "").slice(0, 2).toUpperCase();
-const BCOL = { Setups: "var(--g)", Reviews: "var(--am)", Psychology: "#8B7CF6", Risk: "var(--r)" };
-const RC = { Audio: "var(--am)", Video: "var(--g)", Focus: "var(--t2)", "Check-in": "var(--am)" };
-const POOL = ["@nightowl_fx", "@maya_r", "@quietbreakout", "@tape_reader"];
-const MCAND = ["@maya_r", "@nightowl_fx", "@quietbreakout"];
-const RL = ["Waited for candle close", "Risk under 1%", "Held the stop"];
-const CHL = [["No revenge trades", "7 days, 128 joined", 3, 5], ["Journal every session", "10 days, 342 joined", 6, 10], ["Hold your stops", "5 days, 87 joined", 2, 5]];
-const NPT = [
-  { h: "@tape_reader", board: "Risk", title: "How do you size after three losses in a row?", note: "I keep wanting to size down hard after a bad run. What is your rule?" },
-  { h: "@nightowl_fx", board: "Psychology", title: "Journaling before the open changed my first hour", note: "Two lines on my plan before the session. I stopped taking the first impulse trade." },
-];
-const PF = DEMO.PF, TRADES = DEMO.T;
+const BCOL = { Setups: "var(--g)", Reviews: "var(--am)", Psychology: "#8B7CF6", Risk: "var(--r)", General: "var(--t2)" };
+const RC = { Audio: "var(--am)", Video: "var(--g)", Focus: "var(--t2)" };
+
+const authH = (t) => ({ Authorization: `Bearer ${t}` });
+const postOpts = (t, body) => ({ method: "POST", headers: { ...authH(t), "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+const lsGet = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k) || "null"); return v == null ? d : v; } catch (e) { return d; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage full or blocked */ } };
+const nice = (s) => String(s || "").replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+const dshort = (ts) => { try { return new Date(ts).toLocaleDateString(undefined, { day: "numeric", month: "short" }); } catch (e) { return ""; } };
+const isLong = (d) => /^(buy|long)/i.test(String(d || ""));
+const outcome = (pnl) => (pnl > 0 ? "Win" : pnl < 0 ? "Loss" : "BE");
+const ocl = (pnl) => (pnl > 0 ? "g" : pnl < 0 ? "r" : "t2");
+const GRADE_CL = { A: "g", B: "g", C: "am", D: "r" };
+const MTAGS = ["good_entry", "patient", "followed_plan", "good_risk", "early_exit", "moved_stop", "oversized", "no_setup", "chased", "revenge", "held_too_long"];
+
+const norm = (r) => {
+  const d = decodePost(r.text);
+  const ts = Number(r.ts) || Date.now();
+  return {
+    id: r.id, author: r.author, h: `@${r.author}`, avatar: r.avatar || null, board: d.board, title: d.title, note: d.note, trade: d.trade,
+    image: r.image || null, hc: Number(r.likeCount) || 0, my: !!r.liked, nc: Number(r.commentCount) || 0, ts,
+  };
+};
+const ago = (ts) => AGO((Date.now() - ts) / 60000);
 
 const Kind = ({ k }) => <span className="tag" style={{ margin: "0 8px 0 0", color: RC[k], borderColor: RC[k] }}>{k}</span>;
 const Av = ({ text, size, fs, photo }) => (
@@ -352,247 +367,313 @@ const Av = ({ text, size, fs, photo }) => (
     {photo ? <img src={photo} alt="Profile" /> : text}
   </span>
 );
-function Rail({ t }) {
-  const a = num(t.s), b = num(t.tp), w = (b - a) || 1, c01 = (x) => Math.max(0, Math.min(1, x));
-  const fe = c01((num(t.e) - a) / w), k = K(t);
-  const c = t.x != null ? num(t.x) : (t.c != null ? num(t.c) : num(t.e));
-  const fc = c01((c - a) / w), col = `var(--${k.pnl >= 0 ? "g" : "r"})`;
-  return (
-    <>
-      <div className="rail">
-        <i className="rf" style={{ left: `${Math.min(fe, fc) * 100}%`, width: `${Math.abs(fc - fe) * 100}%`, background: col }} />
-        <i className="re" style={{ left: `${fe * 100}%` }} />
-        <i className="rd" style={{ left: `${fc * 100}%`, background: col }} />
-      </div>
-      <div className="rl"><span><em>Stop</em><b>{px(t.s)}</b></span><span><em>Entry</em><b>{px(t.e)}</b></span><span><em>Target</em><b>{px(t.tp)}</b></span></div>
-    </>
-  );
-}
+const PAv = ({ u, avatar, size = 40, fs = 13 }) => <Av size={size} fs={fs} text={ini2(u || "?")} photo={avatar} />;
 
-export default function LedgerCommunity({ isDesktop, communityAvatar, openMember, openMyProfile, myDiscipline, sessionToken, username }) {
-  const nid = useRef(100);
+export default function LedgerCommunity({ isDesktop, communityAvatar, openMember, openMyProfile, myDiscipline, sessionToken, username, trades }) {
+  const me = String(username || "").replace(/^@/, "");
+  const meL = me.toLowerCase();
   const [tab, setTab] = useState("feed");
-  const [F, setF] = useState(() => DEMO.F.map((p, i) => ({ ...p, id: i + 1, my: false, sv: false, cmts: p.cmts.map((c) => ({ ...c })) })));
-  const [fol, setFol] = useState({ "@nightowl_fx": 1, "@maya_r": 1, "@zoe_swing": 1, "@tape_reader": 1, "@lena_fx": 1 });
-  const [mute, setMute] = useState({});
+  const [F, setF] = useState([]);
+  const [fState, setFState] = useState("idle"); // idle | loading | ok | error
+  const [fNext, setFNext] = useState(null);
+  const [fMore, setFMore] = useState(false);
+  const [fol, setFol] = useState({});
+  const [fpeople, setFpeople] = useState([]);
+  const [mute, setMute] = useState(() => lsGet("ledger-muted", {}));
+  const [hid, setHid] = useState(() => lsGet("ledger-hidden", {}));
+  const [sv, setSv] = useState(() => lsGet("ledger-saved-v2", {}));
   const [bd, setBd] = useState("All");
   const [fsort, setFsort] = useState("new");
   const [fq, setFq] = useState("");
+  const [srch, setSrch] = useState(null);
   const [np, setNp] = useState([]);
   const [ex, setEx] = useState({});
   const [sheet, setSheet] = useState(null);
   const [ci, setCi] = useState("");
-  const [ask, setAsk] = useState({ t: "", n: "", b: "Setups", edi: null });
+  const [cm, setCm] = useState({ id: null, list: [], loading: false });
   const [dc, setDc] = useState(false);
-  const [RO] = useState(DEMO.RO); // scheduled (upcoming) rooms are still sample data; live rooms come from the Worker
   const [liveRooms, setLiveRooms] = useState([]);
-  const [roomsState, setRoomsState] = useState("idle"); // idle | loading | ok | error
+  const [roomsState, setRoomsState] = useState("idle");
   const [startingRoom, setStartingRoom] = useState(false);
   const [rf, setRf] = useState("All");
-  const [rem, setRem] = useState({});
   const [rtitle, setRtitle] = useState("");
   const [rm, setRm] = useState(null);
   const [rc, setRc] = useState("");
-  const [chj, setChj] = useState({});
-  const [lp, setLp] = useState("week");
-  const [mn, setMn] = useState(null);
-  const [rq, setRq] = useState([]);
-  const [mnn, setMnn] = useState("");
-  const [mnc, setMnc] = useState("");
-  const [mfi, setMfi] = useState(null);
-  const [mq, setMq] = useState("");
+  const [md, setMd] = useState(null);
+  const [dir, setDir] = useState([]);
+  const [mdState, setMdState] = useState("idle");
+  const [mdErr, setMdErr] = useState("");
+  const [mt, setMt] = useState(null);
+  const [mmen, setMmen] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [mtxt, setMtxt] = useState("");
+  const [rvg, setRvg] = useState("");
+  const [rvt, setRvt] = useState([]);
+  const [inv, setInv] = useState("");
+  const [pbio, setPbio] = useState("");
+  const [ptags, setPtags] = useState("");
+  const [popen, setPopen] = useState(true);
   const [mrs, setMrs] = useState(false);
+  const [, setTick] = useState(0);
   const [toastMsg, setToastMsg] = useState("");
-  const tt = useRef(null), mtm = useRef(null), mnRef = useRef(null);
-  mnRef.current = mn;
+  const tt = useRef(null);
 
-  const toast = (m) => { setToastMsg(m); clearTimeout(tt.current); tt.current = setTimeout(() => setToastMsg(""), 2200); };
-  useEffect(() => () => { clearTimeout(tt.current); clearTimeout(mtm.current); }, []);
-  useEffect(() => { const id = setTimeout(() => setNp([NPT[0]]), 20000); return () => clearTimeout(id); }, []);
-  useEffect(() => {
-    if (!rm) return undefined;
-    const id = setInterval(() => setRm((r) => {
-      if (!r) return r;
-      const t2 = r.t2 + 1, f = r.k === "Focus";
-      return { ...r, t2, sec: f && r.sec > 0 ? r.sec - 1 : r.sec, sp: !f && t2 % 2 === 0 ? r.sp + 1 : r.sp };
-    }), 1000);
-    return () => clearInterval(id);
-  }, [!!rm]);
+  const hdr = () => authH(sessionToken);
+  const apiPost = (path, body) => communityApi(path, postOpts(sessionToken, body));
+  const toast = (m) => { setToastMsg(m); clearTimeout(tt.current); tt.current = setTimeout(() => setToastMsg(""), 2400); };
+  useEffect(() => () => clearTimeout(tt.current), []);
+  useEffect(() => { const id = setInterval(() => setTick((x) => x + 1), 60000); return () => clearInterval(id); }, []);
 
   const close = () => { setSheet(null); setDc(false); setMrs(false); };
-  const goProf = (h) => { close(); if (h === "@you") openMyProfile(); else openMember(String(h).replace(/^@/, "")); };
+  const goProf = (h) => { close(); if (String(h).replace(/^@/, "").toLowerCase() === meL) openMyProfile(); else openMember(String(h).replace(/^@/, "")); };
   const patchPost = (id, fn) => setF((L) => L.map((p) => (p.id === id ? fn(p) : p)));
   const postById = (id) => F.find((p) => p.id === id);
-  const mNameOf = (m) => (m ? (m.h && PF[m.h] ? PF[m.h].n : m.name) : "");
+  const isMe = (p) => String(p.author).toLowerCase() === meL;
 
-  // ---------- Feed ----------
+  // ---------- Feed (real posts from the worker) ----------
+  const loadFeed = async (more) => {
+    if (!sessionToken) return;
+    if (more) { if (!fNext || fMore) return; setFMore(true); } else setFState((s) => (s === "ok" ? s : "loading"));
+    try {
+      const j = await communityApi(`/feed?limit=30${more ? `&before=${fNext}` : ""}`, { headers: hdr() });
+      const rows = (j.posts || []).map(norm);
+      setF((L) => {
+        const seen = new Set(L.map((x) => x.id));
+        return more ? [...L, ...rows.filter((x) => !seen.has(x.id))] : [...rows, ...L.filter((x) => !rows.some((r) => r.id === x.id))];
+      });
+      if (more || !fNext) setFNext(j.nextCursor || null);
+      setFState("ok");
+    } catch (e) {
+      if (more) toast((e && e.message) || "Couldn't load more");
+      else setFState((s) => (s === "ok" ? s : "error"));
+    }
+    setFMore(false);
+  };
+  const loadFollowing = async () => {
+    if (!sessionToken || !me) return;
+    try {
+      const j = await communityApi(`/follow-list/${encodeURIComponent(me)}?kind=following`, { headers: hdr() });
+      const m = {};
+      (j.following || []).forEach((u) => { m[String(u.username).toLowerCase()] = 1; });
+      setFol(m);
+      setFpeople((j.following || []).map((u) => ({ name: u.username, avatar: u.avatar || null })));
+    } catch (e) { /* follow buttons still work, they just start empty */ }
+  };
+  useEffect(() => { if (sessionToken) { loadFeed(); loadFollowing(); } /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [sessionToken, me]);
+
+  // New posts from other people show as a "N new posts" pill (checked every 20 seconds).
+  useEffect(() => {
+    if (tab !== "feed" || !sessionToken || !F.length || sheet) return undefined;
+    const id = setInterval(async () => {
+      try {
+        const newest = F.reduce((m, p) => Math.max(m, p.ts), 0);
+        const j = await communityApi(`/feed?since=${newest}&limit=30`, { headers: hdr() });
+        const rows = (j.posts || []).filter((r) => String(r.author).toLowerCase() !== meL).map(norm);
+        if (rows.length) setNp((cur) => { const seen = new Set([...cur, ...F].map((x) => x.id)); return [...rows.filter((r) => !seen.has(r.id)), ...cur]; });
+      } catch (e) { /* try again next tick */ }
+    }, 20000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, sessionToken, F, sheet]);
+  const showNew = () => { setF((L) => [...np.filter((n) => !L.some((x) => x.id === n.id)), ...L]); setNp([]); setBd("All"); setFsort("new"); };
+
+  // Search: people and posts across the whole community, not just what's loaded.
+  useEffect(() => {
+    const q = fq.trim().replace(/^@/, "");
+    if (q.length < 2 || !sessionToken) { setSrch(null); return undefined; }
+    const id = setTimeout(async () => {
+      try {
+        const j = await communityApi(`/community/search?q=${encodeURIComponent(q)}`, { headers: hdr() });
+        const rows = [...(j.posts || []), ...(j.relatedPosts || [])].map(norm);
+        setSrch({ q: q.toLowerCase(), profile: j.profile || null });
+        setF((L) => { const seen = new Set(L.map((x) => x.id)); return [...L, ...rows.filter((x) => !seen.has(x.id))]; });
+      } catch (e) { setSrch(null); }
+    }, 400);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fq, sessionToken]);
+
   const FPN = () => (bd !== "All" ? 1 : 0) + (fsort !== "new" ? 1 : 0);
   const filtered = () => {
-    const qq = fq.trim().toLowerCase();
-    return F.filter((p) => !mute[p.h] && (bd === "All" || (bd === "Saved" ? p.sv : p.board === bd))
-      && (!qq || [p.title, p.note, p.h, p.board, p.sym, p.su].join(" ").toLowerCase().indexOf(qq) > -1))
-      .sort((a, b) => (fsort === "top" ? (b.hc + (b.my ? 1 : 0)) - (a.hc + (a.my ? 1 : 0)) : a.age - b.age));
+    const qq = fq.trim().toLowerCase().replace(/^@/, "");
+    const pool = bd === "Saved" ? Object.values(sv).map((s) => F.find((x) => x.id === s.id) || s) : F;
+    return pool
+      .filter((p) => !hid[p.id] && !mute[String(p.author).toLowerCase()] && (bd === "All" || bd === "Saved" || p.board === bd)
+        && (!qq || [p.title, p.note, p.author, p.board, p.trade && p.trade.s].join(" ").toLowerCase().indexOf(qq) > -1))
+      .sort((a, b) => (fsort === "top" ? (b.hc - a.hc) || (b.ts - a.ts) : b.ts - a.ts));
   };
-  const showNew = () => {
-    setF((L) => [...np.map((x) => ({ ...x, id: nid.current++, age: 0, ago: "now", hc: 0, cmts: [], my: false, sv: false })), ...L]);
-    setNp([]); setBd("All"); setFsort("new");
+
+  const toggleLike = async (p) => {
+    if (!sessionToken) { toast("Sign in to like posts"); return; }
+    const on = !p.my;
+    patchPost(p.id, (x) => ({ ...x, my: on, hc: Math.max(0, x.hc + (on ? 1 : -1)) }));
+    try { await communityApi(`/profile/posts/${p.id}/like`, { method: on ? "POST" : "DELETE", headers: hdr() }); }
+    catch (e) { patchPost(p.id, (x) => ({ ...x, my: !on, hc: Math.max(0, x.hc + (on ? -1 : 1)) })); toast((e && e.message) || "Couldn't update"); }
   };
+  const isFol = (name) => !!fol[String(name).replace(/^@/, "").toLowerCase()];
+  const toggleFollow = async (name) => {
+    const n = String(name).replace(/^@/, ""), k = n.toLowerCase(), on = !fol[k];
+    if (!sessionToken) { toast("Sign in to follow people"); return; }
+    setFol((f) => ({ ...f, [k]: on ? 1 : 0 }));
+    try { await communityApi(`/follow/${encodeURIComponent(n)}`, { method: on ? "POST" : "DELETE", headers: hdr() }); }
+    catch (e) { setFol((f) => ({ ...f, [k]: on ? 0 : 1 })); toast((e && e.message) || "Couldn't update"); }
+  };
+  const toggleSave = (p) => setSv((m) => {
+    const n = { ...m };
+    if (n[p.id]) delete n[p.id];
+    else { n[p.id] = { ...p, image: null }; const ks = Object.keys(n); if (ks.length > 60) delete n[ks[0]]; }
+    lsSet("ledger-saved-v2", n);
+    return n;
+  });
+  const muteAuthor = (name) => setMute((m) => { const n = { ...m, [String(name).toLowerCase()]: 1 }; lsSet("ledger-muted", n); return n; });
+  const unmute = (k) => setMute((m) => { const n = { ...m }; delete n[k]; lsSet("ledger-muted", n); return n; });
+  const hidePost = (id) => setHid((m) => { const n = { ...m, [id]: 1 }; lsSet("ledger-hidden", n); return n; });
+  const deletePost = async (p) => {
+    try { await communityApi(`/profile/posts/${p.id}`, { method: "DELETE", headers: hdr() }); setF((L) => L.filter((x) => x.id !== p.id)); close(); toast("Post deleted"); }
+    catch (e) { toast((e && e.message) || "Couldn't delete"); }
+  };
+  const submitPost = async ({ text, image }) => {
+    const j = await apiPost("/feed", { text, image });
+    setF((L) => [norm({ id: j.id, author: me || "you", avatar: communityAvatar, text, image, likeCount: 0, commentCount: 0, liked: false, ts: j.ts }), ...L]);
+    close(); setTab("feed"); setBd("All"); setFsort("new"); toast("Posted");
+  };
+  const openPost = async (p) => {
+    setCi(""); setCm({ id: p.id, list: [], loading: true }); setSheet({ t: "post", id: p.id });
+    try {
+      const j = await communityApi(`/profile/posts/${p.id}/comments`, { headers: hdr() });
+      const list = j.comments || [];
+      setCm({ id: p.id, list, loading: false });
+      patchPost(p.id, (x) => ({ ...x, nc: list.length }));
+    } catch (e) { setCm({ id: p.id, list: [], loading: false }); toast((e && e.message) || "Couldn't load comments"); }
+  };
+  const sendComment = async (p) => {
+    const v = ci.trim(); if (!v) return;
+    setCi("");
+    try {
+      const j = await apiPost(`/profile/posts/${p.id}/comments`, { text: v });
+      setCm((c) => ({ ...c, list: [...c.list, { id: j.id, author: me, text: v, ts: j.ts || Date.now() }] }));
+      patchPost(p.id, (x) => ({ ...x, nc: x.nc + 1 }));
+    } catch (e) { setCi(v); toast((e && e.message) || "Couldn't comment"); }
+  };
+  const delComment = async (p, c) => {
+    try {
+      await communityApi(`/profile/posts/${p.id}/comments/${c.id}`, { method: "DELETE", headers: hdr() });
+      setCm((x) => ({ ...x, list: x.list.filter((y) => y.id !== c.id) }));
+      patchPost(p.id, (x) => ({ ...x, nc: Math.max(0, x.nc - 1) }));
+    } catch (e) { toast((e && e.message) || "Couldn't delete"); }
+  };
+
+  const TradeLine = ({ t }) => (
+    <div className="tsm">
+      <b>{t.s}</b><span className={`dir ${t.d > 0 ? "l" : "s"}`}>{t.d > 0 ? "Long" : "Short"}</span>
+      <b className={ocl(t.o === "Win" ? 1 : t.o === "Loss" ? -1 : 0)}>{t.o}</b>
+      {t.u ? <span className="t2">{t.u} setup</span> : null}{t.n ? <span className="t2">{t.n}</span> : null}
+    </div>
+  );
   const PostCard = (p) => {
-    const tr = p.e != null, pf = PF[p.h], me = p.h === "@you", bc = BCOL[p.board] || "var(--t2)";
-    const nc = p.cmts.length, an = p.cmts.some((c) => c.best), nf = (p.rules || []).filter(Boolean).length;
-    const avatar = me ? <Av size={40} fs={13} text="YO" photo={communityAvatar} /> : <span className="av">{ini2(p.h)}</span>;
-    const when = p.ago === "now" ? "Just now" : `${p.ago} ago`;
-    const followBtn = !me && <button type="button" className={`fwb${fol[p.h] ? " on" : ""}`} onClick={() => setFol((f) => ({ ...f, [p.h]: f[p.h] ? 0 : 1 }))}>{fol[p.h] ? "Following" : "Follow"}</button>;
-    const dotsBtn = <button type="button" className="pmn" aria-label="More options" onClick={() => { setDc(false); setSheet({ t: "pm", id: p.id }); }}><Dots /></button>;
-    const boardRow = (
-      <div className="bl">
-        <span className="bt" style={{ "--bc": bc }}><i className="dotc" style={{ background: bc }} />{p.board}</span>
-        {an && <span className="ans"><Ic n="check" s={12} />Answered</span>}
-      </div>
-    );
-    const titleBtn = <button type="button" className="ttl" onClick={() => setSheet({ t: "post", id: p.id })}>{p.title}</button>;
-    const tradeBox = tr && (
-      <div className="ts">
-        <div className="tsh">
-          <span className="tsl"><b className="tsy">{p.sym}</b><span className={`dir ${p.side > 0 ? "l" : "s"}`}>{p.side > 0 ? "Long" : "Short"}</span></span>
-          <b className={`tsr ${cl(p.r)}`}>{rr(p.r)}</b>
-        </div>
-        {p.su && <div className="tss">{p.su} setup</div>}
-        <Rail t={p} />
-        <span className={`tsf${nf < 3 ? " w" : ""}`}><Ic n="check" s={12} />Followed {nf} of 3 rules</span>
-      </div>
-    );
-    const noteEl = p.note && (
-      <>
-        <div className={`nt${ex[p.id] ? " ex" : ""}`}>{p.note}</div>
-        {p.note.length > 150 && <button type="button" className="rmr" onClick={() => setEx((e) => ({ ...e, [p.id]: !e[p.id] }))}>{ex[p.id] ? "Show less" : "Read more"}</button>}
-      </>
-    );
-    const footer = (
-      <div className="pf">
-        <button type="button" className={`act${p.my ? " on" : ""}`} onClick={() => patchPost(p.id, (x) => ({ ...x, my: !x.my }))}><Ic n="up" s={16} />Helpful {p.hc + (p.my ? 1 : 0)}</button>
-        <button type="button" className="act" onClick={() => setSheet({ t: "post", id: p.id })}><Ic n="chat" s={16} />{nc}{p.board === "Reviews" ? " feedback" : nc === 1 ? " comment" : " comments"}</button>
-        <span style={{ flex: 1 }} />
-        <button type="button" className={`act sv${p.sv ? " on" : ""}`} aria-pressed={!!p.sv} aria-label={p.sv ? "Remove from saved" : "Save post"} onClick={() => patchPost(p.id, (x) => ({ ...x, sv: !x.sv }))}><Ic n="bm" s={22} fill={p.sv} /></button>
-      </div>
-    );
+    const mine = isMe(p), bc = BCOL[p.board] || "var(--t2)", saved = !!sv[p.id];
+    const when = ago(p.ts);
+    const long = p.note.length > 150;
     return (
       <article className="pc" key={p.id}>
         <div className="ph">
-          <button type="button" className="pa" onClick={() => goProf(p.h)}>
-            {avatar}
-            {isDesktop
-              ? <span className="pn"><b>{p.h}</b><span className="t2 s12">{pf ? `${pf.role} · ` : ""}{when}</span></span>
-              : <span className="pn"><b style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{p.h}</b><span className="t2">{`${when === "Just now" ? "now" : p.ago}${pf ? ` \u00b7 ${pf.role}` : ""}`}</span></span>}
+          <button type="button" className="pa" onClick={() => goProf(p.author)}>
+            <PAv u={p.author} avatar={mine ? communityAvatar : p.avatar} />
+            <span className="pn"><b style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{p.h}</b><span className="t2 s12">{when === "Just now" ? when : `${when} ago`}</span></span>
           </button>
-          {followBtn}{dotsBtn}
+          {!mine && <button type="button" className={`fwb${isFol(p.author) ? " on" : ""}`} onClick={() => toggleFollow(p.author)}>{isFol(p.author) ? "Following" : "Follow"}</button>}
+          <button type="button" className="pmn" aria-label="More options" onClick={() => { setDc(false); setSheet({ t: "pm", id: p.id }); }}><Dots /></button>
         </div>
-        {boardRow}{titleBtn}{tradeBox}{noteEl}{footer}
+        <div className="bl"><span className="bt" style={{ "--bc": bc }}><i className="dotc" style={{ background: bc }} />{p.board}</span></div>
+        {p.title ? <button type="button" className="ttl" onClick={() => openPost(p)}>{p.title}</button> : null}
+        {p.trade ? <TradeLine t={p.trade} /> : null}
+        {p.note ? (<>
+          <div className={`nt${ex[p.id] || !p.title ? " ex" : ""}`} style={{ whiteSpace: "pre-wrap" }}>{p.note}</div>
+          {p.title && long && <button type="button" className="rmr" onClick={() => setEx((e) => ({ ...e, [p.id]: !e[p.id] }))}>{ex[p.id] ? "Show less" : "Read more"}</button>}
+        </>) : null}
+        {p.image ? <img className="pimg" src={p.image} alt="" loading="lazy" onClick={() => openPost(p)} /> : null}
+        <div className="pf">
+          <button type="button" className={`act${p.my ? " on" : ""}`} onClick={() => toggleLike(p)}><Ic n="up" s={16} />Helpful {p.hc}</button>
+          <button type="button" className="act" onClick={() => openPost(p)}><Ic n="chat" s={16} />{p.nc}{p.board === "Reviews" ? " feedback" : p.nc === 1 ? " comment" : " comments"}</button>
+          <span style={{ flex: 1 }} />
+          <button type="button" className={`act sv${saved ? " on" : ""}`} aria-pressed={saved} aria-label={saved ? "Remove from saved" : "Save post"} onClick={() => toggleSave(p)}><Ic n="bm" s={22} fill={saved} /></button>
+        </div>
       </article>
     );
   };
-  const PersonRow = (h, me) => {
-    const p = PF[h];
-    return (
-      <div className="row" key={h}>
-        <button type="button" style={{ display: "flex", gap: 12, alignItems: "center", flex: 1, minWidth: 0, textAlign: "left", minHeight: 48 }} onClick={() => goProf(h)}>
-          <span className="av" style={{ width: 44, height: 44, fontSize: 14 }}>{p.n.slice(0, 2).toUpperCase()}</span>
-          <span style={{ minWidth: 0 }}><b>{p.n}</b>{me ? <span className="tag">Follows you</span> : null}<div className="t2 s12">{h}, {p.role}</div></span>
-        </button>
-        <button type="button" className={`chip${fol[h] ? "" : " on"}`} style={{ margin: 0, flex: "none" }} onClick={() => setFol((f) => ({ ...f, [h]: f[h] ? 0 : 1 }))}>{fol[h] ? "Following" : "Follow"}</button>
-      </div>
-    );
-  };
+  const PersonRow = (name, avatar) => (
+    <div className="row" key={name}>
+      <button type="button" style={{ display: "flex", gap: 12, alignItems: "center", flex: 1, minWidth: 0, textAlign: "left", minHeight: 48 }} onClick={() => goProf(name)}>
+        <PAv u={name} avatar={avatar} size={44} fs={14} />
+        <span style={{ minWidth: 0 }}><b>@{name}</b></span>
+      </button>
+      {String(name).toLowerCase() !== meL && <button type="button" className={`chip${isFol(name) ? "" : " on"}`} style={{ margin: 0, flex: "none" }} onClick={() => toggleFollow(name)}>{isFol(name) ? "Following" : "Follow"}</button>}
+    </div>
+  );
   const Suggest = () => {
-    const l = Object.keys(PF).filter((h) => !fol[h]).sort((a, b) => PF[b].ds - PF[a].ds).slice(0, 3);
+    const seen = new Set(), l = [];
+    F.forEach((p) => { const k = String(p.author).toLowerCase(); if (!seen.has(k) && k !== meL && !fol[k]) { seen.add(k); l.push(p); } });
     if (!l.length) return null;
-    return (
-      <>
-        <div className="lb"><span>Traders to follow</span><span>Ranked by discipline</span></div>
-        {l.map((h) => {
-          const p = PF[h];
-          return (
-            <div className="row" key={h}>
-              <button type="button" style={{ display: "flex", gap: 10, alignItems: "center", flex: 1, minWidth: 0 }} onClick={() => goProf(h)}>
-                <span className="av">{p.n.slice(0, 2).toUpperCase()}</span>
-                <span><b>{p.n}</b><div className="t2 s12">{p.role}, discipline {p.ds}%</div></span>
-              </button>
-              <button type="button" className="chip on" style={{ margin: 0 }} onClick={() => setFol((f) => ({ ...f, [h]: 1 }))}>Follow</button>
-            </div>
-          );
-        })}
-      </>
-    );
+    return (<>
+      <div className="lb"><span>Traders to follow</span><span>Posting lately</span></div>
+      {l.slice(0, 3).map((p) => PersonRow(p.author, p.avatar))}
+    </>);
   };
   const FeedView = () => {
-    const q = filtered(), sr = fq.trim(), k = sr.toLowerCase().replace(/^@/, "");
-    const pe = k ? Object.keys(PF).filter((h) => h.slice(1).toLowerCase().indexOf(k) > -1 || PF[h].n.toLowerCase().indexOf(k) > -1 || PF[h].role.toLowerCase().indexOf(k) > -1) : [];
+    const q = filtered(), sr = fq.trim();
     const act = [];
     if (bd !== "All") act.push(["bd", bd]);
     if (fsort !== "new") act.push(["so", "Most helpful"]);
-    const main = (
-      <>
-        {np.length > 0 && <div className="npw"><button type="button" className="npp" onClick={showNew}><Ic n="up" s={16} />{np.length} {np.length === 1 ? "new post" : "new posts"}</button></div>}
-        <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
-          <input type="search" className="in" style={{ margin: 0, flex: 1, width: "auto", minWidth: 0 }} placeholder="Search posts and people" aria-label="Search posts" value={fq} onChange={(e) => setFq(e.target.value)} />
-          {!isDesktop && <button type="button" className="fbn" aria-label="Open filters" onClick={() => setSheet({ t: "filter" })}><Ic n="flt" s={18} />{FPN() ? <b className="bdg">{FPN()}</b> : null}</button>}
-          {isDesktop && <div className="tg" style={{ flex: "none", width: 230 }}>{[["new", "Latest"], ["top", "Most helpful"]].map(([v, l]) => <button key={v} type="button" className={fsort === v ? "on" : ""} onClick={() => setFsort(v)}>{l}</button>)}</div>}
+    const person = srch && srch.profile && srch.q === sr.toLowerCase().replace(/^@/, "") ? srch.profile : null;
+    const empty = !sessionToken ? "Sign in to your account to see the community feed."
+      : fState === "loading" || fState === "idle" ? "Loading posts…"
+      : fState === "error" && !F.length ? "Couldn't load the feed. Check your connection."
+      : sr ? `No posts or people match "${sr}".` : bd === "Saved" ? "Nothing saved yet. Tap the bookmark on a post." : "No posts here yet. Start the first one.";
+    const main = (<>
+      {np.length > 0 && <div className="npw"><button type="button" className="npp" onClick={showNew}><Ic n="up" s={16} />{np.length} {np.length === 1 ? "new post" : "new posts"}</button></div>}
+      <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+        <input type="search" className="in" style={{ margin: 0, flex: 1, width: "auto", minWidth: 0 }} placeholder="Search posts and people" aria-label="Search posts" value={fq} onChange={(e) => setFq(e.target.value)} />
+        {<button type="button" className="fbn" aria-label="Open filters" onClick={() => setSheet({ t: "filter" })}><Ic n="flt" s={18} />{FPN() ? <b className="bdg">{FPN()}</b> : null}</button>}
+      </div>
+      {act.length > 0 && (
+        <div className="chips" style={{ marginTop: 12 }}>
+          {act.map((x) => <button key={x[0]} type="button" className="chip on" style={{ gap: 6 }} onClick={() => (x[0] === "bd" ? setBd("All") : setFsort("new"))}>{x[1]}<Ic n="x" s={12} /></button>)}
+          <button type="button" className="am" style={{ minHeight: 40, padding: "0 8px" }} onClick={() => { setBd("All"); setFsort("new"); }}>Clear all</button>
         </div>
-        {act.length > 0 && (
-          <div className="chips" style={{ marginTop: 12 }}>
-            {act.map((x) => <button key={x[0]} type="button" className="chip on" style={{ gap: 6 }} onClick={() => (x[0] === "bd" ? setBd("All") : setFsort("new"))}>{x[1]}<Ic n="x" s={12} /></button>)}
-            <button type="button" className="am" style={{ minHeight: 40, padding: "0 8px" }} onClick={() => { setBd("All"); setFsort("new"); }}>Clear all</button>
-          </div>
-        )}
-        <div>
-          {pe.length > 0 && (
-            <>
-              <div className="lb"><span>People</span><span>{pe.length}</span></div>
-              <div className="card" style={{ padding: "2px 16px" }}>{pe.slice(0, 6).map((h) => PersonRow(h, false))}</div>
-              {q.length > 0 && <div className="lb"><span>Posts</span><span>{q.length}</span></div>}
-            </>
-          )}
-          {q.length ? (
-            <>
-              {isDesktop ? (
-                <div className="stk" style={{ marginTop: 14 }}>{q.map(PostCard)}</div>
-              ) : (
-                <>
-                  {q.slice(0, 2).map(PostCard)}
-                  {bd === "All" && !sr && Suggest()}
-                  {q.slice(2).map(PostCard)}
-                </>
-              )}
-            </>
-          ) : (
-            <div className="t2" style={{ padding: "30px 0", textAlign: "center" }}>
-              {pe.length ? "" : sr ? `No posts or people match "${sr}".` : bd === "Saved" ? "Nothing saved yet. Tap the bookmark on a post." : "No posts in this board yet. Start the first one."}
-            </div>
-          )}
-          <div className="t2 s12" style={{ marginTop: 14, textAlign: "center" }}>Trade posts show R, never dollars.</div>
-        </div>
-      </>
-    );
+      )}
+      <div>
+        {person && (<>
+          <div className="lb"><span>People</span><span>1</span></div>
+          <div className="card" style={{ padding: "2px 16px" }}>{PersonRow(person.username, person.avatar)}</div>
+          {q.length > 0 && <div className="lb"><span>Posts</span><span>{q.length}</span></div>}
+        </>)}
+        {q.length ? (<>
+          {isDesktop ? <div className="stk" style={{ marginTop: 14 }}>{q.map(PostCard)}</div> : (<>
+            {q.slice(0, 2).map(PostCard)}
+            {bd === "All" && !sr && Suggest()}
+            {q.slice(2).map(PostCard)}
+          </>)}
+          {fNext && bd === "All" && !sr && <button type="button" className="btn o" style={{ marginTop: 14 }} disabled={fMore} onClick={() => loadFeed(true)}>{fMore ? "Loading…" : "Load older posts"}</button>}
+        </>) : <div className="t2" style={{ padding: "30px 0", textAlign: "center" }}>{person ? "" : empty}</div>}
+        <div className="t2 s12" style={{ marginTop: 14, textAlign: "center" }}>Posts show results, never dollars or account size.</div>
+      </div>
+    </>);
     if (!isDesktop) return main;
-    const cnt = { All: F.length, Saved: F.filter((x) => x.sv).length };
-    F.forEach((x) => { cnt[x.board] = (cnt[x.board] || 0) + 1; });
+    // Right column: every profile we know about (people you follow first, then everyone seen in the feed).
+    const seenP = new Set([meL]), everyone = [];
+    [...fpeople, ...F.map((p) => ({ name: p.author, avatar: p.avatar }))].forEach((u) => {
+      const k = String(u.name).toLowerCase();
+      if (!seenP.has(k)) { seenP.add(k); everyone.push(u); }
+    });
+    if (person && !seenP.has(String(person.username).toLowerCase())) everyone.unshift({ name: person.username, avatar: person.avatar });
     return (
       <div className="dkg">
         <div style={{ minWidth: 0 }}>{main}</div>
         <aside className="dkside">
-          <div className="card">
-            <div className="lb"><span>Boards</span><span>{F.length} posts</span></div>
-            <div className="bds">
-              {["All", "Saved", "Setups", "Reviews", "Psychology", "Risk"].map((b) => (
-                <button key={b} type="button" className={bd === b ? "on" : ""} onClick={() => setBd(b)}>
-                  <span style={{ display: "flex", alignItems: "center" }}>{BCOL[b] && <i className="dotc" style={{ background: bd === b ? "var(--on)" : BCOL[b] }} />}{b}</span>
-                  <span className="n">{cnt[b] || 0}</span>
-                </button>
-              ))}
-            </div>
+          <div className="card" style={{ padding: "16px 16px 6px" }}>
+            <div className="lb"><span>People</span><span>{everyone.length} {everyone.length === 1 ? "profile" : "profiles"}</span></div>
+            {everyone.length ? everyone.map((u) => PersonRow(u.name, u.avatar)) : <div className="t2 s12" style={{ padding: "6px 0 14px" }}>{fState === "ok" ? "No other profiles yet." : "Loading…"}</div>}
           </div>
-          {Object.keys(PF).some((h) => !fol[h]) && <div className="card">{Suggest()}</div>}
-          <div className="t2 s12" style={{ padding: "0 4px", lineHeight: 1.5 }}>Keep posts about process. Trade posts show R multiples, never dollars or account size.</div>
         </aside>
       </div>
     );
@@ -650,261 +731,231 @@ export default function LedgerCommunity({ isDesktop, communityAvatar, openMember
   };
   const RoomsView = () => {
     const nowMs = Date.now();
-    const lv = liveRooms.filter((r) => rf === "All" || r.kind === rf).map((r) => [{ id: r.id, k: r.kind, t: r.title, h: r.host, n: r.n, min: Math.max(0, Math.floor((nowMs - r.startedAt) / 60000)), startedAt: r.startedAt, isHost: r.isHost }, r.id]);
-    const up = RO.map((r, i) => [r, i]).filter((x) => !x[0].live && (rf === "All" || x[0].k === rf));
+    const lv = liveRooms.filter((r) => rf === "All" || r.kind === rf).map((r) => ({ id: r.id, k: r.kind, t: r.title, h: r.host, n: r.n, min: Math.max(0, Math.floor((nowMs - r.startedAt) / 60000)), startedAt: r.startedAt, isHost: r.isHost }));
     const startBtn = (
-      <button type="button" className="btn" style={isDesktop ? { width: "auto", height: 42, padding: "0 20px" } : { margin: "14px 0 4px" }} onClick={() => { if (!sessionToken) { toast("Sign in to your account to start a room"); return; } setRtitle(""); setSheet({ t: "mk" }); }}><Ic n="plus" s={18} />Start a room</button>
+      <button type="button" className="btn" style={isDesktop ? { width: "auto", height: 42, padding: "0 20px" } : { margin: "14px 0 4px" }} onClick={() => { if (!sessionToken) { toast("Sign in to your account to start a room"); return; } setRtitle(""); setSheet({ t: "mk" }); }}>
+        <Ic n="plus" s={18} />Start a room
+      </button>
     );
     const filters = (
       <div className="chips" style={isDesktop ? { margin: 0 } : { marginTop: 12 }}>
         {["All", "Audio", "Video", "Focus"].map((k) => <button key={k} type="button" className={`chip${rf === k ? " on" : ""}`} onClick={() => setRf(k)}>{k}</button>)}
       </div>
     );
-    const liveCards = () => (lv.length ? lv.map((x) => {
-      const r = x[0];
-      return (
-        <div className="pc" style={{ marginTop: 10 }} key={x[1]}>
-          <div className="rw s12"><span style={{ display: "flex", alignItems: "center" }}><Kind k={r.k} /><span className="live" /><span className="t2">Live, {r.min} min</span></span><span className="t2">{r.n} here</span></div>
-          <div className="ttl" style={{ margin: "10px 0 4px" }}>{r.t}</div>
-          <div className="t2 s12">Hosted by {r.h}</div>
-          <div className="rw" style={{ marginTop: 12 }}>
-            <span style={{ display: "flex" }}><span className="av" style={{ width: 28, height: 28, fontSize: 10 }}>{String(r.h || "?").replace("@", "").slice(0, 2).toUpperCase()}</span></span>
-            <button type="button" className="btn" style={{ width: 96, height: 40 }} onClick={() => joinRoom(r)}>Join</button>
-          </div>
+    const liveCards = () => (lv.length ? lv.map((r) => (
+      <div className="pc" style={{ marginTop: 10 }} key={r.id}>
+        <div className="rw s12"><span style={{ display: "flex", alignItems: "center" }}><Kind k={r.k} /><span className="live" /><span className="t2">Live, {r.min} min</span></span><span className="t2">{r.n} here</span></div>
+        <div className="ttl" style={{ margin: "10px 0 4px" }}>{r.t}</div>
+        <div className="t2 s12">Hosted by {r.h}</div>
+        <div className="rw" style={{ marginTop: 12 }}>
+          <span style={{ display: "flex" }}><span className="av" style={{ width: 28, height: 28, fontSize: 10 }}>{String(r.h || "?").replace("@", "").slice(0, 2).toUpperCase()}</span></span>
+          <button type="button" className="btn" style={{ width: 96, height: 40 }} onClick={() => joinRoom(r)}>Join</button>
         </div>
-      );
-    }) : <div className="t2">{!sessionToken ? "Sign in to your account to see and join live rooms." : roomsState === "loading" ? "Looking for live rooms…" : roomsState === "error" ? "Couldn't load rooms. Check your connection." : "No live rooms of this type. Start one."}</div>);
-    const upRows = () => (up.length ? up.map((x) => {
-      const r = x[0], i = x[1], pp = r.at.split(", "), d = pp[0].split(" ");
-      return (
-        <div className="row" key={i}>
-          <span style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0 }}>
-            <span className="db"><b>{d.slice(1).join(" ")}</b><span>{pp[1]}</span></span>
-            <span style={{ minWidth: 0 }}><Kind k={r.k} /><div style={{ marginTop: 4 }}><b>{r.t}</b></div><div className="t2 s12">Hosted by {r.h}</div></span>
-          </span>
-          <button type="button" className={`chip${rem[i] ? " on" : ""}`} style={{ margin: 0, flex: "none" }} onClick={() => { setRem((m) => ({ ...m, [i]: !m[i] })); toast(rem[i] ? "Reminder removed" : "Reminder set"); }}>{rem[i] ? "Set" : "Remind"}</button>
-        </div>
-      );
-    }) : <div className="t2">Nothing scheduled.</div>);
+      </div>
+    )) : <div className="t2">{!sessionToken ? "Sign in to your account to see and join live rooms." : roomsState === "loading" ? "Looking for live rooms…" : roomsState === "error" ? "Couldn't load rooms. Check your connection." : "No live rooms of this type. Start one."}</div>);
     if (isDesktop) {
-      return (
-        <>
-          <div className="rw" style={{ margin: "18px 0 0", gap: 16 }}>{filters}{startBtn}</div>
-          <div className="dkg" style={{ marginTop: 6 }}>
-            <div style={{ minWidth: 0 }}>
-              <div className="lb"><span>Live now</span><span>{lv.length} rooms</span></div>
-              <div className="dkcards">{liveCards()}</div>
-            </div>
-            <aside className="dkside">
-              <div className="card">
-                <div className="lb"><span>Upcoming</span><span>{up.length} scheduled</span></div>
-                {upRows()}
-              </div>
-            </aside>
-          </div>
-        </>
-      );
+      return (<>
+        <div className="rw" style={{ margin: "18px 0 0", gap: 16 }}>{filters}{startBtn}</div>
+        <div className="lb" style={{ marginTop: 14 }}><span>Live now</span><span>{lv.length} rooms</span></div>
+        <div className="dkcards">{liveCards()}</div>
+      </>);
     }
-    return (
-      <>
-        {startBtn}
-        {filters}
-        <div className="lb"><span>Live now</span><span>{lv.length} rooms</span></div>
-        {liveCards()}
-        <div className="lb"><span>Upcoming</span></div>
-        {upRows()}
-      </>
-    );
+    return (<>{startBtn}{filters}<div className="lb"><span>Live now</span><span>{lv.length} rooms</span></div>{liveCards()}</>);
   };
 
   // ---------- Ranks ----------
-  const you = Math.round(myDiscipline != null && Number.isFinite(myDiscipline) ? myDiscipline : 86);
-  const board = lp === "week"
-    ? [["@maya_r", 94], ["You", you], ["@nightowl_fx", 83], ["@quietbreakout", 79], ["@tape_reader", 71]]
-    : [["@maya_r", 91], ["@nightowl_fx", 85], ["You", Math.max(0, you - 2)], ["@quietbreakout", 80], ["@tape_reader", 69]];
-  const RanksView = () => {
-    const challenges = (
-      <>
-        <div className="lb" style={isDesktop ? { marginTop: 0 } : undefined}><span>Challenges</span><span>Build habits with others</span></div>
-        <div className={isDesktop ? "stk" : undefined}>
-          {CHL.map((c, i) => {
-            const j = chj[i];
-            return (
-              <div className="pc" style={{ marginTop: 10 }} key={c[0]}>
-                <div className="rw"><span><b>{c[0]}</b><div className="t2 s12">{c[1]}</div></span><button type="button" className={`chip${j ? " on" : ""}`} style={{ margin: 0 }} onClick={() => setChj((m) => ({ ...m, [i]: !m[i] }))}>{j ? "Joined" : "Join"}</button></div>
-                {j && (<><div className="bar" style={{ marginTop: 12 }}><i style={{ width: `${(c[2] / c[3]) * 100}%` }} /></div><div className="t2 s12" style={{ marginTop: 6 }}>{c[2]} of {c[3]} days complete</div></>)}
-              </div>
-            );
-          })}
-        </div>
-      </>
-    );
-    const rows = board.map((x, i) => {
-      const y = x[0] === "You";
-      return (
-        <div className="row" key={x[0]} style={y ? { background: "color-mix(in srgb,var(--am) 12%,var(--s1))", borderRadius: 10, paddingLeft: 10, paddingRight: 10 } : undefined}>
-          <span style={{ display: "flex", gap: 12, alignItems: "center" }}>
-            <span className="t2" style={{ width: 16 }}>{i + 1}</span>
-            {y ? <b className="am">You</b> : <button type="button" onClick={() => goProf(x[0])}><b>{x[0]}</b></button>}
-          </span>
-          <b>{x[1]}%</b>
-        </div>
-      );
-    });
-    const leaderboard = (
-      <>
-        <div className="lb" style={isDesktop ? { marginTop: 0 } : undefined}><span>Discipline leaderboard</span><span>Ranked by process, not profit</span></div>
-        <div className="chips">
-          <button type="button" className={`chip${lp === "week" ? " on" : ""}`} onClick={() => setLp("week")}>This week</button>
-          <button type="button" className={`chip${lp === "month" ? " on" : ""}`} onClick={() => setLp("month")}>This month</button>
-        </div>
-        {isDesktop ? <div className="card" style={{ padding: "4px 16px" }}>{rows}</div> : rows}
-      </>
-    );
-    if (isDesktop) {
-      return (
-        <div className="dkg2" style={{ marginTop: 20 }}>
-          <div style={{ minWidth: 0 }}>{challenges}</div>
-          <div style={{ minWidth: 0 }}>{leaderboard}</div>
-        </div>
-      );
-    }
-    return <>{challenges}{leaderboard}</>;
-  };
+  // There is no server-side leaderboard yet, so this shows only your own real score instead of made-up rivals.
+  const you = myDiscipline != null && Number.isFinite(myDiscipline) ? Math.round(myDiscipline) : null;
+  const RanksView = () => (
+    <>
+      <div className="lb"><span>Your discipline score</span><span>From your journal</span></div>
+      <div className="card" style={{ textAlign: "center", padding: "22px 16px" }}>
+        {you != null ? (<><div style={{ fontSize: 44, fontWeight: 600 }} className={you >= 80 ? "g" : you >= 50 ? "am" : "r"}>{you}%</div><div className="t2 s12" style={{ marginTop: 6 }}>Ranked by process, not profit.</div></>)
+          : <div className="t2">Log and review trades in your journal to get a discipline score.</div>}
+      </div>
+      <div className="card t2" style={{ marginTop: 12, lineHeight: 1.5 }}>Community leaderboards and challenges need a server feature that isn't switched on yet, so nobody else's scores are shown here.</div>
+    </>
+  );
 
-  // ---------- Mentor ----------
-  const startMentor = () => {
-    clearTimeout(mtm.current);
-    mtm.current = setTimeout(() => {
-      const cur = mnRef.current;
-      if (!cur || cur.st !== "pending") return;
-      setMn({ ...cur, st: "on", since: "Today", focus: 2, note: "Hold the stop on every trade this week. No moving it, no widening it." });
-      setRq([
-        { id: 3, st: "done", g: "B", good: "You waited for the close and kept your risk under 1%. That is the process I want to see.", fix: "Your target was close and you exited early. Plan the exit before you enter.", th: [] },
-        { id: 4, st: "done", g: "C", good: "You took a setup from your own playbook.", fix: "You moved the stop. Decide it once and leave it alone.", th: [] },
+  // ---------- Mentor (real data from the worker's /mentors routes) ----------
+  const loadMentor = async (quiet) => {
+    if (!sessionToken) return;
+    if (!quiet) setMdState((s) => (s === "ok" ? s : "loading"));
+    try {
+      const [a, b] = await Promise.all([
+        communityApi("/mentors", { headers: hdr() }),
+        communityApi("/mentors/directory", { headers: hdr() }).catch(() => ({ mentors: [] })),
       ]);
-      toast(`${mNameOf(cur)} is now your mentor`);
-    }, 2500);
+      setMd(a); setDir(b.mentors || []); setMdState("ok"); setMdErr("");
+    } catch (e) { setMdErr((e && e.message) || "Couldn't load Mentor."); setMdState((s) => (s === "ok" ? s : "error")); }
   };
-  const reqMentor = (h) => { setMn({ h, st: "pending" }); setTimeout(startMentor, 0); toast(`Request sent to ${PF[h].n}`); };
-  const MentorBtn = (h) => {
-    const st = { height: 44, flex: 1 };
-    if (mn && mn.h === h) return mn.st === "on" ? <button type="button" className="btn o" style={st} onClick={() => setTab("mentor")}>Your mentor</button> : <button type="button" className="btn o" style={st} onClick={() => toast("Request sent. Waiting for a reply.")}>Request sent</button>;
-    if (mn) return <button type="button" className="btn o" style={st} onClick={() => toast("You already have a mentor. End it in the Mentor tab to switch.")}>Request mentor</button>;
-    return <button type="button" className="btn o" style={st} onClick={() => { reqMentor(h); setTab("mentor"); }}>Request mentor</button>;
+  useEffect(() => {
+    if (tab !== "mentor" || !sessionToken) return undefined;
+    loadMentor();
+    const id = setInterval(() => loadMentor(true), 30000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, sessionToken]);
+  const mAct = async (fn, okMsg) => {
+    if (busy) return false;
+    setBusy(true);
+    try { await fn(); if (okMsg) toast(okMsg); await loadMentor(true); setBusy(false); return true; }
+    catch (e) { toast((e && e.message) || "Something went wrong"); setBusy(false); return false; }
+  };
+  const fetchMT = async (id) => {
+    const j = await communityApi(`/mentors/trade?id=${encodeURIComponent(id)}`, { headers: hdr() });
+    setMt({ id, data: j });
+    return j;
+  };
+  const openMTrade = async (id) => {
+    setMt({ id, data: null }); setMtxt(""); setRvg(""); setRvt([]); setDc(false); setSheet({ t: "mtrade" });
+    try {
+      const j = await fetchMT(id);
+      const mine = (j.reviews || []).find((r) => r.mine);
+      if (mine) { setRvg(mine.grade); setRvt(mine.tags || []); }
+    } catch (e) { toast((e && e.message) || "Couldn't open that trade"); setSheet(null); }
+  };
+  const fetchMentee = async (linkId) => {
+    const j = await communityApi(`/mentors/trades?linkId=${encodeURIComponent(linkId)}`, { headers: hdr() });
+    setMmen({ linkId, data: j });
+  };
+  const openMentee = async (linkId) => {
+    setMmen({ linkId, data: null }); setMtxt(""); setSheet({ t: "mmentee" });
+    try { await fetchMentee(linkId); } catch (e) { toast((e && e.message) || "Couldn't open that trader"); setSheet(null); }
+  };
+  const shareTrade = (x) => mAct(async () => {
+    await apiPost("/mentors/share", { trade: { id: String(x.id), pair: x.pair, direction: x.direction, pnl: Number(x.pnl) || 0, ts: x.ts, setup: x.setup || "", emotion: x.emotion || "", session: x.session || "", confidence: x.confidence == null ? "" : x.confidence, note: x.note || "" }, shots: [] });
+    close();
+  }, "Sent to your mentor");
+
+  const TradeRow = (t, onClick, who, needs) => {
+    const rv = t.reviews || [];
+    return (
+      <button type="button" className="jt" key={t.id} onClick={onClick}>
+        <div className="rw"><span><b>{t.pair || "Trade"}</b><span className="tag">{isLong(t.direction) ? "Long" : "Short"}</span><div className="t2 s12" style={{ marginTop: 2 }}>{who ? `@${who}, ` : ""}{dshort(t.ts)}</div></span><b className={ocl(t.pnl)}>{outcome(t.pnl)}</b></div>
+        <div className="rw" style={{ marginTop: 12 }}>
+          <span className={`jst ${rv.length ? "ok" : "need"}`}>{rv.length ? <><Ic n="check" s={12} />Grade {rv[0].grade}</> : needs ? "Needs your review" : "Waiting for feedback"}</span>
+          <span className="t2 s12">{t.comments ? `${t.comments} ${t.comments === 1 ? "comment" : "comments"}` : ""}</span>
+        </div>
+      </button>
+    );
   };
   const MentorView = () => {
-    const m = mn;
-    if (!m) {
-      return (
-        <>
-          <div className="card" style={{ marginTop: 12 }}>
-            <div className="big2">Learn faster with a mentor</div>
-            <div className="t2 s12" style={{ marginTop: 6, lineHeight: 1.5 }}>Share your journaled trades and get clear feedback from someone who trades well.</div>
-            {["Send any journaled trade for review", "Get a grade, what worked and what to fix", "Work on one focus rule each week"].map((s) => <div className="mck" key={s}><Ic n="check" s={16} /><span>{s}</span></div>)}
-            <div className="t2 s12" style={{ marginTop: 14 }}>Mentors see R multiples only, never dollars or account size.</div>
-          </div>
-          <div className="lb"><span>Mentors on Ledger</span><span>Tap one to see their profile</span></div>
-          <div className={isDesktop ? "dkcards3" : undefined}>
-          {MCAND.map((h) => {
-            const f = PF[h];
-            return (
-              <div className="card mcd" key={h}>
-                <button type="button" className="mph" onClick={() => goProf(h)} aria-label={`View ${f.n} profile`}>
-                  <span className="av" style={{ width: 52, height: 52, fontSize: 16 }}>{h.slice(1, 3).toUpperCase()}</span>
-                  <span style={{ flex: 1, minWidth: 0 }}><b>{f.n}</b><div className="t2 s12">{f.role}</div></span>
-                  <span className="t2" style={{ flex: "none" }}><Ic n="chev" s={18} /></span>
-                </button>
-                <div className="t2 s12 mbio" style={{ marginTop: 8, lineHeight: 1.5 }}>{f.bio}</div>
-                <div className="mtiles">
-                  <div className="mtile"><b>{f.ds}%</b><span>Discipline</span></div>
-                  <div className="mtile"><b>{f.st} days</b><span>Streak</span></div>
-                  <div className="mtile"><b>{f.ses}</b><span>Session</span></div>
-                </div>
-                <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-                  <button type="button" className="btn o" style={{ height: 44, flex: 1 }} onClick={() => goProf(h)}>View profile</button>
-                  <button type="button" className="btn" style={{ height: 44, flex: 1 }} onClick={() => reqMentor(h)}>Request</button>
-                </div>
-              </div>
-            );
-          })}
-          </div>
-          <div className="card minv">
-            <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-              <span className="mic"><Ic n="plus" s={18} /></span>
-              <span><b>Already have a mentor?</b><div className="t2 s12" style={{ marginTop: 2, lineHeight: 1.4 }}>Invite them with a private link, even if they are not on Ledger.</div></span>
-            </div>
-            <button type="button" className="btn o" style={{ height: 44, marginTop: 14, width: "100%" }} onClick={() => { setMnn(""); setMnc(""); setSheet({ t: "mis" }); }}>Invite my mentor</button>
-          </div>
-        </>
-      );
-    }
-    const n = mNameOf(m), ini = (m.h ? m.h.slice(1, 3) : (n || "?").trim().split(/\s+/).map((w) => w[0] || "").join("").slice(0, 2)).toUpperCase();
-    const role = m.h && PF[m.h] ? PF[m.h].role : "Your mentor";
-    if (m.st === "pending") {
-      if (m.link) {
-        return (
-          <div className="card" style={{ marginTop: 12 }}>
-            <div className="rw"><span style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0 }}><span className="av" style={{ width: 48, height: 48, fontSize: 15 }}>{ini}</span><span style={{ minWidth: 0 }}><b>{n}</b><div className="t2 s12">Invite pending</div></span></span><span className="jst need">Not accepted yet</span></div>
-            <div className="mstep"><i className="d"><Ic n="check" s={12} /></i><span>Private link created</span></div>
-            <div className="mstep"><i>2</i><span>Send it to {n}<div className="t2 s12" style={{ marginTop: 2 }}>They open it to start reviewing your trades.</div></span></div>
-            <div className="mstep"><i>3</i><span>They accept and leave feedback<div className="t2 s12" style={{ marginTop: 2 }}>You will see it here, in R only.</div></span></div>
-            <div className="mlink"><span>{m.link}</span><button type="button" className="chip on" style={{ margin: 0, flex: "none" }} onClick={() => { try { navigator.clipboard.writeText(`https://${m.link}`).then(() => toast("Link copied"), () => toast("Could not copy")); } catch (e) { toast("Could not copy"); } }}>Copy</button></div>
-            <button type="button" className="btn" style={{ marginTop: 14 }} onClick={() => { const u = `https://${m.link}`; if (navigator.share) navigator.share({ title: "Ledger mentor invite", text: "Review my trades on Ledger", url: u }).catch(() => {}); else { try { navigator.clipboard.writeText(u).then(() => toast("Link copied")); } catch (e) { toast("Could not copy"); } } }}>Share link</button>
-            <button type="button" className="btn o" style={{ marginTop: 10 }} onClick={() => { clearTimeout(mtm.current); setMn(null); }}>Cancel invite</button>
-            <div className="t2 s12" style={{ marginTop: 12, textAlign: "center" }}>The link is a placeholder until Ledger has accounts.</div>
-          </div>
-        );
-      }
-      return (
-        <div className="card" style={{ marginTop: 12 }}>
-          <div className="rw"><span style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0 }}><span className="av" style={{ width: 48, height: 48, fontSize: 15 }}>{ini}</span><span style={{ minWidth: 0 }}><b>{n}</b><div className="t2 s12">{role}</div></span></span><span className="jst need">Request sent</span></div>
-          <div className="t2" style={{ marginTop: 14, lineHeight: 1.5 }}>Waiting for {n} to accept. You will be notified here.</div>
-          <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-            <button type="button" className="btn o" style={{ height: 44, flex: 1 }} onClick={() => goProf(m.h)}>View profile</button>
-            <button type="button" className="btn o" style={{ height: 44, flex: 1 }} onClick={() => { clearTimeout(mtm.current); setMn(null); }}>Cancel</button>
-          </div>
+    if (!sessionToken) return <div className="card t2" style={{ marginTop: 12 }}>Sign in to your account to use Mentor.</div>;
+    if (mdState === "idle" || (mdState === "loading" && !md)) return <div className="t2" style={{ padding: "30px 0", textAlign: "center" }}>Loading Mentor…</div>;
+    if (!md) return (<div className="card" style={{ marginTop: 12 }}><div className="t2">{mdErr}</div><button type="button" className="btn o" style={{ marginTop: 12 }} onClick={() => loadMentor()}>Try again</button></div>);
+    const mentors = md.mentors || [], mentees = md.mentees || [], invites = md.invites || [], pending = md.pending || [];
+    const queue = md.queue || [], tasks = md.tasks || [], shared = md.shared || [], sessions = md.sessions || [];
+    const canCoach = !!md.creator || mentees.length > 0;
+    const maxMentors = (md.limits && md.limits.mentors) || 2;
+    const list = dir.filter((d) => String(d.username).toLowerCase() !== meL);
+    const mentorCards = mentors.map((x) => (
+      <div className="card" style={{ marginTop: 12 }} key={x.linkId}>
+        <div className="rw" style={{ gap: 4 }}>
+          <button type="button" className="mph" onClick={() => goProf(x.username)} aria-label={`View ${x.username} profile`}>
+            <PAv u={x.username} avatar={x.avatar} size={48} fs={15} />
+            <span style={{ flex: 1, minWidth: 0 }}><b>@{x.username}</b><div className="t2 s12">Mentoring you since {dshort(x.since)}</div></span>
+            <span className="t2" style={{ flex: "none" }}><Ic n="chev" s={18} /></span>
+          </button>
+          <button type="button" className="pmn" aria-label="Mentor options" onClick={() => { setMrs(false); setSheet({ t: "mopt", linkId: x.linkId, name: x.username }); }}><Dots /></button>
         </div>
-      );
-    }
-    const C = TRADES.filter((t) => t.x != null), fl = m.focus, fo = C.filter((t) => t.rules[fl]).length, pc = C.length ? Math.round((fo / C.length) * 100) : 0;
-    const rv = rq.filter((r) => TRADES.some((t) => t.id === r.id)), dn = rv.filter((r) => r.st === "done").length;
+      </div>
+    ));
     return (
       <>
-        <div className="card" style={{ marginTop: 12 }}>
-          <div className="rw" style={{ gap: 4 }}>
-            {m.h ? (
-              <button type="button" className="mph" onClick={() => goProf(m.h)} aria-label={`View ${n} profile`}>
-                <span className="av" style={{ width: 48, height: 48, fontSize: 15 }}>{ini}</span>
-                <span style={{ flex: 1, minWidth: 0 }}><b>{n}</b><div className="t2 s12">{role}</div></span>
-                <span className="t2" style={{ flex: "none" }}><Ic n="chev" s={18} /></span>
-              </button>
-            ) : (
-              <span className="mph"><span className="av" style={{ width: 48, height: 48, fontSize: 15 }}>{ini}</span><span style={{ flex: 1, minWidth: 0 }}><b>{n}</b><div className="t2 s12">{role}</div></span></span>
-            )}
-            <button type="button" className="pmn" aria-label="Mentor options" onClick={() => { setMrs(false); setSheet({ t: "mmg" }); }}><Dots /></button>
+        {invites.map((x) => (
+          <div className="card" style={{ marginTop: 12 }} key={x.linkId}>
+            <div className="rw"><span style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0 }}><PAv u={x.username} avatar={x.avatar} size={44} fs={14} /><span style={{ minWidth: 0 }}><b>@{x.username}</b><div className="t2 s12">{x.asks === "mentor" ? "Wants you to be their mentor" : "Offers to be your mentor"}</div></span></span></div>
+            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+              <button type="button" className="btn o" style={{ height: 44, flex: 1 }} disabled={busy} onClick={() => mAct(() => apiPost("/mentors/respond", { linkId: x.linkId, accept: false }), "Declined")}>Decline</button>
+              <button type="button" className="btn" style={{ height: 44, flex: 1 }} disabled={busy} onClick={() => mAct(() => apiPost("/mentors/respond", { linkId: x.linkId, accept: true }), "You're connected")}>Accept</button>
+            </div>
           </div>
-          <div className="t2 s12" style={{ marginTop: 8 }}>Mentoring you since {m.since === "Today" ? "Mon 2 Nov" : m.since}</div>
-          {m.h && <button type="button" className="btn o" style={{ height: 44, marginTop: 12, width: "100%" }} onClick={() => goProf(m.h)}>View profile</button>}
-        </div>
-        <div className="lb"><span>This week’s focus</span><span>Set by {n.split(" ")[0]}</span></div>
-        <div className="card">
-          <div className="cht">{RL[fl]}</div>
-          <div className="t2 s12" style={{ marginTop: 4, lineHeight: 1.5 }}>{m.note}</div>
-          <div className="mbar"><i style={{ width: `${pc}%` }} /></div>
-          <div className="rw s12"><span className="t2">Followed on {fo} of {C.length} trades</span><b className={pc >= 80 ? "g" : pc >= 50 ? "am" : "r"}>{pc}%</b></div>
-        </div>
-        <div className="lb"><span>Reviews</span><span>{rv.length ? `${dn} of ${rv.length} reviewed` : ""}</span></div>
-        {rv.length ? rv.map((r) => {
-          const t = TRADES.find((x) => x.id === r.id), k = K(t), d = r.st === "done";
-          return (
-            <button type="button" className="jt" key={r.id} onClick={() => { setMfi(r.id); setMq(""); setSheet({ t: "mfb" }); }}>
-              <div className="rw"><span><b>{t.sym}</b><span className="tag">{t.side > 0 ? "Long" : "Short"}</span><div className="t2 s12" style={{ marginTop: 2 }}>{t.setup}, {t.day}</div></span><b className={cl(k.pnl)}>{rr(k.r)}</b></div>
-              <div className="rw" style={{ marginTop: 12 }}><span className={`jst ${d ? "ok" : "need"}`}>{d ? <><Ic n="check" s={12} />Reviewed, grade {r.g}</> : "Waiting for feedback"}</span><span className="t2 s12">{d && r.th.length ? `${r.th.length} ${r.th.length === 1 ? "reply" : "replies"}` : ""}</span></div>
+        ))}
+        {pending.map((x) => (
+          <div className="card" style={{ marginTop: 12 }} key={x.linkId}>
+            <div className="rw"><span><b>@{x.username}</b><div className="t2 s12">{x.as === "mentor" ? "Mentor request sent. Waiting for a reply." : "Offer sent. Waiting for a reply."}</div></span>
+              <button type="button" className="chip" style={{ margin: 0 }} disabled={busy} onClick={() => mAct(() => apiPost("/mentors/leave", { linkId: x.linkId }), "Cancelled")}>Cancel</button></div>
+          </div>
+        ))}
+
+        {mentors.length > 0 && (<>
+          <div className="lb"><span>{mentors.length > 1 ? "Your mentors" : "Your mentor"}</span></div>
+          {mentorCards}
+          {tasks.length > 0 && (<>
+            <div className="lb"><span>Tasks from your mentor</span><span>{tasks.filter((t) => !t.done).length} open</span></div>
+            <div className="card" style={{ padding: "2px 16px" }}>
+              {tasks.map((t) => (
+                <div className="row" key={t.id}>
+                  <span style={{ minWidth: 0 }}><span style={{ textDecoration: t.done ? "line-through" : "none", opacity: t.done ? 0.6 : 1 }}>{t.text}</span><div className="t2 s12">From @{t.mentor}</div></span>
+                  <button type="button" className={`chip${t.done ? " on" : ""}`} style={{ margin: 0, flex: "none" }} disabled={busy} onClick={() => mAct(() => apiPost("/mentors/task/done", { id: t.id, done: !t.done }))}>{t.done ? "Done" : "Mark done"}</button>
+                </div>
+              ))}
+            </div>
+          </>)}
+          {sessions.length > 0 && (<>
+            <div className="lb"><span>Latest session recap</span><span>{dshort(sessions[0].day)}</span></div>
+            <div className="card"><div className="t2 s12">From @{sessions[0].mentor}</div><div style={{ marginTop: 6, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{sessions[0].recap || "No recap written."}</div></div>
+          </>)}
+          <div className="lb"><span>Trades you sent</span><span>{shared.length ? `${shared.filter((t) => (t.reviews || []).length).length} of ${shared.length} reviewed` : ""}</span></div>
+          {shared.length ? shared.map((t) => TradeRow(t, () => openMTrade(t.id))) : <div className="card t2" style={{ textAlign: "center", padding: "22px 16px" }}>No trades sent yet.</div>}
+          <button type="button" className="btn" style={{ marginTop: 16 }} onClick={() => setSheet({ t: "mshare" })}>Send a trade for review</button>
+        </>)}
+
+        {canCoach && (<>
+          <div className="lb"><span>People you coach</span><span>{mentees.length}</span></div>
+          {mentees.length ? mentees.map((x) => (
+            <button type="button" className="jt" key={x.linkId} onClick={() => openMentee(x.linkId)}>
+              <div className="rw"><span style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0 }}><PAv u={x.username} avatar={x.avatar} size={40} fs={13} /><span><b>@{x.username}</b><div className="t2 s12">Since {dshort(x.since)}</div></span></span><span className="t2 s12">{x.shared || 0} shared</span></div>
             </button>
-          );
-        }) : <div className="card t2" style={{ textAlign: "center", padding: "22px 16px" }}>No trades sent yet.</div>}
-        <button type="button" className="btn" style={{ marginTop: 16 }} onClick={() => setSheet({ t: "mps" })}>Send a trade for review</button>
+          )) : <div className="card t2" style={{ textAlign: "center", padding: "22px 16px" }}>No mentees yet. Invite someone by username below.</div>}
+          {queue.length > 0 && (<>
+            <div className="lb"><span>Review queue</span><span>{queue.length} waiting</span></div>
+            {queue.map((t) => TradeRow(t, () => openMTrade(t.id), t.username, true))}
+          </>)}
+          <div className="card" style={{ marginTop: 14 }}>
+            <div className="rw"><span><b>Your mentor profile</b><div className="t2 s12" style={{ marginTop: 2 }}>{md.profile && md.profile.open ? "Listed in the mentor directory" : "Not listed yet"}</div></span>
+              <button type="button" className="chip" style={{ margin: 0 }} onClick={() => { setPbio((md.profile && md.profile.bio) || ""); setPtags(((md.profile && md.profile.tags) || []).join(", ")); setPopen(md.profile ? !!md.profile.open : true); setSheet({ t: "mprof" }); }}>Edit</button></div>
+          </div>
+        </>)}
+
+        {mentors.length === 0 && (
+          <div className="card" style={{ marginTop: 12 }}>
+            <div className="big2">Learn faster with a mentor</div>
+            <div className="t2 s12" style={{ marginTop: 6, lineHeight: 1.5 }}>Send journaled trades to someone who trades well and get a grade, tags and comments back.</div>
+            {["Send any journaled trade for review", "Get a grade and what to fix", "Work on tasks your mentor sets"].map((s) => <div className="mck" key={s}><Ic n="check" s={16} /><span>{s}</span></div>)}
+            <div className="t2 s12" style={{ marginTop: 14 }}>Your mentor sees the trades you choose to send, with their result and your notes.</div>
+          </div>
+        )}
+        {mentors.length < maxMentors && (<>
+          <div className="lb"><span>Mentors on Tredzi</span><span>{list.length ? "Tap one to see their profile" : ""}</span></div>
+          {list.length ? (
+            <div className={isDesktop ? "dkcards3" : undefined}>
+              {list.map((d) => (
+                <div className="card mcd" key={d.username}>
+                  <button type="button" className="mph" onClick={() => goProf(d.username)} aria-label={`View ${d.username} profile`}>
+                    <PAv u={d.username} avatar={d.avatar} size={52} fs={16} />
+                    <span style={{ flex: 1, minWidth: 0 }}><b>@{d.username}</b><div className="t2 s12">{d.coached ? `Coaching ${d.coached}` : "New mentor"}</div></span>
+                    <span className="t2" style={{ flex: "none" }}><Ic n="chev" s={18} /></span>
+                  </button>
+                  {d.bio ? <div className="t2 s12 mbio" style={{ marginTop: 8, lineHeight: 1.5 }}>{d.bio}</div> : null}
+                  {(d.tags || []).length > 0 && <div style={{ marginTop: 8 }}>{d.tags.map((g) => <span className="tag" key={g}>{g}</span>)}</div>}
+                  <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+                    <button type="button" className="btn o" style={{ height: 44, flex: 1 }} onClick={() => goProf(d.username)}>View profile</button>
+                    <button type="button" className="btn" style={{ height: 44, flex: 1 }} disabled={busy} onClick={() => mAct(() => apiPost("/mentors/invite", { username: d.username, role: "mentor" }), `Request sent to @${d.username}`)}>Request</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : <div className="card t2" style={{ textAlign: "center", padding: "22px 16px" }}>No mentors have listed themselves yet. You can invite someone by username.</div>}
+        </>)}
+        <div className="card minv">
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <span className="mic"><Ic n="plus" s={18} /></span>
+            <span><b>Invite someone by username</b><div className="t2 s12" style={{ marginTop: 2, lineHeight: 1.4 }}>Ask a trader to mentor you, or offer to coach them. Mentors need the Creator plan.</div></span>
+          </div>
+          <button type="button" className="btn o" style={{ height: 44, marginTop: 14, width: "100%" }} onClick={() => { setInv(""); setSheet({ t: "minvite" }); }}>Invite by username</button>
+        </div>
       </>
     );
   };
@@ -912,6 +963,7 @@ export default function LedgerCommunity({ isDesktop, communityAvatar, openMember
   // ---------- Sheets ----------
   const SheetHead = ({ title, onX }) => <div className="shd"><button type="button" className="ib" onClick={onX || close} aria-label="Close"><Ic n="x" /></button><h1>{title}</h1></div>;
   const Chip = ({ on, onClick, children }) => <button type="button" className={`chip${on ? " on" : ""}`} onClick={onClick}>{children}</button>;
+  const Loading = ({ title }) => (<><SheetHead title={title} /><div className="shb"><div className="t2" style={{ margin: "24px 0", textAlign: "center" }}>Loading…</div></div></>);
   const renderSheet = () => {
     if (!sheet) return null;
     const t = sheet.t;
@@ -921,106 +973,61 @@ export default function LedgerCommunity({ isDesktop, communityAvatar, openMember
         <SheetHead title="Filter posts" />
         <div className="shb">
           <div className="lb"><span>Show</span></div>
-          <div className="chips">{["All", "Saved", "Setups", "Reviews", "Psychology", "Risk"].map((b) => <Chip key={b} on={bd === b} onClick={() => setBd(b)}>{b}</Chip>)}</div>
+          <div className="chips">{["All", "Saved", ...BOARDS].map((b) => <Chip key={b} on={bd === b} onClick={() => setBd(b)}>{b}</Chip>)}</div>
           <div className="lb"><span>Sort by</span></div>
           <div className="chips">{[["new", "Latest"], ["top", "Most helpful"]].map((x) => <Chip key={x[0]} on={fsort === x[0]} onClick={() => setFsort(x[0])}>{x[1]}</Chip>)}</div>
-          {ms.length > 0 && (<><div className="lb"><span>Muted authors</span><span>Tap to unmute</span></div><div className="chips">{ms.map((h) => <Chip key={h} on={false} onClick={() => setMute((m) => { const c = { ...m }; delete c[h]; return c; })}>{h}</Chip>)}</div></>)}
+          {ms.length > 0 && (<><div className="lb"><span>Muted authors</span><span>Tap to unmute</span></div><div className="chips">{ms.map((h) => <Chip key={h} on={false} onClick={() => unmute(h)}>@{h}</Chip>)}</div></>)}
         </div>
         <div className="shf"><button type="button" className="btn o" style={{ width: "36%" }} onClick={() => { setBd("All"); setFsort("new"); }}>Reset</button><button type="button" className="btn" onClick={close}>Show {n} {n === 1 ? "post" : "posts"}</button></div>
       </>);
     }
+    if (t === "compose") {
+      return <PostComposer username={me} avatar={communityAvatar} trades={trades} onSubmit={submitPost} onClose={close} />;
+    }
     if (t === "post") {
       const p = postById(sheet.id); if (!p) return null;
-      const tr = p.e != null, au = p.h === "@you";
-      const order = p.cmts.map((c, j) => ({ c, j })).sort((a, b) => (b.c.best ? 1 : 0) - (a.c.best ? 1 : 0) || a.j - b.j);
-      const send = () => { const v = ci.trim(); if (!v) return; patchPost(p.id, (x) => ({ ...x, cmts: [...x.cmts, { h: "@you", t: v, age: 0 }] })); setCi(""); };
+      const mine = isMe(p), list = cm.id === p.id ? cm.list : [];
       return (<>
         <SheetHead title="Post" />
         <div className="shb">
-          <div className="t2 s12" style={{ marginTop: 14 }}><span className="tag" style={{ margin: "0 8px 0 0" }}>{p.board}</span><button type="button" className="lk" onClick={() => goProf(p.h)}>{p.h}</button>, {p.ago} ago</div>
-          <div className="ttl" style={{ fontSize: 18, marginTop: 8 }}>{p.title}</div>
-          {tr && (<><Rail t={p} /><div className="t2 s12">Result {rr(p.r)}, followed {(p.rules || []).filter(Boolean).length} of 3 rules</div></>)}
-          <p style={{ margin: "12px 0" }}>{p.note || ""}</p>
-          <div className="lb"><span>{p.cmts.length} comments</span></div>
-          {order.map(({ c, j }) => {
-            const me = c.h === "@you", ag = c.age != null ? c.age : Math.round(p.age * (1 - (j + 1) / (p.cmts.length + 1))), hc = (c.hc || 0) + (c.my ? 1 : 0);
+          <div className="t2 s12" style={{ marginTop: 14 }}><span className="tag" style={{ margin: "0 8px 0 0" }}>{p.board}</span><button type="button" className="lk" onClick={() => goProf(p.author)}>{p.h}</button>, {ago(p.ts)}{ago(p.ts) === "Just now" ? "" : " ago"}</div>
+          {p.title ? <div className="ttl" style={{ fontSize: 18, marginTop: 8 }}>{p.title}</div> : null}
+          {p.trade ? <TradeLine t={p.trade} /> : null}
+          {p.note ? <p style={{ margin: "12px 0", whiteSpace: "pre-wrap" }}>{p.note}</p> : null}
+          {p.image ? <img className="pimg" src={p.image} alt="" /> : null}
+          <div className="lb"><span>{cm.id === p.id && cm.loading ? "Loading comments…" : `${list.length} ${list.length === 1 ? "comment" : "comments"}`}</span></div>
+          {list.map((c) => {
+            const cme = String(c.author).toLowerCase() === meL;
             return (
-              <div className={`cm${c.best ? " best" : ""}`} key={j}>
-                {me ? <Av size={32} fs={11} text="YO" photo={communityAvatar} /> : <span className="av" style={{ width: 32, height: 32, fontSize: 11 }}>{c.h.slice(1, 3).toUpperCase()}</span>}
+              <div className="cm" key={c.id}>
+                <PAv u={c.author} avatar={cme ? communityAvatar : null} size={32} fs={11} />
                 <div className="cmb">
-                  <div className="cmh"><b>{c.h}</b><span className="t2 s12">{AGO(ag)}</span>{c.best && <span className="bba"><Ic n="check" s={12} />Best answer</span>}</div>
-                  <div>{c.t}</div>
-                  <div className="cma">
-                    <button type="button" className={`chb${c.my ? " on" : ""}`} onClick={() => patchPost(p.id, (x) => ({ ...x, cmts: x.cmts.map((y, k) => (k === j ? { ...y, my: !y.my } : y)) }))}><Ic n="up" s={14} />Helpful{hc ? ` ${hc}` : ""}</button>
-                    {au && !me && <button type="button" className={`chb${c.best ? " on" : ""}`} onClick={() => patchPost(p.id, (x) => ({ ...x, cmts: x.cmts.map((y, k) => ({ ...y, best: k === j ? !y.best : false })) }))}><Ic n="check" s={14} />{c.best ? "Remove best answer" : "Mark best answer"}</button>}
-                  </div>
+                  <div className="cmh"><b>@{c.author}</b><span className="t2 s12">{ago(c.ts)}</span></div>
+                  <div style={{ whiteSpace: "pre-wrap" }}>{c.text}</div>
+                  {(cme || mine) && <div className="cma"><button type="button" className="chb" onClick={() => delComment(p, c)}>Delete</button></div>}
                 </div>
               </div>
             );
           })}
         </div>
         <div className="shf">
-          <input className="in" style={{ margin: 0, width: "auto", flex: 1 }} placeholder={p.board === "Reviews" ? "Give feedback" : "Add a comment"} aria-label="Comment" value={ci} onChange={(e) => setCi(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(); }} />
-          <button type="button" className="btn" style={{ width: 90 }} onClick={send}>Send</button>
+          <input className="in" style={{ margin: 0, width: "auto", flex: 1 }} maxLength={500} placeholder={p.board === "Reviews" ? "Give feedback" : "Add a comment"} aria-label="Comment" value={ci} onChange={(e) => setCi(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") sendComment(p); }} />
+          <button type="button" className="btn" style={{ width: 90 }} onClick={() => sendComment(p)}>Send</button>
         </div>
       </>);
     }
     if (t === "pm") {
       const p = postById(sheet.id); if (!p) { close(); return null; }
-      const me = p.h === "@you";
       return (<>
         <SheetHead title="Post options" />
         <div className="shb">
-          {me ? (<>
-            <button type="button" className="row" onClick={() => { setAsk({ t: p.title, n: p.note || "", b: BCOL[p.board] ? p.board : "Setups", edi: p.id }); setSheet({ t: "ask" }); }}><span>Edit post</span><Ic n="chev" s={18} /></button>
-            <button type="button" className="row" onClick={() => { if (!dc) { setDc(true); return; } setF((L) => L.filter((x) => x.id !== p.id)); close(); toast("Post deleted"); }}><span style={{ color: "var(--r)" }}>{dc ? "Tap again to delete post" : "Delete post"}</span></button>
-          </>) : (<>
-            <button type="button" className="row" onClick={() => { close(); toast("Thanks, we will review this post"); }}><span>Report post<div className="t2 s12">Spam, advice to risk too much, or anything unsafe</div></span><Ic n="chev" s={18} /></button>
-            <button type="button" className="row" onClick={() => { setMute((m) => ({ ...m, [p.h]: 1 })); close(); toast(`Muted ${p.h}. Unmute in Filter`); }}><span>Mute {p.h}<div className="t2 s12">Hide their posts from your feed</div></span><Ic n="chev" s={18} /></button>
+          {isMe(p) ? (
+            <button type="button" className="row" onClick={() => { if (!dc) { setDc(true); return; } deletePost(p); }}><span style={{ color: "var(--r)" }}>{dc ? "Tap again to delete post" : "Delete post"}</span></button>
+          ) : (<>
+            <button type="button" className="row" onClick={() => { hidePost(p.id); close(); toast("Post hidden on this device"); }}><span>Hide this post<div className="t2 s12">Only hides it for you</div></span><Ic n="chev" s={18} /></button>
+            <button type="button" className="row" onClick={() => { muteAuthor(p.author); close(); toast(`Muted @${p.author}. Unmute in Filter`); }}><span>Mute @{p.author}<div className="t2 s12">Hide their posts from your feed</div></span><Ic n="chev" s={18} /></button>
           </>)}
         </div>
-      </>);
-    }
-    if (t === "mkp") {
-      return (<>
-        <SheetHead title="Start a post" />
-        <div className="shb">
-          <button type="button" className="row" onClick={() => setSheet({ t: "share" })}><span><b>Share a trade</b><div className="t2 s12">Pick a journaled trade. Posts show R only.</div></span><Ic n="chev" s={18} /></button>
-          <button type="button" className="row" onClick={() => { setAsk({ t: "", n: "", b: "Setups", edi: null }); setSheet({ t: "ask" }); }}><span><b>Ask a question</b><div className="t2 s12">Setups, risk, psychology. Keep it about process.</div></span><Ic n="chev" s={18} /></button>
-        </div>
-      </>);
-    }
-    if (t === "share") {
-      return (<>
-        <SheetHead title="Share a trade" />
-        <div className="shb">
-          <div className="t2 s12" style={{ margin: "14px 0 4px" }}>Only journaled trades can be shared. Others will see R, not dollars.</div>
-          {TRADES.filter((x) => x.x != null && x.j).map((x) => (
-            <button type="button" className="row" key={x.id} onClick={() => {
-              const r = K(x).r;
-              setF((L) => [{ id: nid.current++, h: "@you", sym: x.sym, su: x.setup, r, note: x.note, ago: "now", side: x.side, e: x.e, s: x.s, tp: x.tp, x: x.x, z: 1, rules: x.rules, age: 0, hc: 0, cmts: [], my: false, sv: false, board: "Setups", title: `${x.sym} ${x.side > 0 ? "long" : "short"}, ${rr(r)}` }, ...L]);
-              close(); setTab("feed"); toast("Shared as R only");
-            }}><span><b>{x.sym}</b><div className="t2 s12">{x.setup}, {x.day}</div></span><span className={cl(K(x).r)}>{rr(K(x).r)}</span></button>
-          ))}
-        </div>
-      </>);
-    }
-    if (t === "ask") {
-      const submit = () => {
-        const title = ask.t.trim(); if (!title) { toast("Add a title first"); return; }
-        if (ask.edi != null) { patchPost(ask.edi, (x) => ({ ...x, title, note: ask.n.trim(), board: ask.b })); close(); toast("Post updated"); return; }
-        setF((L) => [{ id: nid.current++, h: "@you", board: ask.b, title, note: ask.n.trim(), ago: "now", age: 0, hc: 0, cmts: [], my: false, sv: false }, ...L]);
-        close(); setTab("feed"); setBd("All"); setFsort("new"); toast("Posted");
-      };
-      return (<>
-        <SheetHead title={ask.edi != null ? "Edit post" : "Ask a question"} />
-        <div className="shb">
-          <label className="f">Title<input className="in" placeholder="Do you cut size after a big win?" value={ask.t} onChange={(e) => setAsk((a) => ({ ...a, t: e.target.value }))} /></label>
-          <label className="f">Details, optional<textarea className="in" rows={4} value={ask.n} onChange={(e) => setAsk((a) => ({ ...a, n: e.target.value }))} /></label>
-          <div className="lb"><span>Board</span></div>
-          <div className="chips">{["Setups", "Reviews", "Psychology", "Risk"].map((b) => <Chip key={b} on={ask.b === b} onClick={() => setAsk((a) => ({ ...a, b }))}>{b}</Chip>)}</div>
-        </div>
-        <div className="shf"><button type="button" className="btn" onClick={submit}>{ask.edi != null ? "Save changes" : "Post"}</button></div>
       </>);
     }
     if (t === "mk") {
@@ -1039,74 +1046,127 @@ export default function LedgerCommunity({ isDesktop, communityAvatar, openMember
     if (t === "room" && rm) {
       return <RoomSheet key={rm.id} room={rm} token={sessionToken} me={{ username: username ? `@${username}` : "You", avatar: communityAvatar }} onLeave={leaveRoom} toast={toast} />;
     }
-    if (t === "mis") {
-      const ini = (mnn || "").trim().split(/\s+/).map((w) => w[0] || "").join("").slice(0, 2).toUpperCase() || "?";
-      return (<>
-        <SheetHead title="Invite your mentor" />
-        <div className="shb">
-          <div style={{ textAlign: "center", margin: "18px 0 6px" }}><span className="av" style={{ width: 72, height: 72, fontSize: 24, margin: "0 auto" }}>{ini}</span></div>
-          <label className="f">Mentor name<input className="in" placeholder="Daniel R." autoComplete="off" value={mnn} onChange={(e) => setMnn(e.target.value)} /></label>
-          <label className="f">Email or handle, optional<input className="in" placeholder="daniel@example.com" autoComplete="off" value={mnc} onChange={(e) => setMnc(e.target.value)} /></label>
-          <div className="lb"><span>What they can do</span></div>
-          <div className="card" style={{ padding: "4px 16px 14px" }}>
-            {["See your journaled trades in R", "Grade trades and leave feedback", "Set one focus rule each week"].map((s) => <div className="mck" key={s}><Ic n="check" s={16} /><span>{s}</span></div>)}
-            <div className="t2 s12" style={{ marginTop: 14, lineHeight: 1.5 }}>They never see dollar amounts or your account size. You can end this at any time.</div>
-          </div>
-        </div>
-        <div className="shf"><button type="button" className="btn" onClick={() => {
-          const nm = mnn.trim(); if (!nm) { toast("Add your mentor’s name first"); return; }
-          setMn({ h: "", name: nm, contact: mnc.trim(), st: "pending", link: `ledger.app/m/${Math.random().toString(36).slice(2, 8)}` });
-          close(); setTimeout(startMentor, 0); toast("Invite link ready");
-        }}>Create invite link</button></div>
-      </>);
-    }
-    if (t === "mps") {
-      const sent = rq.map((r) => r.id), L = TRADES.filter((x) => x.x != null && x.j && sent.indexOf(x.id) < 0);
+    if (t === "mshare") {
+      const done = new Set(((md && md.shared) || []).map((x) => String(x.tradeId)));
+      const L = (Array.isArray(trades) ? trades : []).filter((x) => x && x.pair && !done.has(String(x.id))).slice().sort((a, b) => (b.ts || 0) - (a.ts || 0)).slice(0, 30);
       return (<>
         <SheetHead title="Send a trade for review" />
         <div className="shb">
-          <div className="t2 s12" style={{ margin: "14px 0 4px", lineHeight: 1.5 }}>Only journaled trades can be sent, so your mentor sees your reasoning too.</div>
-          {L.length ? L.map((x) => { const k = K(x); return (
-            <button type="button" className="row" key={x.id} onClick={() => { setRq((q) => [{ id: x.id, st: "wait", th: [] }, ...q]); close(); toast(`Sent to ${mNameOf(mn)}`); }}>
-              <span><b>{x.sym}</b><span className="tag">{x.side > 0 ? "Long" : "Short"}</span><div className="t2 s12" style={{ marginTop: 2 }}>{x.setup}, {x.day}</div></span><b className={cl(k.pnl)}>{rr(k.r)}</b>
-            </button>); }) : <div className="card t2" style={{ textAlign: "center", padding: "22px 16px", marginTop: 10 }}>All your journaled trades have been sent.</div>}
+          <div className="t2 s12" style={{ margin: "14px 0 4px", lineHeight: 1.5 }}>Your mentor sees the pair, direction, result and your notes for the trade you pick.</div>
+          {L.length ? L.map((x) => (
+            <button type="button" className="row" key={x.id} disabled={busy} onClick={() => shareTrade(x)}>
+              <span><b>{x.pair}</b><span className="tag">{isLong(x.direction) ? "Long" : "Short"}</span><div className="t2 s12" style={{ marginTop: 2 }}>{[x.setup, dshort(x.ts)].filter(Boolean).join(", ")}</div></span>
+              <b className={ocl(x.pnl)}>{outcome(x.pnl)}</b>
+            </button>
+          )) : <div className="card t2" style={{ textAlign: "center", padding: "22px 16px", marginTop: 10 }}>{(trades || []).length ? "All your recent trades have been sent." : "No journaled trades yet. Log a trade in your journal first."}</div>}
         </div>
       </>);
     }
-    if (t === "mfb") {
-      const r = rq.find((x) => x.id === mfi), x = TRADES.find((y) => y.id === mfi);
-      if (!r || !x) return null;
-      const k = K(x), nm = mNameOf(mn), d = r.st === "done", gc = { A: "g", B: "g", C: "am", D: "r" }[r.g] || "am";
-      const reply = () => { const v = mq.trim(); if (!v) { toast("Write a reply first"); return; } setRq((q) => q.map((y) => (y.id === r.id ? { ...y, th: [...y.th, { t: v, ago: "Just now" }] } : y))); setMq(""); };
+    if (t === "mtrade") {
+      const d = mt && mt.data;
+      if (!d) return <Loading title="Trade review" />;
+      const x = d.trade || {}, pnl = Number(x.pnl) || 0;
+      const reviewable = !d.mine;
+      const send = () => { const v = mtxt.trim(); if (!v) return; mAct(async () => { await apiPost("/mentors/comment", { id: mt.id, text: v }); setMtxt(""); await fetchMT(mt.id); }); };
       return (<>
         <SheetHead title="Trade review" />
         <div className="shb">
-          <div className="card rw" style={{ marginTop: 14 }}><span><b>{x.sym}</b><span className="tag">{x.side > 0 ? "Long" : "Short"}</span><div className="t2 s12" style={{ marginTop: 2 }}>{x.setup}, {x.day}</div></span><b className={cl(k.pnl)}>{rr(k.r)}</b></div>
-          {d ? (<>
-            <div className="lb"><span>Feedback from {nm}</span></div>
-            <div className="card">
-              <div className="rw"><span className="t2 s12">Grade</span><span className={`mgr ${gc}`}>{r.g}</span></div>
-              <div className="cht" style={{ marginTop: 16 }}>What worked</div><div className="t2" style={{ marginTop: 4, lineHeight: 1.5 }}>{r.good}</div>
-              <div className="cht" style={{ marginTop: 16 }}>Fix next time</div><div className="t2" style={{ marginTop: 4, lineHeight: 1.5 }}>{r.fix}</div>
-            </div>
-            {r.th.length > 0 && (<><div className="lb"><span>Your replies</span></div>{r.th.map((c, i) => <div className="mcm" key={i}><Av size={32} fs={11} text="YO" photo={communityAvatar} /><div style={{ flex: 1, minWidth: 0 }}><div className="cmh"><b>You</b><span className="t2 s12">{c.ago || "Just now"}</span></div><div>{c.t}</div></div></div>)}</>)}
-            <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-              <input className="in" style={{ margin: 0, flex: 1, width: "auto" }} placeholder={`Reply to ${nm.split(" ")[0]}`} aria-label="Reply to mentor" value={mq} onChange={(e) => setMq(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") reply(); }} />
-              <button type="button" className="btn" style={{ width: "auto", padding: "0 18px" }} onClick={reply}>Send</button>
-            </div>
-          </>) : (<>
-            <div className="card t2" style={{ marginTop: 14, textAlign: "center", padding: "22px 16px", lineHeight: 1.5 }}>Waiting for {nm}. Reviews usually take about a day.</div>
-            <button type="button" className="row" style={{ border: 0, color: "var(--r)", marginTop: 8 }} onClick={() => { setRq((q) => q.filter((y) => y.id !== r.id)); close(); }}>Cancel this review</button>
+          <div className="card rw" style={{ marginTop: 14 }}>
+            <span><b>{x.pair || "Trade"}</b><span className="tag">{isLong(x.direction) ? "Long" : "Short"}</span><div className="t2 s12" style={{ marginTop: 2 }}>{d.mine ? "Your trade" : `@${d.owner && d.owner.username}`}, {dshort(x.ts)}</div></span>
+            <b className={ocl(pnl)}>{outcome(pnl)}{pnl ? ` (${pnl > 0 ? "+" : ""}${pnl})` : ""}</b>
+          </div>
+          {(x.setup || x.emotion || x.session || x.confidence) ? <div className="t2 s12" style={{ marginTop: 10 }}>{[x.setup && `Setup: ${x.setup}`, x.emotion && `Feeling: ${x.emotion}`, x.session && `Session: ${x.session}`, x.confidence && `Confidence: ${x.confidence}`].filter(Boolean).join(" · ")}</div> : null}
+          {x.note ? <p style={{ margin: "12px 0", whiteSpace: "pre-wrap" }}>{x.note}</p> : null}
+          {(d.reviews || []).length > 0 && (<>
+            <div className="lb"><span>{d.mine ? "Feedback" : "Reviews"}</span></div>
+            {d.reviews.map((r) => (
+              <div className="card" style={{ marginBottom: 8 }} key={`${r.username}-${r.ts}`}>
+                <div className="rw"><span className="t2 s12">@{r.username}{r.mine ? " (you)" : ""}</span><span className={`mgr ${GRADE_CL[r.grade] || "am"}`}>{r.grade}</span></div>
+                {(r.tags || []).length > 0 && <div style={{ marginTop: 8 }}>{r.tags.map((g) => <span className="tag" key={g}>{nice(g)}</span>)}</div>}
+              </div>
+            ))}
           </>)}
+          {reviewable && (<>
+            <div className="lb"><span>Your grade</span></div>
+            <div className="chips">{["A", "B", "C", "D"].map((g) => <Chip key={g} on={rvg === g} onClick={() => setRvg(g)}>{g}</Chip>)}</div>
+            <div className="lb"><span>What stood out</span></div>
+            <div className="chips">{MTAGS.map((g) => <Chip key={g} on={rvt.indexOf(g) > -1} onClick={() => setRvt((a) => (a.indexOf(g) > -1 ? a.filter((y) => y !== g) : [...a, g]))}>{nice(g)}</Chip>)}</div>
+            <button type="button" className="btn" style={{ marginTop: 12 }} disabled={busy || !rvg} onClick={() => mAct(async () => { await apiPost("/mentors/review", { id: mt.id, grade: rvg, tags: rvt }); await fetchMT(mt.id); }, "Review saved")}>{rvg ? "Save review" : "Pick a grade first"}</button>
+          </>)}
+          <div className="lb"><span>{(d.comments || []).length} {(d.comments || []).length === 1 ? "comment" : "comments"}</span></div>
+          {(d.comments || []).map((c) => (
+            <div className="cm" key={c.id}><PAv u={c.username} avatar={c.avatar} size={32} fs={11} /><div className="cmb"><div className="cmh"><b>{c.mine ? "You" : `@${c.username}`}</b><span className="t2 s12">{ago(c.ts)}</span></div><div style={{ whiteSpace: "pre-wrap" }}>{c.text}</div></div></div>
+          ))}
+          {d.mine && <button type="button" className="row" style={{ border: 0, color: "var(--r)", marginTop: 8 }} onClick={() => { if (!dc) { setDc(true); return; } mAct(() => apiPost("/mentors/unshare", { id: mt.id }), "Stopped sharing").then((ok) => { if (ok) close(); }); }}>{dc ? "Tap again to stop sharing" : "Stop sharing this trade"}</button>}
+        </div>
+        <div className="shf">
+          <input className="in" style={{ margin: 0, width: "auto", flex: 1 }} maxLength={300} placeholder="Add a comment" aria-label="Comment" value={mtxt} onChange={(e) => setMtxt(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(); }} />
+          <button type="button" className="btn" style={{ width: 90 }} disabled={busy} onClick={send}>Send</button>
         </div>
       </>);
     }
-    if (t === "mmg") {
+    if (t === "mmentee") {
+      const d = mmen && mmen.data;
+      if (!d) return <Loading title="Trader" />;
+      const addTask = () => { const v = mtxt.trim(); if (!v) return; mAct(async () => { await apiPost("/mentors/task", { linkId: mmen.linkId, text: v }); setMtxt(""); await fetchMentee(mmen.linkId); }, "Task added"); };
+      return (<>
+        <SheetHead title={`@${d.mentee && d.mentee.username}`} />
+        <div className="shb">
+          <div className="mtiles" style={{ marginTop: 14 }}>
+            <div className="mtile"><b>{d.stats.shared}</b><span>Shared</span></div>
+            <div className="mtile"><b>{d.stats.wins}</b><span>Wins</span></div>
+            <div className="mtile"><b>{d.stats.avgGrade ? d.stats.avgGrade.toFixed(1) : "–"}</b><span>Avg grade (of 4)</span></div>
+          </div>
+          <div className="lb"><span>Shared trades</span></div>
+          {d.trades.length ? d.trades.map((x) => TradeRow(x, () => openMTrade(x.id), null, !(x.reviews || []).some(() => true))) : <div className="card t2" style={{ textAlign: "center", padding: "22px 16px" }}>Nothing shared yet.</div>}
+          <div className="lb"><span>Tasks</span></div>
+          {(d.tasks || []).map((x) => (
+            <div className="row" key={x.id}><span style={{ textDecoration: x.done ? "line-through" : "none", opacity: x.done ? 0.6 : 1 }}>{x.text}</span><button type="button" className="chip" style={{ margin: 0, flex: "none" }} disabled={busy} onClick={() => mAct(async () => { await apiPost("/mentors/task/delete", { id: x.id }); await fetchMentee(mmen.linkId); })}>Remove</button></div>
+          ))}
+          <div className="lb"><span>Give a task</span></div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input className="in" style={{ margin: 0, flex: 1, width: "auto" }} maxLength={140} placeholder="Hold the stop on every trade" value={mtxt} onChange={(e) => setMtxt(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addTask(); }} />
+            <button type="button" className="btn" style={{ width: "auto", padding: "0 18px" }} disabled={busy} onClick={addTask}>Add</button>
+          </div>
+          <button type="button" className="row" style={{ border: 0, color: "var(--r)", marginTop: 16 }} onClick={() => { if (!dc) { setDc(true); return; } mAct(() => apiPost("/mentors/leave", { linkId: mmen.linkId }), "Mentorship ended").then((ok) => { if (ok) close(); }); }}>{dc ? "Tap again to end mentorship" : "End mentorship"}</button>
+        </div>
+      </>);
+    }
+    if (t === "minvite") {
+      const go = (role) => {
+        const u = inv.trim().replace(/^@/, "");
+        if (!u) { toast("Type a username first"); return; }
+        mAct(async () => { await apiPost("/mentors/invite", { username: u, role }); close(); }, role === "mentor" ? `Request sent to @${u}` : `Offer sent to @${u}`);
+      };
+      return (<>
+        <SheetHead title="Invite by username" />
+        <div className="shb">
+          <label className="f">Their username<input className="in" placeholder="@username" autoComplete="off" autoCapitalize="off" value={inv} onChange={(e) => setInv(e.target.value)} /></label>
+          <div className="t2 s12" style={{ margin: "10px 0 0", lineHeight: 1.5 }}>They have to accept before anything is shared. Mentors need the Creator plan.</div>
+        </div>
+        <div className="shf" style={{ flexDirection: "column", gap: 8 }}>
+          <button type="button" className="btn" disabled={busy} onClick={() => go("mentor")}>Ask them to be my mentor</button>
+          <button type="button" className="btn o" disabled={busy} onClick={() => go("mentee")}>Offer to coach them</button>
+        </div>
+      </>);
+    }
+    if (t === "mprof") {
+      return (<>
+        <SheetHead title="Your mentor profile" />
+        <div className="shb">
+          <label className="f">About you<textarea className="in" rows={4} maxLength={160} placeholder="What you trade and how you coach" value={pbio} onChange={(e) => setPbio(e.target.value)} /></label>
+          <label className="f">Tags, up to 4, separated by commas<input className="in" placeholder="Gold, Pullbacks, Risk" value={ptags} onChange={(e) => setPtags(e.target.value)} /></label>
+          <div className="chips" style={{ marginTop: 12 }}><Chip on={popen} onClick={() => setPopen(true)}>Listed in directory</Chip><Chip on={!popen} onClick={() => setPopen(false)}>Hidden</Chip></div>
+        </div>
+        <div className="shf"><button type="button" className="btn" disabled={busy} onClick={() => mAct(async () => { await apiPost("/mentors/profile", { bio: pbio, tags: ptags.split(",").map((s) => s.trim()).filter(Boolean).slice(0, 4), open: popen }); close(); }, "Profile saved")}>Save</button></div>
+      </>);
+    }
+    if (t === "mopt") {
       return (<>
         <SheetHead title="Mentor options" />
         <div className="shb">
-          <div className="t2 s12" style={{ margin: "14px 0 6px", lineHeight: 1.5 }}>Ending the mentorship removes the review list and weekly focus from this screen.</div>
-          <button type="button" className="row" style={{ border: 0, color: "var(--r)" }} onClick={() => { if (!mrs) { setMrs(true); return; } clearTimeout(mtm.current); setMn(null); setRq([]); close(); toast("Mentorship ended"); }}>{mrs ? "Tap again to end mentorship" : "End mentorship"}</button>
+          <div className="t2 s12" style={{ margin: "14px 0 6px", lineHeight: 1.5 }}>Ending the mentorship removes shared trades, tasks and feedback with @{sheet.name}.</div>
+          <button type="button" className="row" style={{ border: 0, color: "var(--r)" }} onClick={() => { if (!mrs) { setMrs(true); return; } mAct(() => apiPost("/mentors/leave", { linkId: sheet.linkId }), "Mentorship ended").then((ok) => { if (ok) close(); }); }}>{mrs ? "Tap again to end mentorship" : "End mentorship"}</button>
         </div>
       </>);
     }
@@ -1118,16 +1178,17 @@ export default function LedgerCommunity({ isDesktop, communityAvatar, openMember
     "--t2": palette.textMuted, "--g": palette.green, "--r": palette.red, "--am": palette.gold, "--on": palette.letterbox,
   };
   const TABS = [["feed", "Feed"], ["rooms", "Rooms"], ["ranks", "Ranks"], ["mentor", "Mentor"]];
+  const addPost = () => { if (!sessionToken) { toast("Sign in to your account to post"); return; } setSheet({ t: "compose" }); };
   return (
-    <div className={isDesktop ? "lc" : "lc lcm"} style={{ ...vars, flex: 1, minHeight: 0, height: "100%", overflowY: "auto", color: "var(--tx)", fontFamily: sans, fontSize: 14, lineHeight: 1.45, fontVariantNumeric: "tabular-nums", background: "var(--bg)" }}>
-      <style>{CSS}</style>
-      <div style={{ maxWidth: isDesktop ? 1480 : "none", margin: "0 auto", padding: isDesktop ? "0 20px 48px" : "10px 2px 110px", boxSizing: "border-box" }}>
+    <div className={isDesktop ? (tab === "feed" ? "lc lcd-feed" : "lc") : "lc lcm"} style={{ ...vars, flex: 1, minHeight: 0, height: "100%", overflowY: "auto", color: "var(--tx)", fontFamily: sans, fontSize: 14, lineHeight: 1.45, fontVariantNumeric: "tabular-nums", background: "var(--bg)" }}>
+      <style>{CSS + CSS_EXTRA}</style>
+      <div className="lcin" style={{ maxWidth: isDesktop ? 1480 : "none", margin: "0 auto", padding: isDesktop ? "0 20px 48px" : "10px 2px 110px", boxSizing: "border-box" }}>
         {isDesktop ? (
           <div className="dkbar">
             <div className="tg" role="tablist" aria-label="Community sections">
               {TABS.map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={tab === id} className={tab === id ? "on" : ""} onClick={() => setTab(id)}>{label}</button>)}
             </div>
-            {tab === "feed" && <button type="button" className="btn" onClick={() => setSheet({ t: "mkp" })}><Ic n="plus" s={18} />Add post</button>}
+            {tab === "feed" && <button type="button" className="btn" onClick={addPost}><Ic n="plus" s={18} />Add post</button>}
           </div>
         ) : (
           <div className="tg" role="tablist" aria-label="Community sections" style={{ marginBottom: 6 }}>
@@ -1137,13 +1198,13 @@ export default function LedgerCommunity({ isDesktop, communityAvatar, openMember
         {tab === "feed" && FeedView()}
         {tab === "rooms" && RoomsView()}
         {tab === "ranks" && RanksView()}
-        {tab === "mentor" && (isDesktop ? <div style={{ maxWidth: 1100, margin: "0 auto" }}>{MentorView()}</div> : MentorView())}
+        {tab === "mentor" && MentorView()}
       </div>
       {tab === "feed" && !sheet && !isDesktop && (
-        <button type="button" onClick={() => setSheet({ t: "mkp" })} aria-label="Add post" style={{ position: "fixed", right: 16, bottom: "calc(88px + env(safe-area-inset-bottom, 0px))", width: 52, height: 52, padding: 0, borderRadius: 99, background: "var(--am)", color: "var(--on)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 14px rgba(0,0,0,.28)", zIndex: 60 }}><Ic n="plus" s={26} /></button>
+        <button type="button" onClick={addPost} aria-label="Add post" style={{ position: "fixed", right: 16, bottom: "calc(88px + env(safe-area-inset-bottom, 0px))", width: 52, height: 52, padding: 0, borderRadius: 99, background: "var(--am)", color: "var(--on)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 14px rgba(0,0,0,.28)", zIndex: 60 }}><Ic n="plus" s={26} /></button>
       )}
       {sheet && (
-        <div onClick={(e) => { if (e.target === e.currentTarget && sheet.t !== "room") close(); }} style={{ position: "fixed", inset: 0, zIndex: 130, display: "flex", justifyContent: "center", alignItems: isDesktop ? "center" : "flex-end", background: "rgba(0,0,0,.5)" }}>
+        <div onClick={(e) => { if (e.target === e.currentTarget && sheet.t !== "room" && sheet.t !== "compose") close(); }} style={{ position: "fixed", inset: 0, zIndex: 130, display: "flex", justifyContent: "center", alignItems: isDesktop ? "center" : "flex-end", background: "rgba(0,0,0,.5)" }}>
           <div style={{ width: "100%", maxWidth: isDesktop ? 640 : 440, height: isDesktop ? "86vh" : "94vh", background: "var(--bg)", borderRadius: isDesktop ? 24 : "24px 24px 0 0", display: "flex", flexDirection: "column", overflow: "hidden", paddingTop: 16 }}>{renderSheet()}</div>
         </div>
       )}
