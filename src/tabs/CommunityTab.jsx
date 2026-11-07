@@ -1832,7 +1832,7 @@ export default function CommunityTab(props) {
           const tag = (text) => (
             <span style={{ fontFamily: sans, fontSize: "11px", fontWeight: 500, padding: "2px 8px", borderRadius: "6px", border: `1px solid ${palette.border}`, color: palette.textMuted }}>{text}</span>
           );
-          const shell = (children, aside, hero) => (
+          const shell = (children, aside) => (
             <div className="fixed inset-0 flex flex-col" style={{ background: palette.bg, zIndex: 108 }}>
               <div
                 className="flex items-center gap-3 flex-shrink-0"
@@ -1847,15 +1847,12 @@ export default function CommunityTab(props) {
               </div>
               <div className="flex-1" style={{ overflowY: "auto", minHeight: 0 }}>
                 {isDesktop && aside ? (
-                  <div className="mx-auto w-full" style={{ maxWidth: colW, padding: "28px 32px 56px" }}>
-                    {hero}
-                    <div style={{ display: "grid", gridTemplateColumns: "minmax(300px, 340px) minmax(0, 1fr)", gap: "24px", alignItems: "start", marginTop: hero ? "24px" : 0 }}>
-                      <aside style={{ position: "sticky", top: "24px", maxHeight: "calc(100vh - 120px)", overflowY: "auto", background: palette.surface, border: `1px solid ${palette.border}`, borderRadius: "18px", padding: "22px 22px 18px", boxShadow: palette.shadow }}>{aside}</aside>
-                      <main style={{ minWidth: 0 }}>{children}</main>
-                    </div>
+                  <div className="mx-auto w-full" style={{ maxWidth: colW, padding: "28px 32px 56px", display: "grid", gridTemplateColumns: "minmax(330px, 370px) minmax(0, 1fr)", gap: "28px", alignItems: "start" }}>
+                    <aside style={{ position: "sticky", top: "24px", maxHeight: "calc(100vh - 124px)", overflowY: "auto", background: palette.surface, border: `1px solid ${palette.border}`, borderRadius: "18px", padding: "26px 24px 22px", boxShadow: palette.shadow }}>{aside}</aside>
+                    <main style={{ minWidth: 0 }}>{children}</main>
                   </div>
                 ) : (
-                  <div className="mx-auto w-full" style={{ maxWidth: isDesktop ? "960px" : colW, padding: isDesktop ? "28px 32px 56px" : "16px 16px max(40px, env(safe-area-inset-bottom))" }}>
+                  <div className="mx-auto w-full" style={{ maxWidth: colW, padding: isDesktop ? "28px 32px 56px" : "16px 16px max(40px, env(safe-area-inset-bottom))" }}>
                     {children}
                   </div>
                 )}
@@ -1892,7 +1889,7 @@ export default function CommunityTab(props) {
           );
 
           const tabsBar = (
-            <div className="flex" role="tablist" aria-label="Profile sections" style={{ margin: isDesktop ? "0 0 18px" : "16px 0 4px", padding: "3px", background: palette.surface, border: `1px solid ${palette.border}`, borderRadius: "12px", maxWidth: isDesktop ? "560px" : undefined }}>
+            <div className="flex" role="tablist" aria-label="Profile sections" style={{ margin: isDesktop ? "22px 0 20px" : "16px 0 4px", padding: "3px", background: palette.surface, border: `1px solid ${palette.border}`, borderRadius: "12px", maxWidth: isDesktop ? "560px" : undefined }}>
               {sections.map(([id, label]) => {
                 const on = tab === id;
                 return (
@@ -1963,13 +1960,24 @@ export default function CommunityTab(props) {
             </div>
           ));
 
+          const statTiles = (compact) => (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", margin: compact ? 0 : "20px 0 18px", minWidth: compact ? "330px" : undefined, border: `1px solid ${palette.border}`, borderRadius: "14px", background: palette.field, overflow: "hidden" }}>
+              {[[p.followerCount, "Followers", () => openFollowList(p.username, "followers")], [p.followingCount, "Following", () => openFollowList(p.username, "following")], [p.postCount, p.postCount === 1 ? "Post" : "Posts", () => setProfileSubTab("posts")]].map(([value, label, go], i) => (
+                <button key={label} type="button" onClick={go} aria-label={`See ${label}`} className={TAP} style={{ padding: "12px 6px", textAlign: "center", background: "transparent", border: "none", borderLeft: i ? `1px solid ${palette.border}` : "none", fontFamily: sans }}>
+                  <div style={{ fontSize: "20px", fontWeight: 600, color: palette.text, lineHeight: 1.2 }}>{(value || 0).toLocaleString()}</div>
+                  <div style={{ fontSize: "12px", color: palette.textMuted, marginTop: "2px" }}>{label}</div>
+                </button>
+              ))}
+            </div>
+          );
+
           // Phone: compact header. (Bio and Description are shown in the About block below.)
           const headerBlock = (
             <>
               <div className="flex items-center" style={{ gap: "14px" }}>
-                {avatarEl(72)}
+                {avatarEl(isDesktop ? 88 : 72)}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2" style={{ fontFamily: sans, fontSize: "24px", fontWeight: 600, lineHeight: 1.15, letterSpacing: "-0.01em", color: palette.text }}>
+                  <div className="flex items-center gap-2" style={{ fontFamily: sans, fontSize: isDesktop ? "26px" : "24px", fontWeight: 600, lineHeight: 1.15, letterSpacing: "-0.01em", color: palette.text }}>
                     <span className="truncate"><PlanName name={p.username} /></span>
                     {p.verifiedPnl && verifiedBadge}
                   </div>
@@ -1979,32 +1987,10 @@ export default function CommunityTab(props) {
                   </div>
                 </div>
               </div>
-              {countsRow("20px", "14px 0 12px")}
+              {isDesktop ? statTiles(false) : countsRow("20px", "14px 0 12px")}
               {actionsRow()}
               {!isDesktop && tabsBar}
             </>
-          );
-
-          // Laptop: one wide hero card across the top (cover, big photo, name, counts, actions).
-          const heroBlock = (
-            <section style={{ background: palette.surface, border: `1px solid ${palette.border}`, borderRadius: "20px", boxShadow: palette.shadow, overflow: "hidden" }}>
-              <div style={{ height: "92px", background: `linear-gradient(120deg, ${palette.gold}40, ${palette.gold}12 55%, transparent)` }} />
-              <div className="flex items-end" style={{ gap: "24px", padding: "0 28px 24px", marginTop: "-46px", flexWrap: "wrap" }}>
-                <div style={{ borderRadius: "50%", border: `4px solid ${palette.surface}`, background: palette.surface, lineHeight: 0 }}>{avatarEl(104)}</div>
-                <div className="flex-1 min-w-0" style={{ paddingBottom: "2px", minWidth: "240px" }}>
-                  <div className="flex items-center gap-2" style={{ fontFamily: sans, fontSize: "30px", fontWeight: 600, lineHeight: 1.15, letterSpacing: "-0.015em", color: palette.text }}>
-                    <span className="truncate"><PlanName name={p.username} /></span>
-                    {p.verifiedPnl && verifiedBadge}
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap" style={{ fontFamily: sans, fontSize: "13.5px", color: palette.textMuted, marginTop: "4px" }}>
-                    <span>{`@${p.username}`}{joinedText ? `, Joined ${joinedText}` : ""}</span>
-                    {!isMe && p.followsMe && tag("Follows you")}
-                  </div>
-                  {countsRow("28px", "8px 0 0")}
-                </div>
-                <div style={{ minWidth: "280px", paddingBottom: "2px" }}>{actionsRow()}</div>
-              </div>
-            </section>
           );
 
           const bioBlock = (
@@ -2105,7 +2091,7 @@ export default function CommunityTab(props) {
               )}
             </>
           );
-          const overviewRest = (
+          const dScoreBlock = (
             <>
               {dScore != null && (
                 <>
@@ -2116,10 +2102,14 @@ export default function CommunityTab(props) {
                   </div>
                 </>
               )}
+            </>
+          );
+          const heatBlock = (
+            <>
               {showHeat && (
                 <>
                   {lb("Journaling, last 12 weeks")}
-                  <div style={{ maxWidth: isDesktop ? "640px" : undefined }}>
+                  <div>
                   <div className="flex items-center justify-between" style={{ marginBottom: "10px", fontFamily: sans }}>
                     <span>
                       <b style={{ fontSize: "14px", fontWeight: 600, color: palette.text }}>{heat.done} of {heat.past} days journaled</b>
@@ -2161,6 +2151,10 @@ export default function CommunityTab(props) {
                   </div>
                 </>
               )}
+            </>
+          );
+          const setupsBlock = (
+            <>
               {setupRows.length > 0 && (
                 <>
                   {lb("Best setups by win rate")}
@@ -2173,6 +2167,10 @@ export default function CommunityTab(props) {
                   ))}
                 </>
               )}
+            </>
+          );
+          const privacyBlock = (
+            <>
               {isMe && (
                 <>
                   {lb("Privacy")}
@@ -2188,17 +2186,18 @@ export default function CommunityTab(props) {
               )}
             </>
           );
+          const overviewRest = <>{dScoreBlock}{heatBlock}{setupsBlock}{privacyBlock}</>;
 
           const overviewPanel = <>{aboutBlock}{overviewRest}</>;
           const card = (children) => (
             <div style={isDesktop ? { background: palette.surface, border: `1px solid ${palette.border}`, borderRadius: "18px", padding: "4px 24px 22px", marginBottom: "18px", boxShadow: palette.shadow } : undefined}>{children}</div>
           );
           const pctVal = (v, signed) => (v == null || !Number.isFinite(v) ? "—" : signed ? fmtPct(v) : `${Math.abs(v).toFixed(1)}%`);
-          const statsPanel = (
+          const curveBlock = (
             <>
               {lb("Equity curve across every group", curve.length ? <span style={{ color: pnlColor }}>{fmtPct(stats.pnlPct)}</span> : null)}
               {curveLine ? (
-                <svg viewBox="0 0 330 120" preserveAspectRatio="none" role="img" aria-label="Cumulative equity curve" style={{ display: "block", width: "100%", height: isDesktop ? "200px" : "120px" }}>
+                <svg viewBox="0 0 330 120" preserveAspectRatio="none" role="img" aria-label="Cumulative equity curve" style={{ display: "block", width: "100%", height: isDesktop ? "230px" : "120px" }}>
                   <line x1="0" x2="330" y1={cy(0)} y2={cy(0)} stroke={palette.border} strokeDasharray="4 4" />
                   <polygon points={`0,${cy(0)} ${curveLine} 330,${cy(0)}`} fill={palette.green} fillOpacity="0.12" />
                   <polyline points={curveLine} fill="none" stroke={palette.green} strokeWidth="2" vectorEffect="non-scaling-stroke" />
@@ -2206,6 +2205,11 @@ export default function CommunityTab(props) {
               ) : (
                 <div className="flex items-center justify-center" style={{ height: "120px", color: palette.textMuted, fontFamily: sans, fontSize: "13px" }}>No public curve available</div>
               )}
+            </>
+          );
+          const statsPanel = (
+            <>
+              {curveBlock}
               {lb("Performance")}
               <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "1fr 1fr" : "1fr", columnGap: "40px" }}>
               {rowItem("Expectancy", stats.avgR == null ? "—" : `${stats.avgR >= 0 ? "+" : "−"}${Math.abs(stats.avgR).toFixed(1)}R`)}
@@ -2283,8 +2287,9 @@ export default function CommunityTab(props) {
                   <Plus size={15} /> New post
                 </button>
               )}
+              <div style={isDesktop ? { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "16px", marginTop: "12px", alignItems: "start" } : undefined}>
               {profilePosts.map((post) => (
-                <article key={post.id} style={{ background: palette.surface, border: `1px solid ${palette.border}`, borderRadius: "16px", padding: "16px", marginTop: "12px" }}>
+                <article key={post.id} style={{ background: palette.surface, border: `1px solid ${palette.border}`, borderRadius: "16px", padding: "16px", marginTop: isDesktop ? 0 : "12px" }}>
                   <div className="flex items-center" style={{ gap: "10px" }}>
                     <Avatar name={post.author || p.username} size={40} src={avatarSrc} />
                     <div className="flex flex-col min-w-0" style={{ lineHeight: 1.3 }}>
@@ -2310,23 +2315,128 @@ export default function CommunityTab(props) {
                   </div>
                 </article>
               ))}
+              </div>
               {profilePostsNext && (
                 <button type="button" onClick={loadMoreProfilePosts} className={TAP} style={{ ...btn(false, false), width: "100%", flex: "none", marginTop: "14px" }}>Load more</button>
               )}
             </>
           );
 
-          const panel = tab === "overview" ? (isDesktop ? overviewRest : overviewPanel) : tab === "stats" ? statsPanel : tab === "badges" ? badgesPanel : postsPanel;
+          const panel = tab === "overview" ? overviewPanel : tab === "stats" ? statsPanel : tab === "badges" ? badgesPanel : postsPanel;
+
+          // ---------- Laptop / desktop: header card on top, then a balanced card grid ----------
+          const dcard = (children, span, extra) => (
+            <div style={{ gridColumn: `span ${span}`, minWidth: 0, background: palette.surface, border: `1px solid ${palette.border}`, borderRadius: "18px", padding: "4px 22px 20px", boxShadow: palette.shadow, ...extra }}>{children}</div>
+          );
+          const grid12 = (kids) => <div style={{ display: "grid", gridTemplateColumns: "repeat(12, minmax(0, 1fr))", gap: "20px", alignItems: "stretch" }}>{kids}</div>;
+          const kpiCard = (label, value, sub, color, bar) => dcard(
+            <div style={{ paddingTop: "18px", fontFamily: sans }}>
+              <div style={{ fontSize: "12.5px", fontWeight: 500, color: palette.textMuted }}>{label}</div>
+              <div style={{ fontSize: "34px", fontWeight: 600, lineHeight: 1.15, letterSpacing: "-0.02em", marginTop: "6px", color: color || palette.text }}>{value}</div>
+              {bar != null && <div style={{ marginTop: "12px", height: "8px", borderRadius: "4px", background: palette.field, overflow: "hidden" }}><i style={{ display: "block", height: "100%", width: `${bar}%`, borderRadius: "4px", background: palette.gold }} /></div>}
+              {sub ? <div style={{ fontSize: "12px", color: palette.textMuted, marginTop: "10px" }}>{sub}</div> : null}
+            </div>,
+            3
+          );
+          const winRateTxt = stats.winRate == null || !Number.isFinite(stats.winRate) ? "—" : `${Math.round(stats.winRate)}%`;
+          const perf = [
+            ["Expectancy", stats.avgR == null ? "—" : `${stats.avgR >= 0 ? "+" : "−"}${Math.abs(stats.avgR).toFixed(1)}R`],
+            ["Win rate", winRateTxt],
+            ["Profit factor", stats.profitFactor == null || !Number.isFinite(stats.profitFactor) ? "n/a" : stats.profitFactor.toFixed(1)],
+            ["Average win", pctVal(stats.avgWinPct, true)],
+            ["Average loss", pctVal(stats.avgLossPct, true)],
+            ["Max drawdown", stats.maxDrawdownPct == null || !Number.isFinite(stats.maxDrawdownPct) ? "—" : `−${Math.abs(stats.maxDrawdownPct).toFixed(1)}%`],
+            ["Trades logged", stats.trades == null ? "—" : String(stats.trades)],
+          ];
+          const perfTiles = (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "12px" }}>
+              {perf.map(([l, v]) => (
+                <div key={l} style={{ border: `1px solid ${palette.border}`, borderRadius: "14px", padding: "14px 16px", background: palette.field, fontFamily: sans }}>
+                  <div style={{ fontSize: "12px", color: palette.textMuted }}>{l}</div>
+                  <div style={{ fontSize: "22px", fontWeight: 600, marginTop: "4px", color: palette.text }}>{v}</div>
+                </div>
+              ))}
+            </div>
+          );
+          const headerDesktop = (
+            <section style={{ background: palette.surface, border: `1px solid ${palette.border}`, borderRadius: "20px", boxShadow: palette.shadow, padding: "26px 30px", display: "flex", alignItems: "center", gap: "28px", flexWrap: "wrap" }}>
+              {avatarEl(100)}
+              <div className="flex-1 min-w-0" style={{ minWidth: "240px" }}>
+                <div className="flex items-center gap-2" style={{ fontFamily: sans, fontSize: "30px", fontWeight: 600, lineHeight: 1.15, letterSpacing: "-0.015em", color: palette.text }}>
+                  <span className="truncate"><PlanName name={p.username} /></span>
+                  {p.verifiedPnl && verifiedBadge}
+                </div>
+                <div className="flex items-center gap-2 flex-wrap" style={{ fontFamily: sans, fontSize: "13.5px", color: palette.textMuted, marginTop: "5px" }}>
+                  <span>{`@${p.username}`}{joinedText ? `, Joined ${joinedText}` : ""}</span>
+                  {!isMe && p.followsMe && tag("Follows you")}
+                </div>
+                {(p.role || p.tagline) && <div style={{ fontFamily: sans, fontSize: "14.5px", fontWeight: 500, color: palette.text, marginTop: "10px" }}>{p.role || p.tagline}</div>}
+              </div>
+              {statTiles(true)}
+              <div style={{ minWidth: "280px" }}>{actionsRow()}</div>
+            </section>
+          );
+          const desktopOverview = grid12(
+            <>
+              {kpiCard("Discipline score", dScore == null ? "—" : `${dScore}%`, stats.journalStreak != null ? `${stats.journalStreak} day journal streak` : null, null, dScore)}
+              {kpiCard("Win rate", winRateTxt, stats.trades != null ? `${stats.trades} trades logged` : null)}
+              {kpiCard("Equity change", curve.length ? fmtPct(stats.pnlPct) : "—", "Across every group, shown as a percentage", curve.length ? pnlColor : null)}
+              {kpiCard("Journaled", `${heat.done}/${heat.past}`, "Weekdays in the last 12 weeks")}
+              {dcard(curveBlock, 8)}
+              {dcard(<div style={{ paddingTop: "22px" }}>{aboutBlock}</div>, 4)}
+              {showHeat && dcard(<div style={{ marginTop: "-14px" }}>{heatBlock}</div>, setupRows.length > 0 ? 7 : 12)}
+              {setupRows.length > 0 && dcard(<div style={{ marginTop: "-14px" }}>{setupsBlock}</div>, showHeat ? 5 : 12)}
+              {isMe && dcard(<div style={{ marginTop: "-14px" }}>{privacyBlock}</div>, 12)}
+            </>
+          );
+          const desktopStats = grid12(
+            <>
+              {dcard(curveBlock, 8)}
+              {dcard(
+                <>
+                  {lb("Discipline")}
+                  {rowItem("Discipline score", dScore == null ? "—" : `${dScore}%`)}
+                  {rowItem("Journal streak", stats.journalStreak == null ? "—" : `${stats.journalStreak} days`)}
+                  {rowItem("Best weekday streak", stats.bestStreak == null ? "—" : `${stats.bestStreak} days`)}
+                </>,
+                4
+              )}
+              {dcard(<>{lb("Performance")}{perfTiles}</>, 12)}
+              <div className="flex items-center" style={{ gridColumn: "span 12", gap: "8px", fontFamily: sans, fontSize: "12px", color: palette.textMuted }}>
+                {verifiedBadge}
+                <span>Stats come from journaled trades. Results are shown as percentages, never dollars.</span>
+              </div>
+              {!isMe && !stats.statsPublic && <p style={{ gridColumn: "span 12", margin: 0, fontFamily: sans, fontSize: "12px", color: palette.textMuted }}>{p.username} hasn't shared public performance stats.</p>}
+            </>
+          );
+          const desktopBadges = (
+            <>
+              <div style={{ fontFamily: sans, fontSize: "13px", fontWeight: 500, color: palette.textMuted, margin: "0 0 12px" }}>{earnedCount} of {BADGE_CATALOG.length} earned</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "16px" }}>
+                {BADGE_CATALOG.map(([name, desc]) => {
+                  const e = hasBadge(name);
+                  return (
+                    <div key={name} style={{ background: palette.surface, border: `1px solid ${e ? palette.gold : palette.border}`, borderRadius: "16px", padding: "18px 20px", boxShadow: palette.shadow, fontFamily: sans, display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+                      <span style={{ minWidth: 0 }}>
+                        <b style={{ fontSize: "15px", fontWeight: 600, color: e ? palette.text : palette.textMuted }}>{name}</b>
+                        <div style={{ fontSize: "12.5px", color: palette.textMuted, marginTop: "3px" }}>{desc}</div>
+                      </span>
+                      <span className="flex items-center justify-center flex-shrink-0" style={{ width: "26px", height: "26px", borderRadius: "50%", border: `1.5px solid ${e ? palette.gold : palette.border}`, background: e ? palette.gold : "transparent", color: palette.letterbox }}>
+                        {e && <Check size={15} strokeWidth={3} />}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          );
           if (isDesktop) {
             return shell(
               <>
+                {headerDesktop}
                 {tabsBar}
-                {tab === "posts" ? panel : card(panel)}
-              </>,
-              <>
-                {aboutBlock}
-              </>,
-              heroBlock
+                {tab === "overview" ? desktopOverview : tab === "stats" ? desktopStats : tab === "badges" ? desktopBadges : postsPanel}
+              </>
             );
           }
           return shell(
