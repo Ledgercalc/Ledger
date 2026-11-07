@@ -1832,7 +1832,7 @@ export default function CommunityTab(props) {
           const tag = (text) => (
             <span style={{ fontFamily: sans, fontSize: "11px", fontWeight: 500, padding: "2px 8px", borderRadius: "6px", border: `1px solid ${palette.border}`, color: palette.textMuted }}>{text}</span>
           );
-          const shell = (children, aside) => (
+          const shell = (children, aside, hero) => (
             <div className="fixed inset-0 flex flex-col" style={{ background: palette.bg, zIndex: 108 }}>
               <div
                 className="flex items-center gap-3 flex-shrink-0"
@@ -1847,9 +1847,12 @@ export default function CommunityTab(props) {
               </div>
               <div className="flex-1" style={{ overflowY: "auto", minHeight: 0 }}>
                 {isDesktop && aside ? (
-                  <div className="mx-auto w-full" style={{ maxWidth: colW, padding: "28px 32px 56px", display: "grid", gridTemplateColumns: "minmax(320px, 380px) minmax(0, 1fr)", gap: "28px", alignItems: "start" }}>
-                    <aside style={{ background: palette.surface, border: `1px solid ${palette.border}`, borderRadius: "18px", padding: "24px", boxShadow: palette.shadow }}>{aside}</aside>
-                    <main style={{ minWidth: 0 }}>{children}</main>
+                  <div className="mx-auto w-full" style={{ maxWidth: colW, padding: "28px 32px 56px" }}>
+                    {hero}
+                    <div style={{ display: "grid", gridTemplateColumns: "minmax(300px, 340px) minmax(0, 1fr)", gap: "24px", alignItems: "start", marginTop: hero ? "24px" : 0 }}>
+                      <aside style={{ position: "sticky", top: "24px", maxHeight: "calc(100vh - 120px)", overflowY: "auto", background: palette.surface, border: `1px solid ${palette.border}`, borderRadius: "18px", padding: "22px 22px 18px", boxShadow: palette.shadow }}>{aside}</aside>
+                      <main style={{ minWidth: 0 }}>{children}</main>
+                    </div>
                   </div>
                 ) : (
                   <div className="mx-auto w-full" style={{ maxWidth: isDesktop ? "960px" : colW, padding: isDesktop ? "28px 32px 56px" : "16px 16px max(40px, env(safe-area-inset-bottom))" }}>
@@ -1901,27 +1904,70 @@ export default function CommunityTab(props) {
             </div>
           );
 
+          const avatarEl = (size) => (
+            <div className="relative flex-shrink-0">
+              <Avatar name={p.username} size={size} src={avatarSrc} online={p.isOnline} />
+              {isMe && (
+                <>
+                  <input ref={profileAvatarInputRef} type="file" accept="image/*" onChange={handleCommunityAvatarChange} style={{ display: "none" }} />
+                  <button
+                    type="button"
+                    onClick={() => profileAvatarInputRef.current && profileAvatarInputRef.current.click()}
+                    disabled={communityAvatarUploading}
+                    className={`absolute flex items-center justify-center rounded-full ${TAP}`}
+                    style={{ right: "-2px", bottom: "-2px", width: "28px", height: "28px", background: palette.gold, color: palette.letterbox, border: `2px solid ${palette.bg}`, opacity: communityAvatarUploading ? 0.6 : 1 }}
+                    aria-label="Change profile photo"
+                  >
+                    <Camera size={13} />
+                  </button>
+                </>
+              )}
+            </div>
+          );
+          const countsRow = (gap, margin) => (
+            <div className="flex items-center" style={{ gap, margin }}>
+              {[[p.followerCount, "followers", "followers"], [p.followingCount, "following", "following"]].map(([value, label, kind]) => (
+                <button key={kind} type="button" onClick={() => openFollowList(p.username, kind)} aria-label={`See ${label}`} className={TAP} style={{ background: "none", border: "none", padding: 0, minHeight: "40px", fontFamily: sans, fontSize: isDesktop ? "14px" : "12.5px", color: palette.textMuted, whiteSpace: "nowrap" }}>
+                  <b style={{ color: palette.text, fontWeight: 600 }}>{(value || 0).toLocaleString()}</b> {label}
+                </button>
+              ))}
+              <span style={{ fontFamily: sans, fontSize: isDesktop ? "14px" : "12.5px", color: palette.textMuted, whiteSpace: "nowrap" }}>
+                <b style={{ color: palette.text, fontWeight: 600 }}>{(p.postCount || 0).toLocaleString()}</b> {p.postCount === 1 ? "post" : "posts"}
+              </span>
+            </div>
+          );
+          const actionsRow = () => (isMe ? (
+            !bioEditing && (
+              <div className="flex" style={{ gap: "8px" }}>
+                <button type="button" onClick={() => openEditProfile()} className={`flex items-center justify-center gap-1.5 ${TAP}`} style={btn(true, false)}>
+                  <Pencil size={14} /> Edit profile
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const txt = `${p.username} (@${p.username}) on Ledger.${p.role ? ` ${p.role}.` : ""}${stats.disciplineScore != null ? ` Discipline ${Math.round(stats.disciplineScore)}%` : ""}${stats.journalStreak != null ? `${stats.disciplineScore != null ? "," : ""} ${stats.journalStreak} day journal streak.` : stats.disciplineScore != null ? "." : ""}`;
+                    try { navigator.clipboard.writeText(txt).then(() => { setCopiedProfile(true); setTimeout(() => setCopiedProfile(false), 1600); }, () => {}); } catch (e) {}
+                  }}
+                  className={`flex items-center justify-center gap-1.5 ${TAP}`}
+                  style={btn(false, false)}
+                >
+                  <Copy size={14} /> {copiedProfile ? "Copied" : "Copy summary"}
+                </button>
+              </div>
+            )
+          ) : (
+            <div className="flex" style={{ gap: "8px" }}>
+              <button type="button" onClick={() => toggleFollowMember(p.username, !!p.isFollowedByMe)} disabled={followBusy} className={TAP} style={btn(!p.isFollowedByMe, followBusy)}>
+                {p.isFollowedByMe ? "Following" : p.followsMe ? "Follow back" : "Follow"}
+              </button>
+            </div>
+          ));
+
+          // Phone: compact header. (Bio and Description are shown in the About block below.)
           const headerBlock = (
             <>
               <div className="flex items-center" style={{ gap: "14px" }}>
-                <div className="relative flex-shrink-0">
-                  <Avatar name={p.username} size={72} src={avatarSrc} online={p.isOnline} />
-                  {isMe && (
-                    <>
-                      <input ref={profileAvatarInputRef} type="file" accept="image/*" onChange={handleCommunityAvatarChange} style={{ display: "none" }} />
-                      <button
-                        type="button"
-                        onClick={() => profileAvatarInputRef.current && profileAvatarInputRef.current.click()}
-                        disabled={communityAvatarUploading}
-                        className={`absolute flex items-center justify-center rounded-full ${TAP}`}
-                        style={{ right: "-2px", bottom: "-2px", width: "28px", height: "28px", background: palette.gold, color: palette.letterbox, border: `2px solid ${palette.bg}`, opacity: communityAvatarUploading ? 0.6 : 1 }}
-                        aria-label="Change profile photo"
-                      >
-                        <Camera size={13} />
-                      </button>
-                    </>
-                  )}
-                </div>
+                {avatarEl(72)}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2" style={{ fontFamily: sans, fontSize: "24px", fontWeight: 600, lineHeight: 1.15, letterSpacing: "-0.01em", color: palette.text }}>
                     <span className="truncate"><PlanName name={p.username} /></span>
@@ -1931,50 +1977,34 @@ export default function CommunityTab(props) {
                     <span>{`@${p.username}`}{joinedText ? `, Joined ${joinedText}` : ""}</span>
                     {!isMe && p.followsMe && tag("Follows you")}
                   </div>
-                  {(p.role || p.tagline) && <div style={{ fontFamily: sans, fontSize: "14px", fontWeight: 500, marginTop: "2px", color: palette.text }}>{p.role || p.tagline}</div>}
                 </div>
               </div>
-
-              <div className="flex items-center" style={{ gap: "20px", margin: "14px 0 12px" }}>
-                {[[p.followerCount, "followers", "followers"], [p.followingCount, "following", "following"]].map(([value, label, kind]) => (
-                  <button key={kind} type="button" onClick={() => openFollowList(p.username, kind)} aria-label={`See ${label}`} className={TAP} style={{ background: "none", border: "none", padding: 0, minHeight: "40px", fontFamily: sans, fontSize: "12.5px", color: palette.textMuted, whiteSpace: "nowrap" }}>
-                    <b style={{ color: palette.text, fontWeight: 600 }}>{(value || 0).toLocaleString()}</b> {label}
-                  </button>
-                ))}
-                <span style={{ fontFamily: sans, fontSize: "12.5px", color: palette.textMuted, whiteSpace: "nowrap" }}>
-                  <b style={{ color: palette.text, fontWeight: 600 }}>{(p.postCount || 0).toLocaleString()}</b> {p.postCount === 1 ? "post" : "posts"}
-                </span>
-              </div>
-
-              {isMe ? (
-                !bioEditing && (
-                  <div className="flex" style={{ gap: "8px" }}>
-                    <button type="button" onClick={() => openEditProfile()} className={`flex items-center justify-center gap-1.5 ${TAP}`} style={btn(true, false)}>
-                      <Pencil size={14} /> Edit profile
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const txt = `${p.username} (@${p.username}) on Ledger.${p.role ? ` ${p.role}.` : ""}${stats.disciplineScore != null ? ` Discipline ${Math.round(stats.disciplineScore)}%` : ""}${stats.journalStreak != null ? `${stats.disciplineScore != null ? "," : ""} ${stats.journalStreak} day journal streak.` : stats.disciplineScore != null ? "." : ""}`;
-                        try { navigator.clipboard.writeText(txt).then(() => { setCopiedProfile(true); setTimeout(() => setCopiedProfile(false), 1600); }, () => {}); } catch (e) {}
-                      }}
-                      className={`flex items-center justify-center gap-1.5 ${TAP}`}
-                      style={btn(false, false)}
-                    >
-                      <Copy size={14} /> {copiedProfile ? "Copied" : "Copy summary"}
-                    </button>
-                  </div>
-                )
-              ) : (
-                <div className="flex" style={{ gap: "8px" }}>
-                  <button type="button" onClick={() => toggleFollowMember(p.username, !!p.isFollowedByMe)} disabled={followBusy} className={TAP} style={btn(!p.isFollowedByMe, followBusy)}>
-                    {p.isFollowedByMe ? "Following" : p.followsMe ? "Follow back" : "Follow"}
-                  </button>
-                </div>
-              )}
-
+              {countsRow("20px", "14px 0 12px")}
+              {actionsRow()}
               {!isDesktop && tabsBar}
             </>
+          );
+
+          // Laptop: one wide hero card across the top (cover, big photo, name, counts, actions).
+          const heroBlock = (
+            <section style={{ background: palette.surface, border: `1px solid ${palette.border}`, borderRadius: "20px", boxShadow: palette.shadow, overflow: "hidden" }}>
+              <div style={{ height: "92px", background: `linear-gradient(120deg, ${palette.gold}40, ${palette.gold}12 55%, transparent)` }} />
+              <div className="flex items-end" style={{ gap: "24px", padding: "0 28px 24px", marginTop: "-46px", flexWrap: "wrap" }}>
+                <div style={{ borderRadius: "50%", border: `4px solid ${palette.surface}`, background: palette.surface, lineHeight: 0 }}>{avatarEl(104)}</div>
+                <div className="flex-1 min-w-0" style={{ paddingBottom: "2px", minWidth: "240px" }}>
+                  <div className="flex items-center gap-2" style={{ fontFamily: sans, fontSize: "30px", fontWeight: 600, lineHeight: 1.15, letterSpacing: "-0.015em", color: palette.text }}>
+                    <span className="truncate"><PlanName name={p.username} /></span>
+                    {p.verifiedPnl && verifiedBadge}
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap" style={{ fontFamily: sans, fontSize: "13.5px", color: palette.textMuted, marginTop: "4px" }}>
+                    <span>{`@${p.username}`}{joinedText ? `, Joined ${joinedText}` : ""}</span>
+                    {!isMe && p.followsMe && tag("Follows you")}
+                  </div>
+                  {countsRow("28px", "8px 0 0")}
+                </div>
+                <div style={{ minWidth: "280px", paddingBottom: "2px" }}>{actionsRow()}</div>
+              </div>
+            </section>
           );
 
           const bioBlock = (
@@ -1986,7 +2016,7 @@ export default function CommunityTab(props) {
                     onChange={(e) => setBioDraft(e.target.value.slice(0, 160))}
                     rows={3}
                     autoFocus
-                    placeholder="Tell people what you trade and how you think about risk…"
+                    placeholder="Write a short description: what you trade and how you think about risk…"
                     className="w-full outline-none"
                     style={{ display: "block", background: palette.surface, border: `1px solid ${palette.border}`, borderRadius: "12px", padding: "10px 12px", color: palette.text, fontSize: "14px", fontFamily: sans, resize: "none", lineHeight: 1.45 }}
                   />
@@ -2003,7 +2033,7 @@ export default function CommunityTab(props) {
               ) : p.bio ? (
                 <p style={{ margin: "14px 0 4px", fontFamily: sans, fontSize: "14px", lineHeight: 1.5, color: palette.text, whiteSpace: "pre-wrap" }}>{p.bio}</p>
               ) : isMe ? (
-                <p style={{ margin: "14px 0 4px", fontFamily: sans, fontSize: "14px", color: palette.textMuted }}>Add a short bio so people know who you are.</p>
+                <p style={{ margin: "14px 0 4px", fontFamily: sans, fontSize: "14px", color: palette.textMuted }}>Add a short description so people know who you are.</p>
               ) : null}
               {profileError && <p style={{ marginTop: "8px", fontFamily: sans, fontSize: "12px", color: palette.red }}>{profileError}</p>}
             </>
@@ -2045,6 +2075,15 @@ export default function CommunityTab(props) {
 
           const aboutBlock = (
             <>
+              {(p.role || p.tagline) ? (
+                <>
+                  <div style={{ fontFamily: sans, fontSize: "12px", fontWeight: 500, color: palette.textMuted, margin: isDesktop ? "0 0 6px" : "18px 0 4px" }}>Bio</div>
+                  <div style={{ fontFamily: sans, fontSize: "14.5px", fontWeight: 600, color: palette.text, lineHeight: 1.4 }}>{p.role || p.tagline}</div>
+                </>
+              ) : null}
+              {(p.bio || bioEditing || isMe) && (
+                <div style={{ fontFamily: sans, fontSize: "12px", fontWeight: 500, color: palette.textMuted, margin: (p.role || p.tagline) ? "18px 0 0" : (isDesktop ? "0" : "18px 0 0") }}>Description</div>
+              )}
               {bioBlock}
               {!isMe && mutuals.length > 0 && (
                 <div style={{ padding: "12px 0", borderBottom: `1px solid ${palette.border}`, fontFamily: sans, fontSize: "14px", color: palette.textMuted }}>
@@ -2285,9 +2324,9 @@ export default function CommunityTab(props) {
                 {tab === "posts" ? panel : card(panel)}
               </>,
               <>
-                {headerBlock}
                 {aboutBlock}
-              </>
+              </>,
+              heroBlock
             );
           }
           return shell(
