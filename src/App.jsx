@@ -18,6 +18,7 @@ import { buildWeekRecap, computeConsistencyScore, computeDisciplineGrade, comput
 import { FMP_CACHE_MS, FMP_STORAGE_KEY, fetchEconomicCalendar, registerAlarmServiceWorker } from "./lib/calendar.js";
 import { ACCOUNTS_ACTIVE_KEY, ACCOUNTS_LIST_KEY, ALARM_CHECK_INTERVAL_MS, ALARM_STALE_WINDOW_MS, CONFIDENCE_OPTIONS, CS_STORAGE_KEY, CUSTOM_MOODS_STORAGE_KEY, CUSTOM_SETUPS_STORAGE_KEY, DEFAULT_CS_INPUTS, DEFAULT_JOURNAL_COL_WIDTHS, DEFAULT_NOTEPAD_FONT_SIZE, DEFAULT_SETTINGS, EDGE_PROJECTION_PERIODS, EDGE_STORAGE_KEY, EMOTIONS, FX_LAST_PAIR_KEY, LEGACY_EMOTIONS, GOALS_STORAGE_KEY, HIDDEN_DEFAULT_SETUPS_KEY, JOURNAL_COLS_STORAGE_KEY, JOURNAL_COLUMNS, JOURNAL_COL_MAX, JOURNAL_COL_MIN, JOURNAL_STORAGE_KEY, LINKED_FIRM_KEY, MAX_CUSTOM_MOODS, MAX_CUSTOM_SETUPS, MAX_JOURNAL_PHOTOS_PER_ROW, MAX_PLAYBOOK_RULES, MOBILE_NAV_PRIMARY_COUNT, NEWS_STORAGE_KEY, NOTEPAD_FONT_SIZES, NOTEPAD_STORAGE_KEY, OUTCOME_OPTIONS, PLAYBOOK_CHECKINS_KEY, PLAYBOOK_RULES_KEY, PLAYBOOK_STARTER_RULES, PS_STORAGE_KEY, RUNTIME, SETTINGS_STORAGE_KEY, SETUPS, STORAGE_BAL_KEY, STORAGE_KEY, TABS as BASE_TABS, THEME_STORAGE_KEY, TREND_OPTIONS, WEEK_MS, confidenceLabel, emotionMeta, outcomeLabel, scopedKey, sessionLabelFor, setupMeta } from "./lib/constants.js";
 import { STORY_SLIDE_MS, feedTimeAgo, isWithinStoryWindow } from "./lib/feed.js";
+import { plainOf } from "./lib/ledgerPost.js";
 import { dayKeyFromDate, dayKeyFromTs, fmt, fmtMoney, fmtPct, formatDayLabel, num, pad2 } from "./lib/format.js";
 import { SCREENSHOT_MAX_PER_TRADE, dataUrlToFile, readStickerFileRaw, resizeImageFile, resizeStickerFile, tradeScreenshots } from "./lib/images.js";
 import { autoGrowBlock, blocksToExportText, countOccurrencesInBlocks, makeBlockId, migrateNoteShape, replaceAllInBlocks } from "./lib/notes.js";
@@ -140,7 +141,6 @@ const CommunityTab = lazyTab(() => import("./tabs/CommunityTab.jsx"));
 const BacktestTab = lazyTab(() => import("./tabs/BacktestTab.jsx"));
 const BrokerTab = lazyTab(() => import("./tabs/BrokerTab.jsx"));
 const EconCalendarTab = lazyTab(() => import("./tabs/EconCalendarTab.jsx"));
-const PartnerTab = lazyTab(() => import("./tabs/PartnerTab.jsx"));
 const TAB_PRELOAD = {
   risk: RiskTab.preload, propfirm: PropFirmTab.preload, fx: ConvertTab.preload,
   curve: CurveTab.preload, insights: InsightsTab.preload, journal: JournalTab.preload,
@@ -165,10 +165,6 @@ const TABS = (() => {
     const at = tabs.findIndex((t) => t.id === "broker");
     tabs.splice(at === -1 ? tabs.length : at + 1, 0, { id: "econ", label: "Economic calendar", icon: CalendarDays });
   }
-  if (!tabs.some((t) => t.id === "partner")) {
-    const at = tabs.findIndex((t) => t.id === "community");
-    tabs.splice(at === -1 ? tabs.length : at + 1, 0, { id: "partner", label: "Partner", icon: UserCheck });
-  }
   if (!tabs.some((t) => t.id === "backtest")) {
     tabs.push({ id: "backtest", label: "Backtest", icon: CandlestickChart });
   }
@@ -188,7 +184,6 @@ if (typeof window !== "undefined") {
     import("./tabs/BacktestTab.jsx");
     import("./tabs/BrokerTab.jsx");
     import("./tabs/EconCalendarTab.jsx");
-    import("./tabs/PartnerTab.jsx");
   };
   (window.requestIdleCallback || ((fn) => setTimeout(fn, 1500)))(warm);
 }
@@ -1158,7 +1153,7 @@ const renderCommunitySearch = () => {
         </div>
         {post.likeCount > 0 && <span style={{ color: palette.textFaint, fontSize: "10px", fontFamily: mono }}>{post.likeCount} likes</span>}
       </div>
-      {post.text && <div className="mt-2" style={{ color: palette.textMuted, fontSize: "12px", lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{post.text}</div>}
+      {post.text && <div className="mt-2" style={{ color: palette.textMuted, fontSize: "12px", lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{plainOf(post.text)}</div>}
       {post.image && <img src={post.image} alt="" className="mt-2 rounded-xl w-full" style={{ maxHeight: "260px", objectFit: "cover" }} />}
     </button>
   );
@@ -5166,15 +5161,19 @@ if (!isSignal && !communityMsgText.trim()) return;
     if (file) uploadProfilePostImage(file);
   };
 
-  const createProfilePost = async () => {
+  const createProfilePost = async (override) => {
+    // The shared PostComposer passes { text, image }; the old inline composer passed nothing.
+    const ov = override && typeof override.text === "string" ? override : null;
+    const postText = ov ? ov.text : profilePostText.trim();
+    const postImage = ov ? (ov.image || null) : profilePostImage;
     if (!session?.token || profilePostSubmitting) return;
-    if (!profilePostText.trim() && !profilePostImage) return;
+    if (!postText && !postImage) return;
     setProfilePostSubmitting(true);
     try {
       await communityApi("/profile/posts", {
         method: "POST",
         headers: { Authorization: `Bearer ${session.token}` },
-        body: JSON.stringify({ text: profilePostText.trim(), image: profilePostImage }),
+        body: JSON.stringify({ text: postText, image: postImage }),
       });
       setProfilePostText("");
       setProfilePostImage(null);
@@ -5188,6 +5187,7 @@ if (!isSignal && !communityMsgText.trim()) return;
       setProfileData((cur) => (cur ? { ...cur, postCount: (cur.postCount || 0) + 1 } : cur));
     } catch (err) {
       setProfileError(err.message || "Couldn't share that.");
+      if (ov) throw err; // lets the composer show the error and keep the draft
     } finally {
       setProfilePostSubmitting(false);
     }
@@ -7453,12 +7453,9 @@ const hiddenTabIds = settings.hiddenTabs || [];
 
 
 
-if (activeTab === "partner") {
-    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><PartnerTab {...{ isDesktop, session, communityUsername, trades, settings, persistSettings, playbookCheckins, goToCommunity: () => setActiveTab("community") }} /></Suspense>;
-  }
 
 if (activeTab === "community") {
-    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><CommunityTab {...{ REACTION_EMOJIS, session, activeGroupId, addingGroup, advanceStory, answerGroupQuestion, askGroupQuestion, authorHasUnseen, avatarForAuthor, bioDraft, bioEditing, bioSaving, cancelStoryDraft, claimCommunityUsername, closeProfileBack, closeStoryViewer, commentDrafts, communityApiError, communityAvatar, communityAvatarUploading, communityChatSubView, communityFeedSubView, communityLobbyTab, communityMessagesEndRef, communityMobileFeedOpen, communityMsgText, communityPanelTab, communitySearch, communityUsername, communityUsernameBusy, communityUsernameDraft, communityUsernameError, createCommunityGroup, createCommunityPost, createFeedPost, createProfilePost, createStickerPack, createVaultItem, creatingGroup, deleteCommunityPost, deleteFeedComment, deleteFeedPost, deleteGroupQuestion, deleteProfileComment, deleteProfilePost, deleteSticker, deleteStickerPack, deleteStory, deleteVaultItem, deleteWallEntry, feedComments, feedCommentsLoading, feedCommentsOpenId, feedImageInputRef, feedImageUploading, fetchStickerPacks, followBusy, followListData, followListLoading, followListOpen, followListQuery, getCommunityMemberStats, globalFeed, globalFeedLoaded, groupAvatarMap, groupCodeError, groupFeed, groupFeedLoaded, groupInfo, groupMembersList, groupMessages, groupMessagesLoaded, groupPosts, groupPostsLoaded, groupQuestions, groupQuestionsLoaded, groupVault, groupVaultLoaded, groupWall, groupWallLoaded, handleCommunityAvatarChange, handleFeedImageChange, handlePostImageChange, handleProfilePostImageChange, handleStickerFileChange, handleStoryImageChange, isAuthorOnline, isDesktop, joinCodeError, joinCodeInput, joinGroupByCode, joiningGroup, leaderboardMetric, lightboxPost, likeGlobalFeedPost, likeProfilePost, likedFeedIds, loadGlobalFeed, loadMoreProfilePosts, myFeedReactions, myGroups, myStoryReactions, myWallIds, newFeedImage, newFeedPnl, newFeedText, newGroupCode, newGroupDesc, newGroupName, newGroupPublic, newGroupTags, newPostImage, newPostText, newQuestionText, newVaultText, newVaultTitle, newVaultUrl, newWallText, openCommunityMemberProfile, openFollowList, openGlobalFeedComments, openMyProfile, openSignalThread, openStoryComposer, openStoryViewerFor, openThreadId, pinCommunityMessage, pingTyping, pinnedMessageId, postFeedComment, postImageInputRef, postImageUploading, postProfileComment, postStory, postWallEntry, profileAvatarInputRef, profileCommentDraft, profileCommentInputRef, profileCommentSending, profileComments, profileCommentsLoading, profileComposerOpen, profileData, profileEmojiOpen, profileError, profileLoading, profileOpen, profilePostImage, profilePostImageInputRef, profilePostImageUploading, profilePostMenuOpen, profilePostOpen, profilePostSubmitting, profilePostText, profilePosts, profilePostsLoaded, profilePostsNext, profileSubTab, profileView, qaOpenId, qaReplyDrafts, reactionPickerFor, relateWallEntry, relatedWallIds, renderCommunitySearch, renderGlobalFeed, replyingTo, saveProfileBio, openEditProfile, profileExtras, searchCommunity, sendCommunityMessage, sendSticker, sendThreadReply, setActiveGroupId, setAddingGroup, setBioDraft, setBioEditing, setCommentDrafts, setCommunityChatSubView, setCommunityFeedSubView, setCommunityLobbyTab, setCommunityMobileFeedOpen, setCommunityMsgText, setCommunityOpenTabDropdown, setCommunityPanelTab, setCommunitySearch, setCommunityUsernameDraft, setCommunityUsernameError, setFollowListOpen, setFollowListQuery, setGroupCodeError, setGroupManageOpen, setGroupManageTab, setJoinCodeError, setJoinCodeInput, setLeaderboardMetric, setLightboxPost, setManageDescDraft, setManageMsg, setManageNameDraft, setNewFeedImage, setNewFeedPnl, setNewFeedText, setNewGroupCode, setNewGroupDesc, setNewGroupName, setNewGroupPublic, setNewGroupTags, setNewPostImage, setNewPostText, setNewQuestionText, setNewVaultText, setNewVaultTitle, setNewVaultUrl, setNewWallText, setOpenThreadId, setPendingDeleteMsg, setProfileCommentDraft, setProfileComposerOpen, setProfileEmojiOpen, setProfilePostImage, setProfilePostMenuOpen, setProfilePostOpen, setProfilePostText, setProfileSubTab, setQaOpenId, setQaReplyDrafts, setReactionPickerFor, setReplyingTo, setSignalComposerOpen, setSignalDirection, setSignalEntry, setSignalPair, setSignalSL, setSignalStatsOpen, setSignalTP, setStickerActivePackId, setStickerManageMode, setStickerNewPackName, setStickerPickerOpen, setStoryCaption, setStoryPaused, setStoryViewer, setThreadDraft, shadowSignalToTrade, signalComposerOpen, signalDirection, signalEntry, signalPair, signalSL, signalStatsOpen, signalTP, stickerActivePackId, stickerError, stickerFileInputRef, stickerManageMode, stickerNewPackName, stickerPacks, stickerPacksLoaded, stickerPickerOpen, stickerUploading, storiesByAuthor, storyAuthorOrder, storyCaption, storyDraft, storyImageInputRef, storyPosting, storyProgressPct, storyViewer, threadDraft, threadLoading, threadReplies, toggleFeedComments, toggleFeedReaction, toggleFollowMember, toggleMessageReaction, toggleStoryReaction, typingUsers, unpinCommunityMessage, uploadProfilePostImage }} /></Suspense>;
+    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><CommunityTab {...{ REACTION_EMOJIS, session, trades, activeGroupId, addingGroup, advanceStory, answerGroupQuestion, askGroupQuestion, authorHasUnseen, avatarForAuthor, bioDraft, bioEditing, bioSaving, cancelStoryDraft, claimCommunityUsername, closeProfileBack, closeStoryViewer, commentDrafts, communityApiError, communityAvatar, communityAvatarUploading, communityChatSubView, communityFeedSubView, communityLobbyTab, communityMessagesEndRef, communityMobileFeedOpen, communityMsgText, communityPanelTab, communitySearch, communityUsername, communityUsernameBusy, communityUsernameDraft, communityUsernameError, createCommunityGroup, createCommunityPost, createFeedPost, createProfilePost, createStickerPack, createVaultItem, creatingGroup, deleteCommunityPost, deleteFeedComment, deleteFeedPost, deleteGroupQuestion, deleteProfileComment, deleteProfilePost, deleteSticker, deleteStickerPack, deleteStory, deleteVaultItem, deleteWallEntry, feedComments, feedCommentsLoading, feedCommentsOpenId, feedImageInputRef, feedImageUploading, fetchStickerPacks, followBusy, followListData, followListLoading, followListOpen, followListQuery, getCommunityMemberStats, globalFeed, globalFeedLoaded, groupAvatarMap, groupCodeError, groupFeed, groupFeedLoaded, groupInfo, groupMembersList, groupMessages, groupMessagesLoaded, groupPosts, groupPostsLoaded, groupQuestions, groupQuestionsLoaded, groupVault, groupVaultLoaded, groupWall, groupWallLoaded, handleCommunityAvatarChange, handleFeedImageChange, handlePostImageChange, handleProfilePostImageChange, handleStickerFileChange, handleStoryImageChange, isAuthorOnline, isDesktop, joinCodeError, joinCodeInput, joinGroupByCode, joiningGroup, leaderboardMetric, lightboxPost, likeGlobalFeedPost, likeProfilePost, likedFeedIds, loadGlobalFeed, loadMoreProfilePosts, myFeedReactions, myGroups, myStoryReactions, myWallIds, newFeedImage, newFeedPnl, newFeedText, newGroupCode, newGroupDesc, newGroupName, newGroupPublic, newGroupTags, newPostImage, newPostText, newQuestionText, newVaultText, newVaultTitle, newVaultUrl, newWallText, openCommunityMemberProfile, openFollowList, openGlobalFeedComments, openMyProfile, openSignalThread, openStoryComposer, openStoryViewerFor, openThreadId, pinCommunityMessage, pingTyping, pinnedMessageId, postFeedComment, postImageInputRef, postImageUploading, postProfileComment, postStory, postWallEntry, profileAvatarInputRef, profileCommentDraft, profileCommentInputRef, profileCommentSending, profileComments, profileCommentsLoading, profileComposerOpen, profileData, profileEmojiOpen, profileError, profileLoading, profileOpen, profilePostImage, profilePostImageInputRef, profilePostImageUploading, profilePostMenuOpen, profilePostOpen, profilePostSubmitting, profilePostText, profilePosts, profilePostsLoaded, profilePostsNext, profileSubTab, profileView, qaOpenId, qaReplyDrafts, reactionPickerFor, relateWallEntry, relatedWallIds, renderCommunitySearch, renderGlobalFeed, replyingTo, saveProfileBio, openEditProfile, profileExtras, searchCommunity, sendCommunityMessage, sendSticker, sendThreadReply, setActiveGroupId, setAddingGroup, setBioDraft, setBioEditing, setCommentDrafts, setCommunityChatSubView, setCommunityFeedSubView, setCommunityLobbyTab, setCommunityMobileFeedOpen, setCommunityMsgText, setCommunityOpenTabDropdown, setCommunityPanelTab, setCommunitySearch, setCommunityUsernameDraft, setCommunityUsernameError, setFollowListOpen, setFollowListQuery, setGroupCodeError, setGroupManageOpen, setGroupManageTab, setJoinCodeError, setJoinCodeInput, setLeaderboardMetric, setLightboxPost, setManageDescDraft, setManageMsg, setManageNameDraft, setNewFeedImage, setNewFeedPnl, setNewFeedText, setNewGroupCode, setNewGroupDesc, setNewGroupName, setNewGroupPublic, setNewGroupTags, setNewPostImage, setNewPostText, setNewQuestionText, setNewVaultText, setNewVaultTitle, setNewVaultUrl, setNewWallText, setOpenThreadId, setPendingDeleteMsg, setProfileCommentDraft, setProfileComposerOpen, setProfileEmojiOpen, setProfilePostImage, setProfilePostMenuOpen, setProfilePostOpen, setProfilePostText, setProfileSubTab, setQaOpenId, setQaReplyDrafts, setReactionPickerFor, setReplyingTo, setSignalComposerOpen, setSignalDirection, setSignalEntry, setSignalPair, setSignalSL, setSignalStatsOpen, setSignalTP, setStickerActivePackId, setStickerManageMode, setStickerNewPackName, setStickerPickerOpen, setStoryCaption, setStoryPaused, setStoryViewer, setThreadDraft, shadowSignalToTrade, signalComposerOpen, signalDirection, signalEntry, signalPair, signalSL, signalStatsOpen, signalTP, stickerActivePackId, stickerError, stickerFileInputRef, stickerManageMode, stickerNewPackName, stickerPacks, stickerPacksLoaded, stickerPickerOpen, stickerUploading, storiesByAuthor, storyAuthorOrder, storyCaption, storyDraft, storyImageInputRef, storyPosting, storyProgressPct, storyViewer, threadDraft, threadLoading, threadReplies, toggleFeedComments, toggleFeedReaction, toggleFollowMember, toggleMessageReaction, toggleStoryReaction, typingUsers, unpinCommunityMessage, uploadProfilePostImage }} /></Suspense>;
   }
   // end community tab
 
@@ -7858,7 +7855,7 @@ if (activeTab === "community") {
                     {body}
                   </div>
                 ) : (
-                  <div style={{ width: "100%", maxWidth: activeTab === "partner" ? "none" : "1400px", margin: "0 auto", paddingTop: startsWithSubNav ? "0px" : "24px", ...coachFillStyle }}>
+                  <div style={{ width: "100%", maxWidth: "1400px", margin: "0 auto", paddingTop: startsWithSubNav ? "0px" : "24px", ...coachFillStyle }}>
                     {body}
                   </div>
                 )
