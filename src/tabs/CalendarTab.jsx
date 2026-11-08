@@ -1304,14 +1304,22 @@ function JournalSection({ trades, tradesByDay, settings, persistSettings, journa
 const numOrNull = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : null; };
 const showPx = (v) => (v == null || v === "" ? "n/a" : String(parseFloat(Number(v).toFixed(5))));
 
-function calcTrade(extra, dir, manualPnl) {
-  const e = numOrNull(extra.e), s = numOrNull(extra.s), tp = numOrNull(extra.tp), x = numOrNull(extra.x), z = numOrNull(extra.z);
+function calcTrade(extra, dir, manualPnl, riskAmount) {
+  const e = numOrNull(extra.e), sl = numOrNull(extra.s), tp = numOrNull(extra.tp), x = numOrNull(extra.x), z = numOrNull(extra.z);
   const d = dir === "down" ? -1 : 1;
-  const risk = e != null && s != null && z != null ? Math.abs(e - s) * z : null;
-  const calcPnl = e != null && x != null && z != null ? (x - e) * d * z : null;
+  const dist = e != null && sl != null ? Math.abs(e - sl) : 0;
+  let risk = null, calcPnl = null;
+  if (z != null && dist) {
+    // older trades that were logged with a size
+    risk = dist * z;
+    if (x != null) calcPnl = (x - e) * d * z;
+  } else if (dist && riskAmount > 0) {
+    // no size: one R is the risk amount (your risk % of your account)
+    risk = riskAmount;
+    if (x != null) calcPnl = (((x - e) * d) / dist) * riskAmount;
+  }
   const pnl = calcPnl != null ? calcPnl : manualPnl;
-  const rwd = e != null && tp != null && z != null ? Math.abs(tp - e) * z : null;
-  return { e, s, tp, x, z, d, risk, pnl, calcPnl, r: risk && pnl != null ? pnl / risk : null, rr: risk && rwd != null ? rwd / risk : null };
+  return { e, s: sl, tp, x, z, d, risk, pnl, calcPnl, r: risk && pnl != null ? pnl / risk : null, rr: dist && tp != null ? Math.abs(tp - e) / dist : null };
 }
 
 function PriceRail({ c }) {
@@ -1353,23 +1361,16 @@ function LogTradeSheet(props) {
   // New trades start as Long, like the prototype.
   useEffect(() => { if (!editingTradeId && !tradeDirection) setTradeDirection("up"); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
-  const c = calcTrade(tradeExtra, tradeDirection, numOrNull(tradeInput));
+  const netPnl = trades.reduce((sum, t) => sum + t.pnl, 0);
+  const account = num(startingBalance) + netPnl;
+  const riskPct = Number(settings.riskPercent) > 0 ? Number(settings.riskPercent) : 1;
+  const riskAmount = account > 0 ? (account * riskPct) / 100 : 0;
+  const c = calcTrade(tradeExtra, tradeDirection, numOrNull(tradeInput), riskAmount);
   // P/L follows the numbers whenever entry, exit and size are all filled in.
   useEffect(() => {
     if (c.calcPnl != null) setTradeInput(String(Math.round(c.calcPnl * 100) / 100));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tradeExtra.e, tradeExtra.x, tradeExtra.z, tradeDirection]);
-
-  const netPnl = trades.reduce((s, t) => s + t.pnl, 0);
-  const account = num(startingBalance) + netPnl;
-  const riskPct = Number(settings.riskPercent) > 0 ? Number(settings.riskPercent) : 1;
-  const sizeForRisk = () => {
-    const dist = c.e != null && c.s != null ? Math.abs(c.e - c.s) : 0;
-    if (!dist) { setErr("Add entry and stop first."); return; }
-    if (account <= 0) { setErr("Set your starting balance first so I can size the trade."); return; }
-    setErr("");
-    setX("z", String(Math.round((account * riskPct) / 100 / dist)));
-  };
+  }, [tradeExtra.e, tradeExtra.s, tradeExtra.x, tradeExtra.z, tradeDirection, riskAmount]);
 
   const draft = { pnl: c.pnl == null ? 0 : c.pnl, mist: tradeExtra.mist, rulesOk: tradeExtra.rulesOk };
   const verdict = tradeVerdict(draft, playbookRules);
@@ -1378,7 +1379,7 @@ function LogTradeSheet(props) {
 
   const save = () => {
     if (!tradeInput || !numOrNull(tradeInput) || numOrNull(tradeInput) === 0) {
-      setErr("Add your entry, exit and size, or type the profit or loss yourself.");
+      setErr(account > 0 ? "Add your entry, stop loss and exit so I can work out the result." : "Set your starting balance in the Equity tab first, so I can work out your result.");
       setStep(0);
       return;
     }
@@ -1403,18 +1404,18 @@ function LogTradeSheet(props) {
       </div>
       <div className="flex items-center justify-between" style={{ fontSize: "12px", color: palette.textMuted, marginTop: "2px" }}>
         <span>P/L {c.pnl == null ? "n/a" : `${c.pnl >= 0 ? "+" : "\u2212"}$${fmtMoney(Math.abs(c.pnl))}`}</span>
-        <span>{c.risk != null ? `Risk $${Math.round(c.risk)}${c.rr != null ? `, reward 1:${c.rr.toFixed(1)}` : ""}` : "Risk n/a"}</span>
+        <span>{c.risk != null ? `Risk $${Math.round(c.risk)}${c.rr != null ? `, reward 1:${c.rr.toFixed(1)}` : ""}` : c.rr != null ? `Reward 1:${c.rr.toFixed(1)}` : "Risk n/a"}</span>
       </div>
       <PriceRail c={c} />
     </div>
   );
 
   const stepBtn = (i, label) => (
-    <button key={label} type="button" onClick={() => setStep(i)} className={TAP}
-      style={{ flex: 1, height: "40px", borderRadius: "10px", fontSize: "12.5px", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
-        border: `1px solid ${i === step ? palette.text : i < step ? palette.gold : palette.border}`, background: i === step ? palette.text : "transparent",
-        color: i === step ? palette.bg : i < step ? palette.gold : palette.textMuted }}>
-      <b style={{ fontWeight: 600 }}>{i + 1}</b>{label}
+    <button key={label} type="button" onClick={() => setStep(i)} aria-current={i === step ? "step" : undefined} className={TAP}
+      style={{ flex: 1, height: "40px", borderRadius: "10px", fontSize: "13px", fontWeight: 600,
+        border: `1px solid ${i === step ? palette.gold : palette.border}`, background: i === step ? palette.gold : palette.surface,
+        color: i === step ? palette.letterbox : palette.textMuted }}>
+      {label}
     </button>
   );
 
@@ -1445,15 +1446,9 @@ function LogTradeSheet(props) {
                 {field("Entry", "e", "1.0850")}{field("Stop loss", "s", "1.0812")}
                 {field("Target", "tp", "1.0930")}{field("Exit", "x", "Blank if open")}
               </div>
-              {field("Size in units", "z", "50000")}
-              <button type="button" onClick={sizeForRisk} className={TAP} style={{ ...chipSt(false), margin: "10px 0 0" }}>Size for {riskPct}% risk</button>
-              <div style={{ fontSize: "12px", color: palette.textMuted }}>Uses your ${Math.round(Math.max(0, account)).toLocaleString()} account size</div>
-              <SecLabel left="Profit or loss" right="Filled from your numbers" />
-              <div className="flex items-center" style={{ background: palette.field, border: `1px solid ${palette.border}`, borderRadius: "12px", padding: "0 12px" }}>
-                <span style={{ color: palette.textFaint, paddingRight: "4px" }}>$</span>
-                <input value={tradeInput} onChange={(e) => { setTradeInput(e.target.value.replace(/[^0-9.\-+]/g, "")); pokeCrab("type"); }} inputMode="decimal" placeholder="+120 or -60" style={{ width: "100%", background: "transparent", border: "none", outline: "none", color: palette.text, fontFamily: mono, fontSize: "16px", padding: "12px 0" }} />
+              <div style={{ fontSize: "12px", color: palette.textMuted, marginTop: "12px", lineHeight: 1.45 }}>
+                Your result is worked out from your R and your {riskPct}% risk{account > 0 ? ` on a $${Math.round(account).toLocaleString()} account` : ""}.
               </div>
-              <div style={{ fontSize: "12px", color: palette.textMuted, marginTop: "6px", lineHeight: 1.45 }}>Edit it if your broker shows a different result. Positive logs a win, negative logs a loss.</div>
             </>
           )}
 
@@ -1515,6 +1510,217 @@ function LogTradeSheet(props) {
         </div>
       </div>
     </div>
+  );
+}
+
+// ===================== Equity =====================
+// Real account equity: starting balance + trading P/L + deposits and withdrawals.
+// Cash movements live in settings.equityMoves ([{ id, ts, amount, note }], deposits positive).
+// Drawdown is measured on trading only, so taking money out never counts as a drawdown.
+const EQ_RANGES = [["1w", "1W", 7], ["1m", "1M", 30], ["3m", "3M", 90], ["ytd", "YTD", -1], ["all", "All", 0]];
+const money0 = (v) => `${v < 0 ? "\u2212" : ""}$${fmt(Math.abs(v), 0)}`;
+const smoney0 = (v) => `${v > 0 ? "+" : v < 0 ? "\u2212" : ""}$${fmt(Math.abs(v), 0)}`;
+const dayStart = (ts) => { const d = new Date(ts); d.setHours(0, 0, 0, 0); return d.getTime(); };
+const axisDate = (ts) => { const d = new Date(ts); return `${MON_SHORT[d.getMonth()]} ${d.getDate()}`; };
+
+function EquitySection({ trades, startingBalance, persistStartingBalance, settings, persistSettings, isDesktop }) {
+  const [range, setRange] = useState("all");
+  const [kind, setKind] = useState("dep");
+  const [amt, setAmt] = useState("");
+  const [when, setWhen] = useState(() => dayKeyFromDate(new Date()));
+  const [note, setNote] = useState("");
+  const [err, setErr] = useState("");
+  const [editBal, setEditBal] = useState(false);
+  const [balDraft, setBalDraft] = useState("");
+  const moves = Array.isArray(settings.equityMoves) ? settings.equityMoves : [];
+  const start = num(startingBalance);
+
+  const model = useMemo(() => {
+    const ev = [
+      ...trades.map((t) => ({ ts: t.ts, trade: t.pnl, flow: 0 })),
+      ...moves.map((m) => ({ ts: m.ts, trade: 0, flow: m.amount })),
+    ].sort((a, b) => a.ts - b.ts);
+    // one point per day (end of day), plus the starting point
+    const pts = [];
+    let eq = start, tr = start;
+    ev.forEach((e) => {
+      eq += e.trade + e.flow;
+      tr += e.trade;
+      const day = dayStart(e.ts);
+      const last = pts[pts.length - 1];
+      if (last && last.day === day) { last.eq = eq; last.tr = tr; last.ts = e.ts; } else pts.push({ day, ts: e.ts, eq, tr });
+    });
+    const firstTs = ev.length ? dayStart(ev[0].ts) : Date.now();
+    const all = [{ day: firstTs, ts: firstTs, eq: start, tr: start }, ...pts];
+    const now = Date.now();
+    const cfg = EQ_RANGES.find((r) => r[0] === range) || EQ_RANGES[4];
+    const from = cfg[2] === 0 ? 0 : cfg[2] === -1 ? new Date(new Date().getFullYear(), 0, 1).getTime() : now - cfg[2] * 86400000;
+    const before = from ? all.filter((p) => p.ts < from) : [];
+    const ref = before.length ? before[before.length - 1] : all[0];
+    const inRange = all.filter((p) => p.ts >= from);
+    const series = (from && before.length ? [{ ts: from, eq: ref.eq, tr: ref.tr }, ...inRange] : inRange.length ? inRange : [{ ts: from || firstTs, eq: ref.eq, tr: ref.tr }]).map((p) => ({ ts: p.ts, eq: p.eq, tr: p.tr }));
+    const lastPt = series[series.length - 1];
+    if (lastPt.ts < now - 3600000) series.push({ ts: now, eq: lastPt.eq, tr: lastPt.tr });
+    const current = lastPt.eq;
+    const flows = moves.filter((m) => m.ts >= from).reduce((s, m) => s + m.amount, 0);
+    const change = current - ref.eq;
+    const plRange = change - flows;
+    let peak = -Infinity, maxDd = 0;
+    series.forEach((p) => { peak = Math.max(peak, p.tr); if (peak > 0) maxDd = Math.max(maxDd, (peak - p.tr) / peak); });
+    const curDd = peak > 0 ? (peak - lastPt.tr) / peak : 0;
+    const allEq = all.map((p) => p.eq);
+    return {
+      series, current, change, plRange, flows, peakTr: peak, maxDd, curDd,
+      returnPct: ref.eq > 0 ? (plRange / ref.eq) * 100 : null,
+      peakEq: Math.max(...allEq, current),
+      dep: moves.filter((m) => m.amount > 0).reduce((s, m) => s + m.amount, 0),
+      wd: -moves.filter((m) => m.amount < 0).reduce((s, m) => s + m.amount, 0),
+      empty: !trades.length && !moves.length,
+    };
+  }, [trades, moves, start, range]);
+
+  const up = model.change >= 0;
+  const lo = Math.min(...model.series.map((p) => p.eq), start || Infinity);
+  const hi = Math.max(...model.series.map((p) => p.eq), start || -Infinity);
+  const pad = Math.max((hi - lo) * 0.12, Math.abs(hi) * 0.002, 1);
+
+  const addMove = () => {
+    const a = parseFloat(amt);
+    if (!Number.isFinite(a) || a <= 0) { setErr("Enter an amount above zero."); return; }
+    if (moves.length >= 500) { setErr("That's the limit of 500 entries."); return; }
+    const d = keyToDate(when);
+    d.setHours(12, 0, 0, 0);
+    const m = { id: `${Date.now()}${Math.floor(Math.random() * 1000)}`, ts: d.getTime(), amount: kind === "dep" ? a : -a, note: note.trim().slice(0, 60) };
+    persistSettings({ ...settings, equityMoves: [...moves, m].sort((x, y) => x.ts - y.ts) });
+    setAmt(""); setNote(""); setErr("");
+    pokeCrab("add");
+  };
+  const delMove = (id) => persistSettings({ ...settings, equityMoves: moves.filter((m) => m.id !== id) });
+  const saveBal = () => {
+    const v = parseFloat(balDraft);
+    if (!Number.isFinite(v) || v < 0) { setErr("Enter your starting balance as a number."); return; }
+    persistStartingBalance(String(v));
+    setEditBal(false); setErr("");
+  };
+
+  const stat = (label, value, color, sub) => (
+    <div style={{ ...cardSt, padding: "14px 16px", minWidth: 0 }}>
+      <div style={{ fontSize: "12px", color: palette.textMuted }}>{label}</div>
+      <div style={{ fontFamily: display, fontSize: "21px", fontWeight: 700, marginTop: "3px", color: color || palette.text }}>{value}</div>
+      {sub ? <div style={{ fontSize: "11.5px", color: palette.textFaint, marginTop: "2px" }}>{sub}</div> : null}
+    </div>
+  );
+
+  const left = (
+    <>
+      <div style={{ fontSize: "12.5px", color: palette.textMuted }}>Current equity</div>
+      <div style={{ fontFamily: display, fontSize: isDesktop ? "42px" : "36px", fontWeight: 700, lineHeight: 1.15, color: palette.text }}>{start > 0 || !model.empty ? money0(model.current) : "$0"}</div>
+      <div style={{ fontSize: "13px", color: tone(model.change), marginTop: "2px" }}>
+        {smoney0(model.change)}{model.returnPct != null ? ` (${model.returnPct >= 0 ? "+" : "\u2212"}${Math.abs(model.returnPct).toFixed(1)}% from trading)` : ""}
+        <span style={{ color: palette.textFaint }}> in this range</span>
+      </div>
+
+      <div className="flex" role="tablist" aria-label="Range" style={{ margin: "16px 0 12px", padding: "3px", background: palette.surface, border: `1px solid ${palette.border}`, borderRadius: "12px", maxWidth: isDesktop ? "380px" : "none" }}>
+        {EQ_RANGES.map(([id, label]) => (
+          <button key={id} type="button" role="tab" aria-selected={range === id} onClick={() => setRange(id)} className={TAP}
+            style={{ flex: 1, minHeight: "36px", borderRadius: "9px", border: "none", fontSize: "13px", fontWeight: 600, background: range === id ? palette.gold : "transparent", color: range === id ? palette.letterbox : palette.textMuted }}>{label}</button>
+        ))}
+      </div>
+
+      <div style={{ ...cardSt, padding: "12px 8px 6px 0" }}>
+        {model.empty ? (
+          <div style={{ padding: "48px 16px", textAlign: "center", fontSize: "13.5px", color: palette.textMuted }}>Log your first trade and your equity curve starts here.</div>
+        ) : (
+          <div style={{ width: "100%", height: isDesktop ? 320 : 210 }}>
+            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+              <LineChart data={model.series} margin={isDesktop ? CHART_MARGIN : CHART_MARGIN_MOBILE}>
+                <CartesianGrid stroke={palette.border} strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="ts" type="number" domain={["dataMin", "dataMax"]} tickFormatter={axisDate} stroke={palette.textFaint} tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }} tickLine={false} axisLine={{ stroke: palette.border }} minTickGap={36} />
+                <YAxis domain={[Math.floor(lo - pad), Math.ceil(hi + pad)]} tickFormatter={(v) => (Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(1).replace(/\.0$/, "")}k` : String(Math.round(v)))} stroke={palette.textFaint} tick={{ fill: palette.textFaint, fontSize: 10, fontFamily: mono }} tickLine={false} axisLine={{ stroke: palette.border }} width={isDesktop ? 54 : 44} />
+                {start > 0 && <ReferenceLine y={start} stroke={palette.textFaint} strokeDasharray="4 4" />}
+                <Tooltip contentStyle={{ background: palette.field, border: `1px solid ${palette.border}`, borderRadius: "8px", fontFamily: mono, fontSize: "12px" }} labelStyle={{ color: palette.textMuted }} itemStyle={{ color: up ? palette.green : palette.red }} formatter={(v) => [money0(v), "Equity"]} labelFormatter={(l) => axisDate(l)} />
+                <Line type="monotone" dataKey="eq" stroke={up ? palette.green : palette.red} strokeWidth={2} dot={false} activeDot={ACTIVE_DOT} isAnimationActive={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "repeat(4, minmax(0, 1fr))" : "repeat(2, minmax(0, 1fr))", gap: "10px", marginTop: "14px" }}>
+        {stat("Trading P/L", smoney0(model.plRange), tone(model.plRange), "Before deposits and withdrawals")}
+        {stat("Max drawdown", model.maxDd ? `\u2212${(model.maxDd * 100).toFixed(1)}%` : "0%", model.maxDd ? palette.red : palette.text, "Trading only")}
+        {stat("Current drawdown", model.curDd ? `\u2212${(model.curDd * 100).toFixed(1)}%` : "0%", model.curDd ? palette.red : palette.green, model.curDd ? "Below your best" : "At your best")}
+        {stat("Peak equity", money0(model.peakEq))}
+      </div>
+    </>
+  );
+
+  const right = (
+    <>
+      <div style={{ ...cardSt, padding: "16px 18px", marginTop: isDesktop ? 0 : "22px" }}>
+        <div className="flex items-center justify-between">
+          <b style={{ fontSize: "14px", color: palette.text }}>Starting balance</b>
+          {!editBal && <button type="button" className={TAP} onClick={() => { setBalDraft(start ? String(start) : ""); setEditBal(true); setErr(""); }} style={{ minHeight: "36px", background: "none", border: "none", color: palette.gold, fontSize: "13px", fontWeight: 600 }}>{start > 0 ? "Edit" : "Set"}</button>}
+        </div>
+        {editBal ? (
+          <div className="flex" style={{ gap: "8px", marginTop: "8px" }}>
+            <input value={balDraft} onChange={(e) => setBalDraft(e.target.value.replace(/[^0-9.]/g, ""))} inputMode="decimal" placeholder="10000" autoFocus style={{ ...fieldSt, marginTop: 0 }} />
+            <button type="button" className={TAP} onClick={saveBal} style={{ ...primaryBtn, width: "auto", padding: "0 18px", height: "44px" }}>Save</button>
+          </div>
+        ) : (
+          <div style={{ fontFamily: display, fontSize: "20px", fontWeight: 700, marginTop: "2px", color: palette.text }}>{start > 0 ? money0(start) : "Not set"}</div>
+        )}
+        <div style={{ fontSize: "12px", color: palette.textMuted, marginTop: "6px", lineHeight: 1.45 }}>Equity is your starting balance, plus every trade, plus deposits, minus withdrawals.</div>
+      </div>
+
+      <SecLabel left="Deposits and withdrawals" right={`${money0(model.dep)} in, ${money0(model.wd)} out`} />
+      <div style={{ ...cardSt, padding: "16px 18px" }}>
+        <div className="flex" style={{ padding: "3px", background: palette.field, borderRadius: "12px" }}>
+          {[["dep", "Deposit"], ["wd", "Withdrawal"]].map(([id, label]) => (
+            <button key={id} type="button" aria-pressed={kind === id} onClick={() => setKind(id)} className={TAP}
+              style={{ flex: 1, minHeight: "38px", borderRadius: "9px", border: "none", fontSize: "13px", fontWeight: 600, background: kind === id ? palette.gold : "transparent", color: kind === id ? palette.letterbox : palette.textMuted }}>{label}</button>
+          ))}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
+          <label style={{ display: "block", fontSize: "12px", color: palette.textMuted, marginTop: "12px" }}>Amount ($)
+            <input value={amt} onChange={(e) => setAmt(e.target.value.replace(/[^0-9.]/g, ""))} inputMode="decimal" placeholder="1000" style={fieldSt} />
+          </label>
+          <label style={{ display: "block", fontSize: "12px", color: palette.textMuted, marginTop: "12px" }}>Date
+            <input type="date" value={when} max={dayKeyFromDate(new Date())} onChange={(e) => setWhen(e.target.value || dayKeyFromDate(new Date()))} style={fieldSt} />
+          </label>
+        </div>
+        <label style={{ display: "block", fontSize: "12px", color: palette.textMuted, marginTop: "12px" }}>Note, optional
+          <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={60} placeholder="Top up, payout, fee" style={fieldSt} />
+        </label>
+        <button type="button" className={TAP} style={{ ...primaryBtn, marginTop: "14px" }} onClick={addMove}>{kind === "dep" ? "Add deposit" : "Add withdrawal"}</button>
+        {err && <p role="alert" style={{ fontSize: "13px", color: palette.red, margin: "10px 0 0" }}>{err}</p>}
+      </div>
+
+      <SecLabel left="History" right={moves.length ? `${moves.length} ${moves.length === 1 ? "entry" : "entries"}` : ""} />
+      <div style={{ ...cardSt, padding: "2px 16px" }}>
+        {moves.length ? moves.slice().reverse().slice(0, 30).map((m, i) => (
+          <div key={m.id} className="flex items-center justify-between" style={{ padding: "12px 0", borderTop: i ? `1px solid ${palette.border}` : "none", gap: "10px" }}>
+            <span style={{ minWidth: 0 }}>
+              <b style={{ fontSize: "14px", color: palette.text }}>{m.amount > 0 ? "Deposit" : "Withdrawal"}</b>
+              <div style={{ fontSize: "12px", color: palette.textMuted }}>{dateLabel(dayKeyFromTs(m.ts))}{m.note ? `, ${m.note}` : ""}</div>
+            </span>
+            <span className="flex items-center" style={{ gap: "6px" }}>
+              <b style={{ color: tone(m.amount) }}>{smoney0(m.amount)}</b>
+              <button type="button" onClick={() => delMove(m.id)} aria-label="Delete entry" className={TAP} style={{ width: "32px", height: "32px", background: "none", border: "none", color: palette.textFaint }}><Trash2 size={15} /></button>
+            </span>
+          </div>
+        )) : <div style={{ padding: "20px 0", textAlign: "center", fontSize: "13px", color: palette.textMuted }}>No deposits or withdrawals yet. Add one when you move money so your equity stays accurate.</div>}
+      </div>
+    </>
+  );
+
+  return isDesktop ? (
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.5fr) minmax(0, 1fr)", gap: "32px", alignItems: "start", marginBottom: "28px" }}>
+      <div style={{ minWidth: 0 }}>{left}</div>
+      <div style={{ minWidth: 0 }}>{right}</div>
+    </div>
+  ) : (
+    <div style={{ marginBottom: "24px" }}>{left}{right}</div>
   );
 }
 
@@ -1989,7 +2195,7 @@ function CurveView(props) {
          </div>
         )}
 
-        {view !== "history" && (
+        {view !== "history" && view !== "equity" && (
           <>
         <div
           className="mb-4"
@@ -2052,6 +2258,11 @@ function CurveView(props) {
           onLogTrade={() => setLogSheetOpen(true)}
           onOpenTrade={(id) => setJournalTradeId(id)}
         />
+        {trades.length > 0 && (
+          <div className="flex justify-end" style={{ margin: "-12px 0 14px" }}>
+            <button type="button" onClick={() => { clearTrades(); setSelectedDay(null); }} className={TAP} style={{ color: palette.textFaint, fontSize: "11px", fontFamily: mono }}>Clear all trades</button>
+          </div>
+        )}
 
         <div className="flex gap-2 mb-2">
           <button
@@ -2229,6 +2440,10 @@ function CurveView(props) {
           </>
         )}
 
+        {view === "equity" && (
+          <EquitySection {...{ trades, startingBalance, settings, persistSettings, isDesktop }} persistStartingBalance={props.persistStartingBalance} />
+        )}
+
         {view === "history" && (
           <JournalSection
             {...{ trades, tradesByDay, settings, persistSettings, journalDay, setJournalDay, isDesktop, findSetupLabel }}
@@ -2364,15 +2579,16 @@ export default function CalendarTab(props) {
   const JOURNAL_SUB_TABS = [
     { id: "log", label: "Calendar" },
     { id: "history", label: "Journal" },
+    { id: "equity", label: "Equity" },
     { id: "playbook", label: "Trade plan" },
   ];
   const journalSubNav = renderSubNav(JOURNAL_SUB_TABS, journalSubTab, setJournalSubTab);
 
-  if (journalSubTab === "log" || journalSubTab === "history") {
+  if (journalSubTab === "log" || journalSubTab === "history" || journalSubTab === "equity") {
     return (
       <>
         {journalSubNav}
-        <CurveView {...curveProps} view={journalSubTab === "history" ? "history" : "overview"} playbookRules={playbookRules || []} journalDay={journalDay} setJournalDay={setJournalDay} openDayJournal={openDayJournal} />
+        <CurveView {...curveProps} view={journalSubTab === "history" ? "history" : journalSubTab === "equity" ? "equity" : "overview"} playbookRules={playbookRules || []} journalDay={journalDay} setJournalDay={setJournalDay} openDayJournal={openDayJournal} />
       </>
     );
   }
