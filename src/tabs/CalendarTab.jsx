@@ -746,7 +746,7 @@ const hhmm = (ts) => {
   const d = new Date(ts);
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 };
-const isLongDir = (d) => /^(buy|long)/i.test(String(d || ""));
+const isLongDir = (d) => /^(buy|long|up)/i.test(String(d || ""));
 const tradeJournaled = (t) => !!((t.note && String(t.note).trim()) || t.rate || (t.mist && t.mist.length));
 const tradeVerdict = (t, rules) => {
   const checked = t.rulesOk || {};
@@ -1298,6 +1298,226 @@ function JournalSection({ trades, tradesByDay, settings, persistSettings, journa
   );
 }
 
+// ===================== Log trade sheet: Numbers, Context, Review =====================
+// Same flow as the prototype's trade sheet. Extra numbers and review fields live in tradeExtra
+// ({ e, s, tp, x, z, mist, rate, rulesOk }) and are saved on the trade by App.jsx.
+const numOrNull = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : null; };
+const showPx = (v) => (v == null || v === "" ? "n/a" : String(parseFloat(Number(v).toFixed(5))));
+
+function calcTrade(extra, dir, manualPnl) {
+  const e = numOrNull(extra.e), s = numOrNull(extra.s), tp = numOrNull(extra.tp), x = numOrNull(extra.x), z = numOrNull(extra.z);
+  const d = dir === "down" ? -1 : 1;
+  const risk = e != null && s != null && z != null ? Math.abs(e - s) * z : null;
+  const calcPnl = e != null && x != null && z != null ? (x - e) * d * z : null;
+  const pnl = calcPnl != null ? calcPnl : manualPnl;
+  const rwd = e != null && tp != null && z != null ? Math.abs(tp - e) * z : null;
+  return { e, s, tp, x, z, d, risk, pnl, calcPnl, r: risk && pnl != null ? pnl / risk : null, rr: risk && rwd != null ? rwd / risk : null };
+}
+
+function PriceRail({ c }) {
+  if (c.e == null || c.s == null || c.tp == null || c.s === c.tp) return null;
+  const w = c.tp - c.s;
+  const cl = (v) => Math.max(0, Math.min(1, v));
+  const fe = cl((c.e - c.s) / w);
+  const cur = c.x != null ? c.x : c.e;
+  const fc = cl((cur - c.s) / w);
+  const col = (c.pnl == null ? 0 : c.pnl) >= 0 ? palette.green : palette.red;
+  return (
+    <>
+      <div style={{ position: "relative", height: "8px", background: palette.field, borderRadius: "99px", margin: "20px 4px 12px" }}>
+        <i style={{ position: "absolute", top: 0, height: "8px", borderRadius: "99px", left: `${Math.min(fe, fc) * 100}%`, width: `${Math.abs(fc - fe) * 100}%`, background: col }} />
+        <i style={{ position: "absolute", top: "-4px", width: "2px", height: "16px", marginLeft: "-1px", background: palette.text, left: `${fe * 100}%` }} />
+        <i style={{ position: "absolute", top: "-2px", width: "12px", height: "12px", borderRadius: "50%", border: `2px solid ${palette.bg}`, marginLeft: "-6px", background: col, left: `${fc * 100}%` }} />
+      </div>
+      <div className="flex justify-between" style={{ fontSize: "11.5px", color: palette.textMuted }}>
+        <span>Stop {showPx(c.s)}</span><span>Entry {showPx(c.e)}</span><span>Target {showPx(c.tp)}</span>
+      </div>
+    </>
+  );
+}
+
+function LogTradeSheet(props) {
+  const {
+    isDesktop, editingTradeId, cancelEditTrade, submitTrade, deleteTrade, logFormRef, tradesLoadError,
+    tradePair, setTradePair, tradeDirection, setTradeDirection, tradeInput, setTradeInput,
+    tradeNote, setTradeNote, tradeSetup, setTradeSetup, tradeSession, setTradeSession,
+    tradeConfidence, setTradeConfidence, tradeEmotion, setTradeEmotion, tradeExtra, setTradeExtra,
+    customSetups, customSetupsLoaded, addCustomSetup, playbookRules, startingBalance, trades, settings,
+  } = props;
+  const [step, setStep] = useState(0);
+  const [err, setErr] = useState("");
+  const [confirmDel, setConfirmDel] = useState(false);
+  const setX = (k, v) => setTradeExtra((o) => ({ ...o, [k]: v }));
+  const decimals = (v) => v.replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1");
+
+  // New trades start as Long, like the prototype.
+  useEffect(() => { if (!editingTradeId && !tradeDirection) setTradeDirection("up"); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+
+  const c = calcTrade(tradeExtra, tradeDirection, numOrNull(tradeInput));
+  // P/L follows the numbers whenever entry, exit and size are all filled in.
+  useEffect(() => {
+    if (c.calcPnl != null) setTradeInput(String(Math.round(c.calcPnl * 100) / 100));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tradeExtra.e, tradeExtra.x, tradeExtra.z, tradeDirection]);
+
+  const netPnl = trades.reduce((s, t) => s + t.pnl, 0);
+  const account = num(startingBalance) + netPnl;
+  const riskPct = Number(settings.riskPercent) > 0 ? Number(settings.riskPercent) : 1;
+  const sizeForRisk = () => {
+    const dist = c.e != null && c.s != null ? Math.abs(c.e - c.s) : 0;
+    if (!dist) { setErr("Add entry and stop first."); return; }
+    if (account <= 0) { setErr("Set your starting balance first so I can size the trade."); return; }
+    setErr("");
+    setX("z", String(Math.round((account * riskPct) / 100 / dist)));
+  };
+
+  const draft = { pnl: c.pnl == null ? 0 : c.pnl, mist: tradeExtra.mist, rulesOk: tradeExtra.rulesOk };
+  const verdict = tradeVerdict(draft, playbookRules);
+  const checked = playbookRules.filter((r) => tradeExtra.rulesOk[r.id]).length;
+  const closeSheet = () => (editingTradeId ? cancelEditTrade() : props.setLogSheetOpen(false));
+
+  const save = () => {
+    if (!tradeInput || !numOrNull(tradeInput) || numOrNull(tradeInput) === 0) {
+      setErr("Add your entry, exit and size, or type the profit or loss yourself.");
+      setStep(0);
+      return;
+    }
+    setErr("");
+    submitTrade();
+  };
+  const toggleMist = (x) => setX("mist", tradeExtra.mist.includes(x) ? tradeExtra.mist.filter((y) => y !== x) : [...tradeExtra.mist, x]);
+
+  const field = (label, k, ph) => (
+    <label style={{ display: "block", fontSize: "12px", color: palette.textMuted, marginTop: "12px" }}>{label}
+      <input value={tradeExtra[k]} onChange={(e) => setX(k, decimals(e.target.value))} inputMode="decimal" placeholder={ph} style={fieldSt} />
+    </label>
+  );
+
+  const live = (
+    <div style={{ ...cardSt, margin: "0 16px", padding: "14px 16px" }}>
+      <div className="flex items-center justify-between">
+        <span style={{ fontSize: "12.5px", color: palette.textMuted }}>{c.x != null || c.calcPnl == null ? "Closed result" : "Add an exit to see the result"}</span>
+        <span style={{ fontFamily: display, fontSize: "22px", fontWeight: 700, color: c.r == null ? palette.textMuted : tone(c.r) }}>
+          {c.r == null ? "n/a" : `${c.r >= 0 ? "+" : "\u2212"}${Math.abs(c.r).toFixed(1)}R`}
+        </span>
+      </div>
+      <div className="flex items-center justify-between" style={{ fontSize: "12px", color: palette.textMuted, marginTop: "2px" }}>
+        <span>P/L {c.pnl == null ? "n/a" : `${c.pnl >= 0 ? "+" : "\u2212"}$${fmtMoney(Math.abs(c.pnl))}`}</span>
+        <span>{c.risk != null ? `Risk $${Math.round(c.risk)}${c.rr != null ? `, reward 1:${c.rr.toFixed(1)}` : ""}` : "Risk n/a"}</span>
+      </div>
+      <PriceRail c={c} />
+    </div>
+  );
+
+  const stepBtn = (i, label) => (
+    <button key={label} type="button" onClick={() => setStep(i)} className={TAP}
+      style={{ flex: 1, height: "40px", borderRadius: "10px", fontSize: "12.5px", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
+        border: `1px solid ${i === step ? palette.text : i < step ? palette.gold : palette.border}`, background: i === step ? palette.text : "transparent",
+        color: i === step ? palette.bg : i < step ? palette.gold : palette.textMuted }}>
+      <b style={{ fontWeight: 600 }}>{i + 1}</b>{label}
+    </button>
+  );
+
+  return (
+    <div onClick={closeSheet} style={{ position: "fixed", inset: 0, zIndex: 45, background: "rgba(5,7,12,0.55)", display: "flex", alignItems: isDesktop ? "center" : "flex-end", justifyContent: "center", padding: isDesktop ? "16px" : 0 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: "540px", height: isDesktop ? "min(86vh, 760px)" : "94vh", display: "flex", flexDirection: "column", background: palette.bg, border: `1px solid ${palette.border}`, borderRadius: isDesktop ? "22px" : "22px 22px 0 0", overflow: "hidden", boxShadow: palette.shadow }}>
+        <div ref={logFormRef} className="flex items-center" style={{ gap: "10px", padding: "16px 16px 4px" }}>
+          <button type="button" onClick={closeSheet} aria-label="Close" className={TAP} style={{ width: "40px", height: "40px", borderRadius: "12px", border: `1px solid ${palette.border}`, background: palette.surface, color: palette.text, display: "flex", alignItems: "center", justifyContent: "center" }}><X size={18} /></button>
+          <div style={{ flex: 1, fontSize: "17px", fontWeight: 600, color: palette.text }}>{editingTradeId ? "Edit trade" : "New trade"}</div>
+          <span style={{ fontSize: "12px", color: palette.textMuted }}>Step {step + 1} of 3</span>
+        </div>
+        <div className="flex" style={{ gap: "6px", padding: "12px 16px 12px" }}>{["Numbers", "Context", "Review"].map((l, i) => stepBtn(i, l))}</div>
+        {live}
+        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "4px 16px 16px" }}>
+          {step === 0 && (
+            <>
+              <label style={{ display: "block", fontSize: "12px", color: palette.textMuted, marginTop: "12px" }}>Symbol
+                <input value={tradePair} onChange={(e) => setTradePair(e.target.value.toUpperCase())} autoCapitalize="characters" placeholder="EUR/USD" style={fieldSt} />
+              </label>
+              <SecLabel left="Direction" />
+              <div className="flex" style={{ padding: "3px", background: palette.surface, border: `1px solid ${palette.border}`, borderRadius: "12px" }}>
+                {[["up", "Long"], ["down", "Short"]].map(([id, label]) => (
+                  <button key={id} type="button" aria-pressed={tradeDirection === id} onClick={() => setTradeDirection(id)} className={TAP}
+                    style={{ flex: 1, minHeight: "40px", borderRadius: "9px", border: "none", fontSize: "13.5px", fontWeight: 600, background: tradeDirection === id ? palette.gold : "transparent", color: tradeDirection === id ? palette.letterbox : palette.textMuted }}>{label}</button>
+                ))}
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
+                {field("Entry", "e", "1.0850")}{field("Stop loss", "s", "1.0812")}
+                {field("Target", "tp", "1.0930")}{field("Exit", "x", "Blank if open")}
+              </div>
+              {field("Size in units", "z", "50000")}
+              <button type="button" onClick={sizeForRisk} className={TAP} style={{ ...chipSt(false), margin: "10px 0 0" }}>Size for {riskPct}% risk</button>
+              <div style={{ fontSize: "12px", color: palette.textMuted }}>Uses your ${Math.round(Math.max(0, account)).toLocaleString()} account size</div>
+              <SecLabel left="Profit or loss" right="Filled from your numbers" />
+              <div className="flex items-center" style={{ background: palette.field, border: `1px solid ${palette.border}`, borderRadius: "12px", padding: "0 12px" }}>
+                <span style={{ color: palette.textFaint, paddingRight: "4px" }}>$</span>
+                <input value={tradeInput} onChange={(e) => { setTradeInput(e.target.value.replace(/[^0-9.\-+]/g, "")); pokeCrab("type"); }} inputMode="decimal" placeholder="+120 or -60" style={{ width: "100%", background: "transparent", border: "none", outline: "none", color: palette.text, fontFamily: mono, fontSize: "16px", padding: "12px 0" }} />
+              </div>
+              <div style={{ fontSize: "12px", color: palette.textMuted, marginTop: "6px", lineHeight: 1.45 }}>Edit it if your broker shows a different result. Positive logs a win, negative logs a loss.</div>
+            </>
+          )}
+
+          {step === 1 && (
+            <>
+              <SecLabel left="Setup" first />
+              <SetupSelect value={tradeSetup} onChange={setTradeSetup} customSetups={customSetups} customSetupsLoaded={customSetupsLoaded} addCustomSetup={addCustomSetup} />
+              <SecLabel left="Session" />
+              <div className="flex flex-wrap" role="group" aria-label="Session">
+                {MARKET_SESSIONS.map((s) => <button key={s.id} type="button" aria-pressed={tradeSession === s.id} onClick={() => setTradeSession(tradeSession === s.id ? null : s.id)} className={TAP} style={chipSt(tradeSession === s.id)}>{s.label}</button>)}
+              </div>
+              <SecLabel left="How I felt going in" />
+              <div className="flex flex-wrap">
+                {EMOTIONS.map((e) => <button key={e.id} type="button" onClick={() => setTradeEmotion(tradeEmotion === e.id ? null : e.id)} className={TAP} style={chipSt(tradeEmotion === e.id)}>{e.label}</button>)}
+              </div>
+              <div style={{ marginTop: "8px" }}><ConfidenceMeter value={tradeConfidence} onChange={setTradeConfidence} /></div>
+              {playbookRules.length > 0 && (
+                <>
+                  <SecLabel left="Rules check" right={`${checked} of ${playbookRules.length}`} />
+                  {playbookRules.map((r) => (
+                    <button key={r.id} type="button" onClick={() => setX("rulesOk", { ...tradeExtra.rulesOk, [r.id]: !tradeExtra.rulesOk[r.id] })} className={`flex items-center justify-between w-full text-left ${TAP}`} style={{ padding: "12px 0", background: "none", border: "none", borderTop: `1px solid ${palette.border}`, gap: "12px", color: palette.text, fontSize: "14px" }}>
+                      <span>{r.text}</span>
+                      <span className="flex items-center justify-center flex-shrink-0" style={{ width: "24px", height: "24px", borderRadius: "50%", border: `1.5px solid ${tradeExtra.rulesOk[r.id] ? palette.green : palette.border}`, background: tradeExtra.rulesOk[r.id] ? palette.green : "transparent", color: palette.letterbox }}>{tradeExtra.rulesOk[r.id] && <Check size={14} strokeWidth={3} />}</span>
+                    </button>
+                  ))}
+                </>
+              )}
+            </>
+          )}
+
+          {step === 2 && (
+            <>
+              <SecLabel left="Notes" first />
+              <textarea value={tradeNote} onChange={(e) => setTradeNote(e.target.value.slice(0, 400))} rows={4} placeholder="What did you see? What would you change?" style={{ ...fieldSt, marginTop: 0, resize: "none", lineHeight: 1.5 }} />
+              <div className="flex flex-wrap" style={{ marginTop: "8px" }}>
+                {NOTE_TAGS.map((tag) => <button key={tag} type="button" onClick={() => setTradeNote(tradeNote === tag ? "" : tag)} className={TAP} style={{ ...chipSt(false), border: `1px dashed ${tradeNote === tag ? palette.textMuted : palette.border}`, fontSize: "12px", minHeight: "32px" }}>{tag}</button>)}
+              </div>
+              <SecLabel left="Mistakes" right="Tap any that apply" />
+              <div className="flex flex-wrap">{TRADE_MISTAKES.map((x) => <button key={x} type="button" onClick={() => toggleMist(x)} className={TAP} style={chipSt(tradeExtra.mist.includes(x))}>{x}</button>)}</div>
+              <SecLabel left="Execution rating, 1 to 5" />
+              <div className="flex flex-wrap">{[1, 2, 3, 4, 5].map((i) => <button key={i} type="button" onClick={() => setX("rate", tradeExtra.rate === i ? 0 : i)} className={TAP} style={chipSt(tradeExtra.rate === i)}>{i}</button>)}</div>
+              <div style={{ ...cardSt, padding: "14px", marginTop: "14px", textAlign: "center" }}>
+                <div style={{ fontSize: "12px", color: palette.textMuted }}>Process vs outcome</div>
+                <div style={{ fontFamily: display, fontSize: "22px", fontWeight: 700, marginTop: "2px", color: palette[VERDICT_TONE[verdict]] }}>{verdict}</div>
+              </div>
+              {editingTradeId && (
+                <button type="button" className={`${TAP} w-full`} onClick={() => { if (!confirmDel) { setConfirmDel(true); setTimeout(() => setConfirmDel(false), 3000); return; } deleteTrade(editingTradeId); }} style={{ minHeight: "44px", marginTop: "8px", background: "none", border: "none", color: palette.red, fontSize: "13.5px" }}>
+                  {confirmDel ? "Tap again to delete" : "Delete this trade"}
+                </button>
+              )}
+              {tradesLoadError && <p style={{ fontSize: "12px", color: palette.red, margin: "10px 0 0" }}>{tradesLoadError}</p>}
+            </>
+          )}
+          {err && <p role="alert" style={{ fontSize: "13px", color: palette.red, margin: "12px 0 0" }}>{err}</p>}
+        </div>
+        <div className="flex" style={{ gap: "10px", padding: "12px 16px calc(14px + env(safe-area-inset-bottom, 0px))", borderTop: `1px solid ${palette.border}` }}>
+          {step > 0 && <button type="button" className={TAP} style={{ ...outlineBtn, width: "36%" }} onClick={() => { setErr(""); setStep(step - 1); }}>Back</button>}
+          <button type="button" className={TAP} style={primaryBtn} onClick={() => (step < 2 ? (setErr(""), setStep(step + 1)) : save())}>{step < 2 ? "Next" : "Save trade"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CurveView(props) {
   const {
     calMonth,
@@ -1366,6 +1586,8 @@ function CurveView(props) {
     logSheetOpen,
     setLogSheetOpen,
     persistTrades,
+    tradeExtra,
+    setTradeExtra,
     playbookRules = [],
     journalDay,
     setJournalDay,
@@ -2026,253 +2248,10 @@ function CurveView(props) {
         )}
 
         {logSheetOpen && (
-          <div
-            onClick={() => (editingTradeId ? cancelEditTrade() : setLogSheetOpen(false))}
-            style={{
-              position: "fixed",
-              inset: 0,
-              zIndex: 45,
-              background: "rgba(5,7,12,0.55)",
-              display: "flex",
-              alignItems: isDesktop ? "center" : "flex-end",
-              justifyContent: "center",
-              padding: isDesktop ? "16px" : 0,
-            }}
-          >
-            <div
-              onClick={(e) => e.stopPropagation()}
-              style={{
-                width: "100%",
-                maxWidth: 520,
-                maxHeight: "90vh",
-                overflowY: "auto",
-                background: palette.surface,
-                border: `1px solid ${palette.border}`,
-                borderRadius: isDesktop ? "20px" : "20px 20px 0 0",
-                padding: "14px 16px calc(16px + env(safe-area-inset-bottom, 0px))",
-                boxShadow: palette.shadow,
-              }}
-            >
-              <div className="flex justify-end" style={{ marginBottom: "4px" }}>
-                <button
-                  type="button"
-                  aria-label="Close"
-                  onClick={() => (editingTradeId ? cancelEditTrade() : setLogSheetOpen(false))}
-                  className={TAP}
-                  style={{ color: palette.textMuted, padding: "2px" }}
-                >
-                  <X size={18} />
-                </button>
-              </div>
-        <div ref={logFormRef} className="flex items-center justify-between mb-1.5">
-          <span
-            className="uppercase"
-            style={{ color: palette.textMuted, letterSpacing: "0.08em", fontSize: "11px" }}
-          >
-            {editingTradeId ? "Edit Trade" : "Log a Trade"}
-          </span>
-          {editingTradeId && (
-            <button
-              type="button"
-              onClick={cancelEditTrade}
-              className={TAP}
-              style={{ color: palette.textFaint, fontSize: "11px", fontFamily: mono }}
-            >
-              Cancel
-            </button>
-          )}
-        </div>
-        {editingTradeId && (
-          <p className="text-xs -mt-1 mb-2" style={{ color: palette.gold }}>
-            Editing a logged trade.
-          </p>
-        )}
-        <input
-          type="text"
-          value={tradePair}
-          onChange={(e) => setTradePair(e.target.value.toUpperCase())}
-          placeholder="Pair"
-          className="w-full rounded-lg px-3 py-2.5 mb-2 bg-transparent outline-none"
-          style={{
-            background: palette.field,
-            border: `1px solid ${palette.border}`,
-            color: palette.text,
-            fontFamily: mono,
-            fontSize: "14px",
-          }}
-        />
-        <div className="flex gap-2 mb-2" role="group" aria-label="Direction">
-          {[
-            { id: "up", label: "Buy", Icon: ArrowUp, color: palette.green },
-            { id: "down", label: "Sell", Icon: ArrowDown, color: palette.red },
-          ].map(({ id, label, Icon, color }) => {
-            const active = tradeDirection === id;
-            return (
-              <button
-                key={id}
-                type="button"
-                aria-pressed={active}
-                onClick={() => setTradeDirection(active ? null : id)}
-                className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2.5 transition-colors ${TAP}`}
-                style={{
-                  background: active ? `${color}22` : palette.field,
-                  color: active ? color : palette.textMuted,
-                  border: `1px solid ${active ? color : palette.border}`,
-                  fontSize: "13.5px",
-                  fontWeight: active ? 700 : 500,
-                }}
-              >
-                <Icon size={15} strokeWidth={2.4} />
-                {label}
-              </button>
-            );
-          })}
-        </div>
-        <div className="flex gap-2 mb-2">
-          <div
-            className="flex items-center rounded-lg px-3 flex-1"
-            style={{
-              background: palette.field,
-              border: `1px solid ${editingTradeId ? palette.gold : palette.border}`,
-            }}
-          >
-            <span className="text-sm pr-1" style={{ color: palette.textFaint }}>
-              $
-            </span>
-            <input
-              type="text"
-              inputMode="decimal"
-              value={tradeInput}
-              onChange={(e) => {
-                setTradeInput(e.target.value);
-                pokeCrab("type");
-              }}
-              placeholder="+120 or -60"
-              className="w-full bg-transparent py-3 outline-none"
-              style={{ color: palette.text, fontFamily: mono, fontSize: "16px" }}
-            />
-          </div>
-          <button
-            type="button"
-            onClick={submitTrade}
-            className={`flex items-center justify-center rounded-lg flex-shrink-0 ${TAP}`}
-            style={{
-              width: "46px",
-              background: palette.gold,
-              color: palette.letterbox,
-            }}
-            aria-label={editingTradeId ? "Save changes" : "Add trade"}
-          >
-            {editingTradeId ? <Check size={20} strokeWidth={2.4} /> : <Plus size={20} strokeWidth={2.4} />}
-          </button>
-        </div>
-        <input
-          type="text"
-          value={tradeNote}
-          onChange={(e) => setTradeNote(e.target.value)}
-          placeholder="Note (optional)"
-          className="w-full rounded-lg px-3 py-2.5 mb-2 bg-transparent outline-none"
-          style={{
-            background: palette.field,
-            border: `1px solid ${palette.border}`,
-            color: palette.textMuted,
-            fontSize: "13px",
-          }}
-        />
-
-        <div className="flex gap-2 flex-wrap mb-2">
-          {NOTE_TAGS.map((tag) => {
-            const active = tradeNote === tag;
-            return (
-              <button
-                key={tag}
-                type="button"
-                onClick={() => setTradeNote(active ? "" : tag)}
-                className={`px-3 py-1.5 rounded-full transition-colors ${TAP}`}
-                style={{
-                  background: active ? palette.field : "transparent",
-                  color: active ? palette.text : palette.textFaint,
-                  border: `1px dashed ${active ? palette.textMuted : palette.border}`,
-                  fontSize: "12px",
-                }}
-              >
-                {tag}
-              </button>
-            );
-          })}
-        </div>
-
-        <SetupSelect
-          value={tradeSetup}
-          onChange={setTradeSetup}
-          customSetups={customSetups}
-          customSetupsLoaded={customSetupsLoaded}
-          addCustomSetup={addCustomSetup}
-        />
-
-        <span style={{ color: palette.textFaint, fontSize: "11px", display: "block", marginBottom: "6px" }}>Session</span>
-        <div className="flex gap-2 flex-wrap mb-3 items-center" role="group" aria-label="Session">
-          {MARKET_SESSIONS.map((s) => {
-            const active = tradeSession === s.id;
-            return (
-              <button
-                key={s.id}
-                type="button"
-                aria-pressed={active}
-                onClick={() => setTradeSession(active ? null : s.id)}
-                className={`px-3 py-1.5 rounded-full transition-colors ${TAP}`}
-                style={{
-                  background: active ? palette.gold : palette.field,
-                  color: active ? palette.letterbox : palette.textMuted,
-                  border: `1px solid ${active ? palette.gold : palette.border}`,
-                  fontSize: "13px",
-                }}
-              >
-                {s.label}
-              </button>
-            );
-          })}
-        </div>
-
-        <ConfidenceMeter value={tradeConfidence} onChange={setTradeConfidence} />
-
-        <span style={{ color: palette.textFaint, fontSize: "11px", display: "block", marginBottom: "6px" }}>Mood</span>
-        <div className="flex gap-2 flex-wrap mb-2 items-center">
-          {EMOTIONS.map((e) => {
-            const active = tradeEmotion === e.id;
-            return (
-              <button
-                key={e.id}
-                type="button"
-                onClick={() => setTradeEmotion(active ? null : e.id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-colors ${TAP}`}
-                style={{
-                  background: active ? palette.gold : palette.field,
-                  color: active ? palette.letterbox : palette.textMuted,
-                  border: `1px solid ${active ? palette.gold : palette.border}`,
-                  fontSize: "13px",
-                }}
-              >
-                {e.label}
-              </button>
-            );
-          })}
-        </div>
-
-        <p className="text-xs mb-4" style={{ color: palette.textFaint }}>
-          Enter net P&amp;L for the trade. Positive logs a win, negative logs a loss. Setup, session, confidence
-          and mood are optional, but every one you fill in sharpens your Insights. Tap the pencil on any logged
-          trade to edit it. A "revenge" flag (opened within {RUNTIME.REVENGE_WINDOW_MINUTES} minutes of a loss)
-          shows up per trade in the calendar below.
-        </p>
-
-        {tradesLoadError && (
-          <p className="text-xs mb-4" style={{ color: palette.red }}>
-            {tradesLoadError}
-          </p>
-        )}
-            </div>
-          </div>
+          <LogTradeSheet
+            key={editingTradeId || "new"}
+            {...{ isDesktop, editingTradeId, cancelEditTrade, submitTrade, deleteTrade, logFormRef, tradesLoadError, tradePair, setTradePair, tradeDirection, setTradeDirection, tradeInput, setTradeInput, tradeNote, setTradeNote, tradeSetup, setTradeSetup, tradeSession, setTradeSession, tradeConfidence, setTradeConfidence, tradeEmotion, setTradeEmotion, tradeExtra, setTradeExtra, customSetups, customSetupsLoaded, addCustomSetup, playbookRules, startingBalance, trades, settings, setLogSheetOpen }}
+          />
         )}
         {!logSheetOpen && (
           <>
