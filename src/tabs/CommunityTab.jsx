@@ -1798,7 +1798,7 @@ export default function CommunityTab(props) {
           const isMe = !profileView || profileView === communityUsername;
           const pBase = profileData && String(profileData.username).toLowerCase() === String(viewingName || "").toLowerCase() ? profileData : null;
           // My own role / style / markets come from the Edit profile sheet
-          const p = pBase && isMe ? { ...pBase, role: (profileExtras && profileExtras.role) || pBase.role, style: profileExtras && profileExtras.style && profileExtras.style.length ? profileExtras.style : pBase.style, markets: profileExtras && profileExtras.markets && profileExtras.markets.length ? profileExtras.markets : pBase.markets } : pBase;
+          const p = pBase && isMe ? { ...pBase, role: (profileExtras && profileExtras.role) || pBase.role, style: profileExtras && profileExtras.style && profileExtras.style.length ? profileExtras.style : pBase.style, markets: profileExtras && profileExtras.markets && profileExtras.markets.length ? profileExtras.markets : pBase.markets, session: (profileExtras && profileExtras.session) || pBase.session } : pBase;
           // ---- Profile UI copied from the Ledger reference (tredzi2.html): one column, 44px buttons,
           // segmented Overview / Stats / Posts tabs, label + row lists, card posts. Same on phone and PC.
           const colW = isDesktop ? "1280px" : "100%";
