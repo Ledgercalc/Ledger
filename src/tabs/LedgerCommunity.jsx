@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { palette, sans } from "../lib/theme.js";
 import { communityApi } from "../api/community.js";
 import RoomSheet from "../components/RoomCall.jsx";
-import PostComposer from "../components/PostComposer.jsx";
+import PostComposer, { TradeLine } from "../components/PostComposer.jsx";
 import { BOARDS, decodePost } from "../lib/ledgerPost.js";
 
 const CSS = `.lc button,.lc input,.lc textarea{font:inherit;color:inherit}
@@ -563,13 +563,6 @@ export default function LedgerCommunity({ isDesktop, communityAvatar, openMember
     } catch (e) { toast((e && e.message) || "Couldn't delete"); }
   };
 
-  const TradeLine = ({ t }) => (
-    <div className="tsm">
-      <b>{t.s}</b><span className={`dir ${t.d > 0 ? "l" : "s"}`}>{t.d > 0 ? "Long" : "Short"}</span>
-      <b className={ocl(t.o === "Win" ? 1 : t.o === "Loss" ? -1 : 0)}>{t.o}</b>
-      {t.u ? <span className="t2">{t.u} setup</span> : null}{t.n ? <span className="t2">{t.n}</span> : null}
-    </div>
-  );
   const PostCard = (p) => {
     const mine = isMe(p), bc = BCOL[p.board] || "var(--t2)", saved = !!sv[p.id];
     const when = ago(p.ts);
