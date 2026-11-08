@@ -345,7 +345,7 @@ const lsGet = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k) || 
 const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage full or blocked */ } };
 const nice = (s) => String(s || "").replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
 const dshort = (ts) => { try { return new Date(ts).toLocaleDateString(undefined, { day: "numeric", month: "short" }); } catch (e) { return ""; } };
-const isLong = (d) => /^(buy|long)/i.test(String(d || ""));
+const isLong = (d) => /^(buy|long|up)/i.test(String(d || ""));
 const outcome = (pnl) => (pnl > 0 ? "Win" : pnl < 0 ? "Loss" : "BE");
 const ocl = (pnl) => (pnl > 0 ? "g" : pnl < 0 ? "r" : "t2");
 const GRADE_CL = { A: "g", B: "g", C: "am", D: "r" };
