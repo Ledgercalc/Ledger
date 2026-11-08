@@ -12,7 +12,7 @@ export function tradeMeta(t) {
   const dir = String((t && t.direction) || "").toLowerCase();
   return {
     s: String((t && t.pair) || "").slice(0, 20),
-    d: /^(buy|long)/.test(dir) ? 1 : -1,
+    d: /^(buy|long|up)/.test(dir) ? 1 : -1,
     o: pnl > 0 ? "Win" : pnl < 0 ? "Loss" : "BE",
     u: String((t && t.setup) || "").slice(0, 30),
     n: String((t && t.session) || "").slice(0, 20),
