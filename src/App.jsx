@@ -151,12 +151,18 @@ const TAB_PRELOAD = {
 };
 
 // The Sessions tab now lives inside Economic calendar, so its tour step is dropped.
-const TOUR_STEPS = ALL_TOUR_STEPS.filter((s) => s.tabId !== "sessions");
+const TOUR_STEPS = ALL_TOUR_STEPS.filter((s) => s.tabId !== "sessions").map((s) => {
+  if (s.tabId !== "journal") return s;
+  const out = { ...s };
+  Object.keys(out).forEach((k) => { if (typeof out[k] === "string" && k !== "tabId") out[k] = out[k].replace(/\bJournal\b/g, "Calendar"); });
+  return out;
+});
 
 // The tab list is finished here so it always matches this file, even if constants.js is out of date:
 // Curve now lives inside Journal and Notepad is removed, Broker goes right after Journal, Backtest goes last.
 const TABS = (() => {
-  const tabs = BASE_TABS.filter((t) => t.id !== "curve" && t.id !== "notepad" && t.id !== "sessions");
+  // The tab id stays "journal" (saved settings and links use it); only the name shown is "Calendar".
+  const tabs = BASE_TABS.filter((t) => t.id !== "curve" && t.id !== "notepad" && t.id !== "sessions").map((t) => (t.id === "journal" ? { ...t, label: "Calendar" } : t));
   if (!tabs.some((t) => t.id === "broker")) {
     const at = tabs.findIndex((t) => t.id === "journal");
     tabs.splice(at === -1 ? tabs.length : at + 1, 0, { id: "broker", label: "Broker", icon: Link2 });
