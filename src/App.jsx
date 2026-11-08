@@ -83,6 +83,7 @@ function SettingsSwitchRow({ label, desc, on, onToggle }) {
 }
 
 // Risk management settings belong to each account (a new account starts at the defaults).
+const EMPTY_TRADE_EXTRA = { e: "", s: "", tp: "", x: "", z: "", mist: [], rate: 0, rulesOk: {} };
 const RISK_KEYS = ["dailyLossLimit", "maxTradesPerDay", "revengeLockEnabled", "revengeWindowMinutes", "showRevengeTag"];
 const RISK_BASE = "tredzi-risk-settings";
 const RISK_LEGACY_KEY = "tredzi-risk-settings-legacy"; // the old shared values, used by accounts that never set their own
@@ -416,6 +417,7 @@ const resetPropFirmWizard = () => {
   const [tradeSession, setTradeSession] = useState(null);
   const [tradeDirection, setTradeDirection] = useState(null);
   const [tradeConfidence, setTradeConfidence] = useState(null);
+  const [tradeExtra, setTradeExtra] = useState(EMPTY_TRADE_EXTRA);
   const [startingBalance, setStartingBalance] = useState("");
   const [tradesLoadError, setTradesLoadError] = useState("");
   const [calMonth, setCalMonth] = useState(() => new Date());
@@ -6353,6 +6355,7 @@ const selectInsightsSubTab = (id) => {
     setTradeSession(null);
     setTradeDirection(null);
     setTradeConfidence(null);
+    setTradeExtra(EMPTY_TRADE_EXTRA);
     setEditingTradeId(null);
     setLogSheetOpen(false);
   };
@@ -6366,6 +6369,8 @@ const selectInsightsSubTab = (id) => {
     setTradeSession(t.session || null);
     setTradeDirection(t.direction || null);
     setTradeConfidence(Number(t.confidence) > 0 ? Number(t.confidence) : null);
+    const str = (v) => (v == null || v === "" ? "" : String(v));
+    setTradeExtra({ e: str(t.e), s: str(t.s), tp: str(t.tp), x: str(t.x), z: str(t.z), mist: Array.isArray(t.mist) ? t.mist : [], rate: Number(t.rate) || 0, rulesOk: t.rulesOk && typeof t.rulesOk === "object" ? t.rulesOk : {} });
     setEditingTradeId(t.id);
     setExpandedTradeId((cur) => (cur === t.id ? null : cur));
     setLogSheetOpen(true);
@@ -6431,6 +6436,12 @@ const selectInsightsSubTab = (id) => {
     pokeCrab(pnl > 0 ? "win" : "loss", { amount: pnl });
   };
 
+  // Entry / stop / target / exit / size and the review fields from the log sheet, saved on the trade.
+  const tradeExtraFields = () => {
+    const n = (v) => (v === "" || v == null || !Number.isFinite(parseFloat(v)) ? null : parseFloat(v));
+    return { e: n(tradeExtra.e), s: n(tradeExtra.s), tp: n(tradeExtra.tp), x: n(tradeExtra.x), z: n(tradeExtra.z), mist: tradeExtra.mist, rate: tradeExtra.rate || null, rulesOk: tradeExtra.rulesOk };
+  };
+
   const commitTrade = (opts = {}) => {
     const pnl = num(tradeInput);
     if (editingTradeId) {
@@ -6446,6 +6457,7 @@ const selectInsightsSubTab = (id) => {
               session: tradeSession,
               direction: tradeDirection,
               confidence: tradeConfidence,
+              ...tradeExtraFields(),
             }
           : t
       );
@@ -6465,6 +6477,7 @@ const selectInsightsSubTab = (id) => {
       session: tradeSession,
       direction: tradeDirection,
       confidence: tradeConfidence,
+      ...tradeExtraFields(),
       ts: Date.now(),
     };
     const next = [...trades, newTrade];
@@ -7429,7 +7442,7 @@ const hiddenTabIds = settings.hiddenTabs || [];
   }
 
   if (activeTab === "journal") {
-    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><CalendarTab {...{ curveProps: { backupMsg, calMonth, cancelEditTrade, cancelImport, clearTrades, confirmImport, copyFallbackText, copyMsg, copyWeekSummary, addCustomSetup, brokerConn, brokerAccountName, liveError, livePnlAvailable, livePositions, openTags, saveOpenTag, customMoods, customMoodsLoaded, customSetups, customSetupsLoaded, deleteTrade, editingTradeId, expandedTradeId, exportBackup, fileInputRef, findSetupLabel, generateWeeklyShare, goals, handleScreenshotChange, importBackup, isDesktop, logFormRef, openScreenshotPicker, pendingImport, persistGoals, persistSettings, persistTrades, persistStartingBalance, screenshotError, screenshotInputRef, screenshotSaving, screenshotTargetId, selectedDay, setCalMonth, setCopyFallbackText, setExpandedTradeId, setPendingScreenshotDelete, setSelectedDay, setShowDisciplineInfo, setShowStreakInfo, setStatementPeriod, setTradeConfidence, setTradeDirection, setTradeEmotion, setTradeInput, setTradeNote, setTradePair, setTradeSession, setTradeSetup, setViewingScreenshot, settings, shareError, shareImageFile, showDisciplineInfo, showStreakInfo, startEditTrade, startingBalance, submitTrade, tradeConfidence, tradeDirection, tradeEmotion, tradeInput, tradeNote, tradePair, tradeSession, tradeSetup, trades, tradesLoadError, tradesLoaded, logSheetOpen, setLogSheetOpen }, goals, persistGoals, startingBalance, trades, addJournalRow, addPlaybookRule, addingSetup, cancelAddSetup, confirmAddSetup, customMoods, customSetups, deleteJournalRow, deletePlaybookCheckin, endJournalResize, exportJournalCSV, handleJournalCellKeyDown, handleJournalPhotoChange, hiddenDefaultSetupIds, importJournalCSV, isDesktop, isNarrowScreen, journalCellRefs, journalColWidths, journalEntries, journalExpandedRows, journalExportMsg, journalImportInputRef, journalImportMsg, journalLoaded, journalMonth, journalPhotoError, journalPhotoInputRef, journalPhotoSaving, journalPhotoTarget, journalSubTab, journalYear, moveJournalResize, newRuleText, newSetupName, openJournalPhotoPicker, persistSettings, playbookCheckins, playbookMsg, playbookRuleError, playbookRules, playbookRulesLoaded, removePlaybookRule, renderSubNav, setJournalMonth, setJournalSubTab, setJournalYear, setNewRuleText, setNewSetupName, setPendingJournalPhotoDelete, setPlaybookRuleError, setSetupError, setViewingJournalPhoto, settings, setupError, startJournalResize, submitCheckin, todayResults, toggleJournalRowExpanded, toggleTodayResult, triggerJournalImport, updateJournalField, updateJournalPnl }} /></Suspense>;
+    body = <Suspense fallback={<div className="tz-tab-loading" aria-hidden="true" />}><CalendarTab {...{ curveProps: { backupMsg, calMonth, cancelEditTrade, cancelImport, clearTrades, confirmImport, copyFallbackText, copyMsg, copyWeekSummary, addCustomSetup, brokerConn, brokerAccountName, liveError, livePnlAvailable, livePositions, openTags, saveOpenTag, customMoods, customMoodsLoaded, customSetups, customSetupsLoaded, deleteTrade, editingTradeId, expandedTradeId, exportBackup, fileInputRef, findSetupLabel, generateWeeklyShare, goals, handleScreenshotChange, importBackup, isDesktop, logFormRef, openScreenshotPicker, pendingImport, persistGoals, persistSettings, persistTrades, persistStartingBalance, screenshotError, screenshotInputRef, screenshotSaving, screenshotTargetId, selectedDay, setCalMonth, setCopyFallbackText, setExpandedTradeId, setPendingScreenshotDelete, setSelectedDay, setShowDisciplineInfo, setShowStreakInfo, setStatementPeriod, setTradeConfidence, tradeExtra, setTradeExtra, setTradeDirection, setTradeEmotion, setTradeInput, setTradeNote, setTradePair, setTradeSession, setTradeSetup, setViewingScreenshot, settings, shareError, shareImageFile, showDisciplineInfo, showStreakInfo, startEditTrade, startingBalance, submitTrade, tradeConfidence, tradeDirection, tradeEmotion, tradeInput, tradeNote, tradePair, tradeSession, tradeSetup, trades, tradesLoadError, tradesLoaded, logSheetOpen, setLogSheetOpen }, goals, persistGoals, startingBalance, trades, addJournalRow, addPlaybookRule, addingSetup, cancelAddSetup, confirmAddSetup, customMoods, customSetups, deleteJournalRow, deletePlaybookCheckin, endJournalResize, exportJournalCSV, handleJournalCellKeyDown, handleJournalPhotoChange, hiddenDefaultSetupIds, importJournalCSV, isDesktop, isNarrowScreen, journalCellRefs, journalColWidths, journalEntries, journalExpandedRows, journalExportMsg, journalImportInputRef, journalImportMsg, journalLoaded, journalMonth, journalPhotoError, journalPhotoInputRef, journalPhotoSaving, journalPhotoTarget, journalSubTab, journalYear, moveJournalResize, newRuleText, newSetupName, openJournalPhotoPicker, persistSettings, playbookCheckins, playbookMsg, playbookRuleError, playbookRules, playbookRulesLoaded, removePlaybookRule, renderSubNav, setJournalMonth, setJournalSubTab, setJournalYear, setNewRuleText, setNewSetupName, setPendingJournalPhotoDelete, setPlaybookRuleError, setSetupError, setViewingJournalPhoto, settings, setupError, startJournalResize, submitCheckin, todayResults, toggleJournalRowExpanded, toggleTodayResult, triggerJournalImport, updateJournalField, updateJournalPnl }} /></Suspense>;
   }
 
   if (activeTab === "broker") {
