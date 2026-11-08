@@ -2630,39 +2630,33 @@ export default function CommunityTab(props) {
             </div>
           ) : null;
           const thread = (
-            <div className="px-4 pt-2 pb-3">
-              {profileCommentsLoading ? (
-                <p style={{ color: palette.textFaint, fontSize: "12px" }}>Loading comments…</p>
-              ) : profileComments.length === 0 ? (
-                <div className="text-center" style={{ padding: split ? "56px 0" : "20px 0" }}>
-                  <div style={{ color: palette.text, fontSize: split ? "18px" : "14px", fontWeight: 800 }}>No comments yet</div>
-                  <div style={{ color: palette.textFaint, fontSize: "12.5px", marginTop: "4px" }}>Start the conversation.</div>
-                </div>
-              ) : (
-                profileComments.map((c) => {
-                  const canDeleteComment = c.author === communityUsername || po.author === communityUsername;
-                  return (
-                    <div key={c.id} className="flex items-start gap-3 mb-4">
-                      <button type="button" onClick={() => { setProfilePostOpen(null); openCommunityMemberProfile(c.author); }} className={`flex-shrink-0 ${TAP}`} style={{ background: "none", border: "none", padding: 0 }} aria-label={`Open ${c.author}'s profile`}>
-                        <Avatar name={c.author} size={split ? 40 : 32} src={c.author === communityUsername ? (communityAvatar || avatarForAuthor(c.author)) : avatarForAuthor(c.author)} />
-                      </button>
-                      <div className="min-w-0 flex-1">
-                        <p style={{ color: palette.text, fontSize: split ? "14.5px" : "13.5px", lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                          <span style={{ fontWeight: 700, marginRight: "6px" }}><PlanName name={c.author} /></span>
-                          {c.author === po.author && <span style={{ color: palette.gold, background: `${palette.gold}14`, border: `1px solid ${palette.gold}33`, borderRadius: "999px", padding: "0 7px", fontSize: "10px", fontWeight: 700, marginRight: "6px" }}>Author</span>}
-                          {c.text}
-                        </p>
-                        <div className="flex items-center gap-3" style={{ marginTop: "2px" }}>
-                          <span style={{ color: palette.textFaint, fontSize: "12px" }}>{feedTimeAgo(c.ts)}</span>
-                          {canDeleteComment && (
-                            <button type="button" onClick={() => deleteProfileComment(c.id)} className={TAP} style={{ background: "none", border: "none", padding: 0, color: palette.textFaint, fontSize: "12px", fontWeight: 700 }}>Delete</button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
+            <div className="px-4 pt-1 pb-3">
+              <div style={{ color: palette.textMuted, fontSize: "12.5px", margin: "12px 0 2px", fontFamily: sans }}>
+                {profileCommentsLoading ? "Loading comments…" : `${profileComments.length} ${profileComments.length === 1 ? "comment" : "comments"}`}
+              </div>
+              {!profileCommentsLoading && profileComments.length === 0 && (
+                <div style={{ color: palette.textFaint, fontSize: "13px", padding: split ? "40px 0" : "14px 0", fontFamily: sans }}>No comments yet. Start the conversation.</div>
               )}
+              {profileComments.map((c) => {
+                const canDeleteComment = c.author === communityUsername || po.author === communityUsername;
+                return (
+                  <div key={c.id} className="flex" style={{ gap: "10px", marginTop: "14px" }}>
+                    <button type="button" onClick={() => { setProfilePostOpen(null); openCommunityMemberProfile(c.author); }} className={`flex-shrink-0 ${TAP}`} style={{ background: "none", border: "none", padding: 0, alignSelf: "flex-start" }} aria-label={`Open ${c.author}'s profile`}>
+                      <Avatar name={c.author} size={32} src={c.author === communityUsername ? (communityAvatar || avatarForAuthor(c.author)) : avatarForAuthor(c.author)} />
+                    </button>
+                    <div className="min-w-0 flex-1" style={{ fontFamily: sans }}>
+                      <div className="flex items-center" style={{ gap: "8px" }}>
+                        <b style={{ fontSize: "13.5px", color: palette.text }}>@{c.author}</b>
+                        <span style={{ color: palette.textMuted, fontSize: "12px" }}>{feedTimeAgo(c.ts)}</span>
+                      </div>
+                      <div style={{ color: palette.text, fontSize: "14px", lineHeight: 1.45, whiteSpace: "pre-wrap", wordBreak: "break-word", marginTop: "2px" }}>{c.text}</div>
+                      {canDeleteComment && (
+                        <button type="button" onClick={() => deleteProfileComment(c.id)} className={TAP} style={{ background: "none", border: "none", padding: 0, minHeight: "32px", color: palette.textMuted, fontSize: "12px", fontWeight: 600 }}>Delete</button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           );
           const nComments = profileCommentsLoading ? (po.commentCount || 0) : profileComments.length;
@@ -2680,34 +2674,23 @@ export default function CommunityTab(props) {
             </div>
           );
           const inputBar = (
-            <div className="relative flex-shrink-0" style={{ borderTop: `1px solid ${palette.border}`, paddingBottom: isDesktop ? 0 : "env(safe-area-inset-bottom, 0px)" }}>
-              {profileEmojiOpen && (
-                <div className="absolute grid" style={{ left: "12px", bottom: "calc(100% + 6px)", zIndex: 5, gridTemplateColumns: "repeat(8, 1fr)", gap: "2px", padding: "8px", background: palette.surface, border: `1px solid ${palette.border}`, borderRadius: "12px", boxShadow: palette.shadow }}>
-                  {EMOJIS.map((em) => (
-                    <button key={em} type="button" onClick={() => { setProfileCommentDraft((d) => (d + em).slice(0, 500)); if (profileCommentInputRef.current) profileCommentInputRef.current.focus(); }} className={TAP} style={{ background: "none", border: "none", width: "32px", height: "32px", fontSize: "19px", borderRadius: "8px" }}>{em}</button>
-                  ))}
-                </div>
-              )}
-              <div className="flex items-center gap-3 px-4" style={{ height: isDesktop ? "64px" : "56px" }}>
-                <button type="button" onClick={() => setProfileEmojiOpen((v) => !v)} className={TAP} style={{ background: "none", border: "none", padding: 0, display: "flex", color: profileEmojiOpen ? palette.gold : palette.text }} aria-label="Emoji" aria-expanded={profileEmojiOpen}>
-                  <Smile size={26} />
-                </button>
+            <div className="flex-shrink-0" style={{ borderTop: `1px solid ${palette.border}`, padding: "12px 16px", paddingBottom: isDesktop ? "12px" : "calc(12px + env(safe-area-inset-bottom, 0px))" }}>
+              <div className="flex" style={{ gap: "8px" }}>
                 <input
                   ref={profileCommentInputRef}
                   type="text"
                   value={profileCommentDraft}
                   onChange={(e) => setProfileCommentDraft(e.target.value.slice(0, 500))}
-                  onFocus={() => setProfileEmojiOpen(false)}
                   onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); postProfileComment(); } }}
-                  placeholder="Add a comment…"
-                  className="flex-1 bg-transparent outline-none"
-                  style={{ color: palette.text, fontSize: "14.5px", fontFamily: sans, minWidth: 0 }}
+                  placeholder="Add a comment"
+                  aria-label="Comment"
+                  style={{ flex: 1, minWidth: 0, height: "44px", background: palette.field, border: `1px solid ${palette.border}`, borderRadius: "12px", padding: "0 12px", color: palette.text, fontSize: "14px", fontFamily: sans, outline: "none" }}
                 />
-                <button type="button" onClick={postProfileComment} disabled={!canSend} className={TAP} style={{ background: "none", border: "none", padding: 0, color: canSend ? palette.gold : palette.textFaint, fontSize: "14px", fontWeight: 700, fontFamily: sans, opacity: canSend ? 1 : 0.6 }}>
-                  {profileCommentSending ? "Posting…" : "Post"}
+                <button type="button" onClick={postProfileComment} disabled={!canSend} className={TAP} style={{ width: "90px", height: "44px", borderRadius: "12px", border: "none", background: canSend ? palette.gold : palette.field, color: canSend ? palette.letterbox : palette.textFaint, fontSize: "14px", fontWeight: 700 }}>
+                  {profileCommentSending ? "Posting…" : "Send"}
                 </button>
               </div>
-              {profileError && <p className="px-4 pb-2" style={{ color: palette.red, fontSize: "11.5px" }}>{profileError}</p>}
+              {profileError && <p style={{ color: palette.red, fontSize: "11.5px", margin: "8px 0 0" }}>{profileError}</p>}
             </div>
           );
           const fullScreen = !isDesktop;
