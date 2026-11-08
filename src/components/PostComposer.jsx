@@ -26,15 +26,47 @@ export function BoardTag({ board }) {
   );
 }
 
+const showLevel = (v) => String(parseFloat(Number(v).toFixed(5)));
+const rText = (r) => `${r >= 0 ? "+" : "\u2212"}${Math.abs(r).toFixed(1)}R`;
+
+function TradeRail({ t }) {
+  const w = t.tp - t.sl;
+  if (!w) return null;
+  const cl = (v) => Math.max(0, Math.min(1, v));
+  const fe = cl((t.e - t.sl) / w);
+  const fc = cl(((t.x != null ? t.x : t.e) - t.sl) / w);
+  const col = t.o === "Loss" ? palette.red : palette.green;
+  return (
+    <div style={{ margin: "16px 6px 6px" }}>
+      <div style={{ position: "relative", height: "8px", background: palette.border, borderRadius: "99px" }}>
+        <i style={{ position: "absolute", top: 0, height: "8px", borderRadius: "99px", left: `${Math.min(fe, fc) * 100}%`, width: `${Math.abs(fc - fe) * 100}%`, background: col }} />
+        <i style={{ position: "absolute", top: "-4px", width: "2px", height: "16px", marginLeft: "-1px", background: palette.text, left: `${fe * 100}%` }} />
+        <i style={{ position: "absolute", top: "-2px", width: "12px", height: "12px", borderRadius: "50%", border: `2px solid ${palette.surface}`, marginLeft: "-6px", background: col, left: `${fc * 100}%` }} />
+      </div>
+    </div>
+  );
+}
+
 export function TradeLine({ t }) {
   const oc = t.o === "Win" ? palette.green : t.o === "Loss" ? palette.red : palette.textMuted;
+  const levels = [["Entry", t.e], ["Stop", t.sl], ["Target", t.tp], ["Exit", t.x]].filter(([, v]) => v != null);
+  const meta = [t.u ? `${t.u} setup` : "", t.n, t.q ? `Execution ${t.q} of 5` : ""].filter(Boolean).join(", ");
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", marginTop: "10px", padding: "9px 12px", border: `1px solid ${palette.border}`, borderRadius: "12px", background: palette.field, fontFamily: sans, fontSize: "13px", color: palette.text }}>
-      <b>{t.s}</b>
-      <span style={{ color: t.d > 0 ? palette.green : palette.red, fontWeight: 600 }}>{t.d > 0 ? "Long" : "Short"}</span>
-      <b style={{ color: oc }}>{t.o}</b>
-      {t.u ? <span style={{ color: palette.textMuted }}>{t.u} setup</span> : null}
-      {t.n ? <span style={{ color: palette.textMuted }}>{t.n}</span> : null}
+    <div style={{ marginTop: "10px", padding: "12px 14px", border: `1px solid ${palette.border}`, borderRadius: "14px", background: palette.field, fontFamily: sans, color: palette.text }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", flexWrap: "wrap" }}>
+        <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <b style={{ fontSize: "15px" }}>{t.s}</b>
+          <span style={{ fontSize: "12px", fontWeight: 600, color: t.d > 0 ? palette.green : palette.red }}>{t.d > 0 ? "Long" : "Short"}</span>
+        </span>
+        <b style={{ fontSize: "15px", color: oc }}>{t.o}{t.r != null ? ` ${rText(t.r)}` : ""}</b>
+      </div>
+      {t.e != null && t.sl != null && t.tp != null ? <TradeRail t={t} /> : null}
+      {levels.length ? (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 16px", marginTop: t.e != null && t.sl != null && t.tp != null ? "4px" : "8px", fontSize: "12.5px", color: palette.textMuted }}>
+          {levels.map(([k, v]) => <span key={k}>{k} <b style={{ color: palette.text, fontWeight: 600 }}>{showLevel(v)}</b></span>)}
+        </div>
+      ) : null}
+      {meta ? <div style={{ fontSize: "12.5px", color: palette.textMuted, marginTop: "8px" }}>{meta}</div> : null}
     </div>
   );
 }
@@ -136,9 +168,9 @@ export default function PostComposer({ username, avatar, trades, onSubmit, onClo
         ) : null}
 
         {trade ? (
-          <div style={{ marginTop: 14, padding: "10px 12px", border: line, borderRadius: 12, background: palette.surface, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-            <span style={{ fontSize: 13 }}><b>{trade.s}</b> {trade.d > 0 ? "Long" : "Short"} · {trade.o}{trade.u ? ` · ${trade.u}` : ""}</span>
-            <button type="button" onClick={() => setTrade(null)} style={{ border: 0, background: "none", color: palette.textMuted, cursor: "pointer", fontSize: 13 }}>Remove</button>
+          <div style={{ marginTop: 6 }}>
+            <TradeLine t={trade} />
+            <button type="button" onClick={() => setTrade(null)} style={{ border: 0, background: "none", color: palette.textMuted, cursor: "pointer", fontSize: 13, minHeight: 36, padding: "0 4px", marginTop: 4 }}>Remove trade</button>
           </div>
         ) : null}
 
@@ -158,14 +190,18 @@ export default function PostComposer({ username, avatar, trades, onSubmit, onClo
 
         {pick && !trade && (
           <div style={{ marginTop: 10, border: line, borderRadius: 12, background: palette.surface }}>
-            <div style={{ fontSize: 12, color: palette.textMuted, padding: "10px 12px 2px" }}>Posts show the result (Win, Loss or BE), never dollar amounts.</div>
+            <div style={{ fontSize: 12, color: palette.textMuted, padding: "10px 12px 2px" }}>Posts show the result and your price levels, never dollar amounts.</div>
             {list.map((t) => {
               const m = tradeMeta(t);
+              const lv = [m.e != null ? `Entry ${showLevel(m.e)}` : "", m.x != null ? `Exit ${showLevel(m.x)}` : ""].filter(Boolean).join(", ");
               return (
-                <button key={t.id} type="button" onClick={() => { setTrade(m); setPick(false); if (!title.trim()) setTitle(`${m.s} ${m.d > 0 ? "long" : "short"}, ${m.o}`.slice(0, 90)); }}
-                  style={{ display: "flex", width: "100%", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", border: 0, borderTop: line, background: "none", color: palette.text, cursor: "pointer", textAlign: "left", fontSize: 14 }}>
-                  <span><b>{m.s}</b> {m.d > 0 ? "Long" : "Short"}<div style={{ fontSize: 12, color: palette.textMuted }}>{[m.u, when(t.ts)].filter(Boolean).join(", ")}</div></span>
-                  <b style={{ color: m.o === "Win" ? palette.green : m.o === "Loss" ? palette.red : palette.textMuted }}>{m.o}</b>
+                <button key={t.id} type="button" onClick={() => { setTrade(m); setPick(false); if (!title.trim()) setTitle(`${m.s} ${m.d > 0 ? "long" : "short"}, ${m.o}${m.r != null ? ` ${rText(m.r)}` : ""}`.slice(0, 90)); }}
+                  style={{ display: "flex", width: "100%", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 12px", border: 0, borderTop: line, background: "none", color: palette.text, cursor: "pointer", textAlign: "left", fontSize: 14 }}>
+                  <span style={{ minWidth: 0 }}><b>{m.s}</b> {m.d > 0 ? "Long" : "Short"}
+                    <div style={{ fontSize: 12, color: palette.textMuted }}>{[m.u, when(t.ts)].filter(Boolean).join(", ")}</div>
+                    {lv ? <div style={{ fontSize: 12, color: palette.textMuted }}>{lv}</div> : null}
+                  </span>
+                  <b style={{ flex: "none", color: m.o === "Win" ? palette.green : m.o === "Loss" ? palette.red : palette.textMuted }}>{m.o}{m.r != null ? ` ${rText(m.r)}` : ""}</b>
                 </button>
               );
             })}
