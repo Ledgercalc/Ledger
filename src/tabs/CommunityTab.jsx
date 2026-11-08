@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { PlanName } from "../components/PlanBadge.jsx";
 import { Avatar } from "../components/ui.jsx";
 import LedgerCommunity from "./LedgerCommunity.jsx";
-import PostComposer from "../components/PostComposer.jsx";
+import PostComposer, { PostContent, HelpfulIcon } from "../components/PostComposer.jsx";
 import { plainOf } from "../lib/ledgerPost.js";
 import { FEED_REACTIONS, avatarStyleFor, feedTimeAgo } from "../lib/feed.js";
 import { TAP, display, mono, palette, sans } from "../lib/theme.js";
@@ -1924,11 +1924,11 @@ export default function CommunityTab(props) {
           const countsRow = (gap, margin) => (
             <div className="flex items-center" style={{ gap, margin }}>
               {[[p.followerCount, "followers", "followers"], [p.followingCount, "following", "following"]].map(([value, label, kind]) => (
-                <button key={kind} type="button" onClick={() => openFollowList(p.username, kind)} aria-label={`See ${label}`} className={TAP} style={{ background: "none", border: "none", padding: 0, minHeight: "40px", fontFamily: sans, fontSize: isDesktop ? "14px" : "12.5px", color: palette.textMuted, whiteSpace: "nowrap" }}>
+                <button key={kind} type="button" onClick={() => openFollowList(p.username, kind)} aria-label={`See ${label}`} className={TAP} style={{ background: "none", border: "none", outline: "none", boxShadow: "none", WebkitAppearance: "none", appearance: "none", padding: 0, minHeight: "40px", fontFamily: sans, fontSize: "12.5px", color: palette.textMuted, whiteSpace: "nowrap" }}>
                   <b style={{ color: palette.text, fontWeight: 600 }}>{(value || 0).toLocaleString()}</b> {label}
                 </button>
               ))}
-              <span style={{ fontFamily: sans, fontSize: isDesktop ? "14px" : "12.5px", color: palette.textMuted, whiteSpace: "nowrap" }}>
+              <span style={{ fontFamily: sans, fontSize: "12.5px", color: palette.textMuted, whiteSpace: "nowrap" }}>
                 <b style={{ color: palette.text, fontWeight: 600 }}>{(p.postCount || 0).toLocaleString()}</b> {p.postCount === 1 ? "post" : "posts"}
               </span>
             </div>
@@ -2297,20 +2297,15 @@ export default function CommunityTab(props) {
                       <span style={{ fontFamily: sans, fontSize: "12px", color: palette.textMuted }}>{feedTimeAgo(post.ts)}</span>
                     </div>
                   </div>
-                  <button type="button" onClick={() => setProfilePostOpen(post)} className={`block w-full text-left ${TAP}`} style={{ background: "none", border: "none", padding: 0, marginTop: "10px" }} aria-label="Open post">
-                    {post.text && (
-                      <div style={{ fontFamily: sans, fontSize: "14px", lineHeight: 1.5, color: palette.text, display: "-webkit-box", WebkitLineClamp: 5, WebkitBoxOrient: "vertical", overflow: "hidden", whiteSpace: "pre-wrap" }}>{plainOf(post.text)}</div>
-                    )}
-                    {post.image && (
-                      <img src={post.image} alt="" style={{ display: "block", width: "100%", maxHeight: "360px", objectFit: "cover", borderRadius: "12px", marginTop: post.text ? "10px" : 0, border: `1px solid ${palette.border}` }} />
-                    )}
+                  <button type="button" onClick={() => setProfilePostOpen(post)} className={`block w-full text-left ${TAP}`} style={{ background: "none", border: "none", padding: 0, marginTop: "12px" }} aria-label="Open post">
+                    <PostContent text={post.text} image={post.image} clamp />
                   </button>
-                  <div className="flex items-center" style={{ gap: "4px", marginTop: "12px", paddingTop: "8px", borderTop: `1px solid ${palette.border}` }}>
-                    <button type="button" onClick={() => likeProfilePost(post.id)} className={`flex items-center ${TAP}`} aria-label={post.liked ? "Unlike" : "Like"} style={{ gap: "6px", minHeight: "40px", padding: "0 10px", borderRadius: "10px", background: post.liked ? `${palette.gold}29` : "transparent", border: "none", color: post.liked ? palette.gold : palette.textMuted, fontFamily: sans, fontSize: "13px", fontWeight: 500 }}>
-                      <Heart size={16} fill={post.liked ? "currentColor" : "none"} /> {post.likeCount || 0}
+                  <div className="flex items-center" style={{ gap: "4px", marginTop: "14px", paddingTop: "8px", borderTop: `1px solid ${palette.border}` }}>
+                    <button type="button" onClick={() => likeProfilePost(post.id)} className={`flex items-center ${TAP}`} aria-label={post.liked ? "Remove helpful" : "Mark helpful"} aria-pressed={!!post.liked} style={{ gap: "6px", minHeight: "40px", padding: "0 10px", borderRadius: "10px", background: post.liked ? `${palette.gold}29` : "transparent", border: "none", color: post.liked ? palette.gold : palette.textMuted, fontFamily: sans, fontSize: "13px", fontWeight: 500 }}>
+                      <HelpfulIcon /> Helpful {post.likeCount || 0}
                     </button>
                     <button type="button" onClick={() => setProfilePostOpen(post)} className={`flex items-center ${TAP}`} aria-label="Open comments" style={{ gap: "6px", minHeight: "40px", padding: "0 10px", borderRadius: "10px", background: "transparent", border: "none", color: palette.textMuted, fontFamily: sans, fontSize: "13px", fontWeight: 500 }}>
-                      <MessageCircle size={16} /> {post.commentCount || 0}
+                      <MessageCircle size={16} /> {post.commentCount || 0} {(post.commentCount || 0) === 1 ? "comment" : "comments"}
                     </button>
                   </div>
                 </article>
@@ -2370,7 +2365,7 @@ export default function CommunityTab(props) {
                   <span>{`@${p.username}`}{joinedText ? `, Joined ${joinedText}` : ""}</span>
                   {!isMe && p.followsMe && tag("Follows you")}
                 </div>
-                {countsRow("28px", "6px 0 0")}
+                {countsRow("20px", "10px 0 0")}
               </div>
               <div style={{ flex: "none" }}>{actionsRow()}</div>
             </section>
@@ -2629,23 +2624,10 @@ export default function CommunityTab(props) {
           // "username caption"; in the desktop two-pane viewer it is the first entry at the top of
           // the right pane (avatar + username + caption + time), with the comments beneath it.
           const captionRow = po.text ? (
-            split ? (
-              <div className="flex items-start gap-3 px-4 pt-5 pb-3">
-                <Avatar name={po.author} size={40} src={profileData?.avatar || avatarForAuthor(po.author)} />
-                <div className="min-w-0 flex-1">
-                  <p style={{ color: palette.text, fontSize: "14.5px", lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                    <span style={{ fontWeight: 700, marginRight: "6px" }}><PlanName name={po.author} /></span>{plainOf(po.text)}
-                  </p>
-                  <span style={{ color: palette.textFaint, fontSize: "12px" }}>{feedTimeAgo(po.ts)}</span>
-                </div>
-              </div>
-            ) : (
-              <div className="px-4 pb-2">
-                <p style={{ color: palette.text, fontSize: "13.5px", lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                  <span style={{ fontWeight: 700, marginRight: "6px" }}><PlanName name={po.author} /></span>{plainOf(po.text)}
-                </p>
-              </div>
-            )
+            <div className={split ? "px-4 pt-5 pb-3" : "px-4 pb-2 pt-3"}>
+              <PostContent text={po.text} titleSize={split ? 20 : 17} />
+              <div style={{ color: palette.textFaint, fontSize: "12px", marginTop: "10px" }}>{feedTimeAgo(po.ts)}</div>
+            </div>
           ) : null;
           const thread = (
             <div className="px-4 pt-2 pb-3">
@@ -2683,18 +2665,18 @@ export default function CommunityTab(props) {
               )}
             </div>
           );
+          const nComments = profileCommentsLoading ? (po.commentCount || 0) : profileComments.length;
           const actions = (
             <div className="px-4 pt-3.5 pb-3 flex-shrink-0" style={{ borderTop: split ? `1px solid ${palette.border}` : "none" }}>
-              <div className="flex items-center" style={{ gap: "18px" }}>
-                <button type="button" onClick={() => likeProfilePost(po.id)} className={TAP} style={{ background: "none", border: "none", padding: 0, display: "flex" }} aria-label={po.liked ? "Unlike" : "Like"} aria-pressed={!!po.liked}>
-                  <Heart size={27} fill={po.liked ? palette.red : "none"} color={po.liked ? palette.red : palette.text} strokeWidth={po.liked ? 0 : 2} />
+              <div className="flex items-center" style={{ gap: "8px" }}>
+                <button type="button" onClick={() => likeProfilePost(po.id)} className={`flex items-center ${TAP}`} aria-label={po.liked ? "Remove helpful" : "Mark helpful"} aria-pressed={!!po.liked} style={{ gap: "6px", minHeight: "40px", padding: "0 14px", borderRadius: "10px", border: "none", background: po.liked ? `${palette.gold}29` : palette.field, color: po.liked ? palette.gold : palette.text, fontSize: "13.5px", fontWeight: 600 }}>
+                  <HelpfulIcon size={17} /> Helpful {likes}
                 </button>
-                <button type="button" onClick={() => profileCommentInputRef.current && profileCommentInputRef.current.focus()} className={TAP} style={{ background: "none", border: "none", padding: 0, display: "flex" }} aria-label="Comment">
-                  <MessageCircle size={27} color={palette.text} />
+                <button type="button" onClick={() => profileCommentInputRef.current && profileCommentInputRef.current.focus()} className={`flex items-center ${TAP}`} aria-label="Comment" style={{ gap: "6px", minHeight: "40px", padding: "0 14px", borderRadius: "10px", border: "none", background: palette.field, color: palette.text, fontSize: "13.5px", fontWeight: 600 }}>
+                  <MessageCircle size={17} /> {nComments} {nComments === 1 ? "comment" : "comments"}
                 </button>
               </div>
-              <div style={{ marginTop: "10px", color: palette.text, fontSize: "14px", fontWeight: 700 }}>{likes} {likes === 1 ? "like" : "likes"}</div>
-              <div style={{ marginTop: "2px", color: palette.textFaint, fontSize: "12.5px" }}>{dateLabel}</div>
+              <div style={{ marginTop: "8px", color: palette.textFaint, fontSize: "12.5px" }}>{dateLabel}</div>
             </div>
           );
           const inputBar = (
