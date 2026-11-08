@@ -7,16 +7,30 @@ export const BOARDS = ["Setups", "Reviews", "Psychology", "Risk", "General"];
 export const POST_MAX = 1000;
 const MARK = "[tz]";
 
+const fin = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? Math.round(n * 1e5) / 1e5 : null; };
+const prettySetup = (v) => String(v || "").replace(/[-_]+/g, " ").trim().replace(/^./, (c) => c.toUpperCase()).slice(0, 30);
+
+// What a shared trade carries: symbol, side, result, setup, session and, when the trade was logged
+// with them, entry / stop / target / exit and the R multiple. Never dollar amounts.
 export function tradeMeta(t) {
   const pnl = Number(t && t.pnl) || 0;
   const dir = String((t && t.direction) || "").toLowerCase();
-  return {
+  const long = /^(buy|long|up)/.test(dir);
+  const e = fin(t && t.e), sl = fin(t && t.s), tp = fin(t && t.tp), x = fin(t && t.x);
+  const out = {
     s: String((t && t.pair) || "").slice(0, 20),
-    d: /^(buy|long|up)/.test(dir) ? 1 : -1,
+    d: long ? 1 : -1,
     o: pnl > 0 ? "Win" : pnl < 0 ? "Loss" : "BE",
-    u: String((t && t.setup) || "").slice(0, 30),
+    u: prettySetup(t && t.setup),
     n: String((t && t.session) || "").slice(0, 20),
   };
+  if (e != null) out.e = e;
+  if (sl != null) out.sl = sl;
+  if (tp != null) out.tp = tp;
+  if (x != null) out.x = x;
+  if (e != null && sl != null && e !== sl && x != null) out.r = Math.round(((x - e) * (long ? 1 : -1) / Math.abs(e - sl)) * 10) / 10;
+  if (t && Number(t.rate) > 0) out.q = Number(t.rate);
+  return out;
 }
 
 export function encodePost({ board, title, note, trade }) {
