@@ -1030,7 +1030,7 @@ const [bioEditing, setBioEditing] = useState(false);
 const [bioDraft, setBioDraft] = useState("");
 const [bioSaving, setBioSaving] = useState(false);
 // Edit-profile sheet (same fields as tredzi2.html): role line, trading style and markets live on this device
-const [profileExtras, setProfileExtras] = useState({ role: "", style: [], markets: [] });
+const [profileExtras, setProfileExtras] = useState({ role: "", style: [], markets: [], session: "" });
 const [editProfileOpen, setEditProfileOpen] = useState(false);
 const [editProfileBusy, setEditProfileBusy] = useState(false);
 const [editProfileError, setEditProfileError] = useState("");
@@ -4784,7 +4784,7 @@ if (!isSignal && !communityMsgText.trim()) return;
     (async () => {
       try {
         const r = await window.storage.get(PROFILE_EXTRAS_KEY, false);
-        if (r && r.value) setProfileExtras({ role: "", style: [], markets: [], ...JSON.parse(r.value) });
+        if (r && r.value) setProfileExtras({ role: "", style: [], markets: [], session: "", ...JSON.parse(r.value) });
       } catch (err) {}
     })();
   }, []);
@@ -4796,6 +4796,7 @@ if (!isSignal && !communityMsgText.trim()) return;
       role: profileExtras.role || mine?.role || "",
       style: profileExtras.style?.length ? profileExtras.style : (Array.isArray(mine?.style) ? mine.style : []),
       markets: profileExtras.markets?.length ? profileExtras.markets : (Array.isArray(mine?.markets) ? mine.markets : []),
+      session: profileExtras.session || "",
       bio: mine?.bio || "",
     };
   };
@@ -4820,7 +4821,7 @@ if (!isSignal && !communityMsgText.trim()) return;
         });
         setProfileData((cur) => (cur ? { ...cur, bio: data.bio } : cur));
       }
-      const extras = { role: vals.role, style: vals.style, markets: vals.markets };
+      const extras = { role: vals.role, style: vals.style, markets: vals.markets, session: vals.session || "" };
       setProfileExtras(extras);
       try { await window.storage.set(PROFILE_EXTRAS_KEY, JSON.stringify(extras), false); } catch (err) {}
       setEditProfileOpen(false);
@@ -8196,6 +8197,7 @@ if (activeTab === "community") {
   bio={myProfileView().bio}
   styles={myProfileView().style}
   markets={myProfileView().markets}
+  mainSession={myProfileView().session}
   saving={editProfileBusy}
   error={editProfileError}
   onSave={saveProfileEdits}
@@ -8390,7 +8392,7 @@ if (activeTab === "community") {
               const mv = myProfileView();
               const mp = mv.mine;
               const joined = mp?.joinedAt ? new Date(mp.joinedAt).toLocaleDateString([], { month: "short", year: "numeric" }) : null;
-              const rows = [["Style", mv.style.join(", ")], ["Markets", mv.markets.join(", ")]].filter(([, v]) => v);
+              const rows = [["Style", mv.style.join(", ")], ["Markets", mv.markets.join(", ")], ["Main session", mv.session]].filter(([, v]) => v);
               const statBtn = { fontFamily: sans, fontSize: "12.5px", color: palette.textMuted, whiteSpace: "nowrap" };
               const btnBase = { height: "44px", borderRadius: "12px", fontFamily: sans, fontSize: "14px", fontWeight: 600, flex: 1, whiteSpace: "nowrap", textAlign: "center" };
               return (
