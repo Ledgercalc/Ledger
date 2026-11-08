@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { palette, sans } from "../lib/theme.js";
-import { BOARDS, POST_MAX, encodePost, shrinkImage, tradeMeta } from "../lib/ledgerPost.js";
+import { BOARDS, POST_MAX, decodePost, encodePost, shrinkImage, tradeMeta } from "../lib/ledgerPost.js";
 
 // The one post composer used everywhere: Community > Feed and Profile > Add a post.
 // It builds the post text itself (board, title, details, optional journaled trade) and hands
@@ -11,6 +11,53 @@ import { BOARDS, POST_MAX, encodePost, shrinkImage, tradeMeta } from "../lib/led
 const BCOL = { Setups: palette.green, Reviews: palette.gold, Psychology: "#8B7CF6", Risk: palette.red, General: palette.textMuted };
 
 const when = (ts) => { try { return new Date(ts).toLocaleDateString(undefined, { day: "numeric", month: "short" }); } catch (e) { return ""; } };
+
+// How a Ledger post looks wherever it is shown outside the Community feed
+// (profile posts list and the post viewer): board tag, title, trade box, details, photo.
+
+export const BOARD_COLOR = { Setups: palette.green, Reviews: palette.gold, Psychology: "#8B7CF6", Risk: palette.red, General: palette.textMuted };
+
+export function BoardTag({ board }) {
+  const c = BOARD_COLOR[board] || palette.textMuted;
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "4px 10px", borderRadius: "999px", background: `${c}22`, color: palette.text, fontFamily: sans, fontSize: "12px", fontWeight: 500 }}>
+      <i style={{ width: "8px", height: "8px", borderRadius: "50%", background: c, display: "inline-block" }} />{board}
+    </span>
+  );
+}
+
+export function TradeLine({ t }) {
+  const oc = t.o === "Win" ? palette.green : t.o === "Loss" ? palette.red : palette.textMuted;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", marginTop: "10px", padding: "9px 12px", border: `1px solid ${palette.border}`, borderRadius: "12px", background: palette.field, fontFamily: sans, fontSize: "13px", color: palette.text }}>
+      <b>{t.s}</b>
+      <span style={{ color: t.d > 0 ? palette.green : palette.red, fontWeight: 600 }}>{t.d > 0 ? "Long" : "Short"}</span>
+      <b style={{ color: oc }}>{t.o}</b>
+      {t.u ? <span style={{ color: palette.textMuted }}>{t.u} setup</span> : null}
+      {t.n ? <span style={{ color: palette.textMuted }}>{t.n}</span> : null}
+    </div>
+  );
+}
+
+// text: the raw stored post text. clamp: cut long details (list view). image: show the photo too.
+export function PostContent({ text, image, clamp, titleSize = 17 }) {
+  const d = decodePost(text);
+  return (
+    <div style={{ fontFamily: sans, color: palette.text }}>
+      <div><BoardTag board={d.board} /></div>
+      {d.title ? <div style={{ fontSize: `${titleSize}px`, fontWeight: 600, lineHeight: 1.3, marginTop: "10px", letterSpacing: "-0.005em", wordBreak: "break-word" }}>{d.title}</div> : null}
+      {d.trade ? <TradeLine t={d.trade} /> : null}
+      {d.note ? (
+        <div style={{ fontSize: "14px", lineHeight: 1.5, marginTop: "8px", color: d.title ? palette.textMuted : palette.text, whiteSpace: "pre-wrap", wordBreak: "break-word", ...(clamp ? { display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical", overflow: "hidden" } : {}) }}>{d.note}</div>
+      ) : null}
+      {image ? <img src={image} alt="" style={{ display: "block", width: "100%", maxHeight: "360px", objectFit: "cover", borderRadius: "12px", marginTop: "10px", border: `1px solid ${palette.border}` }} /> : null}
+    </div>
+  );
+}
+
+export const HelpfulIcon = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6" /></svg>
+);
 
 export default function PostComposer({ username, avatar, trades, onSubmit, onClose }) {
   const [board, setBoard] = useState("Setups");
@@ -97,8 +144,16 @@ export default function PostComposer({ username, avatar, trades, onSubmit, onClo
 
         <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
           <input ref={file} type="file" accept="image/*" onChange={onFile} style={{ display: "none" }} />
-          <button type="button" onClick={() => file.current && file.current.click()} disabled={photoBusy} style={{ ...chip(false, palette.border), margin: 0 }}>{photoBusy ? "Adding photo…" : image ? "Change photo" : "Add photo"}</button>
-          {list.length > 0 && !trade && <button type="button" onClick={() => setPick((v) => !v)} style={{ ...chip(pick, palette.gold), margin: 0 }}>Attach a trade</button>}
+          <button type="button" onClick={() => file.current && file.current.click()} disabled={photoBusy} style={{ ...chip(false, palette.border), margin: 0, display: "inline-flex", alignItems: "center", gap: 8 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></svg>
+            {photoBusy ? "Adding photo…" : image ? "Change photo" : "Add photo"}
+          </button>
+          {!trade && (
+            <button type="button" onClick={() => { if (!list.length) { setErr("No journaled trades yet. Log a trade in your journal first."); return; } setErr(""); setPick((v) => !v); }} aria-expanded={pick} style={{ ...chip(pick, palette.gold), margin: 0, display: "inline-flex", alignItems: "center", gap: 8 }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 17l6-6 4 4 8-8" /><path d="M14 7h7v7" /></svg>
+              Attach a trade
+            </button>
+          )}
         </div>
 
         {pick && !trade && (
