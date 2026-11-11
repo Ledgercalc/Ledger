@@ -8,14 +8,14 @@ import { BOARDS, POST_MAX, decodePost, encodePost, shrinkImage, tradeMeta } from
 //
 // Props: username, avatar, trades (journal trades, optional), onSubmit({text,image}), onClose()
 
-const BCOL = { Setups: palette.green, Reviews: palette.gold, Psychology: "#8B7CF6", Risk: palette.red, General: palette.textMuted };
+const BCOL = { get Setups() { return palette.green; }, get Reviews() { return palette.gold; }, Psychology: "#8B7CF6", get Risk() { return palette.red; }, get General() { return palette.textMuted; } };
 
 const when = (ts) => { try { return new Date(ts).toLocaleDateString(undefined, { day: "numeric", month: "short" }); } catch (e) { return ""; } };
 
 // How a Ledger post looks wherever it is shown outside the Community feed
 // (profile posts list and the post viewer): board tag, title, trade box, details, photo.
 
-export const BOARD_COLOR = { Setups: palette.green, Reviews: palette.gold, Psychology: "#8B7CF6", Risk: palette.red, General: palette.textMuted };
+export const BOARD_COLOR = { get Setups() { return palette.green; }, get Reviews() { return palette.gold; }, Psychology: "#8B7CF6", get Risk() { return palette.red; }, get General() { return palette.textMuted; } };
 
 export function BoardTag({ board }) {
   const c = BOARD_COLOR[board] || palette.textMuted;
