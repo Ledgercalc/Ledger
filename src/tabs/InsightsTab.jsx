@@ -413,7 +413,7 @@ function Radar({ scores }) {
 
 // ───────────────────────── main component ─────────────────────────
 
-function OverviewPanel({ trades, customSetups, customMoods, isDesktop }) {
+function OverviewPanel({ tab, trades, customSetups, customMoods, isDesktop }) {
   const myPlan = useMyPlan();
   const [range, setRange] = useState("all");
   const [group, setGroup] = useState("setup");
@@ -781,6 +781,8 @@ function OverviewPanel({ trades, customSetups, customMoods, isDesktop }) {
 
   return (
     <>
+      {tab === "overview" && (
+        <>
       {/* ───────── What your trades say ───────── */}
       <SectionHeading hint="The clearest things your own trades are telling you right now.">What your trades say</SectionHeading>
       {hasFeature(myPlan.plan, "journalInsights") ? (
@@ -813,45 +815,6 @@ function OverviewPanel({ trades, customSetups, customMoods, isDesktop }) {
       ) : (
         <PlanLockCard title="Pattern insights" plan="pro" blurb="See which setups, sessions, directions and confidence levels make or lose you money." />
       )}
-
-      {/* ───────── Performance ───────── */}
-      <SectionHeading hint="Your performance report. Pick a range to focus it.">Performance</SectionHeading>
-      <div style={{ marginBottom: "14px" }}>
-        <Chips options={[["all", "All"], ["90", "90D"], ["30", "30D"], ["7", "7D"]]} value={range} onChange={setRange} />
-      </div>
-      {S.n === 0 ? (
-        <Card>
-          <Empty>No trades in this range.</Empty>
-        </Card>
-      ) : (
-        <>
-          <div
-            style={{
-              background: `linear-gradient(135deg, ${palette.gold}, ${palette.goldBright})`,
-              color: palette.letterbox,
-              borderRadius: "22px",
-              padding: isDesktop ? "24px 28px 0" : "18px 18px 0",
-              overflow: "hidden",
-              boxShadow: palette.shadow,
-              marginBottom: "16px",
-            }}
-          >
-            <div className="flex items-end justify-between flex-wrap" style={{ gap: "12px" }}>
-              <div>
-                <div style={{ fontSize: "12px", fontWeight: 600, opacity: 0.75 }}>{rangeLabel}</div>
-                <div style={{ fontFamily: display, fontSize: isDesktop ? "44px" : "36px", fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1.1 }}>{usdS(S.tot)}</div>
-              </div>
-              <div style={{ fontSize: "13px", fontWeight: 600, opacity: 0.85, paddingBottom: "4px" }}>
-                {S.n} trades · {S.wr.toFixed(0)}% win rate · profit factor {ratioText(S.pf)}
-              </div>
-            </div>
-            <div style={{ margin: isDesktop ? "10px -28px 0" : "10px -18px 0" }}>
-              <AreaChart pts={[0, ...ts.reduce((a, t) => (a.push((a.length ? a[a.length - 1] : 0) + t.pnl), a), [])]} color={palette.letterbox} h={isDesktop ? 110 : 70} />
-            </div>
-          </div>
-        </>
-      )}
-      {S.n > 0 ? <div style={cols(2)}>{perfCards}</div> : <div style={{ ...cols(2), marginTop: "16px" }}>{monthCard}</div>}
 
       {/* ───────── Overview ───────── */}
       <SectionHeading hint="Everything across all of your logged trades.">Overview</SectionHeading>
@@ -918,6 +881,89 @@ function OverviewPanel({ trades, customSetups, customMoods, isDesktop }) {
           );
         })}
       </Card>
+
+      {/* ───────── DNA ───────── */}
+      <SectionHeading hint="Six scores that describe how you trade, built from your own log.">Trader DNA</SectionHeading>
+      <div style={cols(2)}>
+        <Card>
+          {!dnaView ? (
+            <Empty>Log 10+ trades to reveal your Trader DNA.</Empty>
+          ) : (
+            <>
+              <Radar scores={dna} />
+              <div style={{ textAlign: "center", marginTop: "6px" }}>
+                <div style={{ fontSize: "12px", color: palette.textFaint }}>Your archetype</div>
+                <div style={{ fontFamily: display, fontSize: "24px", fontWeight: 800, color: palette.text }}>{ARCHETYPES[dnaView.strong[0]][0]}</div>
+                <div style={{ fontSize: "13px", color: palette.textMuted }}>
+                  {ARCHETYPES[dnaView.strong[0]][1]} · DNA score <b style={{ color: palette.text }}>{dnaView.avg}</b>/100
+                </div>
+              </div>
+              <div style={{ marginTop: "14px", fontSize: "13.5px", color: palette.text, lineHeight: 1.7 }}>
+                Strength: <b>{dnaView.strong[0]} {dnaView.strong[1]}</b>
+                <br />
+                Biggest leak: <b>{dnaView.weak[0]} {dnaView.weak[1]}</b>
+                <br />
+                <span style={{ color: palette.textMuted }}>{DNA_TIPS[dnaView.weak[0]]}</span>
+              </div>
+            </>
+          )}
+        </Card>
+        <Card>
+          <Head title="Edge health" />
+          {!edgeRoll ? (
+            <Empty>Needs 25+ trades.</Empty>
+          ) : (
+            <>
+              <AreaChart pts={edgeRoll.r} color={edgeRoll.now20 >= 0 ? palette.green : palette.red} h={isDesktop ? 200 : 100} />
+              <Note>
+                Rolling 20-trade expectancy: <b style={{ color: toneOf(edgeRoll.now20), fontFamily: mono }}>{usd(edgeRoll.now20)}</b> · {edgeRoll.text}
+              </Note>
+            </>
+          )}
+        </Card>
+      </div>
+        </>
+      )}
+      {tab === "performance" && (
+        <>
+      {/* ───────── Performance ───────── */}
+      <SectionHeading hint="Your performance report. Pick a range to focus it.">Performance</SectionHeading>
+      <div style={{ marginBottom: "14px" }}>
+        <Chips options={[["all", "All"], ["90", "90D"], ["30", "30D"], ["7", "7D"]]} value={range} onChange={setRange} />
+      </div>
+      {S.n === 0 ? (
+        <Card>
+          <Empty>No trades in this range.</Empty>
+        </Card>
+      ) : (
+        <>
+          <div
+            style={{
+              background: `linear-gradient(135deg, ${palette.gold}, ${palette.goldBright})`,
+              color: palette.letterbox,
+              borderRadius: "22px",
+              padding: isDesktop ? "24px 28px 0" : "18px 18px 0",
+              overflow: "hidden",
+              boxShadow: palette.shadow,
+              marginBottom: "16px",
+            }}
+          >
+            <div className="flex items-end justify-between flex-wrap" style={{ gap: "12px" }}>
+              <div>
+                <div style={{ fontSize: "12px", fontWeight: 600, opacity: 0.75 }}>{rangeLabel}</div>
+                <div style={{ fontFamily: display, fontSize: isDesktop ? "44px" : "36px", fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1.1 }}>{usdS(S.tot)}</div>
+              </div>
+              <div style={{ fontSize: "13px", fontWeight: 600, opacity: 0.85, paddingBottom: "4px" }}>
+                {S.n} trades · {S.wr.toFixed(0)}% win rate · profit factor {ratioText(S.pf)}
+              </div>
+            </div>
+            <div style={{ margin: isDesktop ? "10px -28px 0" : "10px -18px 0" }}>
+              <AreaChart pts={[0, ...ts.reduce((a, t) => (a.push((a.length ? a[a.length - 1] : 0) + t.pnl), a), [])]} color={palette.letterbox} h={isDesktop ? 110 : 70} />
+            </div>
+          </div>
+        </>
+      )}
+      {S.n > 0 ? <div style={cols(2)}>{perfCards}</div> : <div style={{ ...cols(2), marginTop: "16px" }}>{monthCard}</div>}
 
       <div style={{ ...cols(2), marginTop: "16px" }}>
         <div>
@@ -1034,46 +1080,8 @@ function OverviewPanel({ trades, customSetups, customMoods, isDesktop }) {
         )}
       </Card>
 
-      {/* ───────── DNA ───────── */}
-      <SectionHeading hint="Six scores that describe how you trade, built from your own log.">Trader DNA</SectionHeading>
-      <div style={cols(2)}>
-        <Card>
-          {!dnaView ? (
-            <Empty>Log 10+ trades to reveal your Trader DNA.</Empty>
-          ) : (
-            <>
-              <Radar scores={dna} />
-              <div style={{ textAlign: "center", marginTop: "6px" }}>
-                <div style={{ fontSize: "12px", color: palette.textFaint }}>Your archetype</div>
-                <div style={{ fontFamily: display, fontSize: "24px", fontWeight: 800, color: palette.text }}>{ARCHETYPES[dnaView.strong[0]][0]}</div>
-                <div style={{ fontSize: "13px", color: palette.textMuted }}>
-                  {ARCHETYPES[dnaView.strong[0]][1]} · DNA score <b style={{ color: palette.text }}>{dnaView.avg}</b>/100
-                </div>
-              </div>
-              <div style={{ marginTop: "14px", fontSize: "13.5px", color: palette.text, lineHeight: 1.7 }}>
-                Strength: <b>{dnaView.strong[0]} {dnaView.strong[1]}</b>
-                <br />
-                Biggest leak: <b>{dnaView.weak[0]} {dnaView.weak[1]}</b>
-                <br />
-                <span style={{ color: palette.textMuted }}>{DNA_TIPS[dnaView.weak[0]]}</span>
-              </div>
-            </>
-          )}
-        </Card>
-        <Card>
-          <Head title="Edge health" />
-          {!edgeRoll ? (
-            <Empty>Needs 25+ trades.</Empty>
-          ) : (
-            <>
-              <AreaChart pts={edgeRoll.r} color={edgeRoll.now20 >= 0 ? palette.green : palette.red} h={isDesktop ? 200 : 100} />
-              <Note>
-                Rolling 20-trade expectancy: <b style={{ color: toneOf(edgeRoll.now20), fontFamily: mono }}>{usd(edgeRoll.now20)}</b> · {edgeRoll.text}
-              </Note>
-            </>
-          )}
-        </Card>
-      </div>
+        </>
+      )}
     </>
   );
 }
@@ -1116,6 +1124,7 @@ export default function InsightsTab(props) {
     crabReady.current = true;
   }, []);
     const INSIGHTS_SUB_TABS = [
+      { id: "performance", label: "Performance" },
       { id: "overview", label: "Overview" },
       { id: "coach", label: "Coach" },
     ];
@@ -1468,8 +1477,8 @@ export default function InsightsTab(props) {
           <style>{`.insights-desktop-redesign { max-width: 1180px; margin: 0 auto; }`}</style>
         )}
         {insightsSubNav}
-        {insightsSubTab === "overview" && (
-          <OverviewPanel trades={trades} customSetups={customSetups} customMoods={customMoods} isDesktop={isDesktop} />
+        {(insightsSubTab === "overview" || insightsSubTab === "performance") && (
+          <OverviewPanel tab={insightsSubTab} trades={trades} customSetups={customSetups} customMoods={customMoods} isDesktop={isDesktop} />
         )}
         {insightsSubTab === "coach" && coachSection}
 
