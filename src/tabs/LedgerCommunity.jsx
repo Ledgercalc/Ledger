@@ -389,6 +389,7 @@ export default function LedgerCommunity({ isDesktop, communityAvatar, openMember
   const [np, setNp] = useState([]);
   const [ex, setEx] = useState({});
   const [sheet, setSheet] = useState(null);
+  const Fref = useRef([]);
   const [ci, setCi] = useState("");
   const [cm, setCm] = useState({ id: null, list: [], loading: false });
   const [dc, setDc] = useState(false);
@@ -418,6 +419,7 @@ export default function LedgerCommunity({ isDesktop, communityAvatar, openMember
   const [toastMsg, setToastMsg] = useState("");
   const tt = useRef(null);
 
+  Fref.current = F;
   const hdr = () => authH(sessionToken);
   const apiPost = (path, body) => communityApi(path, postOpts(sessionToken, body));
   const toast = (m) => { setToastMsg(m); clearTimeout(tt.current); tt.current = setTimeout(() => setToastMsg(""), 2400); };
@@ -486,7 +488,18 @@ export default function LedgerCommunity({ isDesktop, communityAvatar, openMember
         const j = await communityApi(`/community/search?q=${encodeURIComponent(q)}`, { headers: hdr() });
         const rows = [...(j.posts || []), ...(j.relatedPosts || [])].map(norm);
         setSrch({ q: q.toLowerCase(), profile: j.profile || null });
+        const known = new Set(Fref.current.map((x) => x.id));
+        const fresh = rows.filter((x) => !known.has(x.id));
         setF((L) => { const seen = new Set(L.map((x) => x.id)); return [...L, ...rows.filter((x) => !seen.has(x.id))]; });
+        // search results come without your like and the comment count, so fetch the real numbers
+        [...new Set(fresh.map((x) => x.author))].slice(0, 4).forEach(async (name) => {
+          try {
+            const pj = await communityApi(`/profile/${encodeURIComponent(name)}/posts?limit=50`, { headers: hdr() });
+            const byId = {};
+            (pj.posts || []).forEach((x) => { byId[x.id] = x; });
+            setF((L) => L.map((x) => (byId[x.id] ? { ...x, hc: Number(byId[x.id].likeCount) || 0, nc: Number(byId[x.id].commentCount) || 0, my: !!byId[x.id].liked } : x)));
+          } catch (e) { /* counts stay as the search returned them */ }
+        });
       } catch (e) { setSrch(null); }
     }, 400);
     return () => clearTimeout(id);
