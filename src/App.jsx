@@ -6390,6 +6390,9 @@ const selectInsightsSubTab = (id) => {
   const shadowSignalToTrade = (m) => {
     resetTradeForm();
     setTradePair(m.pair || "");
+    setTradeDirection(m.direction === "sell" ? "down" : "up");
+    const lvl = (v) => (v == null || v === "" || !Number.isFinite(parseFloat(v)) ? "" : String(parseFloat(v)));
+    setTradeExtra({ ...EMPTY_TRADE_EXTRA, e: lvl(m.entry), s: lvl(m.sl), tp: lvl(m.tp) });
     const dir = m.direction === "sell" ? "Sell" : "Buy";
     const parts = [`Shadowed from @${m.author}'s ${m.pair || "signal"} ${dir} call`];
     if (m.entry) parts.push(`Entry ${m.entry}`);
