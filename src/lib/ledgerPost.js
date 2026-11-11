@@ -22,7 +22,7 @@ export function tradeMeta(t) {
     d: long ? 1 : -1,
     o: pnl > 0 ? "Win" : pnl < 0 ? "Loss" : "BE",
     u: prettySetup(t && t.setup),
-    n: String((t && t.session) || "").slice(0, 20),
+    n: String((t && t.session) || "").replace(/[-_]+/g, " ").trim().replace(/\b\w/g, (c) => c.toUpperCase()).slice(0, 20),
   };
   if (e != null) out.e = e;
   if (sl != null) out.sl = sl;
