@@ -68,13 +68,13 @@ export default function EditProfileSheet({ open, onClose, username, avatarSrc, a
           </div>
 
           <label style={lab}>Username
-            <input value={name} onChange={(e) => setName(e.target.value.replace(/\s/g, ""))} maxLength={24} autoCapitalize="off" autoComplete="off" style={input} />
+            <input value={name} onChange={(e) => setName(e.target.value.replace(/[^a-zA-Z0-9_]/g, ""))} maxLength={24} autoCapitalize="off" autoComplete="off" style={input} />
           </label>
           <label style={lab}>Bio
             <input value={line} onChange={(e) => setLine(e.target.value)} maxLength={60} placeholder="Gold and FX pullbacks" style={input} />
           </label>
           <label style={lab}>Description
-            <textarea value={desc} onChange={(e) => setDesc(e.target.value)} rows={4} maxLength={200} placeholder="What you trade and how you think about risk" style={{ ...input, resize: "none", lineHeight: 1.5 }} />
+            <textarea value={desc} onChange={(e) => setDesc(e.target.value)} rows={4} maxLength={160} placeholder="What you trade and how you think about risk" style={{ ...input, resize: "none", lineHeight: 1.5 }} />
           </label>
 
           {sec("Trading style", "Pick any")}
