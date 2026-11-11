@@ -782,20 +782,21 @@ const makeUnitFmt = (unit, trades, startBal) => {
 };
 const tone = (v) => (v > 0 ? palette.green : v < 0 ? palette.red : palette.text);
 
-const cardSt = { background: palette.surface, border: `1px solid ${palette.border}`, borderRadius: "16px", boxShadow: palette.shadow };
+// These read the palette when React reads them, so they follow the dark / light / void theme switch.
+const cardSt = { get background() { return palette.surface; }, get border() { return `1px solid ${palette.border}`; }, borderRadius: "16px", get boxShadow() { return palette.shadow; } };
 const SecLabel = ({ left, right, rightColor, first }) => (
   <div className="flex items-center justify-between" style={{ margin: first ? "0 0 8px" : "24px 0 8px", fontSize: "12.5px", color: palette.textMuted }}>
     <span>{left}</span>
     <span style={{ color: rightColor || palette.textMuted }}>{right}</span>
   </div>
 );
-const primaryBtn = { width: "100%", height: "48px", borderRadius: "12px", border: "none", background: palette.gold, color: palette.letterbox, fontSize: "14.5px", fontWeight: 700 };
-const outlineBtn = { width: "100%", height: "48px", borderRadius: "12px", border: `1px solid ${palette.border}`, background: "transparent", color: palette.text, fontSize: "14.5px", fontWeight: 600 };
+const primaryBtn = { width: "100%", height: "48px", borderRadius: "12px", border: "none", get background() { return palette.gold; }, get color() { return palette.letterbox; }, fontSize: "14.5px", fontWeight: 700 };
+const outlineBtn = { width: "100%", height: "48px", borderRadius: "12px", get border() { return `1px solid ${palette.border}`; }, background: "transparent", get color() { return palette.text; }, fontSize: "14.5px", fontWeight: 600 };
 const chipSt = (on) => ({
   minHeight: "38px", padding: "0 14px", borderRadius: "10px", fontSize: "13px", fontWeight: 500, margin: "0 8px 8px 0",
   border: `1px solid ${on ? palette.gold : palette.border}`, background: on ? palette.gold : palette.surface, color: on ? palette.letterbox : palette.textMuted,
 });
-const fieldSt = { width: "100%", boxSizing: "border-box", border: `1px solid ${palette.border}`, background: palette.field, color: palette.text, borderRadius: "12px", padding: "11px 12px", fontSize: "14px", marginTop: "6px", display: "block" };
+const fieldSt = { width: "100%", boxSizing: "border-box", get border() { return `1px solid ${palette.border}`; }, get background() { return palette.field; }, get color() { return palette.text; }, borderRadius: "12px", padding: "11px 12px", fontSize: "14px", marginTop: "6px", display: "block" };
 
 // ---------- Calendar ----------
 function CalendarSection({ trades, tradesByDay, calMonth, setCalMonth, selectedDay, setSelectedDay, startingBalance, isDesktop, dayJournals, findSetupLabel, onOpenJournal, onLogTrade, onOpenTrade }) {
@@ -1366,11 +1367,20 @@ function LogTradeSheet(props) {
   const riskPct = Number(settings.riskPercent) > 0 ? Number(settings.riskPercent) : 1;
   const riskAmount = account > 0 ? (account * riskPct) / 100 : 0;
   const c = calcTrade(tradeExtra, tradeDirection, numOrNull(tradeInput), riskAmount);
-  // P/L follows the numbers whenever entry, exit and size are all filled in.
+  // The result follows the numbers once you change them. Opening an old trade never rewrites its saved result.
+  const firstRun = useRef(true);
+  const autoSet = useRef(false);
   useEffect(() => {
-    if (c.calcPnl != null) setTradeInput(String(Math.round(c.calcPnl * 100) / 100));
+    if (firstRun.current) { firstRun.current = false; return; }
+    if (c.calcPnl != null) {
+      autoSet.current = true;
+      setTradeInput(String(Math.round(c.calcPnl * 100) / 100));
+    } else if (autoSet.current) {
+      autoSet.current = false;
+      setTradeInput("");
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tradeExtra.e, tradeExtra.s, tradeExtra.x, tradeExtra.z, tradeDirection, riskAmount]);
+  }, [tradeExtra.e, tradeExtra.s, tradeExtra.x, tradeExtra.z, tradeDirection]);
 
   const draft = { pnl: c.pnl == null ? 0 : c.pnl, mist: tradeExtra.mist, rulesOk: tradeExtra.rulesOk };
   const verdict = tradeVerdict(draft, playbookRules);
