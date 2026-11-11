@@ -378,6 +378,7 @@ export default function RoomSheet({ room, token, me, onLeave, toast }) {
         const e = s.peers.get(m.from);
         if (e && m.state) { e.state = m.state; syncPeers(); }
       } else if (m.t === "chat") {
+        if (m.from === s.myId) return; // the server echoes your own message back; it is already on screen
         setChat((c) => [...c.slice(-99), { id: `${m.ts}-${m.from}`, name: m.name, text: m.text, ts: m.ts }]);
         if (tabRef.current !== "chat") setUnread((u) => u + 1);
       } else if (m.t === "ended") {
