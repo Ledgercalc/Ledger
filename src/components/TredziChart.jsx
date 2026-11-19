@@ -21,16 +21,16 @@ const BT = {
   trend: "segment", ray: "rayLine", xline: "straightLine", arrow: "btArrow", hline: "horizontalStraightLine", hray: "horizontalRayLine",
   vline: "verticalStraightLine", channel: "parallelStraightLine", fib: "btFib", measure: "btMeasure", rect: "btRect", text: "btText",
   long: "btLong", short: "btShort", cross: "btCross", infoline: "btInfo", ellipse: "btEllipse", triangle: "btTriangle",
-  pitchfork: "btPitchfork", fibext: "btFibExt", prange: "btPriceRange", drange: "btDateRange", brush: "btBrush",
+  pitchfork: "btPitchfork", fibext: "btFibExt", prange: "btPriceRange", drange: "btDateRange", vprange: "btVpRange", brush: "btBrush",
 };
 const NAME_LABEL = {
   segment: "Trend line", rayLine: "Ray", straightLine: "Extended line", btArrow: "Arrow", horizontalStraightLine: "Horizontal line",
   horizontalRayLine: "Horizontal ray", verticalStraightLine: "Vertical line", parallelStraightLine: "Parallel channel",
   btFib: "Fib retracement", btMeasure: "Measure", btRect: "Rectangle", btText: "Text", btLong: "Long position", btShort: "Short position",
   btCross: "Cross line", btInfo: "Info line", btEllipse: "Ellipse", btTriangle: "Triangle", btPitchfork: "Pitchfork",
-  btFibExt: "Fib extension", btPriceRange: "Price range", btDateRange: "Date range", btBrush: "Brush",
+  btFibExt: "Fib extension", btPriceRange: "Price range", btDateRange: "Date range", btVpRange: "Fixed range volume profile", btBrush: "Brush",
 };
-const NO_STYLE_BAR = ["btLong", "btShort", "btMeasure", "btFib", "btFibExt", "btPriceRange", "btDateRange"];
+const NO_STYLE_BAR = ["btLong", "btShort", "btMeasure", "btFib", "btFibExt", "btPriceRange", "btDateRange", "btVpRange"];
 const FIB_LEVELS = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];
 const FIB_COLORS = ["#787b86", "#f23645", "#ff9800", "#4caf50", "#089981", "#00bcd4", "#787b86"];
 
@@ -109,7 +109,7 @@ function writeSaved(k, list) {
 
 
 // How many taps each tool needs.
-const NEED = { hline: 1, hray: 1, vline: 1, cross: 1, text: 1, trend: 2, infoline: 2, ray: 2, xline: 2, arrow: 2, rect: 2, ellipse: 2, fib: 2, measure: 2, prange: 2, drange: 2, channel: 3, triangle: 3, pitchfork: 3, fibext: 3, long: 3, short: 3, brush: 100000 };
+const NEED = { hline: 1, hray: 1, vline: 1, cross: 1, text: 1, trend: 2, infoline: 2, ray: 2, xline: 2, arrow: 2, rect: 2, ellipse: 2, fib: 2, measure: 2, prange: 2, drange: 2, channel: 3, triangle: 3, pitchfork: 3, fibext: 3, long: 3, short: 3, vprange: 2, brush: 100000 };
 const HINTS = {
   hline: ["Tap where the line should go"],
   hray: ["Tap where the ray should start"],
@@ -132,10 +132,11 @@ const HINTS = {
   measure: ["Tap the start point", "Tap the end point"],
   prange: ["Tap the first price", "Tap the second price"],
   drange: ["Tap the start time", "Tap the end time"],
+  vprange: ["Tap the start of the range", "Tap the end of the range"],
   long: ["Tap your entry price", "Tap your stop loss", "Tap your take profit"],
   short: ["Tap your entry price", "Tap your stop loss", "Tap your take profit"],
 };
-const IC = Object.fromEntries(["trend", "infoline", "ray", "xline", "arrow", "hline", "hray", "vline", "cross", "channel", "pitchfork", "fib", "fibext", "measure", "prange", "drange", "rect", "ellipse", "triangle", "brush", "text", "long", "short"].map((id) => [id, iconFor(id)]));
+const IC = Object.fromEntries(["trend", "infoline", "ray", "xline", "arrow", "hline", "hray", "vline", "cross", "channel", "pitchfork", "fib", "fibext", "measure", "prange", "drange", "vprange", "rect", "ellipse", "triangle", "brush", "text", "long", "short"].map((id) => [id, iconFor(id === "vprange" ? "drange" : id)]));
 // Same categories as TradingView's left toolbar: one button per group, the group's tools open in a menu.
 const TOOL_GROUPS = [
   { id: "lines", title: "Trend line tools", tools: [
@@ -162,6 +163,7 @@ const TOOL_GROUPS = [
     { id: "short", label: "Short position", Icon: IC.short },
     { id: "prange", label: "Price range", Icon: IC.prange },
     { id: "drange", label: "Date range", Icon: IC.drange },
+    { id: "vprange", label: "Fixed range volume profile", Icon: IC.vprange },
     { id: "measure", label: "Measure", Icon: IC.measure },
   ] },
   { id: "shapes", title: "Shapes", tools: [
@@ -353,6 +355,139 @@ function arrowHead(ctx, x, y, ang, len) {
   ctx.fill();
 }
 
+// ---- fixed range volume profile ----
+const VP_ROWS = 24;
+const vpCache = new Map();
+function vpCompute(env, l0, l1) {
+  const { eng, data } = env;
+  const n = eng.n;
+  const lo = Math.max(0, Math.min(l0, l1));
+  const hi = Math.min(n - 1, Math.max(l0, l1));
+  if (hi < lo || n < 1) return null;
+  const cs = eng.candles;
+  const m1 = data && data.m1 && data.m1.n ? data.m1 : null;
+  const key = `${lo}|${hi}|${n}|${cs[lo].time}|${cs[hi].time}|${cs[hi].high}|${cs[hi].low}|${cs[hi].volume}|${m1 ? m1.n : 0}`;
+  const hit = vpCache.get(key);
+  if (hit) return hit;
+  let pLo = Infinity;
+  let pHi = -Infinity;
+  for (let i = lo; i <= hi; i++) {
+    if (cs[i].low < pLo) pLo = cs[i].low;
+    if (cs[i].high > pHi) pHi = cs[i].high;
+  }
+  if (!(pHi > pLo)) return null;
+  const step = (pHi - pLo) / VP_ROWS;
+  const up = new Float64Array(VP_ROWS);
+  const dn = new Float64Array(VP_ROWS);
+  const add = (low, high, vol, isUp) => {
+    let r0 = Math.floor((low - pLo) / step);
+    let r1 = Math.floor((high - pLo) / step);
+    r0 = Math.max(0, Math.min(VP_ROWS - 1, r0));
+    r1 = Math.max(0, Math.min(VP_ROWS - 1, r1));
+    const per = vol / (r1 - r0 + 1);
+    const t = isUp ? up : dn;
+    for (let r = r0; r <= r1; r++) t[r] += per;
+  };
+  // first minute at or after time t
+  const lower = (t) => {
+    let a = 0;
+    let b = m1.n;
+    while (a < b) {
+      const m = (a + b) >> 1;
+      if (m1.time[m] < t) a = m + 1;
+      else b = m;
+    }
+    return a;
+  };
+  for (let i = lo; i <= hi; i++) {
+    const c = cs[i];
+    // bars before the replay bar use their real minutes; the live bar only uses what it has shown so far
+    if (m1 && i < n - 1) {
+      const k1 = lower(cs[i + 1].time);
+      let used = false;
+      for (let k = lower(c.time); k < k1; k++) {
+        const v = m1.hasVol ? m1.vol[k] : 1;
+        if (v > 0) {
+          add(m1.low[k], m1.high[k], v, m1.up[k] === 1);
+          used = true;
+        }
+      }
+      if (used) continue;
+    }
+    const v = c.volume > 0 ? c.volume : 1;
+    add(c.low, c.high, v, c.close >= c.open);
+  }
+  const tot = new Float64Array(VP_ROWS);
+  let poc = 0;
+  let sum = 0;
+  for (let r = 0; r < VP_ROWS; r++) {
+    tot[r] = up[r] + dn[r];
+    sum += tot[r];
+    if (tot[r] > tot[poc]) poc = r;
+  }
+  // value area: grow from the POC until 70% of the volume is inside
+  let vl = poc;
+  let vh = poc;
+  let acc = tot[poc];
+  while (acc < sum * 0.7 && (vl > 0 || vh < VP_ROWS - 1)) {
+    const dUp = vh < VP_ROWS - 1 ? tot[vh + 1] : -1;
+    const dDn = vl > 0 ? tot[vl - 1] : -1;
+    if (dUp >= dDn) acc += tot[++vh];
+    else acc += tot[--vl];
+  }
+  const res = { pLo, pHi, step, up, dn, tot, poc, vl, vh, max: tot[poc], lo, hi };
+  if (vpCache.size > 60) vpCache.clear();
+  vpCache.set(key, res);
+  return res;
+}
+
+function paintVpRange(ctx, d, env, st, line) {
+  const { eng, plotH, pal } = env;
+  const [a, b] = d.pts;
+  const xa = eng.xOf(a.l);
+  if (!b) {
+    ctx.setLineDash([]);
+    ctx.strokeStyle = st.solid;
+    ctx.lineWidth = 1;
+    line(xa, 0, xa, plotH);
+    return;
+  }
+  const xb = eng.xOf(b.l);
+  const x0 = Math.min(xa, xb);
+  const x1 = Math.max(xa, xb);
+  ctx.setLineDash([]);
+  ctx.fillStyle = hexA(st.solid, 0.05);
+  ctx.fillRect(x0, 0, x1 - x0, plotH);
+  ctx.strokeStyle = st.solid;
+  ctx.lineWidth = 1;
+  line(x0, 0, x0, plotH);
+  line(x1, 0, x1, plotH);
+  const vp = vpCompute(env, Math.min(a.l, b.l), Math.max(a.l, b.l));
+  if (!vp) return;
+  const maxW = (x1 - x0) * 0.7;
+  const upC = (pal && pal.up) || "#26a69a";
+  const dnC = (pal && pal.down) || "#ef5350";
+  for (let r = 0; r < VP_ROWS; r++) {
+    if (vp.tot[r] <= 0) continue;
+    const yTop = eng.yOf(vp.pLo + (r + 1) * vp.step);
+    const yBot = eng.yOf(vp.pLo + r * vp.step);
+    const h = Math.max(1, Math.abs(yBot - yTop) - 1);
+    const y = Math.min(yTop, yBot);
+    const w = (vp.tot[r] / vp.max) * maxW;
+    const wu = (vp.up[r] / vp.tot[r]) * w;
+    const inVa = r >= vp.vl && r <= vp.vh;
+    const al = inVa ? 0.55 : 0.28;
+    ctx.fillStyle = hexA(upC, al);
+    ctx.fillRect(x0, y, wu, h);
+    ctx.fillStyle = hexA(dnC, al);
+    ctx.fillRect(x0 + wu, y, w - wu, h);
+  }
+  const yp = (eng.yOf(vp.pLo + vp.poc * vp.step) + eng.yOf(vp.pLo + (vp.poc + 1) * vp.step)) / 2;
+  ctx.strokeStyle = "#f5c542";
+  ctx.lineWidth = 1.5;
+  line(x0, yp, x1, yp);
+}
+
 function paintExtra(ctx, d, env, st, line, chip) {
   const { eng, plotW, plotH, prec, pal } = env;
   const X = (pt) => eng.xOf(pt.l);
@@ -362,6 +497,9 @@ function paintExtra(ctx, d, env, st, line, chip) {
   const ya = Y(a);
   const fillA = d.fill == null ? 0.14 : d.fill;
   switch (d.type) {
+    case "vprange":
+      paintVpRange(ctx, d, env, st, line);
+      return true;
     case "cross":
       line(0, ya, plotW, ya);
       line(xa, 0, xa, plotH);
@@ -595,6 +733,11 @@ function hitMore(d, x, y, env, near) {
       const x1 = Math.max(xa, xb, x0 + 30);
       return x >= x0 - near && x <= x1 + near && y >= Math.min(ya, yb) - near && y <= Math.max(ya, yb) + near;
     }
+    case "vprange": {
+      if (!b) return false;
+      const xb = X(b);
+      return x >= Math.min(xa, xb) - near && x <= Math.max(xa, xb) + near;
+    }
     case "drange": {
       if (!b) return false;
       const xb = X(b);
@@ -611,6 +754,9 @@ function hitDrawing(d, x, y, env, near = 9) {
 }
 function handlesOf(d, env) {
   if (d.type === "brush") return [];
+  if (d.type === "vprange") {
+    return d.pts.map((p, i) => ({ x: env.eng.xOf(p.l), y: env.plotH / 2, mode: "pt", i })).filter((h) => h.x != null);
+  }
   return handlesBase(d, env);
 }
 
@@ -882,6 +1028,8 @@ function TredziChartInner({ candles, sessionKey, lines, markers, colors, precisi
   const engRef = useRef(null);
   if (!engRef.current) engRef.current = new ChartEngine();
   const eng = engRef.current;
+  const dataRef = useRef(candles);
+  dataRef.current = candles;
   const dirtyRef = useRef(true);
   const markDirty = () => {
     dirtyRef.current = true;
@@ -1143,6 +1291,7 @@ function TredziChartInner({ candles, sessionKey, lines, markers, colors, precisi
     plotW: eng.plotW,
     plotH: eng.plotH,
     prec: precRef.current,
+    data: dataRef.current,
     pal: { up: colorsRef.current.up, down: colorsRef.current.down },
   });
 
