@@ -356,9 +356,9 @@ function arrowHead(ctx, x, y, ang, len) {
 }
 
 // ---- fixed range volume profile ----
-const VP_ROWS = 24;
+const VPR_DEFAULTS = { rows: 24, va: 70, width: 70, up: "", down: "", poc: "#f5c542", vah: "#2962ff", val: "#ab47bc" };
 const vpCache = new Map();
-function vpCompute(env, l0, l1) {
+function vpCompute(env, l0, l1, VP_ROWS, vaPct) {
   const { eng, data } = env;
   const n = eng.n;
   const lo = Math.max(0, Math.min(l0, l1));
@@ -366,7 +366,7 @@ function vpCompute(env, l0, l1) {
   if (hi < lo || n < 1) return null;
   const cs = eng.candles;
   const m1 = data && data.m1 && data.m1.n ? data.m1 : null;
-  const key = `${lo}|${hi}|${n}|${cs[lo].time}|${cs[hi].time}|${cs[hi].high}|${cs[hi].low}|${cs[hi].volume}|${m1 ? m1.n : 0}`;
+  const key = `${VP_ROWS}|${vaPct}|${lo}|${hi}|${n}|${cs[lo].time}|${cs[hi].time}|${cs[hi].high}|${cs[hi].low}|${cs[hi].volume}|${m1 ? m1.n : 0}`;
   const hit = vpCache.get(key);
   if (hit) return hit;
   let pLo = Infinity;
@@ -429,7 +429,7 @@ function vpCompute(env, l0, l1) {
   let vl = poc;
   let vh = poc;
   let acc = tot[poc];
-  while (acc < sum * 0.7 && (vl > 0 || vh < VP_ROWS - 1)) {
+  while (acc < sum * (vaPct / 100) && (vl > 0 || vh < VP_ROWS - 1)) {
     const dUp = vh < VP_ROWS - 1 ? tot[vh + 1] : -1;
     const dDn = vl > 0 ? tot[vl - 1] : -1;
     if (dUp >= dDn) acc += tot[++vh];
@@ -441,7 +441,7 @@ function vpCompute(env, l0, l1) {
   return res;
 }
 
-function paintVpRange(ctx, d, env, st, line) {
+function paintVpRange(ctx, d, env, st, line, chip) {
   const { eng, plotH, pal } = env;
   const [a, b] = d.pts;
   const xa = eng.xOf(a.l);
@@ -462,11 +462,13 @@ function paintVpRange(ctx, d, env, st, line) {
   ctx.lineWidth = 1;
   line(x0, 0, x0, plotH);
   line(x1, 0, x1, plotH);
-  const vp = vpCompute(env, Math.min(a.l, b.l), Math.max(a.l, b.l));
+  const o = { ...VPR_DEFAULTS, ...(d.vp || {}) };
+  const VP_ROWS = Math.max(4, Math.min(200, Math.round(o.rows) || 24));
+  const vp = vpCompute(env, Math.min(a.l, b.l), Math.max(a.l, b.l), VP_ROWS, o.va);
   if (!vp) return;
-  const maxW = (x1 - x0) * 0.7;
-  const upC = (pal && pal.up) || "#26a69a";
-  const dnC = (pal && pal.down) || "#ef5350";
+  const maxW = (x1 - x0) * (o.width / 100);
+  const upC = o.up || (pal && pal.up) || "#26a69a";
+  const dnC = o.down || (pal && pal.down) || "#ef5350";
   for (let r = 0; r < VP_ROWS; r++) {
     if (vp.tot[r] <= 0) continue;
     const yTop = eng.yOf(vp.pLo + (r + 1) * vp.step);
@@ -483,9 +485,19 @@ function paintVpRange(ctx, d, env, st, line) {
     ctx.fillRect(x0 + wu, y, w - wu, h);
   }
   const yp = (eng.yOf(vp.pLo + vp.poc * vp.step) + eng.yOf(vp.pLo + (vp.poc + 1) * vp.step)) / 2;
-  ctx.strokeStyle = "#f5c542";
+  ctx.strokeStyle = o.poc;
   ctx.lineWidth = 1.5;
   line(x0, yp, x1, yp);
+  const prec = env.prec;
+  const yH = eng.yOf(vp.pLo + (vp.vh + 1) * vp.step);
+  const yL = eng.yOf(vp.pLo + vp.vl * vp.step);
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = o.vah;
+  line(x0, yH, x1, yH);
+  ctx.strokeStyle = o.val;
+  line(x0, yL, x1, yL);
+  chip(`VAH ${(vp.pLo + (vp.vh + 1) * vp.step).toFixed(prec)}`, Math.max(x1 - 48, x0 + 48), yH - 9, o.vah, "center");
+  chip(`VAL ${(vp.pLo + vp.vl * vp.step).toFixed(prec)}`, Math.max(x1 - 48, x0 + 48), yL + 9, o.val, "center");
 }
 
 function paintExtra(ctx, d, env, st, line, chip) {
@@ -498,7 +510,7 @@ function paintExtra(ctx, d, env, st, line, chip) {
   const fillA = d.fill == null ? 0.14 : d.fill;
   switch (d.type) {
     case "vprange":
-      paintVpRange(ctx, d, env, st, line);
+      paintVpRange(ctx, d, env, st, line, chip);
       return true;
     case "cross":
       line(0, ya, plotW, ya);
@@ -1129,6 +1141,7 @@ function TredziChartInner({ candles, sessionKey, lines, markers, colors, precisi
       text: d.text,
       size: d.size,
       fill: d.fill,
+      vp: d.vp,
       style: d.style,
     }));
     writeSaved(key, list);
@@ -1228,7 +1241,7 @@ function TredziChartInner({ candles, sessionKey, lines, markers, colors, precisi
       if (token !== loadTokenRef.current) return;
       const out = list
         .filter((r) => r && BT[r.type] && Array.isArray(r.pts) && r.pts.length >= 1 && r.pts.every((p) => Number.isFinite(p.t) && Number.isFinite(p.p)))
-        .map((r) => ({ id: uid(), type: r.type, pts: r.pts.map((p) => ({ l: Math.round(eng.logicalAt(p.t)), p: p.p })), text: r.text, size: r.size, fill: r.fill, style: r.style || { ...DEFAULT_UI } }));
+        .map((r) => ({ id: uid(), type: r.type, pts: r.pts.map((p) => ({ l: Math.round(eng.logicalAt(p.t)), p: p.p })), text: r.text, size: r.size, fill: r.fill, vp: r.vp, style: r.style || { ...DEFAULT_UI } }));
       setDrawings(out);
       loadingRef.current = false;
     });
@@ -1718,7 +1731,7 @@ function TredziChartInner({ candles, sessionKey, lines, markers, colors, precisi
   const settingsOpen = settings && !!selected;
   const selD = settingsOpen ? drawings.find((d) => d.id === selected.id) : null;
   const ov = selD
-    ? { id: selD.id, name: BT[selD.type], points: selD.pts.map((p) => ({ value: p.p, timestamp: eng.timeAt(p.l) })), extendData: { fill: selD.fill, text: selD.text, size: selD.size } }
+    ? { id: selD.id, name: BT[selD.type], points: selD.pts.map((p) => ({ value: p.p, timestamp: eng.timeAt(p.l) })), extendData: { fill: selD.fill, text: selD.text, size: selD.size, vp: selD.vp } }
     : null;
   const setPointValue = (i, raw) => {
     const n = parseFloat(raw);
@@ -2027,6 +2040,36 @@ function TredziChartInner({ candles, sessionKey, lines, markers, colors, precisi
                 <span style={{ width: 36, textAlign: "right" }}>{Math.round(((ov.extendData && Number.isFinite(ov.extendData.fill) ? ov.extendData.fill : 0.14)) * 100)}%</span>
               </label>
             )}
+            {ov.name === "btVpRange" && (() => {
+              const o = { ...VPR_DEFAULTS, ...((ov.extendData && ov.extendData.vp) || {}) };
+              const setO = (patch) => patchExtend({ vp: { ...o, ...patch } });
+              const colRow = (label, key, fallback) => (
+                <label key={key} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, fontSize: 12.5 }}>
+                  <span style={{ flex: 1 }}>{label}</span>
+                  <input type="color" aria-label={label} value={/^#[0-9a-f]{6}$/i.test(o[key]) ? o[key] : fallback} onChange={(e) => setO({ [key]: e.target.value })} style={{ width: 34, height: 28, padding: 0, border: `1px solid ${colors.border}`, borderRadius: 6, background: "transparent", cursor: "pointer" }} />
+                </label>
+              );
+              const numRow = (label, key, min, max, unit) => (
+                <label key={key} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, fontSize: 12.5 }}>
+                  <span style={{ width: 90 }}>{label}</span>
+                  <input type="range" min={min} max={max} value={o[key]} onChange={(e) => setO({ [key]: Number(e.target.value) })} style={{ flex: 1 }} />
+                  <span style={{ width: 44, textAlign: "right" }}>{o[key]}{unit}</span>
+                </label>
+              );
+              return (
+                <div style={{ marginBottom: 14 }}>
+                  {colRow("Up volume", "up", colors.up || "#26a69a")}
+                  {colRow("Down volume", "down", colors.down || "#ef5350")}
+                  {colRow("POC", "poc", "#f5c542")}
+                  {colRow("VAH", "vah", "#2962ff")}
+                  {colRow("VAL", "val", "#ab47bc")}
+                  {numRow("Value area", "va", 10, 95, "%")}
+                  {numRow("Rows", "rows", 8, 100, "")}
+                  {numRow("Width", "width", 20, 100, "%")}
+                  <button type="button" onClick={() => patchExtend({ vp: undefined })} style={{ height: 30, padding: "0 12px", borderRadius: 8, border: `1px solid ${colors.border}`, background: "transparent", color: colors.text, fontFamily: colors.font, fontSize: 12, cursor: "pointer" }}>Reset to defaults</button>
+                </div>
+              );
+            })()}
             {ov.name === "btText" && (
               <div style={{ marginBottom: 14 }}>
                 <div style={{ fontSize: 11.5, opacity: 0.65, marginBottom: 6 }}>Text</div>
