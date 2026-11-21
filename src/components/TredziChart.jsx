@@ -463,6 +463,7 @@ function paintVpRange(ctx, d, env, st, line, chip) {
   line(x0, 0, x0, plotH);
   line(x1, 0, x1, plotH);
   const o = { ...VPR_DEFAULTS, ...(d.vp || {}) };
+  if (d.label) chip(d.label, x0 + 52, 14 + 18 * (d.row || 0), st.solid, "center");
   const VP_ROWS = Math.max(4, Math.min(200, Math.round(o.rows) || 24));
   const vp = vpCompute(env, Math.min(a.l, b.l), Math.max(a.l, b.l), VP_ROWS, o.va);
   if (!vp) return;
@@ -1142,6 +1143,9 @@ function TredziChartInner({ candles, sessionKey, lines, markers, colors, precisi
       size: d.size,
       fill: d.fill,
       vp: d.vp,
+      log: d.log,
+      label: d.label,
+      row: d.row,
       style: d.style,
     }));
     writeSaved(key, list);
@@ -1241,7 +1245,7 @@ function TredziChartInner({ candles, sessionKey, lines, markers, colors, precisi
       if (token !== loadTokenRef.current) return;
       const out = list
         .filter((r) => r && BT[r.type] && Array.isArray(r.pts) && r.pts.length >= 1 && r.pts.every((p) => Number.isFinite(p.t) && Number.isFinite(p.p)))
-        .map((r) => ({ id: uid(), type: r.type, pts: r.pts.map((p) => ({ l: Math.round(eng.logicalAt(p.t)), p: p.p })), text: r.text, size: r.size, fill: r.fill, vp: r.vp, style: r.style || { ...DEFAULT_UI } }));
+        .map((r) => ({ id: uid(), type: r.type, pts: r.pts.map((p) => ({ l: Math.round(eng.logicalAt(p.t)), p: p.p })), text: r.text, size: r.size, fill: r.fill, vp: r.vp, log: r.log, label: r.label, row: r.row, style: r.style || { ...DEFAULT_UI } }));
       setDrawings(out);
       loadingRef.current = false;
     });
@@ -1446,6 +1450,39 @@ function TredziChartInner({ candles, sessionKey, lines, markers, colors, precisi
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ---- LOG: 7:00-11:00, 7:00-13:30 and 13:30-21:00 (UTC) volume profiles for the day of the current bar ----
+  const placeLog = () => {
+    const n = eng.n;
+    if (n < 1) return;
+    const cs = eng.candles;
+    const day = Math.floor(cs[n - 1].time / 86400) * 86400;
+    const defs = [["7:00-11:00", 7, 11, "#2962ff"], ["7:00-13:30", 7, 13.5, "#f5c542"], ["13:30-21:00", 13.5, 21, "#ab47bc"]];
+    const firstAtOrAfter = (t) => {
+      let a = 0;
+      let b = n;
+      while (a < b) {
+        const m = (a + b) >> 1;
+        if (cs[m].time < t) a = m + 1;
+        else b = m;
+      }
+      return a;
+    };
+    const made = [];
+    defs.forEach(([label, h0, h1, color], row) => {
+      const t0 = day + h0 * 3600;
+      const t1 = day + h1 * 3600;
+      const l0 = firstAtOrAfter(t0);
+      const l1 = firstAtOrAfter(t1) - 1;
+      if (l0 > n - 1 || l1 < l0) return;
+      const pm = cs[l0].close;
+      made.push({ id: uid(), type: "vprange", log: true, label: `LOG ${label}`, row, pts: [{ l: l0, p: pm }, { l: l1, p: pm }], style: { ...DEFAULT_UI, color } });
+    });
+    if (!made.length) return;
+    setDrawings((prev) => [...prev.filter((d) => !d.log), ...made]);
+    setSelected(null);
+    schedulePersist();
+  };
 
   // ---- drawing actions ----
   const removeDrawing = (id) => {
@@ -1840,6 +1877,9 @@ function TredziChartInner({ candles, sessionKey, lines, markers, colors, precisi
                       {label}
                     </button>
                   ))}
+                  <button type="button" role="menuitem" onClick={() => { placeLog(); setVpMenu(false); }} style={{ display: "block", width: "100%", textAlign: "left", padding: "8px 10px", marginTop: 4, borderTop: `1px solid ${colors.border}`, borderRadius: 0, border: "none", borderTopWidth: 1, background: "transparent", color: colors.text, fontFamily: colors.font, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                    LOG (7:00-11:00, 7:00-13:30, 13:30-21:00)
+                  </button>
                   <button type="button" role="menuitem" onClick={() => { setVpDialog(true); setVpMenu(false); }} style={{ display: "block", width: "100%", textAlign: "left", padding: "8px 10px", marginTop: 4, borderTop: `1px solid ${colors.border}`, borderRadius: 0, border: "none", borderTopWidth: 1, background: "transparent", color: colors.text, fontFamily: colors.font, fontSize: 12.5, cursor: "pointer" }}>
                     Settings...
                   </button>
@@ -2340,6 +2380,9 @@ function TredziChartInner({ candles, sessionKey, lines, markers, colors, precisi
                 ))}
               </div>
             </div>
+            <button type="button" onClick={() => { placeLog(); setSheet(false); }} style={{ marginTop: 8, width: "100%", height: 40, borderRadius: 10, border: `1px solid ${colors.border}`, background: "transparent", color: colors.text, fontFamily: colors.font, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+              LOG (7:00-11:00, 7:00-13:30, 13:30-21:00)
+            </button>
             <button type="button" onClick={() => { setVpDialog(true); setSheet(false); }} style={{ marginTop: 8, width: "100%", height: 40, borderRadius: 10, border: `1px solid ${colors.border}`, background: "transparent", color: colors.text, fontFamily: colors.font, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
               Volume profile settings...
             </button>
